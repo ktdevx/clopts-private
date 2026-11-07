@@ -1,1 +1,34 @@
 .claude/settings.local.json
+
+# Build directories
+/build/
+/build-*/
+/out/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+compile_commands.json
+
+# Test output
+Testing/
+
+# Tool caches
+.cache/
+
+# Editors
+.vs/
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db

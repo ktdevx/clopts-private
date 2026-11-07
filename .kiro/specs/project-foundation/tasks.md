@@ -1,7 +1,7 @@
 # Implementation Plan
 
 - [ ] 1. 基盤: ビルド骨格とテスト基盤
-- [ ] 1.1 ルートのビルド定義、コンパイラオプションヘルパ、モジュール追加ヘルパ、最初のモジュールを作り、空のライブラリがビルドできるようにする
+- [x] 1.1 ルートのビルド定義、コンパイラオプションヘルパ、モジュール追加ヘルパ、最初のモジュールを作り、空のライブラリがビルドできるようにする
   - CMake 3.21 以上を要求し、バージョンをプロジェクト定義の 1 か所にだけ書く。`TARGET clopts` が既にあれば何もせず戻るガードを先頭に置く
   - `CLOPTS_BUILD_TESTING` / `CLOPTS_INSTALL` / `CLOPTS_WERROR` の 3 オプションを、トップレベルのときだけ既定 ON で定義する
   - 静的ライブラリ `clopts` とエイリアス `CLOpts::clopts` を定義し、公開 include 基点を `include/`（install 後は `CMAKE_INSTALL_INCLUDEDIR`。そのためルートで `include(GNUInstallDirs)` を呼ぶ。キャッシュ変数の定義のみで、toolchain テストの検査対象外）、内部 include 基点を `src/` にする。傘ヘッダ `include/clopts/clopts.h` を置く（本タスクでは中身は空のガードのみ）
