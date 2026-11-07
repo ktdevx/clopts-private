@@ -10,7 +10,7 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 
 ## Boundary Context
 
-- **In scope**: ルートのビルド定義とヘルパ、`clopts` ターゲットと `clopts::clopts` エイリアス、公開ヘッダの置き場（`include/clopts/`）、`src/` と `tests/` のディレクトリ構成、モジュール追加とテスト登録のヘルパ、テストフレームワーク Naos の固定取得、install / export と package config、ビルド構成の要件を自動検証するテスト、5 環境の CI ワークフロー、内部ユーティリティ（書き込みコールバック型、`FILE*` ライタ、可変長配列、サイズ計算のオーバーフロー検査）とその単体テスト、LICENSE への Monde 由来コードの著作権表示の併記、`.gitignore` の整備
+- **In scope**: ルートのビルド定義とヘルパ、`clopts` ターゲットと `CLOpts::clopts` エイリアス、公開ヘッダの置き場（`include/clopts/`）、`src/` と `tests/` のディレクトリ構成、モジュール追加とテスト登録のヘルパ、テストフレームワーク Naos の固定取得、install / export と package config、ビルド構成の要件を自動検証するテスト、5 環境の CI ワークフロー、内部ユーティリティ（書き込みコールバック型、`FILE*` ライタ、可変長配列、サイズ計算のオーバーフロー検査）とその単体テスト、`.gitignore` の整備
 - **Out of scope**: 引数解析の機能一切と公開 API の宣言型（core-parser）、ヘルプ・エラーの文面（help-and-messages）、Windows の argv と環境変数の取得（platform-argv）、README の本文・利用者向け文書・サンプルプログラム・リリースワークフロー・利用側を模した取り込み経路の利用テスト（docs-and-release）
 - **Adjacent expectations**:
   - 後続 spec（core-parser、help-and-messages、platform-argv）は、本 spec が用意するモジュール追加・テスト登録の仕組みに従ってソースとテストを追加する。本 spec はそれらのモジュールの中身を持たない。
@@ -24,7 +24,7 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 **Objective:** As a CLOpts の開発者, I want 機能を持たない空のライブラリターゲットと公開ヘッダの置き場が用意されていること, so that 後続 spec が最初からソースを追加するだけで開発を始められる
 
 #### Acceptance Criteria
-1. The ビルド構成 shall 静的ライブラリターゲット `clopts` とそのエイリアス `clopts::clopts` を定義する。
+1. The ビルド構成 shall 静的ライブラリターゲット `clopts` とそのエイリアス `CLOpts::clopts` を定義する。
 2. The ビルド構成 shall 公開ヘッダの置き場として `include/clopts/` を持ち、傘ヘッダ `include/clopts/clopts.h` を提供する。
 3. The ビルド構成 shall `include/` を `clopts` ターゲットの公開 include 基点とし、利用側が `#include <clopts/clopts.h>` で公開ヘッダを参照できるようにする。
 4. The ビルド構成 shall 内部モジュールのソースを `src/<module>/` に置き、内部ヘッダの include 基点を `src/` としてライブラリ内部に限定する。
@@ -69,7 +69,7 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 1. The ビルド構成 shall 内部モジュール `<module>` のソースを `clopts` ターゲットに追加するヘルパを提供し、別個のライブラリターゲットを作らない。
 2. When 開発者がモジュール追加ヘルパを `src/<module>/` 配下のソース一覧とともに呼び出す, the ビルド構成 shall それらのソースを `clopts` ターゲットに組み込む。
 3. The ビルド構成 shall `tests/<module>/` の Naos テストを実行ファイル `<module>_tests` としてビルドし CTest に登録するヘルパを提供する。
-4. When 開発者がテスト登録ヘルパを呼び出す, the ビルド構成 shall 生成するテスト実行ファイルに `clopts::clopts` と Naos をリンクし、Requirement 3 のコンパイラオプションを適用し、CTest のラベル `<module>` を付与する。
+4. When 開発者がテスト登録ヘルパを呼び出す, the ビルド構成 shall 生成するテスト実行ファイルに `CLOpts::clopts` と Naos をリンクし、Requirement 3 のコンパイラオプションを適用し、CTest のラベル `<module>` を付与する。
 5. When 開発者が `ctest --test-dir build -L <module>` を実行する, the テスト基盤 shall 該当モジュールのテストだけを実行する。
 6. The ビルド構成 shall Naos の取得版（タグ `v0.4.0` とコミット SHA `09fde7172c4b63d416c32e98499cb0c0306d3dea`）を 1 か所で固定し、タグとコミット SHA の両方で検証する。
 7. Where 開発者が取得済みの Naos のローカルパスを指定する, the ビルド構成 shall ネットワークにアクセスせずそのローカルパスの Naos を使ってテストを構成する。
@@ -78,12 +78,12 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 
 ### Requirement 5: install / export と package config
 
-**Objective:** As a CLOpts をシステムにインストールして使う利用側の開発者, I want `find_package(clopts CONFIG)` で見つけて `clopts::clopts` にリンクするだけで使えること, so that 取り込み方法によらず同じリンク手順で済む
+**Objective:** As a CLOpts をシステムにインストールして使う利用側の開発者, I want `find_package(clopts CONFIG)` で見つけて `CLOpts::clopts` にリンクするだけで使えること, so that 取り込み方法によらず同じリンク手順で済む
 
 #### Acceptance Criteria
 1. While install が有効である, the ビルド構成 shall ライブラリ本体、`include/clopts/` 配下の公開ヘッダ、エクスポートされたターゲット定義、package config ファイル、バージョンファイルを install する。
 2. The ビルド構成 shall 内部モジュールのヘッダ（`src/` 配下）を install しない。
-3. When 利用側が install 済みの CLOpts を `find_package(clopts CONFIG)` で検索する, the package config shall インポートターゲット `clopts::clopts` を提供し、公開ヘッダの include パスと C99 の要件を利用側に伝える。
+3. When 利用側が install 済みの CLOpts を `find_package(clopts CONFIG)` で検索する, the package config shall インポートターゲット `CLOpts::clopts` を提供し、公開ヘッダの include パスと C99 の要件を利用側に伝える。
 4. When 利用側が `find_package(clopts <version> CONFIG)` でバージョンを指定する, the バージョンファイル shall インストール済みの版との互換性を判定し、非互換の版では検索を失敗させる。
 5. The バージョンファイル shall アーキテクチャ非依存とは宣言せず、異なるアーキテクチャ向けのインストールを互換とみなさない。
 6. The ビルド構成 shall install 時に使われた MSVC の CRT 種別を記録し、利用側が異なる CRT 種別で `find_package` した場合に警告を出すか、または package config の文書でその制約を明記する。
@@ -139,14 +139,13 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 8. The core モジュール shall 契約違反（NULL の配列への操作など）を `assert` で検出し、戻り値では報告しない。
 9. The core モジュール shall 可変長配列とサイズ計算の動作（拡張、オーバーフロー、確保失敗時の状態、解放の冪等性）を `tests/core/` の単体テストで検証する。
 
-### Requirement 10: ライセンス表示とリポジトリ衛生
+### Requirement 10: リポジトリ衛生
 
-**Objective:** As a CLOpts の保守者, I want Monde 由来コードの著作権表示が LICENSE に併記され、ビルド生成物がリポジトリに混入しないこと, so that ライセンス上の義務を満たしつつリポジトリを清潔に保てる
+**Objective:** As a CLOpts の保守者, I want ビルド生成物や取得した依存のソースがリポジトリに混入しないこと, so that リポジトリを清潔に保てる
 
 #### Acceptance Criteria
-1. The LICENSE ファイル shall MIT License のまま、`Copyright (c) 2026 The CLOpts Authors` に加えて `Copyright (c) 2026 The Monde Authors` の著作権表示を含む。
-2. The `.gitignore` shall ビルドディレクトリ、CMake の生成物、テストの出力、主要エディタ / OS の一時ファイルを除外する。
-3. The リポジトリ shall FetchContent で取得した Naos のソースをバージョン管理に含めない。
+1. The `.gitignore` shall ビルドディレクトリ、CMake の生成物、テストの出力、主要エディタ / OS の一時ファイルを除外する。
+2. The リポジトリ shall FetchContent で取得した Naos のソースをバージョン管理に含めない。
 
 ### Requirement 11: コーディング規約への準拠
 
