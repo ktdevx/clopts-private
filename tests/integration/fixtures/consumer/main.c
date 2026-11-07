@@ -7,7 +7,7 @@
  *   - main's parameters are unused on purpose: with CLOpts' -Wall -Wextra -Werror
  *     (or /W4 /WX) leaking into this target, the build would fail.
  */
-#include "clopts/clopts.h"
+#include <clopts/clopts.h>
 
 #include <stdio.h>
 #include <string.h>

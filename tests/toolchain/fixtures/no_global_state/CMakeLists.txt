@@ -125,6 +125,14 @@ fixture_check("before add_subdirectory")
 add_subdirectory("${CLOPTS_SOURCE_DIR}" clopts)
 fixture_check("after add_subdirectory")
 
+# As a subproject, install rules and warnings-as-errors default to OFF
+# (CLOPTS_BUILD_TESTING is forced OFF by run_fixture.cmake, so it is not checked here).
+foreach(_opt IN ITEMS CLOPTS_INSTALL CLOPTS_WERROR)
+    if(${_opt})
+        message(FATAL_ERROR "no_global_state: ${_opt} must default to OFF when CLOpts is a subproject")
+    endif()
+endforeach()
+
 # A second inclusion in the same build must not be a configure error.
 add_subdirectory("${CLOPTS_SOURCE_DIR}" clopts_second)
 fixture_check("after second add_subdirectory")
