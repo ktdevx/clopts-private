@@ -54,7 +54,7 @@
   - _Depends: 2.2_
   - _Requirements: 1.5, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
-- [ ] 4. 検証: ビルド構成の自動テスト
+- [x] 4. 検証: ビルド構成の自動テスト
 - [x] 4.1 子 CMake 項目を構成・ビルド・install・実行して期待結果と照合する共有スクリプトを作る
   - 引数: フィクスチャのソース、作業ディレクトリ、期待（構成成功 / ビルド成功 / ビルド失敗 / 実行成功）、構成名、CLOpts のソース / ビルドディレクトリ、追加引数、ジェネレータとコンパイラ、install 経路モード
   - 作業ディレクトリは毎回削除して作り直す。親と同じジェネレータ・コンパイラ・（単一構成なら）ビルド種別・（MSVC なら）プラットフォームを子に渡す
@@ -75,7 +75,7 @@
   - _Depends: 4.1_
   - _Requirements: 2.1, 2.2, 2.4, 2.5, 2.8, 2.9, 3.2, 3.4, 3.7, 4.9, 6.1, 6.2, 6.5_
 
-- [ ] 4.3 (P) 利用側を模したプロジェクトで `add_subdirectory` 経路と install → `find_package` 経路を CTest に登録する
+- [x] 4.3 (P) 利用側を模したプロジェクトで `add_subdirectory` 経路と install → `find_package` 経路を CTest に登録する
   - `consumer` フィクスチャ: モード変数で `add_subdirectory`（テスト・install・`-Werror` を OFF にして取り込む）と `find_package(CLOpts <現在の版> CONFIG REQUIRED)` を切り替え、`app` を `CLOpts::clopts` にリンクするだけでビルドする。`app` には警告フラグを付けない
   - 利用側ソース: 傘ヘッダを include し、`_CRT_SECURE_NO_WARNINGS` が定義されていれば `#error`、未使用引数を持つ `main` で `FILE*` ライタ経由で 1 行書き、終了コード 0
   - `tests/integration/` 配下だけを編集する。`integration.subdirectory`（実行成功期待）と `integration.install_find_package`（install 経路モード、実行成功期待。`CLOPTS_INSTALL` が ON のときのみ登録）をラベル `integration` で登録する
@@ -109,3 +109,4 @@
 - 可変長配列の `realloc` 失敗経路はフックを置かない方針のため直接テストできない。巨大な要素サイズ（`SIZE_MAX/4`）は確保前のオーバーフロー検査で失敗する。
 - `run_fixture.cmake` は子に `FIXTURE_BIN_DIR`（`<WORK_DIR>/bin`）を渡す。`run_ok` のフィクスチャは実行ファイルの `RUNTIME_OUTPUT_DIRECTORY` をこれにする（`CMAKE_RUNTIME_OUTPUT_DIRECTORY` は no_global_state の検査対象なので使わない）。利用側のモードや期待版は `EXTRA_ARGS` で渡す。「ビルド失敗」の検証には存在しないソースではなく存在しないヘッダを使う（ソースの欠落は構成時に失敗する）。
 - `toolchain.vla_fails` は `CLOPTS_WERROR=OFF` で取り込み、失敗が `-Werror=vla` そのものから来ることを確かめる（要件 3.7 は WERROR に依存しない）。`no_global_state` はルートのディレクトリスコープの変数も検出できるよう、CLOpts が追加したディレクトリを再帰的に検査する。
+- `-Wall` 単独の INTERFACE 漏れは利用側に `-Werror` がないためコンパイルでは検出できない（未使用引数で落ちるのは `-Wall -Wextra -Werror` がそろって漏れたときだけ）。そのため consumer フィクスチャは構成時に `CLOpts::clopts` の `INTERFACE_COMPILE_OPTIONS` に警告フラグがないこと、`INTERFACE_COMPILE_DEFINITIONS` に `_CRT_SECURE_NO_WARNINGS` がないことも検査する。design.md の IntegrationTests の記述はこの検査を反映していない。
