@@ -65,7 +65,7 @@
   - _Boundary: RunFixture, ToolchainTests, IntegrationTests_
   - _Requirements: 5.7, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 4.2 (P) ビルド構成の否定テスト（グローバル状態なし、警告のエラー化、VLA 禁止）を CTest に登録する
+- [x] 4.2 (P) ビルド構成の否定テスト（グローバル状態なし、警告のエラー化、VLA 禁止）を CTest に登録する
   - `no_global_state` フィクスチャ: CLOpts を `add_subdirectory` した直後に、`CMAKE_MSVC_RUNTIME_LIBRARY` / `CMAKE_C_STANDARD` / `CMAKE_C_EXTENSIONS` / 3 つの `CMAKE_*_OUTPUT_DIRECTORY` / `BUILD_SHARED_LIBS` / `BUILD_TESTING` が未定義、ディレクトリプロパティ（COMPILE_OPTIONS、COMPILE_DEFINITIONS、INCLUDE_DIRECTORIES、LINK_LIBRARIES）が空、`clopts` の INTERFACE のオプションと定義が空で INTERFACE の機能が `c_std_99` のみ、`Naos::naos` が存在しないことを検査し、違反は構成エラー。CLOpts を 2 回 `add_subdirectory` しても構成エラーにならないことも同じフィクスチャで検査する
   - `warning` フィクスチャ: `CLOPTS_WERROR=ON` で CLOpts を取り込み、未使用変数と符号比較を含むソースにコンパイラオプションヘルパを当てる。ビルド失敗が期待値
   - `vla` フィクスチャ: 同上で VLA を含むソース。ビルド失敗が期待値
@@ -108,3 +108,4 @@
 - オフライン検証には `-DFETCHCONTENT_SOURCE_DIR_NAOS=<絶対パス>` を使う（相対パスは早期の版照合で version.h が見つからず構成エラーになる）。glibc + GCC では `m` のリンクは不要だったが、design に従い CI で確認するまで残している。
 - 可変長配列の `realloc` 失敗経路はフックを置かない方針のため直接テストできない。巨大な要素サイズ（`SIZE_MAX/4`）は確保前のオーバーフロー検査で失敗する。
 - `run_fixture.cmake` は子に `FIXTURE_BIN_DIR`（`<WORK_DIR>/bin`）を渡す。`run_ok` のフィクスチャは実行ファイルの `RUNTIME_OUTPUT_DIRECTORY` をこれにする（`CMAKE_RUNTIME_OUTPUT_DIRECTORY` は no_global_state の検査対象なので使わない）。利用側のモードや期待版は `EXTRA_ARGS` で渡す。「ビルド失敗」の検証には存在しないソースではなく存在しないヘッダを使う（ソースの欠落は構成時に失敗する）。
+- `toolchain.vla_fails` は `CLOPTS_WERROR=OFF` で取り込み、失敗が `-Werror=vla` そのものから来ることを確かめる（要件 3.7 は WERROR に依存しない）。`no_global_state` はルートのディレクトリスコープの変数も検出できるよう、CLOpts が追加したディレクトリを再帰的に検査する。
