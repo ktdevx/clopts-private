@@ -7,17 +7,16 @@ CLOpts を開発する開発者（および後続の 4 spec を実装するエ�
 リポジトリには `LICENSE`（MIT、The CLOpts Authors）、1 行の `README.md`、`.gitignore`、Kiro の skill とテンプレートだけがあり、CMake 構成・ソース・テスト・CI は存在しない。参照元の Monde は C99、CMake 3.21+、Naos v0.4.0（FetchContent）、CI マトリクス MSVC / MinGW-w64 / Apple Clang / GCC / Clang で、警告は `cmake/MondeCompilerOptions.cmake` でターゲット単位に適用している。
 
 ## Desired Outcome
-- `cmake -S . -B build && cmake --build build && ctest --test-dir build` が 5 つの CI 環境すべてで通る空のライブラリ（`clopts` ターゲットと `clopts::clopts` エイリアス）が存在する。
-- 利用側が `add_subdirectory(clopts)`、`FetchContent_MakeAvailable(clopts)`、`find_package(clopts CONFIG)` のいずれでも `target_link_libraries(app PRIVATE clopts::clopts)` だけで使え、利用側のビルド設定（CRT 種別、C 規格、警告）を汚さない。
+- `cmake -S . -B build && cmake --build build && ctest --test-dir build` が 5 つの CI 環境すべてで通る空のライブラリ（`clopts` ターゲットと `CLOpts::clopts` エイリアス）が存在する。
+- 利用側が `add_subdirectory(clopts)`、`FetchContent_MakeAvailable(clopts)`、`find_package(CLOpts CONFIG)` のいずれでも `target_link_libraries(app PRIVATE CLOpts::clopts)` だけで使え、利用側のビルド設定（CRT 種別、C 規格、警告）を汚さない。
 - 後続 spec が「モジュールのソースを追加し、`tests/<module>/` に Naos のテストを追加する」だけで済む仕組み（モジュール追加とテスト登録の CMake ヘルパ）がある。
 - 書き込みコールバック型（`clopts_writer_t` 相当: `write(ctx, data, len)`）と `FILE*` 向けの既製ライタ、可変長配列などの内部ユーティリティが、単体テスト付きで用意されている。
-- LICENSE に Monde 由来コードの著作権表示（`Copyright (c) 2026 The Monde Authors`）が併記されている。
 
 ## Approach
 Monde の `cmake/MondeCompilerOptions.cmake` / `MondeTargets.cmake` / `MondeNaos.cmake` を参考に、ライブラリ向けに作り直す。すべての設定をターゲット単位（`target_compile_features(clopts PUBLIC c_std_99)`、`target_compile_options(... PRIVATE ...)`）にし、テスト・install・`-Werror` は `if(PROJECT_IS_TOP_LEVEL)`（CMake 3.21）または `CLOPTS_BUILD_TESTING` 等のオプションで囲む。install では `install(EXPORT ... NAMESPACE clopts::)` と `write_basic_package_version_file`（静的ライブラリなので `ARCH_INDEPENDENT` は付けない）で package config を出す。MSVC の CRT 種別は設定せず利用側から継承し、install 経路ではビルド時の CRT をキャッシュ変数で記録して config で警告する（または文書化する）。Naos はタグ v0.4.0 とコミット SHA（`09fde7172c4b63d416c32e98499cb0c0306d3dea`）の両方で固定し、`BUILD_TESTING` が ON のときだけ取得する。
 
 ## Scope
-- **In**: ルート `CMakeLists.txt`、`cmake/` のヘルパ（コンパイラオプション、モジュール追加、テスト登録、Naos 取得、install/export）、`src/` と `tests/` のディレクトリ構成、空の `clopts` ターゲットと公開ヘッダの置き場（`include/clopts/`）、内部ユーティリティ（書き込みコールバック型と `FILE*` ライタ、可変長配列、必要ならサイズ計算のオーバーフロー検査）、CI ワークフロー（5 環境でビルドとテスト）、ビルド構成の要件（グローバル設定を置かないこと、install 経路が動くこと）を CTest で自動検証するテスト、LICENSE の併記、`.gitignore` の整備
+- **In**: ルート `CMakeLists.txt`、`cmake/` のヘルパ（コンパイラオプション、モジュール追加、テスト登録、Naos 取得、install/export）、`src/` と `tests/` のディレクトリ構成、空の `clopts` ターゲットと公開ヘッダの置き場（`include/clopts/`）、内部ユーティリティ（書き込みコールバック型と `FILE*` ライタ、可変長配列、必要ならサイズ計算のオーバーフロー検査）、CI ワークフロー（5 環境でビルドとテスト）、ビルド構成の要件（グローバル設定を置かないこと、install 経路が動くこと）を CTest で自動検証するテスト、`.gitignore` の整備
 - **Out**: 引数解析の機能一切、ヘルプ文面、Windows argv、README の本文、リリースワークフロー（docs-and-release が担う）
 
 ## Boundary Candidates

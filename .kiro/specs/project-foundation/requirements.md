@@ -78,16 +78,16 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 
 ### Requirement 5: install / export と package config
 
-**Objective:** As a CLOpts をシステムにインストールして使う利用側の開発者, I want `find_package(clopts CONFIG)` で見つけて `CLOpts::clopts` にリンクするだけで使えること, so that 取り込み方法によらず同じリンク手順で済む
+**Objective:** As a CLOpts をシステムにインストールして使う利用側の開発者, I want `find_package(CLOpts CONFIG)` で見つけて `CLOpts::clopts` にリンクするだけで使えること, so that 取り込み方法によらず同じリンク手順で済む
 
 #### Acceptance Criteria
 1. While install が有効である, the ビルド構成 shall ライブラリ本体、`include/clopts/` 配下の公開ヘッダ、エクスポートされたターゲット定義、package config ファイル、バージョンファイルを install する。
 2. The ビルド構成 shall 内部モジュールのヘッダ（`src/` 配下）を install しない。
-3. When 利用側が install 済みの CLOpts を `find_package(clopts CONFIG)` で検索する, the package config shall インポートターゲット `CLOpts::clopts` を提供し、公開ヘッダの include パスと C99 の要件を利用側に伝える。
-4. When 利用側が `find_package(clopts <version> CONFIG)` でバージョンを指定する, the バージョンファイル shall インストール済みの版との互換性を判定し、非互換の版では検索を失敗させる。
+3. When 利用側が install 済みの CLOpts を `find_package(CLOpts CONFIG)` で検索する, the package config shall インポートターゲット `CLOpts::clopts` を提供し、公開ヘッダの include パスと C99 の要件を利用側に伝える。
+4. When 利用側が `find_package(CLOpts <version> CONFIG)` でバージョンを指定する, the バージョンファイル shall インストール済みの版との互換性を判定し、非互換の版では検索を失敗させる。
 5. The バージョンファイル shall アーキテクチャ非依存とは宣言せず、異なるアーキテクチャ向けのインストールを互換とみなさない。
 6. The ビルド構成 shall install 時に使われた MSVC の CRT 種別を記録し、利用側が異なる CRT 種別で `find_package` した場合に警告を出すか、または package config の文書でその制約を明記する。
-7. When 開発者が install を実行してから、install 先を参照する利用側を模した最小プロジェクトを構成・ビルドする, the テスト基盤 shall `find_package(clopts CONFIG)` と `target_link_libraries(app PRIVATE CLOpts::clopts)` だけで利用側がビルドできることを CTest のテストとして検証する。
+7. When 開発者が install を実行してから、install 先を参照する利用側を模した最小プロジェクトを構成・ビルドする, the テスト基盤 shall `find_package(CLOpts CONFIG)` と `target_link_libraries(app PRIVATE CLOpts::clopts)` だけで利用側がビルドできることを CTest のテストとして検証する。
 
 ### Requirement 6: ビルド構成の自動検証
 

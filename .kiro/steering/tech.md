@@ -4,10 +4,10 @@
 
 ## Architecture
 
-1 つの静的ライブラリ `clopts`（別名 `clopts::clopts`）の中を、責務ごとの内部モジュールに分ける。公開 API は `include/clopts/` のヘッダだけで、内部モジュールの境界は利用者から見えない。
+1 つの静的ライブラリ `clopts`（別名 `CLOpts::clopts`）の中を、責務ごとの内部モジュールに分ける。公開 API は `include/clopts/` のヘッダだけで、内部モジュールの境界は利用者から見えない。
 
 ```
-clopts::clopts
+CLOpts::clopts
   ├─ parser      宣言型・宣言検査・走査器・結果ストア・構造化エラー（中核）
   ├─ help        宣言と構造化エラーからの文面生成（書き込みコールバックへ）
   ├─ platform    Windows の UTF-8 argv と環境変数、他 OS ではパススルー
@@ -43,7 +43,7 @@ clopts::clopts
 - グローバルに設定しない: `CMAKE_MSVC_RUNTIME_LIBRARY`、`CMAKE_C_STANDARD` / `CMAKE_C_EXTENSIONS`、`CMAKE_*_OUTPUT_DIRECTORY`、`BUILD_SHARED_LIBS` の既定、ディレクトリ単位の `add_compile_options`、無条件の `include(CTest)` / `enable_testing()`。
 - すべてターゲット単位: `target_compile_features(clopts PUBLIC c_std_99)`、`target_compile_options(... PRIVATE ...)`。
 - テスト・サンプル・install・`-Werror` は `PROJECT_IS_TOP_LEVEL` を既定とするオプション（`CLOPTS_BUILD_TESTING`、`CLOPTS_BUILD_EXAMPLES`、`CLOPTS_INSTALL`、`CLOPTS_WERROR`）で囲む。
-- `if(NOT TARGET clopts)` で二重定義を防ぎ、`clopts::clopts` を `add_subdirectory` 経路と `find_package` 経路の両方で提供する。
+- `if(NOT TARGET clopts)` で二重定義を防ぎ、`CLOpts::clopts` を `add_subdirectory` 経路と `find_package` 経路の両方で提供する。
 - MSVC の CRT 種別は利用側から継承する。install 経路ではビルド時の CRT をキャッシュ変数に記録して config で警告する（または文書化する）。
 
 ### コーディングスタイル（Monde と同じ）

@@ -22,7 +22,7 @@ Monde 版の強みである「`static const` の宣言テーブルを書くだ�
   - 必須検査、宣言の妥当性検査（宣言エラーと使い方エラーの区別）、構造化エラー
   - ヘルプ・使い方・バージョン・エラー文面の生成（書き込みコールバック）と `FILE*` 向けの便宜関数
   - Windows での UTF-8 argv の取得（現行 MSVC CRT の分割規則を自前実装）と環境変数の UTF-8 取得
-  - CMake 静的ライブラリとしての提供（`add_subdirectory` / `FetchContent` / `install` + `find_package(clopts)`）、Naos による単体テスト、CI マトリクス
+  - CMake 静的ライブラリとしての提供（`add_subdirectory` / `FetchContent` / `install` + `find_package(CLOpts)`）、Naos による単体テスト、CI マトリクス
   - README、API リファレンス、サンプルプログラム、リリース手順
 - **Out**:
   - Monde 側の `cli_args` を CLOpts に置き換えること、Monde との API 互換
@@ -38,10 +38,10 @@ Monde 版の強みである「`static const` の宣言テーブルを書くだ�
 
 - **言語**: C99（VLA と `_Complex` は使わない。MSVC で使えない機能は使わない）。GCC / Clang は `-Wall -Wextra -Wpedantic -Werror -Werror=vla`、MSVC は `/W4 /WX /utf-8 /Zc:preprocessor`。
 - **依存**: 実行時の外部依存はゼロ。C 標準ライブラリと、Windows では kernel32 の Win32 API（`GetCommandLineW`、`WideCharToMultiByte`、`GetEnvironmentVariableW`）のみ。shell32（`CommandLineToArgvW`）には依存しない。
-- **ビルド**: CMake 3.21 以上。サブプロジェクトとして取り込まれる前提で、`CMAKE_MSVC_RUNTIME_LIBRARY`・`CMAKE_C_STANDARD`・ディレクトリ単位の `add_compile_options`・無条件の `include(CTest)` などグローバル設定は置かない。警告・C 規格はターゲット単位、テストと install と `-Werror` は `PROJECT_IS_TOP_LEVEL` で囲む。エイリアス `clopts::clopts` を両経路で提供する。
+- **ビルド**: CMake 3.21 以上。サブプロジェクトとして取り込まれる前提で、`CMAKE_MSVC_RUNTIME_LIBRARY`・`CMAKE_C_STANDARD`・ディレクトリ単位の `add_compile_options`・無条件の `include(CTest)` などグローバル設定は置かない。警告・C 規格はターゲット単位、テストと install と `-Werror` は `PROJECT_IS_TOP_LEVEL` で囲む。エイリアス `CLOpts::clopts` を両経路で提供する。
 - **テスト**: [Naos](https://github.com/vabelorg/naos) v0.4.0（MIT、テスト専用）を `BUILD_TESTING` が ON のときだけ FetchContent で取得し、タグとコミット SHA の両方で固定する。pre-1.0 のため、版の更新は 1 か所（`cmake/CloptsNaos.cmake` 相当）で管理する。
 - **CI**: GitHub Actions。MSVC、MinGW-w64（msys2 ucrt64）、Apple Clang、GCC、Clang。
-- **ライセンス**: MIT。Monde（MIT、`Copyright (c) 2026 The Monde Authors`）由来のコードを含むため、LICENSE に Monde の著作権表示を併記する。Naos は配布物に含まれないため THIRD_PARTY_NOTICES には載せない。
+- **ライセンス**: MIT（`The CLOpts Authors`）。Monde 由来コードの著作権表示は LICENSE に併記しない。Naos は配布物に含まれないため THIRD_PARTY_NOTICES には載せない。
 - **命名**: 公開識別子の接頭辞は `clopts_` / `CLOPTS_`、ヘッダは `clopts/clopts.h`。C++ の別プロジェクト Sirraide/clopts（`clopts.hh`）と同名のため README で区別を一言添える。
 - **コーディングスタイル**: Monde と同じ（Allman スタイル、本体 1 文でも波括弧、複合条件の各比較を括弧で囲む、`//` コメント不使用）。
 - **参照元**: Monde の `src/cli_args/`、`src/foundation/wide.*`、`.kiro/specs/cli-args/{requirements,design,research,tasks}.md`、`tests/cli_args/`、`cmake/Monde*.cmake`、`.github/workflows/ci.yml`。spec 作成時に参照する（このセッションではローカルに `/home/user/ktdevx/monde-private` へ clone 済み。別セッションでは再取得が必要）。
@@ -56,7 +56,7 @@ Monde 版の強みである「`static const` の宣言テーブルを書くだ�
   - **エラー種別の列挙**: core-parser が追加するたびに help-and-messages の文面表が追従する必要がある。網羅性をテストで検査する。
 
 ## Specs (dependency order)
-- [ ] project-foundation -- CMake 骨格（ターゲット単位の警告と C99、`PROJECT_IS_TOP_LEVEL` ガード、install/export と package config、`clopts::clopts` エイリアス）、Naos の固定取り込み、CI マトリクス、LICENSE の併記、内部ユーティリティ（可変長配列、書き込みコールバック型と `FILE*` ライタ）。Dependencies: none
+- [ ] project-foundation -- CMake 骨格（ターゲット単位の警告と C99、`PROJECT_IS_TOP_LEVEL` ガード、install/export と package config、`CLOpts::clopts` エイリアス）、Naos の固定取り込み、CI マトリクス、内部ユーティリティ（可変長配列、書き込みコールバック型と `FILE*` ライタ）。Dependencies: none
 - [ ] core-parser -- 公開ヘッダの宣言型（program / command / option / positional、FLAG / COUNT / VALUE / LIST、否定可能、環境変数名、グローバルオプション、handler / userdata、サブコマンドなし構成）、宣言検査、構造化エラー型、結果ストアと記述子ポインタによる参照 API、走査器（サブコマンド選択、長短オプション、`--`、`--no-x`、カウント、リスト、既定値と環境変数の優先順位、必須検査、help / version 検出とエラー優先度）。Dependencies: project-foundation
 - [ ] help-and-messages -- 書き込みコールバックへのヘルプ・使い方・バージョン・エラー文面の生成、桁揃え、`FILE*` 便宜関数。Dependencies: core-parser
 - [ ] platform-argv -- Windows での UTF-8 argv の取得（`GetCommandLineW` を現行 MSVC CRT の規則で自前分割し UTF-16 から UTF-8 へ変換）、`wmain` 利用者向けの `wargv` 変換、環境変数の UTF-8 取得。Dependencies: project-foundation
