@@ -4,7 +4,7 @@
 
 ## Organization Philosophy
 
-**1 ライブラリ・内部モジュール分割**。利用者に見せるのは 1 つのライブラリターゲット `clopts::clopts` と `include/clopts/` の公開ヘッダだけにし、内部は責務ごとのモジュール（`src/<module>/`）に分けてソースとテストを同じ名前で対にする。依存は下位モジュールへ向かう一方向とし、公開ヘッダを除いて内部モジュールのヘッダは install しない。
+**1 ライブラリ・内部モジュール分割**。利用者に見せるのは 1 つのライブラリターゲット `CLOpts::clopts` と `include/clopts/` の公開ヘッダだけにし、内部は責務ごとのモジュール（`src/<module>/`）に分けてソースとテストを同じ名前で対にする。依存は下位モジュールへ向かう一方向とし、公開ヘッダを除いて内部モジュールのヘッダは install しない。
 
 ## Directory Patterns
 
@@ -24,7 +24,7 @@
 **Example**: `tests/parser/` は `src/parser/` をテストする  
 **Exception**: `src/` に対応するモジュールを持たないテストディレクトリは次の 3 つに限る。
 - `tests/toolchain/`: ビルド構成そのもの（警告のエラー化、VLA の禁止、グローバル設定を置いていないこと）を検証する。ラベルは `toolchain`。
-- `tests/integration/`: 利用側を模したプロジェクトで `add_subdirectory` / `FetchContent` と install → `find_package(clopts CONFIG)` の両経路を検証する。ラベルは `integration`。
+- `tests/integration/`: 利用側を模したプロジェクトで `add_subdirectory` / `FetchContent` と install → `find_package(CLOpts CONFIG)` の両経路を検証する。ラベルは `integration`。
 - `tests/docs/`: README と `docs/` のサンプル出力をビルドしたサンプルプログラムと照合する。Naos を使わず `cmake -P` で起動する。ラベルは `docs`。
 
 ### サンプルプログラム
@@ -52,7 +52,7 @@
 ## Naming Conventions
 
 - **モジュール名**: 小文字の snake_case、1 語を基本とする（`core`、`parser`、`help`、`platform`）。ディレクトリ `src/<module>/`、`tests/<module>/` に使う。
-- **CMake**: ライブラリターゲットは `clopts`、別名 `clopts::clopts`（リンクには別名を使う）。オプションは `CLOPTS_<NAME>`。テスト実行ファイルは `<module>_tests`、CTest のテスト名は `<module>_tests.<suite>.<test>`。
+- **CMake**: ライブラリターゲットは `clopts`、別名 `CLOpts::clopts`（リンクには別名を使う）。オプションは `CLOPTS_<NAME>`。テスト実行ファイルは `<module>_tests`、CTest のテスト名は `<module>_tests.<suite>.<test>`。
 - **ファイル**: 小文字の snake_case（`.c` / `.h`）。モジュール内のファイルには `<module>_` の接頭辞を付ける（例: `src/parser/parser_scan.c`）。公開ヘッダは接頭辞なし（`include/clopts/clopts.h`）。
 - **公開シンボル**: 接頭辞 `clopts_`。
   - 関数: `clopts_<名詞>_<動作>`（例: `clopts_parse`、`clopts_result_free`、`clopts_write_help`）。型名の `_t` は関数名に含めない。

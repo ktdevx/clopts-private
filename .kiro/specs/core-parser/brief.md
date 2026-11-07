@@ -50,4 +50,4 @@ Monde の `src/cli_args/`（`args.h`、`args_decl.c`、`args_parse.c`、`args_re
 - 予約名（`help`、`-h`、`--help`、`--version`）の扱いを設計で決める（Monde は固定予約。少なくとも宣言検査で衝突を報告する）
 - 規約: `--` 以降はすべて位置引数、`-` 単体は位置引数、サブコマンド名より前はグローバルオプションのみ、サブコマンド以降はオプションと位置引数を並べ替え可、長いオプションの前方一致は非対応、`--no-x` は FLAG のみ、`--no-...` で始まる実名との衝突は宣言エラー、カウントは上限でクランプ
 - 環境変数フォールバックの値は UTF-8（Windows では platform-argv が `GetEnvironmentVariableW` 経由で返す）。`getenv` の戻り値は即座に複製する
-- Monde 由来のコードは MIT の表示を保つ（LICENSE に併記済みの前提）。コーディングスタイルは Monde と同じ
+- コーディングスタイルは Monde と同じ

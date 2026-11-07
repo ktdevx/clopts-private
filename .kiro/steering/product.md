@@ -4,7 +4,7 @@
 
 CLOpts は、C99 で書かれた外部依存ゼロのコマンドライン引数パーサライブラリである。呼び出し側が `static const` の宣言テーブルでサブコマンド・オプション・位置引数を書くだけで、解析・ヘルプ文面・エラーの 3 つが同じ宣言から決まる。出発点は [Monde](https://github.com/ktdevx/monde-private) の内部モジュール `cli_args` だが、そのまま抜き出すのではなく、コマンドライン引数を扱うソフトウェア一般のための設計に作り直す。
 
-- 著作権者: The CLOpts Authors（Monde 由来のコードについて The Monde Authors を併記）／ ライセンス: MIT License
+- 著作権者: The CLOpts Authors ／ ライセンス: MIT License
 - 利用者: MSVC を含む複数のコンパイラで動く CLI ツールを C で書く開発者。`getopt` がなく外部ライブラリにも頼れない環境を想定する。
 
 ## Core Capabilities
@@ -27,7 +27,7 @@ CLOpts は、C99 で書かれた外部依存ゼロのコマンドライン引数
 - **宣言と挙動とヘルプが一致する**: オプションを追加・変更するとき、変えるのは宣言テーブルの 1 か所だけでよい。
 - **利用側が表示と終了コードを決められる**: エラーは文字列ではなく構造体で返る。Monde で必要だった「ライブラリが付けた接頭辞を剥がして再整形する」処理が不要になる。
 - **型で守られた値の参照**: 値はオプション記述子へのポインタで参照する。文字列キーの打ち間違いが黙って NULL になることがない。
-- **取り込みやすい**: `add_subdirectory` / `FetchContent` / `find_package(clopts CONFIG)` のどれでも `target_link_libraries(app PRIVATE clopts::clopts)` だけで使え、利用側のビルド設定（CRT 種別、C 規格、警告）を汚さない。
+- **取り込みやすい**: `add_subdirectory` / `FetchContent` / `find_package(CLOpts CONFIG)` のどれでも `target_link_libraries(app PRIVATE CLOpts::clopts)` だけで使え、利用側のビルド設定（CRT 種別、C 規格、警告）を汚さない。
 - **依存ゼロ**: C 標準ライブラリと、Windows では kernel32 の API のみ。shell32 にも依存しない。
 
 ## Product Rules（挙動の既定）

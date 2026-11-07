@@ -10,7 +10,7 @@ CLOpts を使おうとする開発者は、取り込み方（`FetchContent` / `a
 - `README.md` に、概要（C++ の同名プロジェクト Sirraide/clopts との区別を含む）、特徴、最小のサンプル、取り込み方 3 通り、ライセンス（Monde 由来の表示を含む）が書かれている。
 - `docs/` に API リファレンス（宣言型、関数、エラー種別、メモリ所有、解析規則の一覧: `--`、`-` 単体、並べ替え、`--no-x`、カウント、環境変数の優先順位）と、Windows での注意（UTF-8 argv の取得、`wmain`、`activeCodePage`）がある。
 - `examples/` にサブコマンドあり・なしの 2 つのサンプルプログラムがあり、CI でビルドされ、ヘルプ出力が文書の記載と一致することがテストで検査される。
-- 利用側プロジェクトを模した統合テストが、`FetchContent`（または `add_subdirectory`）と `install` → `find_package(clopts CONFIG)` の両経路で CI で通る。
+- 利用側プロジェクトを模した統合テストが、`FetchContent`（または `add_subdirectory`）と `install` → `find_package(CLOpts CONFIG)` の両経路で CI で通る。
 - リリース手順（`docs/dev/release.md`）とタグ付けのワークフロー（タグから GitHub Release を作り、ソースアーカイブと変更履歴を添える）が決まっている。Naos の版更新手順も書かれている。
 
 ## Approach
@@ -42,4 +42,4 @@ Monde の文書構成（`docs/README.md`、`docs/dev/release.md`、`tests/docs/d
 - 文書は日本語を主とする（Monde と同じ。英語版 README の要否は要件で決める）。コード中の識別子とヘルプ出力は英語
 - 文書中のサンプル出力は実行結果と自動で突き合わせる（手で書いた出力が古くなることを防ぐ）
 - リリースはソース配布のみ。版番号は semver、pre-1.0 の間は minor で互換性を壊してよいことを明記する
-- ライセンス表示: MIT、`The CLOpts Authors` と `The Monde Authors` を併記。Naos はテスト専用なので THIRD_PARTY_NOTICES に載せない
+- ライセンス表示: MIT、`The CLOpts Authors` のみ（Monde の著作権表示は併記しない）。Naos はテスト専用なので THIRD_PARTY_NOTICES に載せない
