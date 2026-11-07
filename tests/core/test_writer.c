@@ -80,7 +80,7 @@ static int always_fail_write(void *ctx, const char *data, size_t len)
 
 NAOS_TEST(file_writer_writes_bytes_in_order)
 {
-    static const char expected[] = { 'a', 'b', 'c', '\0', 'x', (char)0xFF, '\n', 'e', 'n', 'd' };
+    static const char expected[] = { 'a', 'b', 'c', '\0', 'x', '\xFF', '\n', 'e', 'n', 'd' };
     FILE *stream = open_temp_file();
     clopts_writer_t writer;
     char buf[32];
