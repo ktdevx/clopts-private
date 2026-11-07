@@ -45,3 +45,10 @@ if(CLOPTS_BUILD_TESTING)
         add_subdirectory(tests)
     endif()
 endif()
+
+# Install rules, export set and package config: only when requested (ON by
+# default at top level, OFF as a subproject).
+if(CLOPTS_INSTALL)
+    include("${PROJECT_SOURCE_DIR}/cmake/CloptsInstall.cmake")
+    clopts_install()
+endif()

@@ -43,8 +43,8 @@
   - _Boundary: PublicHeaders, CoreWriter, CoreTests_
   - _Requirements: 1.2, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 9.8, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [ ] 3. 配布: install / export と package config
-- [ ] 3.1 install 規則、エクスポート、package config、version file を生成するヘルパを作る
+- [x] 3. 配布: install / export と package config
+- [x] 3.1 install 規則、エクスポート、package config、version file を生成するヘルパを作る
   - ルートの `CMakeLists.txt` で `CLOPTS_INSTALL` が ON のときだけ install ヘルパを include して呼ぶ
   - `CLOPTS_INSTALL` が ON のときだけ、ライブラリ本体、`include/clopts/` 配下、エクスポートされたターゲット定義（名前空間 `CLOpts::`）、config、version file を標準の install 先に置く。`src/` 配下は install しない
   - version file は `SameMinorVersion` 互換で、アーキテクチャ非依存とは宣言しない

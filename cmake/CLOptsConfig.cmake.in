@@ -1,0 +1,24 @@
+# Package config for CLOpts. Provides the imported target CLOpts::clopts.
+
+@PACKAGE_INIT@
+
+# MSVC runtime library (CRT) used when this CLOpts install was built.
+#
+# The check below is best effort only: the recorded value and the consuming
+# project's CMAKE_MSVC_RUNTIME_LIBRARY are compared as plain strings, and
+# generator expressions in either are not evaluated. No warning is given when
+# either value is empty (i.e. CMake's default runtime library). Link CLOpts
+# with the same runtime library it was built with.
+set(CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY "@CLOPTS_RECORDED_MSVC_RUNTIME_LIBRARY@")
+if(MSVC AND CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY AND CMAKE_MSVC_RUNTIME_LIBRARY
+   AND NOT CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY STREQUAL CMAKE_MSVC_RUNTIME_LIBRARY)
+    message(WARNING
+        "CLOpts was built with MSVC runtime library "
+        "'${CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY}', but this project uses "
+        "'${CMAKE_MSVC_RUNTIME_LIBRARY}'. Mixing runtime libraries may fail to "
+        "link or misbehave.")
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/CLOptsTargets.cmake")
+
+check_required_components(CLOpts)
