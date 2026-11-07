@@ -33,3 +33,15 @@ target_include_directories(clopts
 clopts_apply_compiler_options(clopts)
 
 add_subdirectory(src)
+
+# Tests: include(CTest) only when CLOpts' tests are wanted, so that a consuming
+# project never gets BUILD_TESTING or enable_testing() from CLOpts. Naos is
+# fetched only when testing is actually enabled; clopts itself never uses it.
+if(CLOPTS_BUILD_TESTING)
+    include(CTest)
+    if(BUILD_TESTING)
+        include("${PROJECT_SOURCE_DIR}/cmake/CloptsNaos.cmake")
+        clopts_fetch_naos()
+        add_subdirectory(tests)
+    endif()
+endif()

@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. 基盤: ビルド骨格とテスト基盤
+- [x] 1. 基盤: ビルド骨格とテスト基盤
 - [x] 1.1 ルートのビルド定義、コンパイラオプションヘルパ、モジュール追加ヘルパ、最初のモジュールを作り、空のライブラリがビルドできるようにする
   - CMake 3.21 以上を要求し、バージョンをプロジェクト定義の 1 か所にだけ書く。`TARGET clopts` が既にあれば何もせず戻るガードを先頭に置く
   - `CLOPTS_BUILD_TESTING` / `CLOPTS_INSTALL` / `CLOPTS_WERROR` の 3 オプションを、トップレベルのときだけ既定 ON で定義する
@@ -13,7 +13,7 @@
   - _Boundary: RootCMake, CompilerOptions, ModulesHelper, PublicHeaders, CoreSize, GitIgnore_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.7, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 9.6, 9.8, 10.1, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [ ] 1.2 Naos の固定取得とテスト登録ヘルパを作り、最初の単体テストが CTest から走るようにする
+- [x] 1.2 Naos の固定取得とテスト登録ヘルパを作り、最初の単体テストが CTest から走るようにする
   - Naos 取得ヘルパ: タグとコミット SHA を並べて 1 か所に置き、SHA で取得する。取得後に Naos の版ヘッダを読んでタグと照合し、不一致なら修正箇所を示して構成エラーにする。ローカルパス指定（`FETCHCONTENT_SOURCE_DIR_NAOS`）でも同じ照合を行う
   - ルートで `CLOPTS_BUILD_TESTING` が ON のときだけ `include(CTest)` を呼び、さらに `BUILD_TESTING` が ON のときだけ Naos を取得して `tests/` を追加する。`clopts` ターゲットは Naos に依存しない
   - テスト登録ヘルパ: モジュール名とソース一覧から `<module>_tests` を Naos のヘルパで作り、`CLOpts::clopts` と Naos をリンクし、内部ヘッダの include 基点を与え、コンパイラオプションヘルパを適用し、ラベル `<module>` を付ける。Linux で `m` が必要なら足す
@@ -102,3 +102,7 @@
   - 取得した Naos のソースが `git status` に現れないことを確認する
   - 完了条件: 上記がすべて満たされ、`git status` がクリーンで、要件 1〜11 の各受入条件に対応するテストまたは確認結果を列挙できる
   - _Requirements: 1.6, 2.1, 2.2, 4.5, 4.8, 10.2, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
+
+## Implementation Notes
+- Naos v0.4.0 の版は `include/naos/version.h` の `NAOS_VERSION_MAJOR/MINOR/PATCH` の 3 つの整数マクロで表される（文字列マクロではない）。`NAOS_DECLARE_SUITE(x);` は宣言なので `;` が必要、`NAOS_TEST` / `NAOS_SUITE` / `NAOS_MAIN` の後ろには付けない。
+- オフライン検証には `-DFETCHCONTENT_SOURCE_DIR_NAOS=<絶対パス>` を使う（相対パスは早期の版照合で version.h が見つからず構成エラーになる）。glibc + GCC では `m` のリンクは不要だったが、design に従い CI で確認するまで残している。
