@@ -87,7 +87,7 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 4. When 利用側が `find_package(clopts <version> CONFIG)` でバージョンを指定する, the バージョンファイル shall インストール済みの版との互換性を判定し、非互換の版では検索を失敗させる。
 5. The バージョンファイル shall アーキテクチャ非依存とは宣言せず、異なるアーキテクチャ向けのインストールを互換とみなさない。
 6. The ビルド構成 shall install 時に使われた MSVC の CRT 種別を記録し、利用側が異なる CRT 種別で `find_package` した場合に警告を出すか、または package config の文書でその制約を明記する。
-7. When 開発者が install を実行してから、install 先を参照する利用側を模した最小プロジェクトを構成・ビルドする, the テスト基盤 shall `find_package(clopts CONFIG)` と `target_link_libraries(app PRIVATE clopts::clopts)` だけで利用側がビルドできることを CTest のテストとして検証する。
+7. When 開発者が install を実行してから、install 先を参照する利用側を模した最小プロジェクトを構成・ビルドする, the テスト基盤 shall `find_package(clopts CONFIG)` と `target_link_libraries(app PRIVATE CLOpts::clopts)` だけで利用側がビルドできることを CTest のテストとして検証する。
 
 ### Requirement 6: ビルド構成の自動検証
 
@@ -96,7 +96,7 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 #### Acceptance Criteria
 1. The テスト基盤 shall `tests/toolchain/` に、Requirement 2.1 に挙げたグローバル変数が CLOpts の構成によって設定されていないことを検証するテストを持つ。
 2. The テスト基盤 shall `tests/toolchain/` に、警告がエラー化されることと VLA がビルドエラーになることを、意図的に警告・VLA を含むソースのビルドが失敗することで検証するテストを持つ。
-3. The テスト基盤 shall `tests/integration/` に、CLOpts を `add_subdirectory` で取り込んだ利用側を模した最小プロジェクトが、`target_link_libraries(app PRIVATE clopts::clopts)` だけでビルドでき、かつ利用側に CLOpts の警告オプションや内部コンパイル定義が伝播していないことを検証するテストを持つ。
+3. The テスト基盤 shall `tests/integration/` に、CLOpts を `add_subdirectory` で取り込んだ利用側を模した最小プロジェクトが、`target_link_libraries(app PRIVATE CLOpts::clopts)` だけでビルドでき、かつ利用側に CLOpts の警告オプションや内部コンパイル定義が伝播していないことを検証するテストを持つ。
 4. The テスト基盤 shall `tests/integration/` に、Requirement 5.7 の install 経路の検証を持つ。
 5. When `ctest --test-dir build` を実行する, the テスト基盤 shall 上記の検証テストをすべて含めて実行する。
 
