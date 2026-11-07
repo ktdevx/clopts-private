@@ -55,7 +55,7 @@
   - _Requirements: 1.5, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
 - [ ] 4. 検証: ビルド構成の自動テスト
-- [ ] 4.1 子 CMake 項目を構成・ビルド・install・実行して期待結果と照合する共有スクリプトを作る
+- [x] 4.1 子 CMake 項目を構成・ビルド・install・実行して期待結果と照合する共有スクリプトを作る
   - 引数: フィクスチャのソース、作業ディレクトリ、期待（構成成功 / ビルド成功 / ビルド失敗 / 実行成功）、構成名、CLOpts のソース / ビルドディレクトリ、追加引数、ジェネレータとコンパイラ、install 経路モード
   - 作業ディレクトリは毎回削除して作り直す。親と同じジェネレータ・コンパイラ・（単一構成なら）ビルド種別・（MSVC なら）プラットフォームを子に渡す
   - 「ビルド失敗」期待では構成失敗とビルド失敗を区別し、構成失敗はテスト失敗にする。install 経路モードでは先に CLOpts のビルドディレクトリを一時 prefix に install し、`CMAKE_PREFIX_PATH` として子に渡す
@@ -107,3 +107,4 @@
 - Naos v0.4.0 の版は `include/naos/version.h` の `NAOS_VERSION_MAJOR/MINOR/PATCH` の 3 つの整数マクロで表される（文字列マクロではない）。`NAOS_DECLARE_SUITE(x);` は宣言なので `;` が必要、`NAOS_TEST` / `NAOS_SUITE` / `NAOS_MAIN` の後ろには付けない。
 - オフライン検証には `-DFETCHCONTENT_SOURCE_DIR_NAOS=<絶対パス>` を使う（相対パスは早期の版照合で version.h が見つからず構成エラーになる）。glibc + GCC では `m` のリンクは不要だったが、design に従い CI で確認するまで残している。
 - 可変長配列の `realloc` 失敗経路はフックを置かない方針のため直接テストできない。巨大な要素サイズ（`SIZE_MAX/4`）は確保前のオーバーフロー検査で失敗する。
+- `run_fixture.cmake` は子に `FIXTURE_BIN_DIR`（`<WORK_DIR>/bin`）を渡す。`run_ok` のフィクスチャは実行ファイルの `RUNTIME_OUTPUT_DIRECTORY` をこれにする（`CMAKE_RUNTIME_OUTPUT_DIRECTORY` は no_global_state の検査対象なので使わない）。利用側のモードや期待版は `EXTRA_ARGS` で渡す。「ビルド失敗」の検証には存在しないソースではなく存在しないヘッダを使う（ソースの欠落は構成時に失敗する）。
