@@ -84,8 +84,8 @@
   - _Depends: 3.1, 4.1_
   - _Requirements: 2.4, 4.9, 5.3, 5.4, 5.7, 6.3, 6.4, 6.5_
 
-- [ ] 5. CI
-- [ ] 5.1 5 環境で構成・ビルド・テストを行う GitHub Actions ワークフローを作る
+- [x] 5. CI
+- [x] 5.1 5 環境で構成・ビルド・テストを行う GitHub Actions ワークフローを作る
   - main への push と pull request で起動。`fail-fast: false` のマトリクス: Linux GCC、Linux Clang、macOS Apple Clang、Windows MSVC（Visual Studio ジェネレータ、`--config Release` / `-C Release`）、Windows MinGW-w64（MSYS2 UCRT64、Ninja）
   - 各ジョブで `-DCLOPTS_WERROR=ON` を付けて構成し、ビルドし、`ctest --output-on-failure` を実行する。Linux GCC ジョブでは追加で `-L core`、`-L toolchain`、`-L integration` の絞り込みを 1 回ずつ実行する
   - `permissions: contents: read`。リリース処理は含めない
@@ -93,8 +93,8 @@
   - _Boundary: CIWorkflow_
   - _Requirements: 1.6, 7.1, 7.2, 7.3, 7.4, 7.5, 4.5_
 
-- [ ] 6. 最終確認
-- [ ] 6.1 spec 全体の受入条件を通しで確認し、規約違反と取りこぼしを直す
+- [x] 6. 最終確認
+- [x] 6.1 spec 全体の受入条件を通しで確認し、規約違反と取りこぼしを直す
   - クリーンな状態から `cmake -S . -B build && cmake --build build && ctest --test-dir build` をローカルの GCC と Clang で実行し、全テスト（`core`、`toolchain`、`integration`）が通る
   - `ctest -N` のテスト名が `<module>_tests.<suite>.<test>` 形式、ラベルが `core` / `toolchain` / `integration` であることを確認する
   - `src/` と `tests/` の C ソースをコーディング規約（Allman、波括弧省略なし、複合条件の括弧、`//` 不使用、`clopts_core_` 接頭辞、ファイル名接頭辞、ヘッダガード形式）で目視と grep（`//`、`^\s*{` の位置、`CLOPTS_CORE_.*_H`）で点検し、違反を修正する
@@ -110,3 +110,4 @@
 - `run_fixture.cmake` は子に `FIXTURE_BIN_DIR`（`<WORK_DIR>/bin`）を渡す。`run_ok` のフィクスチャは実行ファイルの `RUNTIME_OUTPUT_DIRECTORY` をこれにする（`CMAKE_RUNTIME_OUTPUT_DIRECTORY` は no_global_state の検査対象なので使わない）。利用側のモードや期待版は `EXTRA_ARGS` で渡す。「ビルド失敗」の検証には存在しないソースではなく存在しないヘッダを使う（ソースの欠落は構成時に失敗する）。
 - `toolchain.vla_fails` は `CLOPTS_WERROR=OFF` で取り込み、失敗が `-Werror=vla` そのものから来ることを確かめる（要件 3.7 は WERROR に依存しない）。`no_global_state` はルートのディレクトリスコープの変数も検出できるよう、CLOpts が追加したディレクトリを再帰的に検査する。
 - `-Wall` 単独の INTERFACE 漏れは利用側に `-Werror` がないためコンパイルでは検出できない（未使用引数で落ちるのは `-Wall -Wextra -Werror` がそろって漏れたときだけ）。そのため consumer フィクスチャは構成時に `CLOpts::clopts` の `INTERFACE_COMPILE_OPTIONS` に警告フラグがないこと、`INTERFACE_COMPILE_DEFINITIONS` に `_CRT_SECURE_NO_WARNINGS` がないことも検査する。design.md の IntegrationTests の記述はこの検査を反映していない。
+- MSVC の `/W4 /WX` では `(char)0xFF` のような定数の切り捨てキャストが C4310 でエラーになる。バイト値は `'\xFF'` のような文字リテラルで書く。CI の 5 環境（windows-latest は Visual Studio 18 2026）で全 31 テストが通ることを確認済み。
