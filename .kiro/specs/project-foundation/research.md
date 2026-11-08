@@ -248,3 +248,65 @@
 - 書き込みコールバックは「公開: 関数ポインタ型と `static inline` の `FILE*` 用コールバック」「内部: core の書き込みヘルパ」に分ける。`clopts_writer_t` を残すなら内部用として `core_internal.h` に移す。
 - `no_global_state` fixture の検査を、改訂後の要件（静的版の定義だけを許す、`CMAKE_C_VISIBILITY_PRESET` を検査する）に合わせて直すことを、タスクに明示する。
 - 版の互換（5.4）と SOVERSION（15）は同じ規則なので、1 か所で計算して両方に使う。
+
+---
+
+# Design Decisions（2026-11-08 改訂）
+
+## Discovery
+- **種類**: 既存システムの拡張（light discovery）。統合点は既存のヘルパ、fixture スクリプト、CI。
+- **参照したもの**: 上の Gap Analysis、`kiro-spec-design` の `design-discovery-light.md` / `design-synthesis.md` / `design-review-gate.md`。
+- **実現性の確認**: discovery の段階で別のエージェントに確認させた（roadmap 作成時）。CMake 3.21 で使える機能か、MinGW の visibility と export の規則、MSVC での `.lib` 名の衝突、abidiff、`static inline` の警告。
+
+## Decision: 共有版の単体テストは静的な内部コピー `clopts_testing` にリンクする
+- **Context**: 要件 4.11。単体テストが内部関数（`clopts_core_*`、`clopts_parser_*`）を直接呼んでいる。
+- **Alternatives**
+  1. OBJECT ライブラリを共有する: コンパイルは 1 回で済む。ただし、テスト実行ファイルが `dllexport` の付いたオブジェクトを取り込み、公開関数を export してしまう。visibility と PIC を OBJECT 側に移す必要もある。
+  2. 内部関数のテストを静的版のジョブだけで行う: 要件 4.11 に反する。
+- **Selected**: 共有版でテストが有効なときだけ、同じソースから `clopts_testing`（STATIC、`CLOPTS_STATIC`、`EXCLUDE_FROM_ALL`）を作る。単体テストのリンク先は、グローバルプロパティ `CLOPTS_TEST_LINK_TARGET` で選ぶ。
+- **Rationale**
+  - 内部関数のテストが、そのまま動く。
+  - 単体テストの実行ファイルが DLL に依存しなくなる。Naos のテスト発見（POST_BUILD でテスト実行ファイルを起動する）と、Windows の DLL 配置の順序の問題が消える（要件 4.10 の大半）。
+- **Trade-offs**: 共有版のビルドでは、ソースを 2 回コンパイルする。単体テストは共有ライブラリそのものを動かさない。共有ライブラリの読み込みは integration と abi-compat で確かめる。
+
+## Decision: core-parser の作り直しまでの間は、`parse.h` に印だけを付ける（Gap Analysis の案 1）
+- **Context**: `parse.h` の公開関数に印がないので、共有版では解析 API が見えない。MinGW では、dllexport が 1 つもないと ld が全シンボルを export する。その場合、要件 6.8（内部関数が見えない）が成り立たない。
+- **Selected**: 本 spec の範囲で、`#include "clopts/export.h"` と、13 個の公開関数への `CLOPTS_API` だけを足す。
+- **Rationale**: 量が小さく、要件を変えずに、本 spec を単独で main に入れられる。core-parser の作り直しでは API ごと置き換わるが、捨てる量はごくわずかである。
+- **Follow-up**: core-parser の作り直しの design で、この暫定の変更を引き継ぐ（新しい公開関数すべてに `CLOPTS_API`）。
+
+## Decision: `C_VISIBILITY_PRESET hidden` は WIN32 以外の共有版にだけ付ける
+- **Context**: 14.2、14.4。PE では visibility の概念がない。MinGW の GCC は visibility 属性に `-Wattributes` を出す恐れがある。
+- **Selected**: `if(NOT WIN32)` で囲む。PE での絞り込みは dllexport の印に任せる。静的版には付けない（利用側が自分の共有ライブラリに静的にリンクしたとき、何を出すかは利用側が決める）。
+
+## Decision: export マクロは手書きの `export.h` にし、`DEFINE_SYMBOL CLOPTS_BUILDING` と PUBLIC の `CLOPTS_STATIC` で切り替える
+- **Alternatives**: CMake の `GenerateExportHeader`。生成されたヘッダは、ビルドツリーと install 先で置き場所が違う。add_subdirectory 経路と install 経路の両方で include パスを足す必要があり、ソースツリーの `include/` だけでは完結しない。
+- **Selected**: 手書きの `include/clopts/export.h`（約 15 行）。判定の順は `CLOPTS_STATIC` → Windows → GCC 4 以上。
+- **Rationale**: 公開ヘッダがソースツリーだけで完結する。判定の順を、要件（14.1、14.4）どおりに明示的に書ける。
+
+## Decision: package config は形式によらず同じ内容にし、形式の情報はターゲット定義ファイルと静的版の CRT 記録ファイルに分ける
+- **Context**: 並存 install（13.1）では、`CLOptsConfig.cmake` と version file を 2 つのビルドが上書きし合う。
+- **Selected**
+  - config は「どちらのターゲット定義ファイルがあるか」を見て選ぶ（13.2〜13.5）。
+  - 静的版の CRT 記録（5.6）は、静的版だけが置く `CLOptsStaticRuntime.cmake` に移す。
+  - 選んだ形式は `CLOpts_LIBRARY_TYPE` で返す（13.6）。
+- **Constraint**: 並べる 2 つの形式は、同じ版から作る（docs-and-release で文書化）。
+
+## Decision: 版の互換規則と SOVERSION を 1 つの関数で計算する
+- **Selected**: `clopts_compute_soversion(<version> <out_soversion> <out_compat>)`。0.x なら `0.<minor>` / `SameMinorVersion`、1.0 以上なら `<major>` / `SameMajorVersion`。
+- **Rationale**: 5.4 と 15.2〜15.4 は同じ規則である。1.0 以上の分岐も、仮の版を与えて toolchain テストで検査できる。
+
+## Synthesis
+- **Generalization**: 「形式の選択」を、ビルド時（`CLOPTS_BUILD_SHARED`）、install（形式ごとの export セット）、利用時（config の選択）の 3 か所で同じ 2 値（Static / Shared）として扱った。名前の規則（`CLOpts<Kind>Targets`、`CLOpts_LIBRARY_TYPE`）を 1 つにそろえた。
+- **Build vs Adopt**
+  - export マクロは手書きにした（上記）。
+  - DLL の配置は `$<TARGET_RUNTIME_DLLS>`（CMake 3.21 の標準）を採用した。
+  - RPATH は CMake の既定（ビルドツリーの RPATH）に任せ、`INSTALL_RPATH` は設定しない。
+- **Simplification**
+  - `clopts_writer_t` 構造体と `core_writer_file.c` を削除した。`FILE*` の実装は、公開ヘッダの数行の `static inline` にした。
+  - 形式の選択の検証は、構成だけで判定する（ビルドしない）。
+
+## Risks（改訂分）
+- `integration.package_selection` の実行時間（Windows で約 1 分の見込み）。超えるようなら、7.6 の範囲で 1 環境に絞る。
+- `$<TARGET_RUNTIME_DLLS>` が空のときの `copy_if_different` を避けるため、共有版の WIN32 に限ってコマンドを足す。
+- C++ の翻訳単位を fixture に入れるので、C++ コンパイラのない環境では integration テストが構成に失敗する。CI の 5 環境では問題ない。
