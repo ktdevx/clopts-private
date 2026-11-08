@@ -379,7 +379,14 @@ char ***__cdecl __p___argv(void);
 #define __argv (*__p___argv())
 #endif
 
-/* Checks that args has the CRT's __argc elements, each equal to the CRT's __argv string. */
+/*
+ * Checks args against the CRT's view of the same process. Only __argc and
+ * __argv[0] are compared: the test runner (Naos) removes its own options from
+ * main's argv in place, and with MSVC's UCRT main's argv is the very array
+ * __argv points to, so __argv[1..] no longer holds the command line here
+ * (MinGW hands main a copy, which hides this). Every element is compared with
+ * the CRT in a fresh process by the probe of suite crt (9.3).
+ */
 static void platform_argv_check_matches_crt(const clopts_argv_t *args)
 {
     char *const *values;
@@ -394,8 +401,9 @@ static void platform_argv_check_matches_crt(const clopts_argv_t *args)
     for (i = 0; i < __argc; ++i)
     {
         NAOS_REQUIRE_NOT_NULL(values[i]);
-        NAOS_CHECK_STR_EQ(values[i], __argv[i]);
     }
+    NAOS_REQUIRE_NOT_NULL(__argv[0]);
+    NAOS_CHECK_STR_EQ(values[0], __argv[0]);
     NAOS_CHECK_NULL(values[__argc]);
 }
 
