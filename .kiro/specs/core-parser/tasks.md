@@ -19,7 +19,7 @@
   - _Boundary: ParserModule, ParserTests_
   - _Requirements: 12.3, 13.1, 13.2_
 
-- [ ] 2. コア: 宣言検査、結果ストア、値の解決
+- [x] 2. コア: 宣言検査、結果ストア、値の解決
 - [x] 2.1 (P) 宣言検査と宣言の照合を実装し、宣言エラー種別ごとにテストする
   - 設計の規則表 14 行を宣言テーブルの先頭から順に検査し、最初の違反で種別・該当 command・該当 option / positional をエラー構造体に入れて止める
   - 予約名は長い名前 `help`、短い名前 `h`、コマンド名 `help`、バージョン文字列があるときの長い名前 `version`。サブコマンドあり構成では program 直下の位置引数とハンドラを検査しない
@@ -42,7 +42,7 @@
   - _Boundary: ResultStore, ParserTests_
   - _Requirements: 3.4, 6.1, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 6.12, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.1, 12.2, 12.4, 12.5, 12.6_
 
-- [ ] 2.3 環境変数・既定値の解決と必須検査、既定の環境変数取得関数を実装する
+- [x] 2.3 環境変数・既定値の解決と必須検査、既定の環境変数取得関数を実装する
   - 既定の取得関数: `getenv` の戻り値を即座に複製して FOUND、NULL なら UNSET、確保失敗なら FAILED
   - 解決: スロットがある範囲（グローバル + 選択コマンド、または program。フラグでグローバルのみに限定可）を宣言順に走り、未指定の VALUE / LIST について環境変数 → 既定値の順で記録する。VALUE の環境変数値は所有権をスロットへ、LIST は分割後に複製を解放。取得失敗・確保失敗は即座に失敗を返す
   - 必須検査: 宣言順（グローバル → コマンド → 位置引数）に最初の不足をエラー構造体に入れる。位置引数は必須の個数と記録数で判定し、可変長かつ必須は 1 個以上
@@ -120,3 +120,4 @@
 - 2.1: `clopts_parser_find_negation` は「完全一致なし」を自分では確かめない。呼び出し側（3.4 の Scanner）が `find_long` を先に試すこと。DUPLICATE / NEGATION_CONFLICT は後に宣言された側を指す。「宣言検査と `clopts_parse` の結果一致」のテストは 3.1 で追加する
 - 2.2: `store_begin` は前回の `impl` を `clopts_result_free` で解放してから確保する。未初期化の `result` は前回の結果と区別できず解放すると未定義動作になるため、設計 PublicHeaders の事前条件「未初期化でもよい」は満たせない。3.1 で `parse.h` の契約を「ゼロ初期化または前回の結果」に改める（設計からの逸脱として報告する）
 - 2.2: `clopts_result_run` は `store->command`（なし構成は program）のハンドラを呼ぶ。`store_select` は `result->command` を設定しないので、Scanner が `result->command` を同じ値にそろえること。`append_list` は途中で失敗すると追加済みの項目を残して -1 を返す（解放は `clopts_result_free` が行う）。Resolver は `own` のあと `set_value(ENV)` の順で呼べばよい
+- 2.3: `check_required` は `result->status` を設定しない（Scanner が USAGE_ERROR にする）。`error.command` は `include_command` が真なら選択コマンド、偽なら NULL。`resolve` は `getenv_fn == NULL` なら既定の取得関数を使う。MSVC の C4996 は `CloptsCompilerOptions.cmake` の `_CRT_SECURE_NO_WARNINGS`（PRIVATE）で抑止済み
