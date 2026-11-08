@@ -72,7 +72,7 @@ Monde 版の強みである「宣言を 1 か所に書けば、解析とヘル�
 `/kiro-spec-batch` の前にこの順で行う。どちらも requirements から作り直す（`/kiro-spec-requirements <feature>` → design → tasks → impl）。
 
 - [x] project-foundation -- 静的／共有の選択（`CLOPTS_BUILD_SHARED`）、`clopts/export.h` と `CLOPTS_API`、visibility を hidden に、VERSION / SOVERSION、静的版の PIC と `CLOPTS_STATIC`、MSVC での静的版の別名、install の export セットを静的・共有で分け config で選ばせる（`COMPONENTS static|shared`）、Windows のテストで DLL を配置、CI を両方の形式に広げる、書き込みコールバックの扱いを変える（`clopts_writer_t` の値渡しと `clopts_writer_file(FILE*)` をやめ、`(write_fn, ctx)` を引数で渡す形とヘッダ内の `static inline` の `FILE*` 用コールバックにする）、統合テストを両形式で行う。Non-Goals の「共有ライブラリとしてのビルド」を外す。Dependencies: none
-- [ ] core-parser -- 宣言 API をビルダー + 不透明ハンドルに作り直す（program / command / option / positional のハンドル、種類別の追加関数と属性の設定関数、最初のエラーを記録して以降は何もしない方式、NULL を渡しても安全、文字列は複製）。結果は不透明な `clopts_result *` をライブラリが確保し、OOM のときも状態を読めるようにする。構造化エラーはアクセサで読む。環境変数のコールバックは借用した文字列を返す形にし、ライブラリが複製する。help-and-messages 向けに内部の宣言モデルの読み出し口を用意する。全公開関数に `CLOPTS_API` を付ける。既存の解析規則（走査、優先順位、エラー優先度）とテストの観点は引き継ぎ、API の形だけを置き換える。Dependencies: project-foundation（更新）
+- [x] core-parser -- 宣言 API をビルダー + 不透明ハンドルに作り直す（program / command / option / positional のハンドル、種類別の追加関数と属性の設定関数、最初のエラーを記録して以降は何もしない方式、NULL を渡しても安全、文字列は複製）。結果は不透明な `clopts_result *` をライブラリが確保し、OOM のときも状態を読めるようにする。構造化エラーはアクセサで読む。環境変数のコールバックは借用した文字列を返す形にし、ライブラリが複製する。help-and-messages 向けに内部の宣言モデルの読み出し口を用意する。全公開関数に `CLOPTS_API` を付ける。既存の解析規則（走査、優先順位、エラー優先度）とテストの観点は引き継ぎ、API の形だけを置き換える。Dependencies: project-foundation（更新）
 
 ## Direct Implementation Candidates
 
@@ -80,7 +80,7 @@ Monde 版の強みである「宣言を 1 か所に書けば、解析とヘル�
 
 ## Specs (dependency order)
 - [x] project-foundation -- CMake 骨格（ターゲット単位の警告と C99、`PROJECT_IS_TOP_LEVEL` ガード、install/export と package config、`CLOpts::clopts` エイリアス）、Naos の固定取り込み、CI マトリクス、内部ユーティリティ（可変長配列、書き込みコールバック型と `FILE*` ライタ）。Dependencies: none（共有ライブラリ化の改訂は Existing Spec Updates を参照）
-- [x] core-parser -- 公開ヘッダの宣言型と走査器（初版。ビルダー API への作り直しは Existing Spec Updates を参照）。Dependencies: project-foundation
+- [x] core-parser -- ビルダー API と不透明ハンドルによる宣言、走査器、結果ハンドル（初版の静的宣言テーブルから作り直し済み。Existing Spec Updates を参照）。Dependencies: project-foundation
 - [ ] help-and-messages -- 書き込みコールバックへのヘルプ・使い方・バージョン・エラー文面の生成、桁揃え、`FILE*` 便宜手段。program / command / result のハンドルを受け取り、内部の宣言モデルを読む。Dependencies: core-parser（更新後）
 - [ ] platform-argv -- Windows での UTF-8 argv の取得（`GetCommandLineW` を現行 MSVC CRT の規則で自前分割し、UTF-16 から UTF-8 へ変換）、`wmain` 利用者向けの `wargv` 変換、環境変数の UTF-8 取得（core-parser の環境変数コールバックとして差し込める）。取得した argv はライブラリが所有し、解放する。Dependencies: project-foundation（更新後）, core-parser（更新後）
 - [ ] abi-compat -- ABI 互換の方針（SOVERSION の規則、互換を保つ変更と壊す変更）、公開シンボル一覧と全 OS の共有ビルドでの照合、公開ヘッダに構造体の定義がないことの検査、Linux での abidiff（直近のリリースタグを CI で作り直して比べる。1.0.0 以降に有効）。Dependencies: project-foundation（更新後）, core-parser（更新後）
