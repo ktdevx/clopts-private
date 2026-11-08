@@ -112,3 +112,8 @@
   - 完了条件: `cmake --build build && ctest --test-dir build --output-on-failure` が全件通り、GCC / Clang の `-Wall -Wextra -Wpedantic -Werror -Werror=vla` で警告ゼロ。`-DCMAKE_C_FLAGS="-fsanitize=address,undefined"` で構成したビルドの `ctest -L parser` にリーク・不正アクセス・未定義動作の報告がない。`src/parser/` が include する内部ヘッダが `core/core_internal.h` だけである
   - _Boundary: ParserTests_
   - _Requirements: 3.4, 6.3, 6.7, 6.8, 6.9, 6.10, 7.1, 7.2, 7.3, 7.5, 7.8, 7.9, 8.2, 11.1, 11.2, 11.4, 11.5, 11.7, 11.8, 12.1, 12.2, 13.3, 13.4, 13.5, 13.6_
+
+## Implementation Notes
+- 1.2: フィクスチャは `tests/parser/test_fixtures.{h,c}`。`strict` のサブコマンド名は `run`。`build` にもハンドラ `fixture_handler`（userdata `&fixture_build_handler_record`）を付けてある。オプション・コマンドの添字は enum 定数で公開。モック環境変数は `fixture_env_t` / `fixture_env_init` / `fixture_env_getenv` / `fixture_env_was_queried`、`fail_next` は 1 回だけ FAILED を返す
+- 1.2: `clopts_result_free` は 1.2 で本実装済み（`free_slots` ヘルパ）。`add_count` は出所引数を持たず EXPLICIT を記録する（設計のシグネチャどおり）
+- Clang ビルドは `CC=clang cmake -S . -B build-clang -DCLOPTS_WERROR=ON -DFETCHCONTENT_SOURCE_DIR_NAOS=$(pwd)/build/_deps/naos-src` で Naos の再取得を避けられる
