@@ -74,17 +74,6 @@ static bool scan_at_end(const scan_state_t *state)
     return (state->pos >= state->argc);
 }
 
-/*
- * Ends the scan at the current token as if no token were left. The token rows
- * of the main scan are not in place yet, so the main scan calls this for
- * every token (provisional behavior of the parse skeleton: positionals come
- * with task 3.3, long options with 3.4, short options with 3.5).
- */
-static void scan_stop(scan_state_t *state)
-{
-    state->pos = state->argc;
-}
-
 /* True when the scan has decided the outcome before the end of the tokens. */
 static bool scan_decided(const scan_state_t *state)
 {
@@ -161,6 +150,99 @@ static bool is_version_token(const scan_state_t *state, const char *token)
 }
 
 /*
+ * Main-scan row for a token starting with "-" other than "-" alone and "--"
+ * (before "--"): one option token, matched against the selected scope and the
+ * global options. Provisional entry: every such token is reported as an
+ * unknown option until task 3.4 (long) and 3.5 (short) replace this row with
+ * the option processing (including --help / --version and the -h letter).
+ */
+static void main_option(scan_state_t *state)
+{
+    const char *token = scan_token(state);
+    clopts_error_t *error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, state->pos);
+
+    if (error != NULL)
+    {
+        if (token[1] == '-')
+        {
+            error->name_len = strcspn(token, "=");
+        }
+        else
+        {
+            error->short_name = token[1];
+        }
+    }
+    state->pos++;
+}
+
+/*
+ * Main-scan row for a positional token: a token not starting with "-", "-"
+ * alone, or any token after "--" (5.12 to 5.14, 1.8, 4.6). Positionals are
+ * taken by the declared positionals of the scope in order (the selected
+ * command, or the program without subcommands); a variadic last positional
+ * takes every remaining one (8.5). A token beyond the declared ones without a
+ * variadic last positional is an unexpected argument (5.15). Missing required
+ * positionals are reported later by the required check (8.3, 8.4).
+ */
+static void main_positional(scan_state_t *state)
+{
+    const clopts_positional_t *positionals;
+    size_t declared;
+    size_t taken = state->store->positionals.len;
+
+    if (state->command != NULL)
+    {
+        positionals = state->command->positionals;
+        declared = state->command->positional_count;
+    }
+    else
+    {
+        positionals = state->program->positionals;
+        declared = state->program->positional_count;
+    }
+    if ((taken >= declared) && ((declared == 0) || !positionals[declared - 1].variadic))
+    {
+        (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, state->pos);
+        state->pos++;
+        return;
+    }
+    if (clopts_parser_store_add_positional(state->store, scan_token(state)) != 0)
+    {
+        state->out_of_memory = true;
+        return;
+    }
+    state->pos++;
+}
+
+/*
+ * One token of the main scan, in the order of the design table: after "--"
+ * every token is a positional; "--" itself; "-" alone is a positional; other
+ * "-" tokens are options; everything else is a positional.
+ */
+static void main_token(scan_state_t *state)
+{
+    const char *token = scan_token(state);
+
+    if (state->dashdash)
+    {
+        main_positional(state);
+    }
+    else if (strcmp(token, "--") == 0)
+    {
+        state->dashdash = true;
+        state->pos++;
+    }
+    else if ((token[0] == '-') && (token[1] != '\0'))
+    {
+        main_option(state);
+    }
+    else
+    {
+        main_positional(state);
+    }
+}
+
+/*
  * Main scan (selected command, or a program without subcommands), until no
  * token is left or the scan decides the outcome.
  */
@@ -168,7 +250,7 @@ static void scan_main(scan_state_t *state)
 {
     while (!scan_at_end(state) && !scan_decided(state))
     {
-        scan_stop(state);
+        main_token(state);
     }
 }
 
