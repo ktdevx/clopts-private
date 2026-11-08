@@ -16,8 +16,8 @@
   - 完了条件: `ctest -N` に 4 スイートの `help_tests.<suite>.<test>` が並び、`ctest -L help` が静的ビルドと共有ビルドで通る
   - _Requirements: 12.3, 12.4_
 
-- [ ] 2. 出力器と表示幅
-- [ ] 2.1 書き込み・計測の 2 モードを持つ出力器と、UTF-8 の表示幅の計算を実装してテストする
+- [x] 2. 出力器と表示幅
+- [x] 2.1 書き込み・計測の 2 モードを持つ出力器と、UTF-8 の表示幅の計算を実装してテストする
   - 書き込みモード: core の書き込み関数でコールバックへ渡す。最初の失敗を記録し、以降はコールバックを呼ばない。長さ 0 では呼ばない。状態の問い合わせで OK / FAILED を返す
   - 計測モード: 書かずに、渡された文字列のコードポイント数を足していく
   - 幅: UTF-8 を厳密にデコードする。正しい列を 1 桁とし、過長形式・サロゲート・U+10FFFF 超・途切れた列・単独の継続バイトは 1 バイトにつき 1 桁とする
@@ -82,3 +82,4 @@
 ## Implementation Notes
 - 1.1: 公開 5 関数の呼び出し確認は tests/integration/fixtures/consumer/main.c の consumer_help_check()（戻り値が 3 値のどれかであることだけを見る）。位置引数の表記は help_layout.c の static 関数で、内部ヘッダには宣言しない。ローカルは MSVC のみ（build / build-shared、--config Debug）
 - 1.2: フィクスチャは tests/help/test_fixtures.{h,c} の help_fixture_{tool,filt,bare,wide}_t と _init(f) / _free(f)。tool は設計の出力例の文言どおり。copy の位置引数・filt・bare・wide の文言は実装者が決めたもので、期待するバイト列はこのファイルの文字列から作る。wide の表記は HELP_FIXTURE_* マクロ。コールバックは help_recorder_t / help_recorder_write（8192 バイト、溢れたら 1 を返す）と help_failer_t / help_failer_init(f, n) / help_failer_write（n=0 は失敗しない、calls_after_failure を数える）
+- 2.1: 計測モードは clopts_help_out_init に fn == NULL を渡す。spaces は 32 バイトずつ書く（呼び出し回数は契約外）。`ctest -R out` は layout にも一致するので、スイートだけを見るなら `-R help_tests.out` を使う
