@@ -1142,7 +1142,7 @@ NAOS_TEST(fixture_out_of_memory_is_recorded_and_released)
 NAOS_TEST(fixture_handler_records_calls)
 {
     fixture_handler_record_t record;
-    int marker;
+    int marker = 0;
 
     fixture_handler_reset(&record, 7);
     NAOS_CHECK_INT_EQ(record.calls, 0);
