@@ -19,9 +19,8 @@
 int main(int argc, char **argv)
 {
     static const char line[] = "clopts consumer: ok\n";
-    clopts_writer_t writer = clopts_writer_file(stdout);
 
-    if (writer.write(writer.ctx, line, strlen(line)) != 0)
+    if (clopts_file_write(stdout, line, strlen(line)) != 0)
     {
         return 1;
     }

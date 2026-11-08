@@ -53,17 +53,17 @@ void *clopts_core_vec_at(const clopts_core_vec_t *vec, size_t index);
 void clopts_core_vec_free(clopts_core_vec_t *vec);
 
 /*
- * Writing through a clopts_writer_t.
+ * Writing through a clopts_write_fn.
  *
- * clopts_core_write calls writer->write(writer->ctx, data, len) once and
- * returns its result unchanged (0 = success); a failure is not retried, so
- * the caller decides whether to continue. clopts_core_write_str writes the
- * strlen(s) bytes of the NUL-terminated string s the same way.
+ * clopts_core_write calls fn(ctx, data, len) once and returns its result
+ * unchanged (0 = success); a failure is not retried, so the caller decides
+ * whether to continue. clopts_core_write_str writes the strlen(s) bytes of
+ * the NUL-terminated string s the same way.
  *
- * writer and writer->write must not be NULL, data must not be NULL when
- * len > 0, and s must not be NULL.
+ * fn must not be NULL, data must not be NULL when len > 0, and s must not be
+ * NULL. ctx is passed through unchecked; it belongs to the callback.
  */
-int clopts_core_write(const clopts_writer_t *writer, const char *data, size_t len);
-int clopts_core_write_str(const clopts_writer_t *writer, const char *s);
+int clopts_core_write(clopts_write_fn fn, void *ctx, const char *data, size_t len);
+int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
 
 #endif /* CLOPTS_CORE_INTERNAL_H */

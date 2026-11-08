@@ -11,24 +11,32 @@ extern "C" {
 /*
  * Write callback. Writes the len bytes at data to the destination identified
  * by ctx. Returns 0 when all len bytes were written and nonzero otherwise.
+ *
+ * Library functions take the callback and its caller-owned context as two
+ * separate arguments.
  */
 typedef int (*clopts_write_fn)(void *ctx, const char *data, size_t len);
 
-/* A write callback paired with the caller-owned context passed to it. */
-typedef struct clopts_writer
-{
-    clopts_write_fn write;
-    void *ctx;
-} clopts_writer_t;
-
 /*
- * Returns a writer that writes to stream. The stream is owned by the caller
- * and must outlive the writer. stream must not be NULL.
+ * Ready-made write callback for a FILE*. Pass the FILE* as ctx.
  *
- * The returned writer's write returns 0 when fwrite() writes all len bytes
- * and nonzero otherwise. With len == 0 it writes nothing and returns 0.
+ * Defined here as static inline so that it is compiled in the caller's
+ * translation unit and is not part of the library: a FILE* never crosses the
+ * library boundary, even when the library uses a different C runtime.
+ *
+ * Writes the len bytes at data to the stream in order and returns 0 when
+ * fwrite() writes all of them, 1 otherwise. With len == 0 it writes nothing
+ * and returns 0. ctx must be a valid FILE*, and data must not be NULL when
+ * len > 0; otherwise the behavior is undefined.
  */
-clopts_writer_t clopts_writer_file(FILE *stream);
+static inline int clopts_file_write(void *ctx, const char *data, size_t len)
+{
+    if (len == 0)
+    {
+        return 0;
+    }
+    return (fwrite(data, 1, len, (FILE *)ctx) == len) ? 0 : 1;
+}
 
 #ifdef __cplusplus
 }
