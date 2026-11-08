@@ -51,7 +51,7 @@
   - _Requirements: 5.3, 5.4, 6.1, 6.2, 6.3, 6.4, 10.6, 11.6, 11.7_
 
 - [ ] 4. エラー文面
-- [ ] 4.1 (P) 使い方エラーとメモリ不足の 1 行、接頭辞、エラー文面の関数の分岐を実装してテストする
+- [x] 4.1 (P) 使い方エラーとメモリ不足の 1 行、接頭辞、エラー文面の関数の分岐を実装してテストする
   - 状態で分岐する: 使い方エラーなら種別ごとの文面、メモリ不足（NULL の結果を含む）なら `out of memory`、それ以外なら何も書かずに UNAVAILABLE。宣言エラーの分岐は 4.2 で埋める（ここでは UNAVAILABLE を返す仮の分岐）
   - 使い方エラーの 7 種別の文面と引数の決め方を、設計の表どおりに実装する（利用者が書いた形のオプション名、`=` より前の部分、ASCII 以外の short_name ならトークン全体）。種別 → 文面の内部関数は `default` のない `switch` で書き、範囲外の値には NULL を返す
   - 接頭辞: 定義済みのビットだけを見て、`<program>: ` または `<program> <command>: ` と `error: ` を組み立てる。プログラム名・コマンド名にテキストがなければ省く。文面は `\n` で終え、使い方の案内を含めない
@@ -86,3 +86,4 @@
 - 3.1: 一覧は help_internal.h の clopts_help_row_t {option, left, help} の配列を clopts_help_write_list(out, rows, count) に渡す（設計は型を決めていないので実装で決めた）。行だけを書き、見出しと空行は書かない。option 行では left / help を読まない。3.2 では clopts_help_row_t を変えず、help_layout.c 内の static な help_item_t / help_list_t（宣言の vec をその場で読む）で位置引数とコマンドの行を作った
 - 3.2: clopts_write_help はまだ入口で program->error.status を見ない。3.3 で、プログラム名を読む前に検査を入れる（エラーの program では root.name が NULL になりうる）。Usage 行は static の help_write_usage_line を 3.3 で再利用できる。バージョンなし・サブコマンドありの宣言 nover は test_layout.c の中だけにある
 - 3.3: ヘルプ系 4 関数の入口は static の help_program_available（program->error.status == CLOPTS_OK）。メモリ不足も同じ error.status に記録されるので、この 1 つの検査で足りる（メモリ不足の program のテストはない）。validate・凍結は起動しない。msys の sed -i は CRLF を落とすことがあるので、フラグの切り替えには使わない
+- 4.1: clopts_write_error の状態の switch には default がある（default なしの規則は種別 → 文面の関数と引数の switch だけ）。DECL_ERROR は仮に UNAVAILABLE。UNAVAILABLE は出力器の初期化と接頭辞の前に返す。テストは常に UNSET を返す環境変数の取得関数で clopts_parse_with_env を使う。「コマンド名にテキストがない」接頭辞の経路は使い方エラーでは起きないので、4.2 の宣言エラーで確かめるとよい

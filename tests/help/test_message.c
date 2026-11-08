@@ -2,6 +2,10 @@
  * Suite message: the texts of every usage and declaration error kind, the
  * prefixes and the coverage of the text tables.
  *
+ * The usage errors are caused by parsing real argv against the fictional
+ * declarations (the result handles are never forged). The expected lines are
+ * derived by hand from the table of the design (HelpMessage).
+ *
  * It also checks the failing callback of the shared fixtures, which the
  * write failure tests rely on.
  */
@@ -9,6 +13,591 @@
 #include "test_fixtures.h"
 
 #include <naos/naos.h>
+
+#include <string.h>
+
+/* Number of elements of argv before its terminating NULL. */
+#define MESSAGE_ARGC(argv) ((int)(sizeof(argv) / sizeof((argv)[0])) - 1)
+
+/* Both defined prefix flags. */
+#define MESSAGE_PREFIX_BOTH (CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR)
+
+/* Environment lookup that finds no variable, so the parses do not depend on the environment. */
+static clopts_env_status_t message_env_unset(void *ctx, const char *name, const char **value)
+{
+    (void)ctx;
+    (void)name;
+    (void)value;
+    return CLOPTS_ENV_UNSET;
+}
+
+/* What message_parse_and_write observed. */
+typedef struct message_run
+{
+    clopts_status_t status;       /* status of the result */
+    clopts_usage_error_t usage;   /* usage error kind of the result */
+    clopts_write_status_t write;  /* return value of clopts_write_error */
+    help_recorder_t rec;          /* the bytes written */
+} message_run_t;
+
+/*
+ * Parses argv against program (no environment variable is set), writes the
+ * error line of the result with flags into run->rec and releases the result.
+ */
+static void message_parse_and_write(clopts_program_t *program, int argc, char *const *argv, unsigned flags,
+                                    message_run_t *run)
+{
+    clopts_result_t *result = clopts_parse_with_env(program, argc, argv, message_env_unset, NULL);
+
+    run->status = clopts_result_status(result);
+    run->usage = clopts_result_usage_error(result);
+    help_recorder_init(&run->rec);
+    run->write = clopts_write_error(program, result, flags, help_recorder_write, &run->rec);
+    clopts_result_free(result);
+}
+
+/* ---- usage errors (7.1 to 7.9) ----------------------------------------- */
+
+NAOS_TEST(unknown_command_names_the_token)
+{
+    char *argv[] = { "tool", "bulid", NULL };
+    const char *expected = "unknown command 'bulid'\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_COMMAND);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(unknown_long_option_names_the_part_before_the_equals_sign)
+{
+    char *argv[] = { "tool", "build", "--bad=1", NULL };
+    const char *expected = "unknown option '--bad'\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_OPTION);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(unknown_long_option_without_value_names_the_whole_name)
+{
+    char *argv[] = { "tool", "--bad", NULL };
+    const char *expected = "unknown option '--bad'\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_OPTION);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(unknown_short_option_in_a_group_names_the_character)
+{
+    char *argv[] = { "tool", "build", "-vx", NULL };
+    const char *expected = "unknown option '-x'\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_OPTION);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(unknown_non_ascii_byte_in_a_group_names_the_whole_token)
+{
+    /* -v then U+00E9 (C3 A9): the offending byte is 0xC3, which is not ASCII. */
+    char *argv[] = { "tool", "build", "-v\xC3\xA9", NULL };
+    const char *expected = "unknown option '-v\xC3\xA9'\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_OPTION);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(unknown_non_ascii_byte_first_in_a_group_names_the_whole_token)
+{
+    char *argv[] = { "tool", "-\xE6\x97\xA5", NULL };
+    const char *expected = "unknown option '-\xE6\x97\xA5'\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_OPTION);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(missing_value_names_the_short_form_as_written)
+{
+    char *argv[] = { "tool", "build", "-o", NULL };
+    const char *expected = "option '-o' requires a value\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_VALUE);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(missing_value_in_a_group_names_the_short_form_as_written)
+{
+    char *argv[] = { "tool", "build", "-vo", NULL };
+    const char *expected = "option '-o' requires a value\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_VALUE);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(missing_value_names_the_long_form_as_written)
+{
+    char *argv[] = { "tool", "build", "--output", NULL };
+    const char *expected = "option '--output' requires a value\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_VALUE);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(unexpected_value_names_the_long_name_of_the_option)
+{
+    char *argv[] = { "tool", "--color=yes", NULL };
+    const char *expected = "option '--color' does not take a value\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNEXPECTED_VALUE);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(unexpected_value_to_a_negated_flag_names_the_long_name_of_the_option)
+{
+    char *argv[] = { "tool", "--no-color=yes", NULL };
+    const char *expected = "option '--color' does not take a value\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNEXPECTED_VALUE);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(unexpected_value_to_a_reserved_option_names_the_part_before_the_equals_sign)
+{
+    char *argv[] = { "tool", "--help=x", NULL };
+    char *argv_version[] = { "tool", "--version=", NULL };
+    const char *expected = "option '--help' does not take a value\n";
+    const char *expected_version = "option '--version' does not take a value\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNEXPECTED_VALUE);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv_version), argv_version, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNEXPECTED_VALUE);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected_version, strlen(expected_version));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(missing_option_names_the_long_name)
+{
+    char *argv[] = { "tool", "build", "SRC", NULL };
+    const char *expected = "missing required option '--output'\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
+{
+    /* A one-option declaration local to this test: -t VALUE required, no long name. */
+    char *argv[] = { "short", NULL };
+    const char *expected = "missing required option '-t'\n";
+    clopts_program_t *program = clopts_program_new("short");
+    clopts_option_t *target;
+    message_run_t run;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    target = clopts_command_add_value(clopts_program_root(program), NULL, 't');
+    clopts_option_set_required(target, true);
+    message_parse_and_write(program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    clopts_program_free(program);
+}
+
+NAOS_TEST(missing_argument_names_the_positional)
+{
+    char *argv[] = { "tool", "copy", "a", NULL };
+    const char *expected = "missing argument <DST>\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(missing_argument_of_a_program_without_subcommands)
+{
+    char *argv[] = { "filt", NULL };
+    const char *expected = "missing argument <FILE>\n";
+    help_fixture_filt_t f;
+    message_run_t run;
+
+    help_fixture_filt_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_filt_free(&f);
+}
+
+NAOS_TEST(unexpected_argument_names_the_token)
+{
+    char *argv[] = { "tool", "copy", "a", "b", "c", NULL };
+    const char *expected = "unexpected argument 'c'\n";
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNEXPECTED_ARGUMENT);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(usage_error_line_has_no_usage_hint)
+{
+    char *argv[] = { "tool", "build", "-o", NULL };
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, MESSAGE_PREFIX_BOTH, &run);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+    NAOS_CHECK_NULL(strstr(run.rec.buf, "Run '"));
+    NAOS_CHECK_NULL(strstr(run.rec.buf, "--help"));
+    /* exactly one line, ending with LF */
+    NAOS_REQUIRE_TRUE(run.rec.len > 0);
+    NAOS_CHECK_INT_EQ(run.rec.buf[run.rec.len - 1], '\n');
+    NAOS_CHECK_PTR_EQ(strchr(run.rec.buf, '\n'), run.rec.buf + run.rec.len - 1);
+    help_fixture_tool_free(&f);
+}
+
+/* ---- out of memory and the other statuses (8.4, 8.5) ------------------- */
+
+NAOS_TEST(null_result_is_out_of_memory)
+{
+    const char *expected = "out of memory\n";
+    help_fixture_tool_t f;
+    help_recorder_t rec;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    help_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_error(f.program, NULL, 0u, help_recorder_write, &rec), CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(out_of_memory_takes_the_program_prefix)
+{
+    const char *expected = "tool: error: out of memory\n";
+    help_fixture_tool_t f;
+    help_recorder_t rec;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    help_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_error(f.program, NULL, MESSAGE_PREFIX_BOTH, help_recorder_write, &rec),
+                      CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(out_of_memory_omits_an_empty_program_name)
+{
+    const char *expected = "error: out of memory\n";
+    const char *expected_program_only = "out of memory\n";
+    clopts_program_t *program = clopts_program_new("");
+    help_recorder_t rec;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    help_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_error(program, NULL, MESSAGE_PREFIX_BOTH, help_recorder_write, &rec),
+                      CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
+
+    help_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_error(program, NULL, CLOPTS_PREFIX_PROGRAM, help_recorder_write, &rec),
+                      CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected_program_only, strlen(expected_program_only));
+    clopts_program_free(program);
+}
+
+NAOS_TEST(out_of_memory_omits_a_missing_program_name)
+{
+    const char *expected = "error: out of memory\n";
+    clopts_program_t *program = clopts_program_new(NULL);
+    help_recorder_t rec;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    help_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_error(program, NULL, MESSAGE_PREFIX_BOTH, help_recorder_write, &rec),
+                      CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
+    clopts_program_free(program);
+}
+
+NAOS_TEST(statuses_without_an_error_are_unavailable)
+{
+    char *argv_ok[] = { "tool", "build", "-o", "out", "SRC", NULL };
+    char *argv_help[] = { "tool", "--help", NULL };
+    char *argv_version[] = { "tool", "--version", NULL };
+    char *argv_no_command[] = { "tool", NULL };
+    help_fixture_tool_t f;
+    message_run_t run;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv_ok), argv_ok, MESSAGE_PREFIX_BOTH, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
+    NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
+
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv_help), argv_help, MESSAGE_PREFIX_BOTH, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_HELP);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
+    NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
+
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv_version), argv_version, MESSAGE_PREFIX_BOTH, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_VERSION);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
+    NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
+
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv_no_command), argv_no_command, MESSAGE_PREFIX_BOTH, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_NO_COMMAND);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
+    NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
+
+    help_fixture_tool_free(&f);
+}
+
+/* ---- prefixes (9.1 to 9.6) --------------------------------------------- */
+
+NAOS_TEST(prefixes_without_an_error_command)
+{
+    /* The unknown command is reported for the root: no command in the prefix. */
+    char *argv[] = { "tool", "bulid", NULL };
+    const char *expected[4] = {
+        "unknown command 'bulid'\n",
+        "tool: unknown command 'bulid'\n",
+        "error: unknown command 'bulid'\n",
+        "tool: error: unknown command 'bulid'\n",
+    };
+    help_fixture_tool_t f;
+    message_run_t run;
+    unsigned flags;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    for (flags = 0u; flags < 4u; flags++)
+    {
+        message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, flags, &run);
+        NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+        NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected[flags], strlen(expected[flags]));
+    }
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(prefixes_with_an_error_command)
+{
+    char *argv[] = { "tool", "build", "-o", NULL };
+    const char *expected[4] = {
+        "option '-o' requires a value\n",
+        "tool build: option '-o' requires a value\n",
+        "error: option '-o' requires a value\n",
+        "tool build: error: option '-o' requires a value\n",
+    };
+    help_fixture_tool_t f;
+    message_run_t run;
+    unsigned flags;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    for (flags = 0u; flags < 4u; flags++)
+    {
+        message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, flags, &run);
+        NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+        NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected[flags], strlen(expected[flags]));
+    }
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(prefixes_of_a_program_without_subcommands)
+{
+    char *argv[] = { "filt", "--lines", NULL };
+    const char *expected[4] = {
+        "option '--lines' requires a value\n",
+        "filt: option '--lines' requires a value\n",
+        "error: option '--lines' requires a value\n",
+        "filt: error: option '--lines' requires a value\n",
+    };
+    help_fixture_filt_t f;
+    message_run_t run;
+    unsigned flags;
+
+    help_fixture_filt_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    for (flags = 0u; flags < 4u; flags++)
+    {
+        message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, flags, &run);
+        NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+        NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected[flags], strlen(expected[flags]));
+    }
+    help_fixture_filt_free(&f);
+}
+
+NAOS_TEST(undefined_prefix_bits_are_ignored)
+{
+    char *argv_command[] = { "tool", "build", "-o", NULL };
+    char *argv_root[] = { "tool", "bulid", NULL };
+    const unsigned extra[3] = { 0x4u, 0x80000000u, ~(unsigned)MESSAGE_PREFIX_BOTH };
+    help_fixture_tool_t f;
+    message_run_t plain;
+    message_run_t run;
+    unsigned flags;
+    int i;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    for (flags = 0u; flags < 4u; flags++)
+    {
+        for (i = 0; i < 3; i++)
+        {
+            message_parse_and_write(f.program, MESSAGE_ARGC(argv_command), argv_command, flags, &plain);
+            message_parse_and_write(f.program, MESSAGE_ARGC(argv_command), argv_command, flags | extra[i], &run);
+            NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+            NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, plain.rec.buf, plain.rec.len);
+
+            message_parse_and_write(f.program, MESSAGE_ARGC(argv_root), argv_root, flags, &plain);
+            message_parse_and_write(f.program, MESSAGE_ARGC(argv_root), argv_root, flags | extra[i], &run);
+            NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
+            NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, plain.rec.buf, plain.rec.len);
+        }
+    }
+
+    /* ~0u holds both defined bits, so it reads as PROGRAM | ERROR. */
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv_command), argv_command, ~0u, &run);
+    NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, "tool build: error: option '-o' requires a value\n",
+                      strlen("tool build: error: option '-o' requires a value\n"));
+    help_fixture_tool_free(&f);
+}
+
+NAOS_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory)
+{
+    const char *expected = "out of memory\n";
+    help_fixture_tool_t f;
+    help_recorder_t rec;
+
+    help_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    help_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_error(f.program, NULL, ~(unsigned)MESSAGE_PREFIX_BOTH, help_recorder_write, &rec),
+                      CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
+    help_fixture_tool_free(&f);
+}
+
+/* ---- the failing callback of the fixtures ------------------------------ */
 
 NAOS_TEST(failer_fails_on_the_nth_call_and_counts_later_calls)
 {
@@ -69,6 +658,34 @@ NAOS_TEST(failer_with_zero_never_fails)
 }
 
 NAOS_SUITE(message,
+    NAOS_ADD_TEST(unknown_command_names_the_token),
+    NAOS_ADD_TEST(unknown_long_option_names_the_part_before_the_equals_sign),
+    NAOS_ADD_TEST(unknown_long_option_without_value_names_the_whole_name),
+    NAOS_ADD_TEST(unknown_short_option_in_a_group_names_the_character),
+    NAOS_ADD_TEST(unknown_non_ascii_byte_in_a_group_names_the_whole_token),
+    NAOS_ADD_TEST(unknown_non_ascii_byte_first_in_a_group_names_the_whole_token),
+    NAOS_ADD_TEST(missing_value_names_the_short_form_as_written),
+    NAOS_ADD_TEST(missing_value_in_a_group_names_the_short_form_as_written),
+    NAOS_ADD_TEST(missing_value_names_the_long_form_as_written),
+    NAOS_ADD_TEST(unexpected_value_names_the_long_name_of_the_option),
+    NAOS_ADD_TEST(unexpected_value_to_a_negated_flag_names_the_long_name_of_the_option),
+    NAOS_ADD_TEST(unexpected_value_to_a_reserved_option_names_the_part_before_the_equals_sign),
+    NAOS_ADD_TEST(missing_option_names_the_long_name),
+    NAOS_ADD_TEST(missing_option_without_a_long_name_names_the_short_name),
+    NAOS_ADD_TEST(missing_argument_names_the_positional),
+    NAOS_ADD_TEST(missing_argument_of_a_program_without_subcommands),
+    NAOS_ADD_TEST(unexpected_argument_names_the_token),
+    NAOS_ADD_TEST(usage_error_line_has_no_usage_hint),
+    NAOS_ADD_TEST(null_result_is_out_of_memory),
+    NAOS_ADD_TEST(out_of_memory_takes_the_program_prefix),
+    NAOS_ADD_TEST(out_of_memory_omits_an_empty_program_name),
+    NAOS_ADD_TEST(out_of_memory_omits_a_missing_program_name),
+    NAOS_ADD_TEST(statuses_without_an_error_are_unavailable),
+    NAOS_ADD_TEST(prefixes_without_an_error_command),
+    NAOS_ADD_TEST(prefixes_with_an_error_command),
+    NAOS_ADD_TEST(prefixes_of_a_program_without_subcommands),
+    NAOS_ADD_TEST(undefined_prefix_bits_are_ignored),
+    NAOS_ADD_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory),
     NAOS_ADD_TEST(failer_fails_on_the_nth_call_and_counts_later_calls),
     NAOS_ADD_TEST(failer_fails_on_the_first_call),
     NAOS_ADD_TEST(failer_with_zero_never_fails)
