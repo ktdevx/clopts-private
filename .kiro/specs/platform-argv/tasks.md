@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. 基盤: 公開契約、モジュールとテストの骨格、確保の入口
+- [x] 1. 基盤: 公開契約、モジュールとテストの骨格、確保の入口
 - [x] 1.1 公開ヘッダと platform モジュールの骨格を用意し、OS 別のソースを選んでライブラリに登録する
   - 公開ヘッダに、argv と環境変数の不透明型 2 つ、列挙 2 つ、全 OS の公開関数 11 個と Windows だけの wargv 変換関数を、設計どおりに宣言する。全関数に export の印を付け、`extern "C"` とヘッダガードで囲み、構造体の定義を置かない。wargv 変換関数だけを `_WIN32` の条件で宣言する。Windows 以外で文字列の寿命が利用者の argv に従うことを、ヘッダのコメントに書く。傘ヘッダから include する
   - `src/platform/` を作り、共通の 4 ファイル（確保の入口、分割、argv ハンドル、環境変数の文脈）と、Windows なら Windows 用、それ以外なら POSIX 用の 1 ファイルを、モジュール追加ヘルパで登録する（`src/CMakeLists.txt` で help の後に追加）。リンクするライブラリは足さない
@@ -23,7 +23,7 @@
   - 完了条件: `ctest -L platform -R oom` が通る
   - _Requirements: 5.4_
 
-- [ ] 2. 全 OS 共通の部品
+- [x] 2. 全 OS 共通の部品
 - [x] 2.1 (P) CRT の規則によるコマンドライン文字列の分割を実装し、表駆動でテストする
   - 設計の規則表（R0〜R9）どおりに実装する。argv[0] の規則と、それ以降の要素の規則（バックスラッシュと引用符、引用モード中の 2 個続きの引用符、空白とタブだけを区切りとする）を分ける
   - 出力先が NULL なら要素数と必要な符号単位数だけを数え、出力先があれば同じ規則で埋める。確保せず、OS の関数を呼ばない
@@ -50,7 +50,7 @@
   - _Boundary: PlatformEnv_
   - _Requirements: 7.1, 7.7, 7.9, 7.10, 7.11, 7.12_
 
-- [ ] 3. OS 別の実装
+- [x] 3. OS 別の実装
 - [x] 3.1 Windows 以外の argv のパススルーと getenv による環境変数の取得を実装してテストする
   - argv の取得は事前条件を assert で確かめ、パススルーのハンドルを返す。文字列と配列を複製せず、変換しない
   - 環境変数の取得は、文脈が NULL なら FAILED を返す。それ以外は失敗の記録を消してから getenv で読み、なければ UNSET、あれば（空文字列を含め）FOUND とそのポインタを返す
@@ -78,7 +78,7 @@
   - _Depends: 2.3_
   - _Requirements: 7.3, 7.5, 7.6, 7.7, 7.8, 7.9, 7.10, 9.4_
 
-- [ ] 4. 結合と検証
+- [x] 4. 結合と検証
 - [x] 4.1 解析との結合と、メモリ不足の経路の総当たりを確かめる
   - 架空のプログラム `tool` の宣言で、環境変数フォールバックを持つオプションを `clopts_parse_with_env` と本モジュールの取得関数・文脈で解析し、値が UTF-8 で得られ出所が環境変数であることを確かめる（Windows では日本語の値も）。取得関数が失敗したとき、解析がメモリ不足で終わり、文脈から本当の理由を読めることも確かめる（Windows の不正な名前を使う）
   - probe の失敗位置を 1 から順に動かし、成功するまで繰り返す: パススルー、環境変数の文脈の作成、Windows ではコマンドライン文字列からの取得（成功の経路と不正な UTF-16 の失敗の経路）と環境変数の取得。各回で、番兵または FAILED とメモリ不足の記録になり、解放後に生きているブロックが 0 に戻ること
@@ -103,7 +103,7 @@
   - _Boundary: tests/platform の検査スクリプト、tests/integration の利用側_
   - _Requirements: 8.1, 8.3, 8.5_
 
-- [ ] 5. 全体の検証
+- [x] 5. 全体の検証
   - 静的ビルドと共有ビルドのそれぞれで、全テスト（`ctest`）を実行する。Windows では MSVC に加えて、可能なら MinGW-w64（ucrt64）でも実行する。Windows 以外の確認は WSL または CI で行う
   - `src/platform/` に `<stdio.h>` の include と標準出力・標準エラーへの書き込み・`exit` の呼び出しがないことを確かめる
   - 公開シンボル一覧（abi-compat）がこの時点で存在すれば、追加した公開関数を載せる。存在しなければ、設計の一覧どおりであることを共有ビルドの export で確かめるにとどめる
@@ -123,3 +123,4 @@
 - 4.1: 結合テストは test_env.c の `tool`（`--output` に環境変数フォールバック）。builder は `"\xff"` の環境変数名を受け付けるので、Windows の不正な名前はそのまま使える。Windows 以外では getenv が失敗しないので、失敗の経路は NULL の文脈で確かめる。test_oom.c も `#ifndef _WIN32` / `#else` の 2 つのスイート一覧に分けた
 - 4.2: probe は tests/platform/platform_probe.c（CLOPTS_TEST_LINK_TARGET にリンクするので両形式とも DLL は不要）。パスは `PLATFORM_PROBE_PATH` で渡す。wine 9 + msvcrt では表の 11 行すべてが終了コード 0 だった。MSVC（UCRT）と MinGW ucrt64 での確認は CI に委ねた
 - 4.3: 検査は CTest の `platform.no_shell32`（`platform_tests.*` ではないので `-R` の絞り込みに注意）。利用側の `consumer_platform_check()` は main の argc / argv を使わず、固定の `{"consumer", NULL}` を渡す（main の引数を未使用のまま残して、警告フラグが利用側に漏れないことの検査を保つため）
+- 5: Linux（gcc・clang、静的・共有）で全テスト（610 / 611 件）が通り、MinGW + wine（静的・共有）で `-L platform` の 94 件が通った。`src/platform/` に `<stdio.h>`・標準出力への書き込み・`exit` はない。abi-compat の公開シンボル一覧はまだないので、共有ビルドの export が設計の一覧（全 OS の 11 個と Windows の `clopts_argv_from_wide`）と一致することだけを確かめた。MSVC と MinGW ucrt64 は CI で確かめる
