@@ -95,7 +95,7 @@
   - _Depends: 3.2_
   - _Requirements: 2.2, 9.3_
 
-- [ ] 4.3 shell32 を使わないことの検査と、利用側から全公開関数を呼ぶ統合テストを足す
+- [x] 4.3 shell32 を使わないことの検査と、利用側から全公開関数を呼ぶ統合テストを足す
   - 4.2 と同じ `tests/platform/CMakeLists.txt` を編集するため、4.2 の後に順に行う
   - cmake -P の検査スクリプトで、`src/` に shell32 の使用がないことを確かめ、CTest にラベル `platform` で登録する（全 OS）。コメント中の言及で誤検出しないよう、照合するのは使用の形だけにする: `.c` / `.h` の `#include` 行での `shellapi.h`、`CommandLineToArgv` の後に `(` が続く呼び出し、CMake ファイルの `target_link_libraries` などのリンク指定での `shell32`
   - 統合テストの利用側に、傘ヘッダだけを使って本 spec の全公開関数（Windows では wargv 変換関数も）を呼び、戻り値が契約どおりであることを確かめる関数を足す
@@ -122,3 +122,4 @@
 - 3.3: wide バッファは「名前の UTF-16 + 値」で、`reserve_wide` のたびに名前を変換し直す。`GetEnvironmentVariableW` が not-found 以外のエラーで 0 を返したときは OUT_OF_MEMORY として記録する。wine 9 の空の値・未設定の挙動は Windows の文書どおりだった。リトライ中の確保失敗の経路は 4.1 の総当たりで通すこと
 - 4.1: 結合テストは test_env.c の `tool`（`--output` に環境変数フォールバック）。builder は `"\xff"` の環境変数名を受け付けるので、Windows の不正な名前はそのまま使える。Windows 以外では getenv が失敗しないので、失敗の経路は NULL の文脈で確かめる。test_oom.c も `#ifndef _WIN32` / `#else` の 2 つのスイート一覧に分けた
 - 4.2: probe は tests/platform/platform_probe.c（CLOPTS_TEST_LINK_TARGET にリンクするので両形式とも DLL は不要）。パスは `PLATFORM_PROBE_PATH` で渡す。wine 9 + msvcrt では表の 11 行すべてが終了コード 0 だった。MSVC（UCRT）と MinGW ucrt64 での確認は CI に委ねた
+- 4.3: 検査は CTest の `platform.no_shell32`（`platform_tests.*` ではないので `-R` の絞り込みに注意）。利用側の `consumer_platform_check()` は main の argc / argv を使わず、固定の `{"consumer", NULL}` を渡す（main の引数を未使用のまま残して、警告フラグが利用側に漏れないことの検査を保つため）

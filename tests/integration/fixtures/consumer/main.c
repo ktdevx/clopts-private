@@ -11,7 +11,9 @@
  * consumer_parse_check() runs declaration -> parse -> lookup -> release with
  * public functions only. consumer_help_check() calls the five text writers
  * of clopts/help.h through the umbrella header (in a shared build, each call
- * must resolve against an exported symbol).
+ * must resolve against an exported symbol). consumer_platform_check() calls
+ * every function of clopts/platform.h (clopts_argv_from_wide only on Windows)
+ * through the umbrella header and checks the results against the contract.
  */
 #include <clopts/clopts.h>
 
@@ -117,6 +119,84 @@ static int consumer_help_check(void)
     return failed;
 }
 
+/*
+ * argv: clopts_argv_get on the fixed argv {"consumer", NULL} (main's own
+ * parameters stay unused, see above). On Windows the handle holds the split
+ * process command line instead, so only the contract is checked there: OK,
+ * at least one element, values[count] == NULL, error index -1. Elsewhere the
+ * very same argv comes back. Then clopts_argv_free on the handle and on NULL.
+ * Windows only: clopts_argv_from_wide on {L"consumer", NULL} gives "consumer".
+ * env: a new context looks up PATH (FOUND with a value, or UNSET; never
+ * FAILED), after which the error is NONE and the error name NULL; a NULL
+ * context gives FAILED. Returns 0 on success, non-zero on any mismatch.
+ */
+static int consumer_platform_check(void)
+{
+    char arg0[] = "consumer";
+    char *const args[] = { arg0, NULL };
+    clopts_argv_t *argv_handle;
+    char *const *values;
+    int count;
+    clopts_env_t *env;
+    clopts_env_status_t env_status;
+    const char *value;
+    int failed = 0;
+
+    argv_handle = clopts_argv_get(1, args);
+    count = clopts_argv_count(argv_handle);
+    values = clopts_argv_values(argv_handle);
+    if ((clopts_argv_status(argv_handle) != CLOPTS_ARGV_OK) || (count < 1) || (values == NULL) ||
+        (values[count] != NULL) || (clopts_argv_error_index(argv_handle) != -1))
+    {
+        failed = 1;
+    }
+#ifndef _WIN32
+    else if ((count != 1) || (values[0] != arg0))
+    {
+        failed = 1;
+    }
+#endif
+    clopts_argv_free(argv_handle);
+    clopts_argv_free(NULL);
+
+#ifdef _WIN32
+    {
+        wchar_t warg0[] = L"consumer";
+        wchar_t *const wargs[] = { warg0, NULL };
+
+        argv_handle = clopts_argv_from_wide(1, wargs);
+        values = clopts_argv_values(argv_handle);
+        if ((clopts_argv_status(argv_handle) != CLOPTS_ARGV_OK) || (clopts_argv_count(argv_handle) != 1) ||
+            (strcmp(values[0], "consumer") != 0) || (values[1] != NULL) ||
+            (clopts_argv_error_index(argv_handle) != -1))
+        {
+            failed = 1;
+        }
+        clopts_argv_free(argv_handle);
+    }
+#endif
+
+    env = clopts_env_new();
+    if (env == NULL)
+    {
+        return 1;
+    }
+    value = NULL;
+    env_status = clopts_env_lookup(env, "PATH", &value);
+    if (((env_status != CLOPTS_ENV_FOUND) && (env_status != CLOPTS_ENV_UNSET)) ||
+        ((env_status == CLOPTS_ENV_FOUND) && (value == NULL)) || (clopts_env_error(env) != CLOPTS_ENV_ERROR_NONE) ||
+        (clopts_env_error_name(env) != NULL))
+    {
+        failed = 1;
+    }
+    if (clopts_env_lookup(NULL, "PATH", &value) != CLOPTS_ENV_FAILED)
+    {
+        failed = 1;
+    }
+    clopts_env_free(env);
+    return failed;
+}
+
 int main(int argc, char **argv)
 {
     static const char line[] = "clopts consumer: ok\n";
@@ -134,6 +214,10 @@ int main(int argc, char **argv)
         return 1;
     }
     if (consumer_help_check() != 0)
+    {
+        return 1;
+    }
+    if (consumer_platform_check() != 0)
     {
         return 1;
     }
