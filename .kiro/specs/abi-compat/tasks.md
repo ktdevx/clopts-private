@@ -37,7 +37,7 @@
   - _Boundary: HeaderRulesCheck_
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.8_
 
-- [ ] 2.4 (P) 公開ヘッダの C99 / C++ コンパイル検査の子プロジェクトを実装する
+- [x] 2.4 (P) 公開ヘッダの C99 / C++ コンパイル検査の子プロジェクトを実装する
   - 構成時に `${CLOPTS_SOURCE_DIR}/include/clopts/*.h` を列挙し、ヘッダごとに `check_<header>.c` または `check_<header>.cpp`（その 1 つのヘッダの include と、空の翻訳単位を避ける `typedef` 1 つ）をビルドツリーに生成する
   - `HEADER_CHECK_LANG=C`: C だけのプロジェクトで、生成した `.c` のオブジェクトライブラリに CLOpts の `clopts_apply_compiler_options` を適用する（`CLOPTS_WERROR=ON`）
   - `HEADER_CHECK_LANG=CXX`: C と C++ のプロジェクトで、生成した `.cpp` を C++11（拡張なし）と設計の警告設定（GCC / Clang は `-Wall -Wextra -Wpedantic -Werror`、MSVC は `/W4 /WX /utf-8 /Zc:preprocessor /Zc:__cplusplus /EHsc`）でコンパイルする。CLOpts を `add_subdirectory` で取り込み、一覧の全シンボルのアドレスを取る `link_check.cpp` を一覧から生成して（注記 `windows` の名前は `#ifdef _WIN32` で囲む）`CLOpts::clopts` にリンクする実行ファイルを作る
@@ -120,3 +120,4 @@
 - 2.1: `check_symbols.cmake` は形式ごとに `_check_symbols_extract_<FORMAT>` と `_check_symbols_exclude_<FORMAT>` を持つ（2.2 はここに足す）。データ由来のリストの空判定は必ず `list(LENGTH)` で行う（`if(<var>)` だと `off` などの名前が偽になり見逃す）。FATAL_ERROR の報告行は先頭に空白 1 つを付けて CMake の折り返しを防ぐ。`nm-elf.txt` は実出力の 12 名の部分集合で、他形式の記録も同じ 12 名（Windows の 2 形式は加えて `clopts_argv_from_wide`）にそろえる
 - 2.2: `TOOL` は PATH 上の名前も `find_program` で解決する（3.1 ではフルパスを渡す）。dumpbin の取り出しは英語の出力（`ordinal hint RVA name` と `Summary`）に依存する。objdump-pe は binutils 2.42 の実出力（旧形式）と、記録した新形式の両方で通る
 - 2.3: `check_header_rules.cmake` は `static` でない本体付きの関数定義も本体の閉じで文を終え、`CLOPTS_API` なしとして報告する。波括弧の不整合も違反として報告する。扱わない構文はスクリプト先頭の注釈にあり、4.2 で `docs/dev/abi-checks.md` に写す
+- 2.4: 子プロジェクトは CLOpts を `EXCLUDE_FROM_ALL` で取り込み、ヘッダごとの検査は `$<TARGET_PROPERTY:clopts,INTERFACE_*>` で include と `CLOPTS_STATIC` を受け取る（リンクすると CLOpts 本体が先に失敗して `check_<header>` が出ないため）。CXX では `add_dependencies(clopts abi_header_check)` でヘッダ検査を先にコンパイルする。`extern "C"` の欠落は `abi_link_check` の未定義参照（修飾名）で報告される。MSVC / AppleClang / MinGW は CI で確かめる
