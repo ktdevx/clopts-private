@@ -8,7 +8,7 @@
   - _Requirements: 2.1, 2.2, 2.4_
 
 - [ ] 2. 検査スクリプトと子プロジェクト
-- [ ] 2.1 (P) シンボル照合スクリプトの一覧の検査と集合の比較・報告を、`nm-elf` の形式で実装する
+- [x] 2.1 (P) シンボル照合スクリプトの一覧の検査と集合の比較・報告を、`nm-elf` の形式で実装する
   - 一覧を読み、空行と注釈の行を無視し、重複と規則（`clopts_` で始まる小文字・数字・`_`）に合わない名前と未知の OS の注記（設計の SymbolList の「OS の注記」）を、一覧のパスと行番号付きですべて集めてから失敗する。`LIBRARY` も `DUMP_FILE` もなければ、ここで成功して終わる
   - `DUMP_FILE` を読み、`nm-elf` の規則で名前を取り出し、除外リスト（`_init`、`_fini`、`_edata`、`_end`、`__bss_start`。理由の注釈付き）を取り除く。取り出した名前が 0 個なら、出力の形式が想定と違うものとして失敗する
   - 一覧と比べ、不足と余分を名前順ですべて報告し、一覧の場所と「一覧を更新するか export をやめるか」の案内と `docs/dev/abi-checks.md` への参照を添えて失敗する。一致すれば照合した名前の数を表示して成功する
@@ -117,3 +117,4 @@
 
 ## Implementation Notes
 - 1.1: `clopts_argv_from_wide` は `platform.h` の `#ifdef _WIN32` の中だけで宣言されるため、設計の SymbolList に OS の注記（`<name> windows`）を追記した（ユーザー承認済み）。注記付きの名前は `dumpbin` / `objdump-pe` の照合でだけ要求し、`link_check.cpp` では `#ifdef _WIN32` で囲む。Linux の `libclopts.so` の export は注記なしの 64 個
+- 2.1: `check_symbols.cmake` は形式ごとに `_check_symbols_extract_<FORMAT>` と `_check_symbols_exclude_<FORMAT>` を持つ（2.2 はここに足す）。データ由来のリストの空判定は必ず `list(LENGTH)` で行う（`if(<var>)` だと `off` などの名前が偽になり見逃す）。FATAL_ERROR の報告行は先頭に空白 1 つを付けて CMake の折り返しを防ぐ。`nm-elf.txt` は実出力の 12 名の部分集合で、他形式の記録も同じ 12 名（Windows の 2 形式は加えて `clopts_argv_from_wide`）にそろえる

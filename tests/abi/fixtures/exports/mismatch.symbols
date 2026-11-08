@@ -1,0 +1,23 @@
+# Self-test list for tests/abi/check_symbols.cmake (abi.symbols_selftest.mismatch):
+# expected.symbols with clopts_write_help removed (so it is exported but not
+# listed: "extra") and clopts_result_take added (listed but not exported:
+# "missing").
+
+# clopts/decl.h
+clopts_program_new
+clopts_program_free
+clopts_command_add_flag
+clopts_option_set_help
+
+# clopts/parse.h
+clopts_parse
+clopts_result_status
+clopts_result_take
+clopts_result_free
+
+# clopts/platform.h
+clopts_argv_get
+clopts_argv_from_wide windows
+clopts_argv_free
+clopts_env_new
+clopts_env_free

@@ -1,0 +1,14 @@
+# Self-test list for tests/abi/check_symbols.cmake (abi.symbols_selftest.bad_list):
+# every kind of format error, each reported with its line number. Blank lines,
+# comments and indented comments must not be reported.
+
+clopts_program_new
+   # an indented comment
+  clopts_program_free  
+
+clopts_program_new
+parse_args
+Clopts_Parse
+clopts_argv_from_wide linux
+clopts_env_new windows extra
+clopts_env_free windows
