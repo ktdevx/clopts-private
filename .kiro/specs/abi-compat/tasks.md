@@ -63,7 +63,7 @@
   - _Requirements: 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
 
 - [ ] 3. 統合: CTest への登録と CI
-- [ ] 3.1 `abi.*` のテストを CTest に登録する
+- [x] 3.1 `abi.*` のテストを CTest に登録する
   - 設計の登録表どおりに、`abi.symbol_list`、`abi.exports`（共有ビルドのときだけ）、`abi.symbols_selftest.<format>` の 4 件と `.mismatch`・`.bad_list`、`abi.header_rules`、`abi.header_rules_selftest.good` と各 `bad` のケース（`PASS_REGULAR_EXPRESSION` で期待するファイル・行・理由）、`abi.headers_c`、`abi.headers_cxx`、`abi.compare_selftest` を、すべてラベル `abi` で登録する
   - `abi.exports` の `FORMAT` と `TOOL` を設計の表どおりに選ぶ（MSVC は `CMAKE_LINKER` のディレクトリの `dumpbin`、なければ `link.exe` を `/dump` で、MinGW は `CMAKE_OBJDUMP`、macOS と Linux は `CMAKE_NM`）。見つからなくても登録し、空の `TOOL` を渡す
   - `check_language(CXX)` で C++ コンパイラを判定し、なければ `abi.headers_cxx` を `DISABLED` にする。Visual Studio 生成器以外では見つかった C++ コンパイラを子に渡す。子プロジェクトの起動引数は `tests/toolchain/CMakeLists.txt` と同じにし、このビルドツリーの `CLOPTS_BUILD_SHARED` を渡す。ルートの `project()` に `CXX` を足さない
@@ -123,3 +123,4 @@
 - 2.4: 子プロジェクトは CLOpts を `EXCLUDE_FROM_ALL` で取り込み、ヘッダごとの検査は `$<TARGET_PROPERTY:clopts,INTERFACE_*>` で include と `CLOPTS_STATIC` を受け取る（リンクすると CLOpts 本体が先に失敗して `check_<header>` が出ないため）。CXX では `add_dependencies(clopts abi_header_check)` でヘッダ検査を先にコンパイルする。`extern "C"` の欠落は `abi_link_check` の未定義参照（修飾名）で報告される。MSVC / AppleClang / MinGW は CI で確かめる
 - 2.5: `MODE` を省くと compare（設計どおり）。終了コードの判定は設計の表の順に評価するので、8 と未知のビットが同時に立つ 24 は incompatible になる（どちらでもジョブは失敗する）。`select_baseline` はタグを CMake のリストで受け取るので、2.6 で `git tag --list` の行を分けて渡す
 - 2.6: `MODE=compare` は `SOURCE_DIR` と `WORK_DIR` を必須にする（3.2 の CI でも `-DSOURCE_DIR=$GITHUB_WORKSPACE` を渡す）。`WORK_DIR` が `SOURCE_DIR` を含むか同じなら拒む（設計外の防御）。基準と現在のビルドは最上位なので `CLOPTS_WERROR` が ON になり、新しい gcc で古いタグが警告を出すと tool error になる（4.2 の文書に注意として書く）。手元の clone で compatible（0 と 4）、incompatible（12）、tool error、no tag の skipped を確認済み
+- 3.1: 期待する失敗のテストは `PASS_REGULAR_EXPRESSION` で終了コードを見ないので、正規表現は報告の全体（件数、名前、行、案内）を要求する。スクリプトの文言や fixture を変えたら正規表現も直すこと。C++ の無い構成は `-DCMAKE_CXX_COMPILER=CMAKE_CXX_COMPILER-NOTFOUND` で確かめた（`abi.headers_cxx` が Not Run (Disabled)、ctest は 0 で終わる）。件数は静的 626、共有 628
