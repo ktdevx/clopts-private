@@ -1,15 +1,23 @@
 # Checks the public symbol list (abi/clopts.symbols) and compares it with the
-# symbols the shared library exports (requirements 2.3, 2.4, 3.4-3.7, 3.9).
+# symbols the shared library exports (requirements 2.3, 2.4, 3.3-3.9).
 # Run with `cmake -P`; registered by tests/abi/CMakeLists.txt (label: abi).
 #
 # Variables (-D):
 #   SYMBOLS_FILE  Always. Path of the public symbol list.
-#   FORMAT        When DUMP_FILE (or LIBRARY) is given. The format of the
-#                 export dump: nm-elf (nm-macho, dumpbin, objdump-pe: not yet).
+#   FORMAT        When DUMP_FILE or LIBRARY is given. The format of the
+#                 export dump: nm-elf, nm-macho, dumpbin or objdump-pe.
+#   LIBRARY       The shared library to check ($<TARGET_FILE:clopts>).
+#   TOOL          When LIBRARY is given. The export dump tool (a path, or a
+#                 program name looked up in PATH); run as:
+#                   nm-elf      <TOOL> -D --defined-only <LIBRARY>
+#                   nm-macho    <TOOL> -gU <LIBRARY>
+#                   dumpbin     <TOOL> /exports <LIBRARY>
+#                               (<TOOL> /dump /exports <LIBRARY> for link.exe)
+#                   objdump-pe  <TOOL> -p <LIBRARY>
+#                 An empty or missing TOOL, or a non-zero exit, is a failure.
 #   DUMP_FILE     A file holding the recorded output of the export dump tool
-#                 (used by the self-tests in place of LIBRARY and TOOL).
-#   LIBRARY       The shared library to check (running TOOL on it is not
-#                 supported yet; pass DUMP_FILE).
+#                 (used by the self-tests in place of LIBRARY and TOOL; it is
+#                 used when both are given).
 #
 # Without DUMP_FILE and LIBRARY only the format of the list is checked.
 #
@@ -56,6 +64,15 @@ string(ASCII 4 _check_symbols_backslash)
 # characters replaced by the stand-ins above.
 function(_check_symbols_lines out_var file)
     file(READ "${file}" content)
+    _check_symbols_split(content "${content}")
+    set(${out_var} "${content}" PARENT_SCOPE)
+endfunction()
+
+# _check_symbols_split(<out_var> <text>)
+#
+# The same as _check_symbols_lines for text already in memory (the output of
+# the export dump tool).
+function(_check_symbols_split out_var content)
     string(REPLACE "\r" "" content "${content}")
     string(REPLACE "\\" "${_check_symbols_backslash}" content "${content}")
     string(REPLACE ";" "${_check_symbols_semicolon}" content "${content}")
@@ -108,6 +125,139 @@ function(_check_symbols_extract_nm-elf out_var lines)
         endif()
     endforeach()
     set(${out_var} "${names}" PARENT_SCOPE)
+endfunction()
+
+# nm-macho: output of Apple `nm -gU <library>`. The same three columns as
+# nm-elf ("<value> <type> _<name>"); the C name is the third column with one
+# leading "_" (the Mach-O symbol prefix) removed. Lines of any other shape
+# (such as the "<file> (for architecture <arch>):" headers of a universal
+# binary) are ignored.
+function(_check_symbols_extract_nm-macho out_var lines)
+    cmake_language(CALL _check_symbols_extract_nm-elf raw "${lines}")
+    set(names "")
+    foreach(name IN LISTS raw)
+        # Not string(REGEX REPLACE "^_"): it would strip every leading "_".
+        if(name MATCHES "^_")
+            string(SUBSTRING "${name}" 1 -1 name)
+        endif()
+        list(APPEND names "${name}")
+    endforeach()
+    set(${out_var} "${names}" PARENT_SCOPE)
+endfunction()
+
+# dumpbin: output of `dumpbin /exports <library>` (or `link /dump /exports`).
+# The names are in the table that follows the "ordinal hint RVA name" header
+# line and ends at the "Summary" line. A row is "<ordinal> <hint> <RVA> <name>"
+# (decimal, hex, hex, name); anything from "=" on (" = <name or incremental
+# link thunk>") is dropped. Other lines, including rows without an RVA
+# (forwarded exports), are ignored.
+function(_check_symbols_extract_dumpbin out_var lines)
+    set(names "")
+    set(in_table FALSE)
+    foreach(line IN LISTS lines)
+        if(line MATCHES "^[ \t]*ordinal[ \t]+hint[ \t]+RVA[ \t]+name[ \t]*$")
+            set(in_table TRUE)
+        elseif(line MATCHES "^[ \t]*Summary[ \t]*$")
+            set(in_table FALSE)
+        elseif(in_table AND line MATCHES
+                "^[ \t]*[0-9]+[ \t]+[0-9A-Fa-f]+[ \t]+[0-9A-Fa-f]+[ \t]+([^ \t=]+)")
+            list(APPEND names "${CMAKE_MATCH_1}")
+        endif()
+    endforeach()
+    set(${out_var} "${names}" PARENT_SCOPE)
+endfunction()
+
+# objdump-pe: output of binutils `objdump -p <library>` on a PE DLL. The names
+# are in the section that starts with the "[Ordinal/Name Pointer] Table" line:
+# each row of it starts with "[" (after leading whitespace) and the name is the
+# last word of the row (the columns before it differ between binutils
+# versions). The section ends at the first line that is neither blank nor a
+# row, or at a blank line after its rows. The "[" rows of the other sections
+# (the Export Address Table, for one) are ignored.
+function(_check_symbols_extract_objdump-pe out_var lines)
+    set(names "")
+    set(in_table FALSE)
+    set(rows 0)
+    foreach(line IN LISTS lines)
+        string(STRIP "${line}" line)
+        if(line MATCHES "^${_check_symbols_open_bracket}Ordinal/Name Pointer${_check_symbols_close_bracket} Table")
+            set(in_table TRUE)
+            set(rows 0)
+        elseif(NOT in_table)
+            continue()
+        elseif(line STREQUAL "")
+            if(rows GREATER 0)
+                set(in_table FALSE)
+            endif()
+        elseif(line MATCHES "^${_check_symbols_open_bracket}")
+            string(REGEX MATCH "[^ \t]+$" name "${line}")
+            list(APPEND names "${name}")
+            math(EXPR rows "${rows} + 1")
+        else()
+            set(in_table FALSE)
+        endif()
+    endforeach()
+    set(${out_var} "${names}" PARENT_SCOPE)
+endfunction()
+
+# ---- Running the export dump tool -------------------------------------------
+
+# _check_symbols_run_tool(<out_var>)
+#
+# Runs TOOL on LIBRARY with the arguments of FORMAT and sets <out_var> to its
+# output (stdout and stderr) as a list of lines. Fails when TOOL is empty or
+# not found (requirement 3.8), or when it exits with a non-zero code (the
+# report holds the code and the output).
+function(_check_symbols_run_tool out_var)
+    set(tool "${TOOL}")
+    if(NOT tool STREQUAL "" AND NOT IS_ABSOLUTE "${tool}")
+        find_program(found NAMES "${tool}" NO_CACHE)
+        if(found)
+            set(tool "${found}")
+        endif()
+    endif()
+    if(tool STREQUAL "" OR NOT EXISTS "${tool}" OR IS_DIRECTORY "${tool}")
+        message(FATAL_ERROR
+            "check_symbols: export dump tool not found for FORMAT ${FORMAT} (TOOL='${TOOL}')")
+    endif()
+
+    if(FORMAT STREQUAL "nm-elf")
+        set(args -D --defined-only)
+    elseif(FORMAT STREQUAL "nm-macho")
+        set(args -gU)
+    elseif(FORMAT STREQUAL "dumpbin")
+        get_filename_component(tool_name "${tool}" NAME)
+        string(TOLOWER "${tool_name}" tool_name)
+        if(tool_name STREQUAL "link.exe" OR tool_name STREQUAL "link")
+            set(args /dump /exports)
+        else()
+            set(args /exports)
+        endif()
+    elseif(FORMAT STREQUAL "objdump-pe")
+        set(args -p)
+    endif()
+
+    execute_process(
+        COMMAND "${tool}" ${args} "${LIBRARY}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE output)
+    # RESULT_VARIABLE is the exit code, or an error text when the process
+    # could not be run.
+    if(NOT result STREQUAL "0")
+        list(JOIN args " " args_text)
+        string(STRIP "${output}" output)
+        if(output STREQUAL "")
+            set(output "(no output)")
+        endif()
+        string(CONCAT report
+            "check_symbols: export dump tool failed for FORMAT ${FORMAT} (exit code ${result})\n"
+            "  command: ${tool} ${args_text} ${LIBRARY}\n"
+            "  output:\n${output}")
+        _check_symbols_fail("${report}")
+    endif()
+    _check_symbols_split(lines "${output}")
+    set(${out_var} "${lines}" PARENT_SCOPE)
 endfunction()
 
 # ---- Inputs ----------------------------------------------------------------
@@ -201,14 +351,10 @@ if(NOT "${DUMP_FILE}" STREQUAL "")
     set(_source "${DUMP_FILE}")
     _check_symbols_lines(_dump "${DUMP_FILE}")
 else()
-    message(FATAL_ERROR
-        "check_symbols: running an export dump tool on LIBRARY ('${LIBRARY}') is not "
-        "supported by this script yet; pass DUMP_FILE with the recorded tool output")
+    set(_source "${LIBRARY}")
+    _check_symbols_run_tool(_dump)
 endif()
 
-if(NOT COMMAND _check_symbols_extract_${FORMAT})
-    message(FATAL_ERROR "check_symbols: FORMAT '${FORMAT}' is not supported by this script yet")
-endif()
 cmake_language(CALL _check_symbols_extract_${FORMAT} _exported "${_dump}")
 list(LENGTH _exported _exported_count)
 if(_exported_count EQUAL 0)

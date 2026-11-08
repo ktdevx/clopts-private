@@ -1,0 +1,104 @@
+
+libclopts.dll:     file format pei-x86-64
+
+Characteristics 0x2026
+	executable
+	line numbers stripped
+	large address aware
+	DLL
+
+Time/Date		Thu Jan  1 00:00:00 1970
+Magic			020b	(PE32+)
+MajorLinkerVersion	2
+MinorLinkerVersion	41
+SizeOfCode		0000000000009a00
+ImageBase		00000003a5ee0000
+SectionAlignment	00001000
+Subsystem		00000003	(Windows CUI)
+NumberOfRvaAndSizes	00000010
+
+The Data Directory
+Entry 0 0000000000012000 00000233 Export Directory [.edata (or where ever we found it)]
+Entry 1 0000000000013000 0000085c Import Directory [parts of .idata]
+Entry 2 0000000000000000 00000000 Resource Directory [.rsrc]
+Entry 3 000000000000f000 00000564 Exception Directory [.pdata]
+Entry 5 0000000000016000 00000090 Base Relocation Directory [.reloc]
+
+There is an import table in .idata at 0x3a5ef3000
+
+The Import Tables (interpreted .idata section contents)
+ vma:            Hint    Time      Forward  DLL       First
+                 Table   Stamp     Chain    Name      Thunk
+ 00013000	0001303c 00000000 00000000 00013710 0001321c
+
+	DLL Name: KERNEL32.dll
+	vma:  Hint/Ord Member-Name Bound-To
+	133fc	  283  DeleteCriticalSection
+	13414	  319  EnterCriticalSection
+	1342c	  636  GetLastError
+
+ 00013050	00013080 00000000 00000000 0001377c 00013260
+
+	DLL Name: msvcrt.dll
+	vma:  Hint/Ord Member-Name Bound-To
+	13504	   57  __iob_func
+	13510	  168  calloc
+	1351a	  178  free
+
+There is an export table in .edata at 0x3a5ef2000
+
+The Export Tables (interpreted .edata section contents)
+
+Export Flags 			0
+Time/Date stamp 		0
+Major/Minor 			0/0
+Name 				000000000001209a libclopts.dll
+Ordinal Base 			1
+Number in:
+	Export Address Table 		0000000d
+	[Name Pointer/Ordinal] Table	0000000d
+Table Addresses
+	Export Address Table 		0000000000012028
+	Name Pointer Table 		000000000001205c
+	Ordinal Table 			0000000000012090
+
+Export Address Table -- Ordinal Base 1
+	[   0] +base[   1] 9440 Export RVA
+	[   1] +base[   2] 94e0 Export RVA
+	[   2] +base[   3] 9740 Export RVA
+	[   3] +base[   4] 3570 Export RVA
+	[   4] +base[   5] 96a0 Export RVA
+	[   5] +base[   6] 9650 Export RVA
+	[   6] +base[   7] 3800 Export RVA
+	[   7] +base[   8] 56b0 Export RVA
+	[   8] +base[   9] 2fd0 Export RVA
+	[   9] +base[  10] 2e30 Export RVA
+	[  10] +base[  11] 6940 Export RVA
+	[  11] +base[  12] 6390 Export RVA
+	[  12] +base[  13] 79f0 Export RVA
+
+[Ordinal/Name Pointer] Table -- Ordinal Base 1
+	[   0] +base[   1] 0000 clopts_argv_free
+	[   1] +base[   2] 0001 clopts_argv_from_wide
+	[   2] +base[   3] 0002 clopts_argv_get
+	[   3] +base[   4] 0003 clopts_command_add_flag
+	[   4] +base[   5] 0004 clopts_env_free
+	[   5] +base[   6] 0005 clopts_env_new
+	[   6] +base[   7] 0006 clopts_option_set_help
+	[   7] +base[   8] 0007 clopts_parse
+	[   8] +base[   9] 0008 clopts_program_free
+	[   9] +base[  10] 0009 clopts_program_new
+	[  10] +base[  11] 000a clopts_result_free
+	[  11] +base[  12] 000b clopts_result_status
+	[  12] +base[  13] 000c clopts_write_help
+
+The Function Table (interpreted .pdata section contents)
+vma:			BeginAddress	 EndAddress	  UnwindData
+ 00000003a5eef000:	00000003a5ee1000 00000003a5ee1010 00000003a5ef4000
+ 00000003a5eef00c:	00000003a5ee1010 00000003a5ee1130 00000003a5ef4004
+
+PE File Base Relocations (interpreted .reloc section contents)
+
+Virtual Address: 0000a000 Chunk size 12 (0xc) Number of fixups 2
+	reloc    0 offset    0 [a000] DIR64
+	reloc    1 offset    8 [a008] DIR64

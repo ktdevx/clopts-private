@@ -19,7 +19,7 @@
   - _Depends: 1.1_
   - _Requirements: 2.3, 2.4, 3.4, 3.5, 3.6, 3.7, 3.9_
 
-- [ ] 2.2 シンボル照合スクリプトに残りの 3 形式とツールの実行を加える
+- [x] 2.2 シンボル照合スクリプトに残りの 3 形式とツールの実行を加える
   - `dumpbin` と `objdump-pe` では注記 `windows` の付いた名前も期待する集合に入れる
   - `nm-macho`（先頭の `_` を 1 つ除く）、`dumpbin`（`ordinal hint RVA name` の表の行から名前を取り、`=` 以降を捨てる）、`objdump-pe`（`[Ordinal/Name Pointer] Table` の節の `[` で始まる行の最後の語）の取り出し規則を加える
   - `LIBRARY` があれば、`DUMP_FILE` の代わりに `TOOL` を設計の表どおりの引数で実行する（`TOOL` が `link.exe` なら `/dump /exports`）。`TOOL` が空か存在しなければ `export dump tool not found for FORMAT <FORMAT>`、ツールが非 0 で終われば終了コードと出力を添えて失敗する
@@ -118,3 +118,4 @@
 ## Implementation Notes
 - 1.1: `clopts_argv_from_wide` は `platform.h` の `#ifdef _WIN32` の中だけで宣言されるため、設計の SymbolList に OS の注記（`<name> windows`）を追記した（ユーザー承認済み）。注記付きの名前は `dumpbin` / `objdump-pe` の照合でだけ要求し、`link_check.cpp` では `#ifdef _WIN32` で囲む。Linux の `libclopts.so` の export は注記なしの 64 個
 - 2.1: `check_symbols.cmake` は形式ごとに `_check_symbols_extract_<FORMAT>` と `_check_symbols_exclude_<FORMAT>` を持つ（2.2 はここに足す）。データ由来のリストの空判定は必ず `list(LENGTH)` で行う（`if(<var>)` だと `off` などの名前が偽になり見逃す）。FATAL_ERROR の報告行は先頭に空白 1 つを付けて CMake の折り返しを防ぐ。`nm-elf.txt` は実出力の 12 名の部分集合で、他形式の記録も同じ 12 名（Windows の 2 形式は加えて `clopts_argv_from_wide`）にそろえる
+- 2.2: `TOOL` は PATH 上の名前も `find_program` で解決する（3.1 ではフルパスを渡す）。dumpbin の取り出しは英語の出力（`ordinal hint RVA name` と `Summary`）に依存する。objdump-pe は binutils 2.42 の実出力（旧形式）と、記録した新形式の両方で通る

@@ -1,0 +1,12 @@
+0000000000005f40 T _clopts_argv_free
+0000000000006010 T _clopts_argv_get
+0000000000001b90 T _clopts_command_add_flag
+0000000000005ec0 T _clopts_env_free
+0000000000005e60 T _clopts_env_new
+0000000000001de0 T _clopts_option_set_help
+0000000000003a70 T _clopts_parse
+0000000000001700 T _clopts_program_free
+0000000000001580 T _clopts_program_new
+0000000000004c30 T _clopts_result_free
+0000000000004710 T _clopts_result_status
+0000000000005220 T _clopts_write_help
