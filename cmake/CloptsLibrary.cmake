@@ -40,10 +40,22 @@ endfunction()
 # applies the CLOpts compiler options and the form-specific properties, and
 # sets CLOPTS_SOVERSION and CLOPTS_VERSION_COMPATIBILITY in the caller's scope
 # (normal variables, not cached).
+#
+# In a shared build with CLOPTS_BUILD_TESTING ON it also creates the internal
+# static library clopts_testing (EXCLUDE_FROM_ALL, never installed or
+# exported), to which the unit tests link so that they can call the internal
+# functions hidden in the shared library. The GLOBAL property
+# CLOPTS_TEST_LINK_TARGET names the target the unit tests link to:
+# clopts_testing in that case, CLOpts::clopts otherwise.
 function(clopts_create_library)
     if(NOT DEFINED CLOPTS_BUILD_SHARED)
         message(FATAL_ERROR
             "clopts_create_library: CLOPTS_BUILD_SHARED is not defined "
+            "(see cmake/CloptsLibrary.cmake)")
+    endif()
+    if(NOT DEFINED CLOPTS_BUILD_TESTING)
+        message(FATAL_ERROR
+            "clopts_create_library: CLOPTS_BUILD_TESTING is not defined "
             "(see cmake/CloptsLibrary.cmake)")
     endif()
     if(TARGET clopts)
@@ -92,6 +104,24 @@ function(clopts_create_library)
             # Keeps clopts_static.lib apart from the shared import library clopts.lib.
             set_target_properties(clopts PROPERTIES OUTPUT_NAME clopts_static)
         endif()
+    endif()
+
+    # Unit-test link target. clopts_testing is decided by CLOPTS_BUILD_TESTING
+    # alone (BUILD_TESTING is only known after include(CTest)); being
+    # EXCLUDE_FROM_ALL, it is built only when a test executable needs it.
+    if(CLOPTS_BUILD_SHARED AND CLOPTS_BUILD_TESTING)
+        add_library(clopts_testing STATIC EXCLUDE_FROM_ALL)
+        target_include_directories(clopts_testing
+            PUBLIC
+                "${PROJECT_SOURCE_DIR}/include"
+            PRIVATE
+                "${PROJECT_SOURCE_DIR}/src"
+        )
+        clopts_apply_compiler_options(clopts_testing)
+        target_compile_definitions(clopts_testing PUBLIC CLOPTS_STATIC)
+        set_property(GLOBAL PROPERTY CLOPTS_TEST_LINK_TARGET clopts_testing)
+    else()
+        set_property(GLOBAL PROPERTY CLOPTS_TEST_LINK_TARGET CLOpts::clopts)
     endif()
 
     set(CLOPTS_SOVERSION "${soversion}" PARENT_SCOPE)
