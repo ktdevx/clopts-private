@@ -23,12 +23,69 @@
 #                                      writes the notes of
 #                                      fixtures/changelog/expected_X.Y.Z.md
 #
+# Example build defaults when CLOpts is a subproject (requirements 7.6, 7.7),
+# both through tests/cmake/run_fixture.cmake (EXPECT=configure_ok) on
+# fixtures/subproject, which pulls CLOpts in with add_subdirectory:
+#
+#   docs.examples_subproject_default   no override: the fixture fails to
+#                                      configure if clopts_doc_taskbook exists
+#   docs.examples_subproject_on        -DCLOPTS_BUILD_EXAMPLES=ON
+#                                      -DEXPECT_EXAMPLES=ON: the fixture fails
+#                                      to configure if it does not exist
+#
 # Every other self-test uses PASS_REGULAR_EXPRESSION built from the lines of
 # the expected report, so that it passes only when exactly that report is
 # printed (a failure for any other reason does not match). Each fixture states
 # its expected result in a header comment.
 
 clopts_add_doc_program(hello SOURCES readme_minimal.c)
+
+# ---- Examples as a subproject ----------------------------------------------
+
+# Multi-config generators pick the configuration at ctest time; single-config
+# generators use the configuration of this build tree.
+get_property(_clopts_docs_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(_clopts_docs_multi_config)
+    set(_clopts_docs_config "$<CONFIG>")
+else()
+    set(_clopts_docs_config "${CMAKE_BUILD_TYPE}")
+endif()
+if(CLOPTS_BUILD_SHARED)
+    set(_clopts_docs_shared ON)
+else()
+    set(_clopts_docs_shared OFF)
+endif()
+
+# _clopts_docs_add_subproject_test(<name> [<extra arg>...])
+#
+# Registers docs.<name>, which configures fixtures/subproject through
+# run_fixture.cmake with EXPECT=configure_ok, with the generator, platform,
+# C compiler, configuration and form (CLOPTS_BUILD_SHARED) of this build,
+# followed by the extra arguments.
+function(_clopts_docs_add_subproject_test name)
+    set(extra_args "-DCLOPTS_BUILD_SHARED=${_clopts_docs_shared}" ${ARGN})
+    list(JOIN extra_args "\\;" extra_args)
+    add_test(NAME "docs.${name}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFIXTURE_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/subproject"
+            "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/work/${name}"
+            -DEXPECT=configure_ok
+            "-DCONFIG=${_clopts_docs_config}"
+            "-DCLOPTS_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+            "-DGENERATOR=${CMAKE_GENERATOR}"
+            "-DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+            "-DC_COMPILER=${CMAKE_C_COMPILER}"
+            "-DEXTRA_ARGS=${extra_args}"
+            -P "${PROJECT_SOURCE_DIR}/tests/cmake/run_fixture.cmake"
+    )
+    set_tests_properties("docs.${name}" PROPERTIES LABELS docs)
+endfunction()
+
+_clopts_docs_add_subproject_test(examples_subproject_default)
+_clopts_docs_add_subproject_test(examples_subproject_on
+    -DCLOPTS_BUILD_EXAMPLES=ON -DEXPECT_EXAMPLES=ON)
+
+# ---- Self-tests of the check scripts ---------------------------------------
 
 set(_clopts_docs_dir "${CMAKE_CURRENT_SOURCE_DIR}")
 set(_clopts_docs_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/fixtures")

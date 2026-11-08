@@ -40,7 +40,7 @@
   - 完了条件: `ctest -L docs` で、登録した自己テストがすべて通る。期待する報告を一時的に変えると、そのテストが失敗することを 1 件確かめてから戻す
   - _Requirements: 8.1_
 
-- [ ] 3. 文書用のプログラム
+- [x] 3. 文書用のプログラム
 - [x] 3.1 (P) サブコマンドありのサンプル taskbook を作る
   - 設計の TaskbookExample どおりに宣言する。グローバルの `-v/--verbose`（カウント、上限 3）と `--color`（否定できるフラグ）を持ち、`add TITLE`（`--tag` リスト、`--priority` 既定値付き）、`list`（`--all`、`--format` 環境変数 `TASKBOOK_FORMAT` と既定値）、`done ID...` を持つ。各サブコマンドのハンドラを `clopts_result_run` で呼ぶ
   - 「サンプルの共通の規約」に従う。`clopts_argv_get` と `clopts_env_new` / `clopts_parse_with_env` を使い、状態ごとの出力先と終了コード（0 / 2 / 1）を守り、全経路で解放し、`<key>: <value> (<出所>)` の報告をする
@@ -67,7 +67,7 @@
   - _Depends: 1.1_
   - _Requirements: 1.4, 8.6_
 
-- [ ] 3.4 取り込まれたときのサンプルの既定を確かめるテストを加える
+- [x] 3.4 取り込まれたときのサンプルの既定を確かめるテストを加える
   - `tests/docs/fixtures/subproject/` に、CLOpts を `add_subdirectory` で取り込む利用側を作る。`EXPECT_EXAMPLES` が ON でなければ、`TARGET clopts_doc_taskbook` があるときに `FATAL_ERROR` にする。ON なら、ないときに `FATAL_ERROR` にする
   - これを `tests/cmake/run_fixture.cmake`（EXPECT=configure_ok）で起動する `docs.examples_subproject_default` と `docs.examples_subproject_on`（`-DCLOPTS_BUILD_EXAMPLES=ON -DEXPECT_EXAMPLES=ON`）を、`tests/docs/CMakeLists.txt` に登録する（ラベル `docs`）
   - 完了条件: 両方のテストが通る。fixture の判定を一時的に逆にすると、両方とも失敗することを確かめてから戻す
