@@ -50,6 +50,32 @@ clopts_write_status_t clopts_help_out_status(const clopts_help_out_t *out);
  */
 size_t clopts_help_width(const char *data, size_t len);
 
+/*
+ * One row of a help list (help_layout.c): an option of the declaration, or a
+ * fixed row whose left column and description are given as strings (the
+ * reserved rows, for example).
+ *   - option != NULL: the left column and the notes follow the rules of the
+ *     option row; left and help are not read.
+ *   - option == NULL: left is written as is; help is the description (NULL
+ *     or "" for none).
+ */
+typedef struct clopts_help_row
+{
+    const clopts_option_t *option;
+    const char *left;
+    const char *help;
+} clopts_help_row_t;
+
+/*
+ * Writes the count rows at rows to out as one aligned list: every row starts
+ * with 2 spaces, and the description and notes start at column 2 + W + 2,
+ * where W is the largest display width of the left columns of the list. A
+ * row with neither description nor notes ends right after its left column.
+ * Every row ends with '\n'. The left columns are measured with the same
+ * procedure that writes them, on a measure-mode output.
+ */
+void clopts_help_write_list(clopts_help_out_t *out, const clopts_help_row_t *rows, size_t count);
+
 /* Body template of a usage error kind; NULL for CLOPTS_USAGE_NONE and values outside the enum. */
 const char *clopts_help_usage_text(clopts_usage_error_t kind);
 /* Reason of a declaration error kind; NULL for CLOPTS_DECL_NONE and values outside the enum. */

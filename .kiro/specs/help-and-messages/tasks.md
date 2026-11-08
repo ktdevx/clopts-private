@@ -26,7 +26,7 @@
   - _Requirements: 10.2, 10.3, 11.1, 11.4, 11.5, 12.5_
 
 - [ ] 3. ヘルプのレイアウト
-- [ ] 3.1 オプションの行（左列の表記と注記）と、一覧の 2 パスの桁揃えを実装してテストする
+- [x] 3.1 オプションの行（左列の表記と注記）と、一覧の 2 パスの桁揃えを実装してテストする
   - 左列: 短い名前と長い名前、長い名前だけ（空白 4 個の字下げ）、短い名前だけ、否定可能な FLAG の `--[no-]name`、COUNT の `...`、VALUE の ` <V>`、区切り文字付き LIST の ` <V>[d<V>...]`、区切り文字なし LIST の ` <V>...`、値の表示名が未設定なら `VALUE`
   - 注記: 説明の後に `(required)`、`(default: X)`、`[env: NAME]` をこの順で付け、半角空白 1 個で区切る。説明がなければ最初の注記を説明の位置から書く。説明も注記もなければ左列だけを書き、行末に空白を残さない。空文字列は未設定として扱う
   - 一覧: 行の左列を計測モードで測って最大幅を求め、書き込みモードで、2 桁の字下げと「最大幅 + 2」桁へのパディングで書く。左列を作る手続きは 1 つだけにし、モードで分岐しない
@@ -83,3 +83,4 @@
 - 1.1: 公開 5 関数の呼び出し確認は tests/integration/fixtures/consumer/main.c の consumer_help_check()（戻り値が 3 値のどれかであることだけを見る）。位置引数の表記は help_layout.c の static 関数で、内部ヘッダには宣言しない。ローカルは MSVC のみ（build / build-shared、--config Debug）
 - 1.2: フィクスチャは tests/help/test_fixtures.{h,c} の help_fixture_{tool,filt,bare,wide}_t と _init(f) / _free(f)。tool は設計の出力例の文言どおり。copy の位置引数・filt・bare・wide の文言は実装者が決めたもので、期待するバイト列はこのファイルの文字列から作る。wide の表記は HELP_FIXTURE_* マクロ。コールバックは help_recorder_t / help_recorder_write（8192 バイト、溢れたら 1 を返す）と help_failer_t / help_failer_init(f, n) / help_failer_write（n=0 は失敗しない、calls_after_failure を数える）
 - 2.1: 計測モードは clopts_help_out_init に fn == NULL を渡す。spaces は 32 バイトずつ書く（呼び出し回数は契約外）。`ctest -R out` は layout にも一致するので、スイートだけを見るなら `-R help_tests.out` を使う
+- 3.1: 一覧は help_internal.h の clopts_help_row_t {option, left, help} の配列を clopts_help_write_list(out, rows, count) に渡す（設計は型を決めていないので実装で決めた）。行だけを書き、見出しと空行は書かない。option 行では left / help を読まない。`Arguments:` の行には positional のフィールドを足す必要がある（3.2。確保なしで作ること）。種類は「どれか 1 つだけ非 NULL」とコメントで保証する
