@@ -8,7 +8,7 @@
   - 完了条件: 静的・共有の両形式で、`CLOPTS_WERROR=ON` のもとで構成とビルドが通り、既存の `ctest` がすべて通る。`-DCLOPTS_BUILD_EXAMPLES=OFF` でも構成が通り、そのとき `clopts_doc_taskbook` が作られない。検証のために一時的に同じ名前を 2 回登録すると、構成が名前と呼び出し元を示して止まることを確かめてから、その一時的な重複登録（と、そのためだけに置いたファイル）を元に戻す。2 つのサンプルと `readme_minimal.c` の仮のソースは残す（3.1〜3.3 が書き換える）
   - _Requirements: 7.6, 7.7_
 
-- [ ] 2. 検査スクリプト
+- [x] 2. 検査スクリプト
 - [x] 2.1 (P) 文書の検査スクリプトの出力の照合（MODE=outputs）を、自己テスト用の入力とともに実装する
   - 設計の「照合用の印の書式」どおりに `clopts-check` の印を読む。属性（`exit`、`stream`、`env`）と、`--` より後ろのコマンドに分ける。印の直後のフェンスから期待出力を取り出す。フェンスの中にある印は対象にしない
   - 空の `WORK` で、空の標準入力を与えてプログラムを実行する。その際、`ENV_VARS` で登録された環境変数をすべて外し、`env=` で指定したものだけを設定する。選んだ出力先の内容と終了コードを、CRLF を LF にそろえてから期待出力と比べる
@@ -35,7 +35,7 @@
   - _Boundary: ChangelogCheckScript_
   - _Requirements: 10.2, 10.3, 10.4, 11.2, 11.3, 11.4_
 
-- [ ] 2.4 検査スクリプトの自己テストを CTest に登録する
+- [x] 2.4 検査スクリプトの自己テストを CTest に登録する
   - `tests/docs/CMakeLists.txt` で、2.1〜2.3 の各ケースを `docs_selftest.<case>` として登録する（ラベル `docs`）。失敗を期待するケースは `PASS_REGULAR_EXPRESSION` で期待する報告に合わせ、ほかの理由の失敗が通らないようにする
   - 完了条件: `ctest -L docs` で、登録した自己テストがすべて通る。期待する報告を一時的に変えると、そのテストが失敗することを 1 件確かめてから戻す
   - _Requirements: 8.1_
@@ -155,3 +155,4 @@
 - 2.1: `check_docs.cmake` は印の環境を `cmake -E env` ではなくスクリプト内の `set/unset(ENV{})` で隔離する（登録外の変数は元の値に戻す）。値が空の `env=NAME=` と `;` を含む印は書式の誤り。理由の文字列に生の `;` を入れるとリストが割れるので、`_docs_semicolon` の代替文字を使い、最後の報告で戻す。自己テストの match と stderr_mismatch は `cmake -E cat missing.txt` の文面に依存する。
 - 2.2: links モードはフェンスを 0〜3 文字の字下げでしか認識しない。文書（4.x）のコードブロックは行頭（字下げ 3 文字以内）に置くこと。参照形式のリンク `[t]: x` は検査されない。api_coverage は `SYMBOLS=` で一覧を受け取り、不足を `<一覧>:<行>:` で報告する。
 - 2.3: `check_changelog.cmake` の release は `SOURCE_DIR`（`${SOURCE_DIR}/CMakeLists.txt` を読む）と `CHANGELOG`（既定 `${SOURCE_DIR}/CHANGELOG.md`）を受け取り、成功時は標準出力にちょうど `version X.Y.Z` の 1 行だけを出す。「空の節」は空行だけの節を指す（`###` の見出しだけの節は空とみなさない）。フェンスは認識しないので、CHANGELOG のコードブロックに `## ` の行を書かないこと。コメントアウトした `project(clopts VERSION` は数えない。先頭が 0 の版（`v01.2.3`）は拒否する。
+- 2.4: 自己テストは `docs_selftest.<mode>.<case>`（61 件）。期待行はヘルパーが正規表現にエスケープして `(^|\n) *<行>\r?\n` で順に結ぶ。release の成功ケースは `tests/docs/run_release_selftest.cmake` が抜き出した本文を期待値と比べる。
