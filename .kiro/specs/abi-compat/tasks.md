@@ -94,7 +94,7 @@
   - _Boundary: AbiPolicyDocs（docs/abi.md）_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.11_
 
-- [ ] 4.2 (P) 保守者向けの文書 `docs/dev/abi-checks.md` を書き、structure.md を更新する
+- [x] 4.2 (P) 保守者向けの文書 `docs/dev/abi-checks.md` を書き、structure.md を更新する
   - 公開関数を足す・消すときの手順（`CLOPTS_API` を付け、同じ変更で `abi/clopts.symbols` を更新する。形式と推奨する並べ方）、各検査の表（テスト名、検出するもの、登録の条件、OS、有効になる版）、失敗の読み方と除外リストに足す判断基準、ヘッダの走査器が扱わない構文、手元での abidiff の実行方法と 1.0.0 前に比較の経路を確かめる方法（3.3 で実際に行った手順と結果を例として載せる）を、日本語で書く
   - `.kiro/steering/structure.md` の `tests/abi/` の項に公開シンボル一覧の場所 `abi/clopts.symbols` を追記し、リポジトリ直下の `abi/` を Directory Patterns に加える
   - 完了条件: 文書の検査の表のテスト名が `ctest -N -L abi` の出力と一致する。structure.md に `abi/clopts.symbols` が載っている
