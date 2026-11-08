@@ -144,7 +144,7 @@ tests/abi/
 
 ### Modified Files
 - `tests/CMakeLists.txt` — `add_subdirectory(abi)` を足す。
-- `.github/workflows/ci.yml` — 独立したジョブ `abi-compare` を足す。既存の `build` ジョブとマトリクスは変えない。
+- `.github/workflows/ci.yml` — 独立したジョブ `abi-compare` を足す。既存の `build-and-test` ジョブとマトリクスは変えない。
 - `.kiro/steering/structure.md` — `tests/abi/` の項に公開シンボル一覧の場所（`abi/clopts.symbols`）を追記し、リポジトリ直下の `abi/` を Directory Patterns に加える。
 
 ## System Flows
@@ -490,7 +490,7 @@ flowchart TB
 **Contracts**: Batch [x]
 
 ##### Batch / Job Contract
-- Trigger: `ci.yml` の既存のトリガ（main への push と pull request）（6.1）。既存の `build` ジョブに `needs` で依存せず、既存のジョブもこのジョブに依存しない（6.9）。
+- Trigger: `ci.yml` の既存のトリガ（main への push と pull request）（6.1）。既存の `build-and-test` ジョブに `needs` で依存せず、既存のジョブもこのジョブに依存しない（6.9）。
 - Steps:
   1. `actions/checkout@v4` を `fetch-depth: 0`（タグを含む全履歴）で。
   2. `sudo apt-get update && sudo apt-get install -y abigail-tools`。
