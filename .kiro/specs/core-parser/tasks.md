@@ -166,7 +166,7 @@
   - _Boundary: Build, Decl_
   - _Requirements: 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15, 3.16, 3.17, 3.18, 3.19, 5.5, 6.7_
 
-- [ ] 6.2 (P) 結果ハンドルの記録・参照・実行・解放を実装し、内部 API でテストする
+- [x] 6.2 (P) 結果ハンドルの記録・参照・実行・解放を実装し、内部 API でテストする
   - 初版の結果ストアを移植する。対象は、スロット配列の確保（root 分、選択コマンド分）、種類ごとの記録関数（FLAG 後勝ち、COUNT のクランプ、VALUE 後勝ち、LIST の分割と連結、空の項目を保持）、環境変数の複製の所有、位置引数の追加である。確保はすべて窓口を通す
   - 値のアクセサ: 別の program の option なら `assert`。選択されなかった command の option、NULL の option、状態が OK / NO_COMMAND 以外の結果では、未指定の値を返す。エラーのアクセサは、状態が USAGE_ERROR / DECL_ERROR 以外なら該当なしを返す。NULL の結果は番兵と同じに扱う
   - handler の実行は、解析の結果・状態 OK・handler ありを `assert` し、userdata を渡して戻り値を返す。解放は、program を参照せずに結果の持つものだけを窓口経由で解放する
@@ -302,3 +302,4 @@
 - 5.2: design 本文の `commands.count` は `clopts_core_vec_t` の `len` を指す。Result 契約に「使い方エラーの記録」「宣言エラーの写し」の内部関数はない。走査（`parser_scan.c`）と検査関数の入口は、内部ヘッダにある `struct clopts_result` のフィールド（status / command / error）に直接書く（コントローラ判断。内部ヘッダは変えない）。スタブのファイル冒頭に、どのタスクが本実装するかを書いてある
 - 5.3: 入口は `parser_scan.c` の `scan_enter(program, &done)`（NULL → 凍結 → OOM なら番兵 → 結果確保 → 宣言エラーの写し）。7.2 の解析関数はこれを共有する。`clopts_parser_result_new` はスロットを確保しない（6.2 で追加し、`clopts_result_free` も広げる）。NDEBUG 専用テストは非 NDEBUG で `NAOS_SKIP`（Debug の ctest に Skipped が 1 件出る）。追加で名前の複製が失敗すると、オブジェクトは名前 NULL のまま繋がる
 - 6.1: `set_version` の RESERVED_NAME は、照合範囲の順（root、次に command の追加順）で最初の `version` を報告する（モデルに通し番号がないため。design.md の表も改めた）。`set_negatable(o, true)` は一時的な "no-x" を窓口経由で確保して `find_named` を呼ぶので、確保点を 1 つ持つ（失敗なら OOM を記録）。root への `no-x` の追加は command ごとに照会する。規則が成立しても確保に失敗すれば OOM を記録する。`valid_short_name('\0')` は偽
+- 6.2: `clopts_parser_result_select` が `result->command` と command 側のスロットを設定し、1 回だけ呼べる（`assert`）。走査器は select の前に `result->command` を書かないこと。help の対象（`help <cmd>`）は select で選ぶ。command のスロットは状態 OK のときだけ読まれる（NO_COMMAND は root だけ）。`positional_count` は OK / NO_COMMAND 以外で 0。`clopts_parser_result_new` は root に option があると確保点 2 つ
