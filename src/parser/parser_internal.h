@@ -12,6 +12,57 @@
  */
 
 /*
+ * Allocation gateway and allocation probe (parser_alloc.c).
+ *
+ * Every allocation of the parser goes through these functions. When probe is
+ * NULL they only call malloc / calloc / free / clopts_core_vec_push /
+ * clopts_core_vec_free. When probe is not NULL, each call to malloc, calloc,
+ * strdup, strndup or vec_push is one fault point: it increments probe->calls
+ * and, when fail_at != 0 and calls >= fail_at, fails without allocating.
+ * probe->live counts the live blocks: +1 for each successful object or
+ * string allocation and -1 for each free of a non-NULL pointer; a vec counts
+ * +1 when its buffer goes from NULL to non-NULL and -1 when vec_free releases
+ * a non-NULL buffer.
+ */
+typedef struct clopts_parser_probe
+{
+    size_t fail_at;  /* 0: never fail. n: the n-th and every later fault point fail */
+    size_t calls;    /* number of fault points passed */
+    long live;       /* live blocks (objects, strings and vecs that own a buffer) */
+} clopts_parser_probe_t;
+
+/* Returns a block of size bytes, or NULL. */
+void *clopts_parser_malloc(clopts_parser_probe_t *probe, size_t size);
+
+/*
+ * Returns a zero-filled block of count * size bytes, or NULL. The product is
+ * checked with clopts_core_size_mul; on overflow nothing is allocated.
+ */
+void *clopts_parser_calloc(clopts_parser_probe_t *probe, size_t count, size_t size);
+
+/*
+ * Returns a copy of s, or NULL on failure. When s is NULL it returns NULL
+ * without counting a fault point.
+ */
+char *clopts_parser_strdup(clopts_parser_probe_t *probe, const char *s);
+
+/*
+ * Returns a NUL-terminated copy of the len bytes at s, or NULL. s must not be
+ * NULL and must point to at least len bytes. len + 1 is checked with
+ * clopts_core_size_add; on overflow nothing is allocated.
+ */
+char *clopts_parser_strndup(clopts_parser_probe_t *probe, const char *s, size_t len);
+
+/* Appends elem to vec as clopts_core_vec_push does. Returns 0 or -1. */
+int clopts_parser_vec_push(clopts_parser_probe_t *probe, clopts_core_vec_t *vec, const void *elem);
+
+/* Releases the buffer of vec as clopts_core_vec_free does. */
+void clopts_parser_vec_free(clopts_parser_probe_t *probe, clopts_core_vec_t *vec);
+
+/* Releases ptr (which may be NULL), allocated by the functions above. */
+void clopts_parser_free(clopts_parser_probe_t *probe, void *ptr);
+
+/*
  * Declaration check and lookup (parser_decl.c).
  *
  * Lookups compare names byte by byte, exactly and case-sensitively; there is
