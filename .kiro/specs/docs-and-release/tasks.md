@@ -50,7 +50,7 @@
   - _Depends: 1.1_
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.8_
 
-- [ ] 3.2 (P) サブコマンドなしのサンプル textcount を作る
+- [x] 3.2 (P) サブコマンドなしのサンプル textcount を作る
   - 設計の TextcountExample どおりに宣言する。`-l/--lines`・`-w/--words`、否定できる `--total`、カウント `-q/--quiet`、`-e/--encoding`（環境変数 `TEXTCOUNT_ENCODING`、既定値 `utf-8`）、`-x/--exclude`（区切り文字 `,` のリスト）、可変長の必須の `FILE` を持つ
   - 「サンプルの共通の規約」に従い、どのファイルをどの設定で数えるかを報告するだけにする（ファイルは読まない）
   - 1.1 で登録済みの仮のソース `examples/textcount/textcount.c` を書き換える（`examples/CMakeLists.txt` は変えない）
@@ -157,3 +157,4 @@
 - 2.3: `check_changelog.cmake` の release は `SOURCE_DIR`（`${SOURCE_DIR}/CMakeLists.txt` を読む）と `CHANGELOG`（既定 `${SOURCE_DIR}/CHANGELOG.md`）を受け取り、成功時は標準出力にちょうど `version X.Y.Z` の 1 行だけを出す。「空の節」は空行だけの節を指す（`###` の見出しだけの節は空とみなさない）。フェンスは認識しないので、CHANGELOG のコードブロックに `## ` の行を書かないこと。コメントアウトした `project(clopts VERSION` は数えない。先頭が 0 の版（`v01.2.3`）は拒否する。
 - 2.4: 自己テストは `docs_selftest.<mode>.<case>`（61 件）。期待行はヘルパーが正規表現にエスケープして `(^|\n) *<行>\r?\n` で順に結ぶ。release の成功ケースは `tests/docs/run_release_selftest.cmake` が抜き出した本文を期待値と比べる。
 - 3.1: サンプルの報告の書式は、1 行目 `command: <name>`、続いてそのコマンドの値、最後にグローバル（`verbose`、`color`）。オプションは `key: value (explicit|env|default)`、値を得なかったオプション（出所 NONE）と位置引数には出所を付けない。リストは `", "` で結ぶ。taskbook の版は 1.2.3。空の `TASKBOOK_FORMAT=` は `format:  (env)`（空白 2 つ）になるので文書の例に使わない。
+- 3.2: textcount（0.4.0）の報告は `files:` から始まり、宣言順に続く。`-q` に上限はなく、`--total` に既定値はない。3.5 の上限の例と 3.7 の `help <cmd>` は taskbook（`-vvvv`）で示す。3.8 の数値でない値の例には、数値らしい引数を持つ taskbook（`done abc` など）を使う。
