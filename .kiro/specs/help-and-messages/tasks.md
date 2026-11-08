@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. 基盤: 公開契約、モジュールとテストの骨格
+- [x] 1. 基盤: 公開契約、モジュールとテストの骨格
 - [x] 1.1 文面生成の公開ヘッダと help モジュールの骨格を用意し、ライブラリに登録する
   - 公開ヘッダに、文面生成の 5 関数、戻り値の 3 値の列挙、接頭辞の 2 つのビットフラグを設計どおりに宣言する。全関数に export の印を付け、`extern "C"` とヘッダガードで囲み、構造体の定義を置かない。傘ヘッダから include する
   - `src/help/` を作り、モジュール追加ヘルパで `clopts` ターゲットに登録する（`src/CMakeLists.txt` で parser の後に追加）。内部ヘッダに、出力器・幅・文面表の内部関数を設計どおり宣言する。include してよいのは公開ヘッダ、宣言モデルの内部ヘッダ、core の内部ヘッダだけとする
@@ -8,7 +8,7 @@
   - 完了条件: 静的ビルドと共有ビルド（`CLOPTS_BUILD_SHARED=ON`）の両方が `CLOPTS_WERROR=ON` で警告なく通る。傘ヘッダだけを include した C ファイルから 5 関数を呼べる。既存の `ctest` がすべて通る
   - _Requirements: 9.1, 11.1, 11.2, 11.3, 11.8_
 
-- [ ] 1.2 help のテスト骨格、架空の宣言のフィクスチャ、記録用・失敗用のコールバックを用意する
+- [x] 1.2 help のテスト骨格、架空の宣言のフィクスチャ、記録用・失敗用のコールバックを用意する
   - `tests/help/` を作り、テスト登録ヘルパで登録する（`tests/CMakeLists.txt` で parser の後に追加）。設計のファイル計画にある 4 スイート（out、layout、option_row、message）のファイルを作り、エントリファイルでの宣言と登録をここで一度に済ませる。以降のタスクは、自分のスイートのファイルだけを編集する
   - フィクスチャ: 設計の Testing Strategy にある架空の宣言 4 つ（サブコマンドありで版ありの `tool 1.2.3`、サブコマンドなしで版なしの `filt`、global オプションのない `bare 0.1`、非 ASCII の名前と UTF-8 として不正なバイトを含む `wide`）の組み立てと解放
   - 記録用のコールバック: 渡されたバイトを連結して保持し、呼び出し回数を数える。失敗用のコールバック: N 回目に失敗を返し、失敗後に呼ばれた回数を数える
@@ -81,3 +81,4 @@
 
 ## Implementation Notes
 - 1.1: 公開 5 関数の呼び出し確認は tests/integration/fixtures/consumer/main.c の consumer_help_check()（戻り値が 3 値のどれかであることだけを見る）。位置引数の表記は help_layout.c の static 関数で、内部ヘッダには宣言しない。ローカルは MSVC のみ（build / build-shared、--config Debug）
+- 1.2: フィクスチャは tests/help/test_fixtures.{h,c} の help_fixture_{tool,filt,bare,wide}_t と _init(f) / _free(f)。tool は設計の出力例の文言どおり。copy の位置引数・filt・bare・wide の文言は実装者が決めたもので、期待するバイト列はこのファイルの文字列から作る。wide の表記は HELP_FIXTURE_* マクロ。コールバックは help_recorder_t / help_recorder_write（8192 バイト、溢れたら 1 を返す）と help_failer_t / help_failer_init(f, n) / help_failer_write（n=0 は失敗しない、calls_after_failure を数える）
