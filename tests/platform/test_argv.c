@@ -55,8 +55,250 @@ NAOS_TEST(u16_eq_ascii_rejects_prefixes_and_longer_strings)
     NAOS_CHECK_FALSE(platform_test_u16_eq_ascii(s.units, "abd"));
 }
 
+/* ---- all OS: sentinel, NULL handle, failure and pass-through handles ---- */
+
+/* Checks the accessors of a handle that reads like the out-of-memory sentinel. */
+static void platform_argv_check_oom(const clopts_argv_t *args)
+{
+    char *const *values;
+
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OUT_OF_MEMORY);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
+    values = clopts_argv_values(args);
+    NAOS_CHECK_NOT_NULL(values);
+    if (values != NULL)
+    {
+        NAOS_CHECK_NULL(values[0]);
+    }
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+}
+
+NAOS_TEST(null_handle_reads_like_the_sentinel)
+{
+    platform_argv_check_oom(NULL);
+}
+
+NAOS_TEST(sentinel_accessors)
+{
+    clopts_argv_t *sentinel = clopts_platform_argv_sentinel();
+
+    NAOS_CHECK_NOT_NULL(sentinel);
+    NAOS_CHECK_PTR_EQ(clopts_platform_argv_sentinel(), sentinel);
+    platform_argv_check_oom(sentinel);
+}
+
+NAOS_TEST(free_ignores_null_and_the_sentinel)
+{
+    clopts_platform_probe_t probe = { 0, 0, 0 };
+    clopts_argv_t *sentinel = clopts_platform_argv_sentinel();
+
+    clopts_argv_free(NULL);
+    clopts_argv_free(sentinel);
+    clopts_platform_argv_free(&probe, NULL);
+    clopts_platform_argv_free(&probe, sentinel);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_UINT_EQ(probe.calls, 0);
+    /* The sentinel still reads the same after the calls above. */
+    platform_argv_check_oom(sentinel);
+}
+
+/* Creates a failure handle through a probe and checks its invariants. */
+static void platform_argv_check_failure(clopts_argv_status_t status, int error_index, int expected_index)
+{
+    clopts_platform_probe_t probe = { 0, 0, 0 };
+    clopts_argv_t *args;
+    char *const *values;
+
+    args = clopts_platform_argv_failure(&probe, status, error_index);
+    NAOS_CHECK_NOT_NULL(args);
+    NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), status);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
+    values = clopts_argv_values(args);
+    NAOS_CHECK_NOT_NULL(values);
+    if (values != NULL)
+    {
+        NAOS_CHECK_NULL(values[0]);
+    }
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), expected_index);
+    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    clopts_platform_argv_free(&probe, args);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(failure_handle_invalid_utf16_keeps_the_index)
+{
+    platform_argv_check_failure(CLOPTS_ARGV_INVALID_UTF16, 0, 0);
+    platform_argv_check_failure(CLOPTS_ARGV_INVALID_UTF16, 3, 3);
+}
+
+NAOS_TEST(failure_handle_cmdline_unavailable_has_no_index)
+{
+    platform_argv_check_failure(CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1, -1);
+}
+
+/* Failure handles share the empty values array; the public free releases them. */
+NAOS_TEST(failure_handles_share_the_empty_array)
+{
+    clopts_argv_t *a;
+    clopts_argv_t *b;
+
+    a = clopts_platform_argv_failure(NULL, CLOPTS_ARGV_INVALID_UTF16, 1);
+    b = clopts_platform_argv_failure(NULL, CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1);
+    NAOS_CHECK_TRUE(a != clopts_platform_argv_sentinel());
+    NAOS_CHECK_TRUE(b != clopts_platform_argv_sentinel());
+    NAOS_CHECK_PTR_EQ(clopts_argv_values(a), clopts_argv_values(b));
+    NAOS_CHECK_PTR_EQ(clopts_argv_values(a), clopts_argv_values(NULL));
+    clopts_argv_free(a);
+    clopts_argv_free(b);
+}
+
+NAOS_TEST(failure_allocation_failure_returns_the_sentinel)
+{
+    clopts_platform_probe_t probe = { 1, 0, 0 };
+    clopts_argv_t *args;
+
+    args = clopts_platform_argv_failure(&probe, CLOPTS_ARGV_INVALID_UTF16, 2);
+    NAOS_CHECK_PTR_EQ(args, clopts_platform_argv_sentinel());
+    NAOS_CHECK_UINT_EQ(probe.calls, 1);
+    platform_argv_check_oom(args);
+    clopts_platform_argv_free(&probe, args);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+/* An OUT_OF_MEMORY failure is the sentinel itself, without an allocation. */
+NAOS_TEST(failure_out_of_memory_is_the_sentinel)
+{
+    clopts_platform_probe_t probe = { 0, 0, 0 };
+
+    NAOS_CHECK_PTR_EQ(clopts_platform_argv_failure(&probe, CLOPTS_ARGV_OUT_OF_MEMORY, -1),
+                      clopts_platform_argv_sentinel());
+    NAOS_CHECK_UINT_EQ(probe.calls, 0);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(passthrough_borrows_every_pointer)
+{
+    char a0[] = "tool";
+    char a1[] = "--name";
+    char a2[] = "";
+    char a3[] = "\xe3\x83\x86";
+    char *argv[5];
+    clopts_platform_probe_t probe = { 0, 0, 0 };
+    clopts_argv_t *args;
+    char *const *values;
+    int i;
+
+    argv[0] = a0;
+    argv[1] = a1;
+    argv[2] = a2;
+    argv[3] = a3;
+    argv[4] = NULL;
+    args = clopts_platform_argv_passthrough(&probe, 4, argv);
+    NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 4);
+    values = clopts_argv_values(args);
+    NAOS_CHECK_PTR_EQ(values, argv);
+    if (values == argv)
+    {
+        for (i = 0; i < 4; ++i)
+        {
+            NAOS_CHECK_PTR_EQ(values[i], argv[i]);
+        }
+        NAOS_CHECK_NULL(values[4]);
+    }
+    /* Neither the array nor the strings are written. */
+    NAOS_CHECK_STR_EQ(a0, "tool");
+    NAOS_CHECK_STR_EQ(a1, "--name");
+    NAOS_CHECK_PTR_EQ(argv[3], a3);
+    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    clopts_platform_argv_free(&probe, args);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_PTR_EQ(argv[0], a0);
+}
+
+NAOS_TEST(passthrough_with_argc_zero)
+{
+    char *empty[1] = { NULL };
+    clopts_platform_probe_t probe = { 0, 0, 0 };
+    clopts_argv_t *args;
+    char *const *values;
+
+    args = clopts_platform_argv_passthrough(&probe, 0, empty);
+    NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+    NAOS_CHECK_PTR_EQ(clopts_argv_values(args), empty);
+    clopts_platform_argv_free(&probe, args);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+
+    args = clopts_platform_argv_passthrough(&probe, 0, NULL);
+    NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+    values = clopts_argv_values(args);
+    NAOS_CHECK_NOT_NULL(values);
+    if (values != NULL)
+    {
+        NAOS_CHECK_NULL(values[0]);
+    }
+    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    clopts_platform_argv_free(&probe, args);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(passthrough_allocation_failure_returns_the_sentinel)
+{
+    char a0[] = "tool";
+    char *argv[2];
+    clopts_platform_probe_t probe = { 1, 0, 0 };
+    clopts_argv_t *args;
+
+    argv[0] = a0;
+    argv[1] = NULL;
+    args = clopts_platform_argv_passthrough(&probe, 1, argv);
+    NAOS_CHECK_PTR_EQ(args, clopts_platform_argv_sentinel());
+    NAOS_CHECK_UINT_EQ(probe.calls, 1);
+    platform_argv_check_oom(args);
+    clopts_platform_argv_free(&probe, args);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_PTR_EQ(argv[0], a0);
+    NAOS_CHECK_NULL(argv[1]);
+}
+
+/* The public release frees a pass-through handle (checked by leak tools) without touching argv. */
+NAOS_TEST(public_free_releases_a_passthrough_handle)
+{
+    char a0[] = "tool";
+    char *argv[2];
+    clopts_argv_t *args;
+
+    argv[0] = a0;
+    argv[1] = NULL;
+    args = clopts_platform_argv_passthrough(NULL, 1, argv);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 1);
+    clopts_argv_free(args);
+    NAOS_CHECK_STR_EQ(argv[0], "tool");
+}
+
 NAOS_SUITE(argv,
     NAOS_ADD_TEST(u16_from_ascii_copies_each_byte_and_terminates),
     NAOS_ADD_TEST(u16_from_ascii_accepts_the_empty_string),
-    NAOS_ADD_TEST(u16_eq_ascii_rejects_prefixes_and_longer_strings)
+    NAOS_ADD_TEST(u16_eq_ascii_rejects_prefixes_and_longer_strings),
+    NAOS_ADD_TEST(null_handle_reads_like_the_sentinel),
+    NAOS_ADD_TEST(sentinel_accessors),
+    NAOS_ADD_TEST(free_ignores_null_and_the_sentinel),
+    NAOS_ADD_TEST(failure_handle_invalid_utf16_keeps_the_index),
+    NAOS_ADD_TEST(failure_handle_cmdline_unavailable_has_no_index),
+    NAOS_ADD_TEST(failure_handles_share_the_empty_array),
+    NAOS_ADD_TEST(failure_allocation_failure_returns_the_sentinel),
+    NAOS_ADD_TEST(failure_out_of_memory_is_the_sentinel),
+    NAOS_ADD_TEST(passthrough_borrows_every_pointer),
+    NAOS_ADD_TEST(passthrough_with_argc_zero),
+    NAOS_ADD_TEST(passthrough_allocation_failure_returns_the_sentinel),
+    NAOS_ADD_TEST(public_free_releases_a_passthrough_handle)
 )

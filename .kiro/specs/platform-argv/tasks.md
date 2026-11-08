@@ -32,7 +32,7 @@
   - _Boundary: PlatformSplit_
   - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 9.1, 9.2_
 
-- [ ] 2.2 (P) argv ハンドル（番兵、失敗、パススルー）とアクセサ、解放を実装してテストする
+- [x] 2.2 (P) argv ハンドル（番兵、失敗、パススルー）とアクセサ、解放を実装してテストする
   - 番兵は書き込まれない定数で、メモリ不足・要素数 0・空の配列・添字 -1 を返す。NULL のハンドルは番兵と同じに読む
   - 失敗のハンドルは、状態と添字を持ち、要素数 0 で共有の空配列を指す。確保できなければ番兵を返す。パススルーのハンドルは利用者の配列を借用し、配列が NULL（要素数 0）なら空配列を指す
   - 解放は 1 回の解放で済ませ、NULL と番兵は無視する
@@ -115,3 +115,4 @@
 - 1.1: 番兵 `platform_argv_oom` は platform_argv.c で実装済み（static const を非 const で返す）。分割のスタブは `*argc = 0` を返すが、2.1 で契約（`*argc >= 1`）を満たすこと
 - 1.2: 補助は tests/platform/test_util.{h,c}。呼び出し側が持つ固定長バッファ `platform_test_u16_t`（容量 `PLATFORM_TEST_U16_CAP` = 1024 単位）に `platform_test_u16_from_ascii` / `_from_units` で作る。容量超過は NDEBUG でも `abort`。1023 単位を超える入力（3.3 の数 KB の値など）は自前で確保すること。分割の比較は `platform_test_split_mismatch`（一致で -1）。convert / crt のファイルは CMake の `if(WIN32)` でだけビルドし、エントリは `#ifdef _WIN32` / `#else` で NAOS_MAIN を 2 つ持つ
 - 1.3: `clopts_platform_malloc_array` の桁あふれは parser と同じく 1 回の試行として `calls` に数える（確保せず `live` は変えない）。probe の失敗位置を総当たりするテストはこの数え方を前提にする
+- 2.2: `clopts_platform_argv_failure` に OUT_OF_MEMORY を渡すと確保せずに番兵を返す。それ以外の状態では添字は INVALID_UTF16 のときだけ保持し、ほかは -1。パススルーは `argv[argc] == NULL` を assert で確かめる
