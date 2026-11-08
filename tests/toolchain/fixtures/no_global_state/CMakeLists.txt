@@ -13,13 +13,23 @@
 # for everything defined in CLOpts' directories.
 #
 # Expects -DCLOPTS_SOURCE_DIR=... (passed by tests/cmake/run_fixture.cmake,
-# together with -DCLOPTS_BUILD_TESTING=OFF).
+# together with -DCLOPTS_BUILD_TESTING=OFF) and -DCLOPTS_BUILD_SHARED=<form of
+# the parent build tree>, so that the form under test is the one the parent
+# builds; the type of clopts is checked against it.
 
 cmake_minimum_required(VERSION 3.21)
 project(fixture_no_global_state C)
 
 if("${CLOPTS_SOURCE_DIR}" STREQUAL "")
     message(FATAL_ERROR "no_global_state: CLOPTS_SOURCE_DIR is not set")
+endif()
+if(NOT DEFINED CLOPTS_BUILD_SHARED)
+    message(FATAL_ERROR "no_global_state: CLOPTS_BUILD_SHARED (form of the parent build tree) is not set")
+endif()
+if(CLOPTS_BUILD_SHARED)
+    set(fixture_expected_type SHARED_LIBRARY)
+else()
+    set(fixture_expected_type STATIC_LIBRARY)
 endif()
 
 # Variables CLOpts must not define (as normal or cache variables).
@@ -32,6 +42,9 @@ set(fixture_global_vars
     CMAKE_ARCHIVE_OUTPUT_DIRECTORY
     BUILD_SHARED_LIBS
     BUILD_TESTING
+    CMAKE_C_VISIBILITY_PRESET
+    CMAKE_VISIBILITY_INLINES_HIDDEN
+    CMAKE_POSITION_INDEPENDENT_CODE
 )
 
 # Directory properties that would apply settings to every target of a
@@ -102,10 +115,15 @@ function(fixture_check when)
                 "no_global_state (${when}): clopts INTERFACE_COMPILE_OPTIONS is '${value}'; "
                 "warning flags must be PRIVATE")
         endif()
-        # Only the form marker may propagate: CLOPTS_STATIC for the static
-        # library, nothing for the shared one. The form is taken from the
-        # target itself.
+        # The form passed in by the parent build tree is the one under test.
         get_target_property(type clopts TYPE)
+        if(NOT type STREQUAL fixture_expected_type)
+            message(FATAL_ERROR
+                "no_global_state (${when}): clopts TYPE is '${type}'; expected "
+                "'${fixture_expected_type}' (CLOPTS_BUILD_SHARED=${CLOPTS_BUILD_SHARED})")
+        endif()
+        # Only the form marker may propagate: CLOPTS_STATIC for the static
+        # library, nothing for the shared one.
         if(type STREQUAL "STATIC_LIBRARY")
             set(expected_defs "CLOPTS_STATIC")
         else()

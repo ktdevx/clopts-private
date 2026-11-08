@@ -161,7 +161,7 @@
   - _Boundary: RunFixture_
   - _Requirements: 6.5_
 
-- [ ] 10.2 (P) toolchain の検証を、グローバル状態の検査の更新と形式の決定のテストで広げる
+- [x] 10.2 (P) toolchain の検証を、グローバル状態の検査の更新と形式の決定のテストで広げる
   - グローバル状態なしの検査に、可視性の既定と位置独立コードの既定の変数を足し、利用側へ伝わる定義の検査は 7.1 で直したものをそのまま使い、ビルドツリーの形式を fixture に渡して共有版のケースも実際に検査されるようにする
   - 形式の決定の fixture を新設し、既定・`BUILD_SHARED_LIBS` だけ・`BUILD_SHARED_LIBS` と CLOpts 専用の指定の上書き、の 3 ケースを登録する。型と形式ごとのプロパティ（位置独立コード、静的版の定義、MSVC の出力名、共有版の版・SOVERSION・ビルド中の定義・可視性）を構成時に検査し、SOVERSION の計算は現在の版と仮の 1.x 版の両方で検査する。形式の決定の fixture には親のビルドツリーの形式を渡さない（キャッシュに入ると 3 ケースの意味が変わるため。形式を渡すのはグローバル状態なしの fixture だけ）
   - 完了条件: 静的版と共有版の両方で `ctest -L toolchain` が通り、`toolchain.library_type.default` / `.build_shared_libs` / `.override` が並ぶ
