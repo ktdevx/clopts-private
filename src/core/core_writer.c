@@ -3,18 +3,17 @@
 #include <assert.h>
 #include <string.h>
 
-int clopts_core_write(const clopts_writer_t *writer, const char *data, size_t len)
+int clopts_core_write(clopts_write_fn fn, void *ctx, const char *data, size_t len)
 {
-    assert(writer != NULL);
-    assert(writer->write != NULL);
+    assert(fn != NULL);
     assert((len == 0) || (data != NULL));
 
-    return writer->write(writer->ctx, data, len);
+    return fn(ctx, data, len);
 }
 
-int clopts_core_write_str(const clopts_writer_t *writer, const char *s)
+int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s)
 {
     assert(s != NULL);
 
-    return clopts_core_write(writer, s, strlen(s));
+    return clopts_core_write(fn, ctx, s, strlen(s));
 }

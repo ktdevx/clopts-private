@@ -103,7 +103,108 @@
   - 完了条件: 上記がすべて満たされ、`git status` がクリーンで、要件 1〜11 の各受入条件に対応するテストまたは確認結果を列挙できる
   - _Requirements: 1.6, 2.1, 2.2, 4.5, 4.8, 10.2, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
+## 改訂（2026-11-08: 共有ライブラリ化と ABI 互換）
+
+> 1〜6 は初版の実装（完了済み）。以下は改訂後の requirements.md / design.md に合わせた差分の実装である。初版から変えない部品（CompilerOptions、NaosHelper、CoreVec、CoreSize、GitIgnore、warning / vla の fixture）には触れない。
+
+- [x] 7. 基盤: 形式の選択と公開シンボルの印
+- [x] 7.1 ライブラリ作成ヘルパを新設し、静的版と共有版を選べるようにする
+  - 静的に固定していたライブラリの定義をルートから外し、新しいヘルパで作る。形式は新しいオプションで選ぶ。既定値は構成した時点の `BUILD_SHARED_LIBS` で、未定義なら静的。親が通常変数で指定した値が優先される
+  - 版から SOVERSION と package の互換規則を計算する小関数を置く。0.x は `0.<minor>` と minor 一致、1.0 以上は major と major 一致。計算結果を呼び出し元に返す
+  - 静的版には位置独立コード、静的版を示す定義（ライブラリ自身と利用側の両方へ伝わる形）を付ける。MSVC では静的ライブラリの出力名を共有版のインポートライブラリと別にする
+  - 共有版には「ライブラリ自身のビルド中」を示す定義、Windows 以外では既定で非公開になる可視性、版と SOVERSION を付ける
+  - 形式によらず別名 `CLOpts::clopts` を定義する。グローバル変数やディレクトリ単位の設定は増やさない
+  - 静的版の定義が利用側へ伝わるようになるので、グローバル状態なしの fixture のうち `clopts` の利用側へ伝わる定義の検査だけを「静的版なら静的版の定義だけ、共有版なら空」に直す（検査対象の変数の追加や形式の受け渡しは 10.2）。既存の toolchain テストを赤にしないための最小の変更である
+  - 完了条件: ローカルの GCC で、既定の構成では静的版のままビルドとテスト（`toolchain.no_global_state` を含む）が通る。`-DCLOPTS_BUILD_SHARED=ON -DCLOPTS_BUILD_TESTING=OFF` では `libclopts.so.0.1.0` と版付きの名前のリンクができ、`nm -D --defined-only` に `clopts_core_` で始まるシンボルが現れない
+  - _Boundary: RootCMake, LibraryHelper, ToolchainTests_
+  - _Requirements: 1.1, 1.5, 2.1, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 14.2, 15.1, 15.2, 15.3, 15.4, 15.6_
+
+- [x] 7.2 共有版でも内部関数を単体テストできるよう、テスト用の静的コピーとテスト登録の切り替えを入れる
+  - 共有版でテストが有効なときだけ、同じソースからテスト専用の静的ライブラリを作る（全体ビルドからは外し、install も export もしない）。include の基点、コンパイラオプション、静的版の定義は本体と同じにする
+  - モジュール追加ヘルパは、テスト専用のライブラリがあれば同じソースをそちらにも足す。テスト登録ヘルパは、静的版では本体に、共有版ではテスト専用のライブラリにリンクする
+  - 完了条件: 共有版（`-DCLOPTS_BUILD_SHARED=ON`）で `ctest -L core` と `ctest -L parser` が通り、テスト実行ファイルが共有ライブラリに依存していない（`ldd` に `libclopts` が現れない）。静的版の挙動は変わらない
+  - _Boundary: LibraryHelper, ModulesHelper_
+  - _Requirements: 1.4, 4.1, 4.2, 4.3, 4.4, 4.10, 4.11_
+
+- [x] 7.3 (P) 公開シンボルの印の公開ヘッダを作り、解析 API の公開関数に暫定で印を付ける
+  - 印は静的版では空、共有版のビルド中は「出す」、共有版の利用側では「取り込む」に切り替わる。判定は静的版の定義、Windows、GCC 4 以上の順で、MinGW で可視性の属性を使わない
+  - 解析 API の公開ヘッダには、印のヘッダの include と、13 個の公開関数の宣言の先頭への印だけを足す（型・関数・コメントは変えない。core-parser の作り直しまでの暫定）
+  - 完了条件: 共有版の `nm -D --defined-only libclopts.so` に `clopts_` で始まるシンボルがちょうど 13 個（解析 API の公開関数）あり、`clopts_core_` / `clopts_parser_` で始まるものがない。静的版（テスト込み）と共有版（`-DCLOPTS_BUILD_TESTING=OFF`。共有版でテストを有効にするには 7.2 が必要）が `-Werror` で警告なくビルドできる
+  - 7.2 と触るファイルが重ならない（7.2 は CMake のヘルパ、本タスクは公開ヘッダ）
+  - _Depends: 7.1_
+  - _Boundary: PublicHeaders_
+  - _Requirements: 14.1, 14.3, 14.4, 14.5, 14.6_
+
+- [x] 8. コア: 書き込みコールバックを構造体と `FILE*` の受け渡しなしの形に作り直す
+  - 公開ヘッダからコールバックとコンテキストを組にした構造体と、`FILE*` を受け取るライブラリ関数を外し、`FILE*` をコンテキストに渡す既製のコールバックを公開ヘッダ内の `static inline` として置く（書き込めなければ失敗、長さ 0 は何もせず成功）
+  - 内部の書き込みヘルパをコールバックとコンテキストを別々に受け取る形に変え、`stdio` を使う翻訳単位を削除する
+  - 書き込みの単体テストを書き直す（既製のコールバックの全バイト書き込みと読み戻し、長さ 0、読み取り専用の `FILE*` への書き込み失敗、内部ヘルパの順序・長さ・失敗の伝播）
+  - integration の利用側 fixture の `main.c` を、新しい既製のコールバックで 1 行書く形に直す（削除した関数を使っているため。fixture の他の変更は 10.3）
+  - 完了条件: 静的版と共有版の両方で `ctest -L core` と `ctest -L integration` が通り、`src/core/` に `<stdio.h>` の include がない。公開ヘッダに構造体の定義がない
+  - _Boundary: PublicHeaders, CoreWriter, CoreTests, IntegrationTests（利用側 fixture の `main.c` の最小の追従のみ）_
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 9.8, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 14.5_
+
+- [x] 9. 配布: 形式ごとの install / export と、package config での形式の選択
+  - ライブラリの install に、共有版の実行時ファイル（Windows では `bin` の DLL）、Linux / macOS の版付きファイルとリンク用の名前、Windows のインポートライブラリの行き先を足す
+  - ターゲット定義のファイルを形式ごとの名前（静的版用と共有版用）で install し、同じ prefix に両方を入れても上書きし合わないようにする。静的版だけが、ビルド時の MSVC の CRT 種別を記録する断片を生成して install する。version file の互換規則は 7.1 の計算結果から取る（`ARCH_INDEPENDENT` は付けない）
+  - package config を作り直す: コンポーネント `static` / `shared` の指定、指定なしのときの `CLOPTS_SHARED_LIBS` → `BUILD_SHARED_LIBS` → 入っている方の順の既定、両方の指定・未知のコンポーネント・入っていない形式の指定での失敗（理由を示すメッセージ）、`CLOpts_LIBRARY_TYPE`、静的版を選んだときだけの CRT の警告、2 回目の `find_package` で別の形式を求められたときの失敗。config の内容は形式によらず同じにする
+  - install のファイル名と config を同じタスクで変えるのは、途中で install 経路のテストを赤にしないためである
+  - 完了条件: 既存の `integration.install_find_package` が静的版で通る。静的版と共有版を同じ prefix に install すると、両方のターゲット定義ファイル、共有版の `libclopts.so.0.1.0` / `libclopts.so.0.1` / `libclopts.so`、静的版の `libclopts.a` と CRT 記録の断片が並び、config と version file は 1 つずつになる。その prefix に対して手元で `COMPONENTS static` / `COMPONENTS shared` / 指定なしの 3 通りが期待どおりの形式を返し、`COMPONENTS static shared` と「静的版を読み込んだ後に `COMPONENTS shared` で 2 回目の `find_package`」が理由つきで失敗する
+  - _Boundary: InstallHelper, PackageConfig_
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 12.7, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 15.5_
+
+- [x] 10. 検証: ビルド構成の自動テストを両方の形式に広げる
+- [x] 10.1 fixture を動かす共有スクリプトに、構成失敗の期待、失敗理由の照合、DLL などの除外を足す
+  - 期待値に「構成が失敗する」を足す。失敗を期待するケースで、子プロセスの出力が指定の正規表現に一致しなければテスト失敗にする
+  - 実行するファイルを探すとき、共有ライブラリ（`.dll`、`.so`、版付きの `.so`、`.dylib`）を候補から外す
+  - 完了条件: 既存の toolchain / integration のテストが静的版で変わらず通り、手元で、存在しないシンボルへの参照を持つ一時 fixture に `build_fail` と合わない正規表現を与えるとテストが失敗する
+  - _Boundary: RunFixture_
+  - _Requirements: 6.5_
+
+- [x] 10.2 (P) toolchain の検証を、グローバル状態の検査の更新と形式の決定のテストで広げる
+  - グローバル状態なしの検査に、可視性の既定と位置独立コードの既定の変数を足し、利用側へ伝わる定義の検査は 7.1 で直したものをそのまま使い、ビルドツリーの形式を fixture に渡して共有版のケースも実際に検査されるようにする
+  - 形式の決定の fixture を新設し、既定・`BUILD_SHARED_LIBS` だけ・`BUILD_SHARED_LIBS` と CLOpts 専用の指定の上書き、の 3 ケースを登録する。型と形式ごとのプロパティ（位置独立コード、静的版の定義、MSVC の出力名、共有版の版・SOVERSION・ビルド中の定義・可視性）を構成時に検査し、SOVERSION の計算は現在の版と仮の 1.x 版の両方で検査する。形式の決定の fixture には親のビルドツリーの形式を渡さない（キャッシュに入ると 3 ケースの意味が変わるため。形式を渡すのはグローバル状態なしの fixture だけ）
+  - 完了条件: 静的版と共有版の両方で `ctest -L toolchain` が通り、`toolchain.library_type.default` / `.build_shared_libs` / `.override` が並ぶ
+  - _Depends: 7.1_
+  - _Boundary: ToolchainTests_
+  - _Requirements: 2.1, 2.2, 2.9, 4.9, 6.1, 6.2, 12.2, 12.3, 12.4, 12.5, 12.6, 15.1, 15.2, 15.3, 15.4_
+
+- [x] 10.3 (P) integration の利用側テストを両方の形式と C++ に広げ、内部関数が見えないことのテストを足す
+  - ビルドツリーの形式を利用側 fixture に渡し、`CLOpts::clopts` の型が期待と一致することを構成時に確かめる。install 経路では、ビルドツリーの形式を選ぶよう指定して `find_package` する
+  - 利用側 fixture の `main.c` は 8 で新しい既製のコールバックに移した状態から始める
+  - 利用側 fixture で C++ を有効にし、公開の傘ヘッダを include して既製のコールバックを使う C++ の翻訳単位を足す
+  - Windows の共有版では、ビルド後に実行時に必要な DLL を実行ファイルの横へコピーする
+  - 内部関数（サイズ計算の乗算）を自分で宣言して呼ぶ fixture を新設し、共有版のときだけ「ビルド失敗、出力にその関数名を含む」を期待するテストとして登録する
+  - 完了条件: 静的版と共有版の両方で `integration.subdirectory` と `integration.install_find_package` が実行まで通り、共有版では `integration.internal_hidden` も通る
+  - _Depends: 7.3, 8, 9, 10.1_
+  - _Boundary: IntegrationTests_
+  - _Requirements: 2.4, 4.10, 5.7, 6.3, 6.4, 6.6, 6.8, 14.2, 14.3, 14.6_
+
+- [x] 10.4 静的版と共有版を並べて install し、`find_package` の選択を検証するテストを足す
+  - 2 つの形式を構成・ビルドして同じ prefix（と静的版だけの prefix）に install し、選択用の fixture を設計の 8 ケースで構成だけ行って、選ばれた形式または失敗とその理由を照合するスクリプトを作る。MSVC では 2 つの `.lib` が並ぶことも確かめる
+  - install が有効なときだけ `integration.package_selection` として登録する
+  - 完了条件: 静的版と共有版のどちらのビルドツリーからでも `integration.package_selection` が通り、失敗したケースはケース名と子プロセスの出力を表示する
+  - 10.3 と同じ `tests/integration/CMakeLists.txt` を編集するため、10.3 の後に行う
+  - _Depends: 9, 10.1, 10.3_
+  - _Boundary: PackageSelectionTest_
+  - _Requirements: 6.7, 7.6, 12.6, 13.2, 13.3, 13.4, 13.5_
+
+- [x] 11. CI を 5 環境 × 2 形式に広げる
+  - マトリクスを toolchain と形式（静的・共有）の組み合わせにし、構成に形式の指定を渡す。ジョブ名に両方を含める。失敗は他のジョブを止めない
+  - MSYS2 の準備で C++ コンパイラが入ることを確かめる。ラベル別の再実行は linux-gcc の両方の形式で行う
+  - 完了条件: push した PR で 10 ジョブが走り、すべて `-Werror` 付きで構成・ビルド・テスト（`integration.package_selection` を含む）に成功する
+  - _Requirements: 1.6, 4.5, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 14.4_
+
+- [x] 12. 最終確認: 改訂後の受入条件を通しで確認する
+  - クリーンな状態から、ローカルの GCC と Clang で静的版と共有版をそれぞれ構成・ビルド・テストし、全テストが通る
+  - `ctest -N` のテスト名とラベル（`core` / `parser` / `toolchain` / `integration`）、共有版の公開シンボル（7.3 の条件）、ルートと `cmake/` にグローバル設定がないこと（grep）、`git status` がクリーンであることを確認する
+  - 初版から変えていない要件（コンパイラ別のフラグ、Naos の固定、可変長配列、`.gitignore`、コーディング規約）が退行していないことを、既存のテストと grep で確認する
+  - 完了条件: 上記がすべて満たされ、要件 1〜15 の各受入条件に対応するテストまたは確認結果を列挙できる
+  - _Requirements: 1.2, 1.3, 1.6, 1.7, 2.3, 2.5, 2.6, 2.7, 2.8, 2.10, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 4.5, 4.6, 4.7, 4.8, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.9, 10.1, 10.2, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
+
 ## Implementation Notes
+
+> 以下は初版（タスク 1〜6）の実装メモ。改訂（タスク 7〜12）でも有効なものは引き継ぐ。`clopts_writer_file` と `core_writer_file.c` に関する記述は、タスク 8 で無効になる。
 - Naos v0.4.0 の版は `include/naos/version.h` の `NAOS_VERSION_MAJOR/MINOR/PATCH` の 3 つの整数マクロで表される（文字列マクロではない）。`NAOS_DECLARE_SUITE(x);` は宣言なので `;` が必要、`NAOS_TEST` / `NAOS_SUITE` / `NAOS_MAIN` の後ろには付けない。
 - オフライン検証には `-DFETCHCONTENT_SOURCE_DIR_NAOS=<絶対パス>` を使う（相対パスは早期の版照合で version.h が見つからず構成エラーになる）。glibc + GCC では `m` のリンクは不要だったが、design に従い CI で確認するまで残している。
 - 可変長配列の `realloc` 失敗経路はフックを置かない方針のため直接テストできない。巨大な要素サイズ（`SIZE_MAX/4`）は確保前のオーバーフロー検査で失敗する。
@@ -111,3 +212,9 @@
 - `toolchain.vla_fails` は `CLOPTS_WERROR=OFF` で取り込み、失敗が `-Werror=vla` そのものから来ることを確かめる（要件 3.7 は WERROR に依存しない）。`no_global_state` はルートのディレクトリスコープの変数も検出できるよう、CLOpts が追加したディレクトリを再帰的に検査する。
 - `-Wall` 単独の INTERFACE 漏れは利用側に `-Werror` がないためコンパイルでは検出できない（未使用引数で落ちるのは `-Wall -Wextra -Werror` がそろって漏れたときだけ）。そのため consumer フィクスチャは構成時に `CLOpts::clopts` の `INTERFACE_COMPILE_OPTIONS` に警告フラグがないこと、`INTERFACE_COMPILE_DEFINITIONS` に `_CRT_SECURE_NO_WARNINGS` がないことも検査する。design.md の IntegrationTests の記述はこの検査を反映していない。
 - MSVC の `/W4 /WX` では `(char)0xFF` のような定数の切り捨てキャストが C4310 でエラーになる。バイト値は `'\xFF'` のような文字リテラルで書く。CI の 5 環境（windows-latest は Visual Studio 18 2026）で全 31 テストが通ることを確認済み。
+- （改訂 9）package config は、形式を指定しない 2 回目の `find_package` では既に読み込まれた形式をそのまま使う（失敗するのは明示のコンポーネントが異なるときだけ）。二重読み込みの判定は `TARGET CLOpts::clopts` の有無なので、兄弟ディレクトリで別々の形式を読み込むと両方成功する（IMPORTED ターゲットはディレクトリスコープ）。`OPTIONAL_COMPONENTS static|shared` も明示の要求として扱う。
+- （改訂 10.1）`run_fixture.cmake` の `FAIL_REGEX` は CMake の `MATCHES` で照合する（`\d` などは使えない）。stdout と stderr をまとめた出力が対象。`FAIL_REGEX` は `build_fail` / `configure_fail` 以外と組み合わせると構成エラーになる。
+- （改訂 10.3）`run_fixture.cmake` は C コンパイラだけを子に渡すので、consumer fixture の C++ は既定の C++ コンパイラ（Clang の構成でも g++）でビルドされる。`consumer_cpp.cpp` は `&clopts_parse` を volatile ポインタに入れて、C++ からの C リンケージ（と Windows の dllimport）を実際にリンクで検査する。
+- （改訂 10.4）`run_package_selection.cmake` の `.lib` 並存の検査（12.6）は、静的版の prefix に `.lib` があるときだけ走る（MSVC 系では常にある。MinGW は `.a` / `.dll.a` なので飛ばし、その旨を表示する）。失敗理由の正規表現の空白は、CMake がメッセージを折り返すため任意の空白に一致させている。
+- （改訂 11）PR #6 の CI（run 42452776792）で 10 ジョブすべてが成功した。windows-msvc は静的版 330 件、共有版 331 件で、`integration.package_selection` は MSVC で約 24 秒かかる。
+- （改訂 12）要件 2.5（子プロジェクトとしての既定値）、4.6 / 4.7（Naos の固定とオフライン経路）、9.8（assert）は、登録済みのテストではなく一回限りの確認と目視で検証している。`decl.h` / `parse.h` の構造体は core-parser の作り直しで扱う。

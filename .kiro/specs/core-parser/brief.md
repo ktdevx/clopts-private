@@ -51,3 +51,14 @@ Monde の `src/cli_args/`（`args.h`、`args_decl.c`、`args_parse.c`、`args_re
 - 規約: `--` 以降はすべて位置引数、`-` 単体は位置引数、サブコマンド名より前はグローバルオプションのみ、サブコマンド以降はオプションと位置引数を並べ替え可、長いオプションの前方一致は非対応、`--no-x` は FLAG のみ、`--no-...` で始まる実名との衝突は宣言エラー、カウントは上限でクランプ
 - 環境変数フォールバックの値は UTF-8（Windows では platform-argv が `GetEnvironmentVariableW` 経由で返す）。`getenv` の戻り値は即座に複製する
 - コーディングスタイルは Monde と同じ
+
+## 改訂（2026-11-08: ビルダー API と不透明ハンドル）
+共有ライブラリの ABI 互換のため、実装済みの本 spec を大きく変える。roadmap.md の「Approach Decision」と「Existing Spec Updates」を正とする。要点:
+- `static const` の宣言構造体（`clopts_program_t` / `clopts_command_t` / `clopts_option_t` / `clopts_positional_t`）を廃止し、不透明ハンドルとビルダー関数にする。例: `clopts_program_new`、`clopts_add_command`、`clopts_add_flag` / `clopts_add_count` / `clopts_add_value` / `clopts_add_list`、`clopts_add_positional`、属性の設定関数 `clopts_opt_env` / `clopts_opt_default` / `clopts_opt_required` / `clopts_opt_negatable` など。最終的な名前は設計で決める。
+- 失敗の扱い: 最初のエラー（宣言エラーや OOM）を program に記録し、それ以降のビルダー呼び出しは何もしない。NULL のハンドルを渡しても安全にする。宣言エラーは、解析のとき、または明示的な検査関数でまとめて返す。
+- 宣言に渡された文字列は複製する（利用側は寿命を気にしなくてよい）。argv から得た値の寿命は設計で決める。
+- 結果は、ライブラリが確保した不透明な `clopts_result *` にする。OOM のときも状態を読めるようにする（例: 静的な番兵オブジェクト）。状態・選ばれたコマンド・エラーの各項目（種別、トークン、argv 添字、該当するオプション／コマンドのハンドル）はアクセサで読む。
+- 環境変数のコールバックは、借用した `const char *` を返す形にする（コールバックが返るまで有効）。ライブラリはそれを複製する。利用側で確保したメモリをライブラリが `free` することはしない。
+- help-and-messages のために、内部の宣言モデルを読み取り専用で読める内部ヘッダを用意する（公開しない）。
+- 全公開関数に `CLOPTS_API` を付ける。列挙は末尾への追加だけにする。
+- 解析規則（走査、`--`、まとめ書き、`--no-x`、カウント、リスト、優先順位、必須検査、help / version の検出、エラーの優先度）と、既存テストの観点はそのまま引き継ぐ。API の形だけを置き換える。

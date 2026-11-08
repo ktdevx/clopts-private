@@ -1,4 +1,5 @@
-# Builds and tests CLOpts on the five supported toolchains.
+# Builds and tests CLOpts on the five supported toolchains, as both the
+# static and the shared library (5 x 2 = 10 jobs).
 # No release steps here: tag checks and GitHub Releases are not part of CI.
 name: CI
 
@@ -12,30 +13,38 @@ permissions:
 
 jobs:
   build-and-test:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.toolchain }}-${{ matrix.library }}
     runs-on: ${{ matrix.os }}
     strategy:
-      # One failing toolchain must not cancel the others.
+      # One failing toolchain or library form must not cancel the others.
       fail-fast: false
       matrix:
+        toolchain:
+          - linux-gcc
+          - linux-clang
+          - macos-appleclang
+          - windows-msvc
+          - windows-mingw
+        library: [static, shared]
+        # Per-toolchain settings; each entry extends both library forms.
         include:
-          - name: linux-gcc
+          - toolchain: linux-gcc
             os: ubuntu-latest
             shell: bash
             cc: gcc
             configure_args: -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
-          - name: linux-clang
+          - toolchain: linux-clang
             os: ubuntu-latest
             shell: bash
             cc: clang
             configure_args: -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
-          - name: macos-appleclang
+          - toolchain: macos-appleclang
             os: macos-latest
             shell: bash
             # Default compiler (Apple Clang).
             cc: ""
             configure_args: -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
-          - name: windows-msvc
+          - toolchain: windows-msvc
             os: windows-latest
             shell: bash
             cc: ""
@@ -44,7 +53,7 @@ jobs:
             configure_args: ""
             build_args: --config Release
             ctest_args: -C Release
-          - name: windows-mingw
+          - toolchain: windows-mingw
             os: windows-latest
             shell: msys2 {0}
             cc: gcc
@@ -57,8 +66,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # mingw-w64-ucrt-x86_64-gcc provides g++ as well as gcc; the consumer
+      # fixture has a C++ translation unit.
       - name: Set up MSYS2 (UCRT64)
-        if: matrix.name == 'windows-mingw'
+        if: matrix.toolchain == 'windows-mingw'
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
@@ -69,8 +80,13 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
 
+      # CLOPTS_INSTALL is ON by default at top level, so the test step also
+      # runs integration.package_selection (static + shared in one prefix).
       - name: Configure
-        run: cmake -S . -B build -DCLOPTS_WERROR=ON ${{ matrix.configure_args }}
+        run: >-
+          cmake -S . -B build -DCLOPTS_WERROR=ON
+          -DCLOPTS_BUILD_SHARED=${{ matrix.library == 'shared' && 'ON' || 'OFF' }}
+          ${{ matrix.configure_args }}
 
       - name: Build
         run: cmake --build build ${{ matrix.build_args }}
@@ -78,15 +94,16 @@ jobs:
       - name: Test
         run: ctest --test-dir build ${{ matrix.ctest_args }} --output-on-failure
 
-      # Per-module label filtering (ctest -L <module>), checked once on Linux GCC.
+      # Per-module label filtering (ctest -L <module>), checked on Linux GCC
+      # for both library forms.
       - name: Test (label core)
-        if: matrix.name == 'linux-gcc'
+        if: matrix.toolchain == 'linux-gcc'
         run: ctest --test-dir build -L core --output-on-failure
 
       - name: Test (label toolchain)
-        if: matrix.name == 'linux-gcc'
+        if: matrix.toolchain == 'linux-gcc'
         run: ctest --test-dir build -L toolchain --output-on-failure
 
       - name: Test (label integration)
-        if: matrix.name == 'linux-gcc'
+        if: matrix.toolchain == 'linux-gcc'
         run: ctest --test-dir build -L integration --output-on-failure

@@ -149,3 +149,164 @@
 - [CMake `CTest` module](https://cmake.org/cmake/help/latest/module/CTest.html) — `BUILD_TESTING` オプションと `enable_testing()`
 - `.kiro/steering/tech.md`、`structure.md` — ターゲット単位設定、命名規約、テスト配置
 - `.kiro/specs/help-and-messages/brief.md` — 書き込みコールバックの利用側要件
+
+---
+
+# Gap Analysis（2026-11-08: 共有ライブラリ化の改訂要件 対 実装済みコード）
+
+> 対象は改訂後の requirements.md（要件 1〜15）と、初版の実装（`CMakeLists.txt`、`cmake/Clopts*.cmake`、`cmake/CLOptsConfig.cmake.in`、`src/core/`、`include/clopts/writer.h`、`tests/{core,toolchain,integration}/`、`tests/cmake/run_fixture.cmake`、`.github/workflows/ci.yml`）。要件はまだ承認されていない。この分析の結果で要件を直すこともありうる。
+
+## Summary
+- 初版の土台は「ターゲット単位の設定」「`PROJECT_IS_TOP_LEVEL` ガード」「fixture を `cmake -P` で動かす検証」という形がしっかりしていて、改訂の大半は既存の部品の**拡張**で済む。新しく作るのは `include/clopts/export.h`、package config の形式選択、いくつかの fixture だけ。
+- 最大の構造的な問題は**単体テストが内部関数を直接呼んでいること**（`tests/core/*` と、`tests/parser/` の 4 ファイルが `clopts_core_*` / `clopts_parser_*` を参照している）。共有版で内部シンボルを隠すと、今のテスト登録の仕組み（`CLOpts::clopts` にリンクする）ではリンクできない（要件 4.11 との衝突）。
+- 既存の検証の 1 つが**改訂要件と矛盾する**: `tests/toolchain/fixtures/no_global_state` は `clopts` の `INTERFACE_COMPILE_DEFINITIONS` が空であることを求めるが、要件 12.5 は静的版で利用側に定義を伝えることを求める。
+- **spec の間の順序の問題**: core-parser の公開関数（`parse.h`）には export の印がない。本 spec だけを先に実装すると、共有版では解析 API が利用側から見えず、`tests/integration` の利用側と `tests/parser` が壊れる。core-parser の作り直しまでの間をどう埋めるかを設計で決める必要がある。
+- 規模は M、リスクは Medium（CMake の標準機能の範囲内だが、Windows の DLL まわりと 5 環境 × 2 形式の組み合わせで検証の手間が大きい）。
+
+## Requirement-to-Asset Map
+
+| 要件 | 既存の資産 | 状態 | ギャップ |
+| --- | --- | --- | --- |
+| 1.1 ターゲット | `CMakeLists.txt` の `add_library(clopts STATIC)` | **Missing** | 型を固定している。要件 12 の選択に置き換える |
+| 1.6 5 環境 × 2 形式で成功 | CI は 5 環境・静的のみ | **Missing** | 共有版を全環境で通す必要がある |
+| 2.1 グローバル変数を設定しない | `no_global_state` fixture | Constraint | `CMAKE_C_VISIBILITY_PRESET` を検査対象に足す。`BUILD_SHARED_LIBS` は既に検査済み |
+| 2.x（全般） | `no_global_state` の `INTERFACE_COMPILE_DEFINITIONS` 空の検査 | **Constraint（矛盾）** | 静的版では印の定義（例: `CLOPTS_STATIC`）だけを許すように検査を変える |
+| 3 コンパイラオプション | `CloptsCompilerOptions.cmake` | 既存で充足 | 共有版でも同じヘルパを使える。visibility の設定はターゲットのプロパティで、ヘルパに足すか別にするかは設計で決める |
+| 4.3〜4.4 テスト登録 | `clopts_add_module_tests`（`naos_add_executable(... LIBRARIES CLOpts::clopts)`） | **Constraint** | 共有版では内部関数が見えない（4.11） |
+| 4.10 Windows で DLL を見つける | なし | **Missing** | テスト実行ファイルの横に DLL を置く。Naos のテスト発見が POST_BUILD で `<exe> --naos-list` を実行するので、**DLL の配置はテスト発見より前**に終わっている必要がある（Research Needed） |
+| 4.11 共有版で内部関数をテスト | なし | **Missing** | 下の Option で検討 |
+| 5.1 install の内容 | `install(TARGETS clopts EXPORT CLOptsTargets ARCHIVE ...)` | **Missing** | `LIBRARY` / `RUNTIME` / NAMELINK の行き先がない。export セットが 1 つだけ |
+| 5.4 版の互換 | `write_basic_package_version_file(... SameMinorVersion)` | Constraint | 1.0 より前は今のままでよい。1.0 以降は `SameMajorVersion` に切り替える条件分岐が要る |
+| 5.6 CRT の記録 | `CLOptsConfig.cmake.in` の警告 | 既存で充足（静的版に限定する） | 共有版の config では警告を出さないようにする |
+| 5.7 install 経路の検証 | `integration.install_find_package` | Constraint | 共有版では、利用側の実行ファイルが install 先の DLL / so を見つける必要がある（Windows は PATH かコピー、Linux/macOS は RPATH） |
+| 6.6 add_subdirectory 経路（両形式） | `integration.subdirectory` | Constraint | 共有版の Windows では、fixture の実行ファイルの横へ DLL をコピーする必要がある（fixture は `RUNTIME_OUTPUT_DIRECTORY` を別にしている） |
+| 6.7 並存 install と形式選択 | なし | **Missing** | 1 つのテストの中で CLOpts を 2 回（静的・共有）構成・ビルド・install し、利用側を 4〜5 通りで構成する。`run_fixture.cmake` の拡張が必要 |
+| 6.8 内部関数でリンク失敗 | `run_fixture.cmake` の `EXPECT=build_fail` | 部品はある | 内部関数を呼ぶ利用側 fixture を足し、共有版のときだけ登録する |
+| 7 CI | `ci.yml`（5 ジョブ、ラベル別の再実行は linux-gcc のみ） | **Missing** | マトリクスに形式の軸を足す（10 ジョブ）。並存 install の検証を 1 環境で |
+| 8 書き込みコールバック | `writer.h`（`clopts_writer_t` 構造体、`clopts_writer_file(FILE*)`）、`core_writer_file.c`、`core_writer.c`、`tests/core/test_writer.c` | **Missing（作り直し）** | 構造体と `FILE*` 関数を公開ヘッダから外す。`FILE*` 用コールバックを公開ヘッダの `static inline` にする。内部の `clopts_core_write` は `(fn, ctx)` を受け取る形に変えるか、内部用の構造体を `core_internal.h` に移す。`core_writer_file.c` は削除。`tests/integration/fixtures/consumer/main.c` も新しい形に直す |
+| 9 可変長配列 | `core_vec.c`、`core_size.c` | 既存で充足 | 変更なし（内部関数なので印は付けない） |
+| 10、11 | `.gitignore`、スタイル | 既存で充足 | 変更なし |
+| 12.2〜12.3 `CLOPTS_BUILD_SHARED` | なし | **Missing** | `option()` の既定値に `BUILD_SHARED_LIBS` を使う。CMP0077 は `cmake_minimum_required(VERSION 3.21)` で NEW なので、親の通常変数で上書きできる |
+| 12.4 静的版の PIC | なし | **Missing** | `POSITION_INDEPENDENT_CODE ON` |
+| 12.5 静的版の定義を伝える | なし | **Missing** | INTERFACE の定義。`install(EXPORT)` で伝わる |
+| 12.6 MSVC での静的版の名前 | なし | **Missing** | `OUTPUT_NAME`（例: `clopts_static`）。MinGW では `libclopts.a` / `libclopts.dll.a` なので衝突しない |
+| 13 形式の選択 | `CLOptsConfig.cmake.in`（`CLOptsTargets.cmake` を 1 つ読む） | **Missing** | `CLOptsStaticTargets.cmake` / `CLOptsSharedTargets.cmake` を分け、config で選ぶ。`check_required_components` の扱い、`CLOpts_FOUND` を偽にする方法、選んだ形式を知らせる変数（13.6）を設計する |
+| 14.1〜14.3 export マクロ | なし | **Missing** | `include/clopts/export.h`。CMake は共有版のビルド時に `clopts_EXPORTS` を自動で定義するので、それを「出す」の判定に使える |
+| 14.2 印のない関数を出さない | なし | **Missing** | `C_VISIBILITY_PRESET hidden`（ELF / Mach-O）。MinGW では visibility は効かず、「dllexport が 1 つでもあれば、それだけを出す」という ld の規則に頼る |
+| 14.4 警告なし | なし | Constraint | MinGW の GCC に visibility 属性を見せると `-Wattributes` になる。Windows の判定を先にする |
+| 14.5 構造体の定義なし | `writer.h` に `clopts_writer_t` | **Missing** | 要件 8 の作り直しで解消する |
+| 14.6 C++ から使える | `writer.h` に `extern "C"` あり | 既存で充足 | `export.h` にも同じ配慮をする |
+| 15 版 | `project(clopts VERSION 0.1.0)` | **Missing** | `VERSION` / `SOVERSION` のプロパティ。SOVERSION を `PROJECT_VERSION_MAJOR` / `MINOR` から計算する |
+
+## 既存コードで確認できた事実
+- **Naos は常に静的**: research の初版の調査で「サブプロジェクト時の Naos は常に STATIC（利用側の `BUILD_SHARED_LIBS` に影響されない）」と確認済み。トップレベルで `-DBUILD_SHARED_LIBS=ON` にしても、Naos が DLL になってテストが壊れることはない。
+- **内部関数を直接呼ぶテスト**: `tests/core/test_size.c`、`test_vec.c`、`test_writer.c`、`tests/parser/test_decl_check.c`、`test_resolve.c`、`test_result.c`、`test_values.c`。テストには `src/` が include パスとして与えられている（`clopts_add_module_tests` の `target_include_directories(... PRIVATE src)`）。
+- **書き込みコールバックの利用者は core だけ**: `clopts_writer_t` と `clopts_core_write*` は `src/core/` の外（`src/parser/`）からは使われていない。作り直しの影響は core、`tests/core/test_writer.c`、integration の利用側 fixture、公開ヘッダに限られる。
+- **ラベル別の再実行**: CI の linux-gcc だけが `core` / `toolchain` / `integration` のラベルで再実行している。形式の軸を足すと、この「1 環境だけ」の扱いをどの形式でやるかを決める必要がある。
+
+## Implementation Approach Options
+
+### Option A: 既存の部品を拡張する（ターゲットは 1 つのまま、テストは静的なコピーにリンクする）
+- `add_library(clopts ${type})` に変え、`export.h`、visibility、版、install と config の分割、CI のマトリクスを既存のファイルに足す。
+- 共有版のときは、単体テスト用に同じソースから**静的なテスト用ライブラリ**（例: `clopts_testing`、install しない）を別に作り、`clopts_add_module_tests` をそこへリンクする。
+- ✅ 内部関数のテストがそのまま動く。公開シンボルを汚さない。
+- ❌ 共有版のビルドで全ソースを 2 回コンパイルする。単体テストは共有ライブラリそのものを動かさない（共有版の挙動は integration と abi-compat で見る）。
+
+### Option B: OBJECT ライブラリを共有する
+- ソースを OBJECT ライブラリ（例: `clopts_objects`）にまとめ、`clopts`（静的または共有）とテスト実行ファイルの両方がそのオブジェクトを使う。
+- ✅ コンパイルは 1 回。テストは製品と同じオブジェクトを動かす。
+- ❌ 共有版のオブジェクトは「出す」側の印（Windows では `dllexport`）でコンパイルされるので、テスト実行ファイルが公開関数を export する（MSVC では `.lib` / `.exp` ができる）。害はないが見た目が悪い。`clopts_add_module` が足すソースの行き先を OBJECT ライブラリに変える必要がある。visibility と PIC の設定を OBJECT ライブラリ側に置く必要がある。
+
+### Option C: テストを公開 API の範囲に寄せ、内部関数のテストは静的版のジョブだけで行う
+- 共有版のジョブでは、内部関数を呼ぶテストを登録しない（または公開 API のテストだけを登録する）。
+- ✅ 仕組みが最も単純。
+- ❌ 要件 4.11（共有版でも内部関数をテストできる）を満たさない。要件を変える必要がある。
+
+**推奨（設計への入力）**: Option A か B。Option A は Naos のテスト発見（POST_BUILD でテスト実行ファイルを起動する）と相性がよい。テスト実行ファイルが DLL に依存しないので、Windows での DLL の配置の問題が単体テストから消える。Option B はビルドの時間で有利。
+
+## core-parser の作り直しまでの間の扱い（順序の問題）
+- **案 1**: 本 spec の範囲で、既存の `parse.h` の公開関数に印を付けるだけの最小の変更を入れる。core-parser の作り直しで API ごと置き換わるので、捨てる作業になるが量は小さい。
+- **案 2**: 本 spec の実装中は、共有版のジョブを CI で「失敗しても全体を落とさない」扱いにし、core-parser の作り直しの完了で必須にする。要件 7 の一時的な例外になる。
+- **案 3**: 本 spec と core-parser の作り直しを同じブランチ（または連続する PR）で実装し、間の状態を main に入れない。
+- 設計で 1 つ選び、tasks の境界に書く。案 1 が最も安全で、要件を変えずに済む。
+
+## Research Needed（設計に持ち越す）
+1. Windows で、Naos のテスト発見（POST_BUILD の `--naos-list`）より前に DLL をテスト実行ファイルの横に置く方法（POST_BUILD コマンドの順序、または `RUNTIME_OUTPUT_DIRECTORY` をそろえる）。Option A を採ればこの問題は単体テストからは消え、integration の fixture だけの問題になる。
+2. install した共有版を使う利用側の実行（5.7）: Linux / macOS では install 先の RPATH（`INSTALL_RPATH` に `$ORIGIN/../lib` / `@loader_path/../lib` を入れるか、fixture 側で `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` を渡すか）。macOS の SIP で `DYLD_*` が消える場合がある。Windows では prefix の `bin/` を PATH に足すか、DLL をコピーする。
+3. `check_required_components` と、自前の形式選択（13.2〜13.5）との組み合わせ方。`CLOpts_FOUND` を偽にして `find_package` を失敗させる書き方、`REQUIRED` のときのメッセージ。
+4. 並存 install の検証（6.7）を 1 つの CTest のテストに収める方法と、その実行時間（CLOpts を 2 回構成・ビルドする）。CI の 1 環境に限定するかどうか。
+5. `-fvisibility=hidden` の下で Naos と CLOpts の内部関数を静的にリンクする場合（Option A）の警告の有無。MinGW で、dllexport の印のあるオブジェクトを静的ライブラリに入れて実行ファイルにリンクしたときの挙動（`--export-all-symbols` が無効になるか）。
+6. `static inline` の `FILE*` 用コールバックが、MSVC（`/W4 /WX`、C モード）と GCC / Clang（`-Wall -Wextra -Wpedantic -Werror`）で、使わなかったときに警告を出さないことの実機確認（要件 8.7）。事前の調査では、ヘッダで定義した未使用の `static inline` は GCC / Clang / MSVC の `/W4` で警告にならない。
+
+## Implementation Complexity & Risk
+- **Effort: M（3〜7 日）** — 個々の変更は CMake の標準機能で済むが、install / config の作り直し、fixture の追加（形式選択、内部関数のリンク失敗）、CI の 10 ジョブ化、書き込みコールバックの作り直しが重なる。
+- **Risk: Medium** — 技術は既知（GenerateExportHeader 相当の手書き、visibility、SOVERSION、export セットの分割）。ただし Windows の DLL 配置、MinGW の export 規則、macOS の RPATH など、環境ごとの差が CI で初めて見つかる種類の問題が多い。
+
+## Recommendations for Design Phase
+- 単体テストと共有版の関係（Option A / B）を最初に決める。テスト登録ヘルパ（要件 4）、DLL 配置（4.10）、CI の構成のすべてに効く。
+- core-parser の作り直しまでの間の扱い（案 1〜3）を決め、Boundary Commitments に書く。
+- 書き込みコールバックは「公開: 関数ポインタ型と `static inline` の `FILE*` 用コールバック」「内部: core の書き込みヘルパ」に分ける。`clopts_writer_t` を残すなら内部用として `core_internal.h` に移す。
+- `no_global_state` fixture の検査を、改訂後の要件（静的版の定義だけを許す、`CMAKE_C_VISIBILITY_PRESET` を検査する）に合わせて直すことを、タスクに明示する。
+- 版の互換（5.4）と SOVERSION（15）は同じ規則なので、1 か所で計算して両方に使う。
+
+---
+
+# Design Decisions（2026-11-08 改訂）
+
+## Discovery
+- **種類**: 既存システムの拡張（light discovery）。統合点は既存のヘルパ、fixture スクリプト、CI。
+- **参照したもの**: 上の Gap Analysis、`kiro-spec-design` の `design-discovery-light.md` / `design-synthesis.md` / `design-review-gate.md`。
+- **実現性の確認**: discovery の段階で別のエージェントに確認させた（roadmap 作成時）。CMake 3.21 で使える機能か、MinGW の visibility と export の規則、MSVC での `.lib` 名の衝突、abidiff、`static inline` の警告。
+
+## Decision: 共有版の単体テストは静的な内部コピー `clopts_testing` にリンクする
+- **Context**: 要件 4.11。単体テストが内部関数（`clopts_core_*`、`clopts_parser_*`）を直接呼んでいる。
+- **Alternatives**
+  1. OBJECT ライブラリを共有する: コンパイルは 1 回で済む。ただし、テスト実行ファイルが `dllexport` の付いたオブジェクトを取り込み、公開関数を export してしまう。visibility と PIC を OBJECT 側に移す必要もある。
+  2. 内部関数のテストを静的版のジョブだけで行う: 要件 4.11 に反する。
+- **Selected**: 共有版でテストが有効なときだけ、同じソースから `clopts_testing`（STATIC、`CLOPTS_STATIC`、`EXCLUDE_FROM_ALL`）を作る。単体テストのリンク先は、グローバルプロパティ `CLOPTS_TEST_LINK_TARGET` で選ぶ。
+- **Rationale**
+  - 内部関数のテストが、そのまま動く。
+  - 単体テストの実行ファイルが DLL に依存しなくなる。Naos のテスト発見（POST_BUILD でテスト実行ファイルを起動する）と、Windows の DLL 配置の順序の問題が消える（要件 4.10 の大半）。
+- **Trade-offs**: 共有版のビルドでは、ソースを 2 回コンパイルする。単体テストは共有ライブラリそのものを動かさない。共有ライブラリの読み込みは integration と abi-compat で確かめる。
+
+## Decision: core-parser の作り直しまでの間は、`parse.h` に印だけを付ける（Gap Analysis の案 1）
+- **Context**: `parse.h` の公開関数に印がないので、共有版では解析 API が見えない。MinGW では、dllexport が 1 つもないと ld が全シンボルを export する。その場合、要件 6.8（内部関数が見えない）が成り立たない。
+- **Selected**: 本 spec の範囲で、`#include "clopts/export.h"` と、13 個の公開関数への `CLOPTS_API` だけを足す。
+- **Rationale**: 量が小さく、要件を変えずに、本 spec を単独で main に入れられる。core-parser の作り直しでは API ごと置き換わるが、捨てる量はごくわずかである。
+- **Follow-up**: core-parser の作り直しの design で、この暫定の変更を引き継ぐ（新しい公開関数すべてに `CLOPTS_API`）。
+
+## Decision: `C_VISIBILITY_PRESET hidden` は WIN32 以外の共有版にだけ付ける
+- **Context**: 14.2、14.4。PE では visibility の概念がない。MinGW の GCC は visibility 属性に `-Wattributes` を出す恐れがある。
+- **Selected**: `if(NOT WIN32)` で囲む。PE での絞り込みは dllexport の印に任せる。静的版には付けない（利用側が自分の共有ライブラリに静的にリンクしたとき、何を出すかは利用側が決める）。
+
+## Decision: export マクロは手書きの `export.h` にし、`DEFINE_SYMBOL CLOPTS_BUILDING` と PUBLIC の `CLOPTS_STATIC` で切り替える
+- **Alternatives**: CMake の `GenerateExportHeader`。生成されたヘッダは、ビルドツリーと install 先で置き場所が違う。add_subdirectory 経路と install 経路の両方で include パスを足す必要があり、ソースツリーの `include/` だけでは完結しない。
+- **Selected**: 手書きの `include/clopts/export.h`（約 15 行）。判定の順は `CLOPTS_STATIC` → Windows → GCC 4 以上。
+- **Rationale**: 公開ヘッダがソースツリーだけで完結する。判定の順を、要件（14.1、14.4）どおりに明示的に書ける。
+
+## Decision: package config は形式によらず同じ内容にし、形式の情報はターゲット定義ファイルと静的版の CRT 記録ファイルに分ける
+- **Context**: 並存 install（13.1）では、`CLOptsConfig.cmake` と version file を 2 つのビルドが上書きし合う。
+- **Selected**
+  - config は「どちらのターゲット定義ファイルがあるか」を見て選ぶ（13.2〜13.5）。
+  - 静的版の CRT 記録（5.6）は、静的版だけが置く `CLOptsStaticRuntime.cmake` に移す。
+  - 選んだ形式は `CLOpts_LIBRARY_TYPE` で返す（13.6）。
+- **Constraint**: 並べる 2 つの形式は、同じ版から作る（docs-and-release で文書化）。
+
+## Decision: 版の互換規則と SOVERSION を 1 つの関数で計算する
+- **Selected**: `clopts_compute_soversion(<version> <out_soversion> <out_compat>)`。0.x なら `0.<minor>` / `SameMinorVersion`、1.0 以上なら `<major>` / `SameMajorVersion`。
+- **Rationale**: 5.4 と 15.2〜15.4 は同じ規則である。1.0 以上の分岐も、仮の版を与えて toolchain テストで検査できる。
+
+## Synthesis
+- **Generalization**: 「形式の選択」を、ビルド時（`CLOPTS_BUILD_SHARED`）、install（形式ごとの export セット）、利用時（config の選択）の 3 か所で同じ 2 値（Static / Shared）として扱った。名前の規則（`CLOpts<Kind>Targets`、`CLOpts_LIBRARY_TYPE`）を 1 つにそろえた。
+- **Build vs Adopt**
+  - export マクロは手書きにした（上記）。
+  - DLL の配置は `$<TARGET_RUNTIME_DLLS>`（CMake 3.21 の標準）を採用した。
+  - RPATH は CMake の既定（ビルドツリーの RPATH）に任せ、`INSTALL_RPATH` は設定しない。
+- **Simplification**
+  - `clopts_writer_t` 構造体と `core_writer_file.c` を削除した。`FILE*` の実装は、公開ヘッダの数行の `static inline` にした。
+  - 形式の選択の検証は、構成だけで判定する（ビルドしない）。
+
+## Risks（改訂分）
+- `integration.package_selection` の実行時間（Windows で約 1 分の見込み）。超えるようなら、7.6 の範囲で 1 環境に絞る。
+- `$<TARGET_RUNTIME_DLLS>` が空のときの `copy_if_different` を避けるため、共有版の WIN32 に限ってコマンドを足す。
+- C++ の翻訳単位を fixture に入れるので、C++ コンパイラのない環境では integration テストが構成に失敗する。CI の 5 環境では問題ない。
