@@ -27,7 +27,7 @@
   - _Depends: 2.1_
   - _Requirements: 2.9, 6.2, 6.5, 8.6, 8.7, 8.8_
 
-- [ ] 2.3 (P) CHANGELOG の検査スクリプト（MODE=format と MODE=release）を、自己テスト用の入力とともに実装する
+- [x] 2.3 (P) CHANGELOG の検査スクリプト（MODE=format と MODE=release）を、自己テスト用の入力とともに実装する
   - MODE=format: 設計の「CHANGELOG の書式」どおりかを確かめ、誤りを `CHANGELOG.md:<行>: <理由>` ですべて報告する。見るのは、最初の `## ` が `## [Unreleased]` であること、版の見出しと日付の形、新しい順で重複がないこと、`### ` が 7 種の分類だけであること、`互換性のない変更` が節の最初にあること
   - MODE=release: format の検査に加えて、タグが `vX.Y.Z` の形であること、`project(clopts VERSION X.Y.Z` がちょうど 1 つあってタグと一致すること、版の節があって空でないことを確かめる。通れば、節の本文を `OUTPUT` に書き、標準出力に `version X.Y.Z` を出す
   - `tests/docs/fixtures/changelog/` に、正しい形式、各種の書式の誤り、仮の `CMakeLists.txt`（タグと一致する版・一致しない版）、節がない・節が空のケース、抜き出した本文の期待値を用意する
@@ -154,3 +154,4 @@
 - 1.1: `clopts_add_doc_program` は重複時に両方の呼び出し元を示すため、設計にない内部用のグローバルプロパティ `CLOPTS_DOC_PROGRAM_FILE_<name>` を持つ（他のコンポーネントは読まない）。ビルド成果物は `build/examples/taskbook`、`build/tests/docs/hello` に出る。
 - 2.1: `check_docs.cmake` は印の環境を `cmake -E env` ではなくスクリプト内の `set/unset(ENV{})` で隔離する（登録外の変数は元の値に戻す）。値が空の `env=NAME=` と `;` を含む印は書式の誤り。理由の文字列に生の `;` を入れるとリストが割れるので、`_docs_semicolon` の代替文字を使い、最後の報告で戻す。自己テストの match と stderr_mismatch は `cmake -E cat missing.txt` の文面に依存する。
 - 2.2: links モードはフェンスを 0〜3 文字の字下げでしか認識しない。文書（4.x）のコードブロックは行頭（字下げ 3 文字以内）に置くこと。参照形式のリンク `[t]: x` は検査されない。api_coverage は `SYMBOLS=` で一覧を受け取り、不足を `<一覧>:<行>:` で報告する。
+- 2.3: `check_changelog.cmake` の release は `SOURCE_DIR`（`${SOURCE_DIR}/CMakeLists.txt` を読む）と `CHANGELOG`（既定 `${SOURCE_DIR}/CHANGELOG.md`）を受け取り、成功時は標準出力にちょうど `version X.Y.Z` の 1 行だけを出す。「空の節」は空行だけの節を指す（`###` の見出しだけの節は空とみなさない）。フェンスは認識しないので、CHANGELOG のコードブロックに `## ` の行を書かないこと。コメントアウトした `project(clopts VERSION` は数えない。先頭が 0 の版（`v01.2.3`）は拒否する。
