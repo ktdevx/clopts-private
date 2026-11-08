@@ -154,7 +154,7 @@
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 12.7, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 15.5_
 
 - [ ] 10. 検証: ビルド構成の自動テストを両方の形式に広げる
-- [ ] 10.1 fixture を動かす共有スクリプトに、構成失敗の期待、失敗理由の照合、DLL などの除外を足す
+- [x] 10.1 fixture を動かす共有スクリプトに、構成失敗の期待、失敗理由の照合、DLL などの除外を足す
   - 期待値に「構成が失敗する」を足す。失敗を期待するケースで、子プロセスの出力が指定の正規表現に一致しなければテスト失敗にする
   - 実行するファイルを探すとき、共有ライブラリ（`.dll`、`.so`、版付きの `.so`、`.dylib`）を候補から外す
   - 完了条件: 既存の toolchain / integration のテストが静的版で変わらず通り、手元で、存在しないシンボルへの参照を持つ一時 fixture に `build_fail` と合わない正規表現を与えるとテストが失敗する
@@ -213,3 +213,4 @@
 - `-Wall` 単独の INTERFACE 漏れは利用側に `-Werror` がないためコンパイルでは検出できない（未使用引数で落ちるのは `-Wall -Wextra -Werror` がそろって漏れたときだけ）。そのため consumer フィクスチャは構成時に `CLOpts::clopts` の `INTERFACE_COMPILE_OPTIONS` に警告フラグがないこと、`INTERFACE_COMPILE_DEFINITIONS` に `_CRT_SECURE_NO_WARNINGS` がないことも検査する。design.md の IntegrationTests の記述はこの検査を反映していない。
 - MSVC の `/W4 /WX` では `(char)0xFF` のような定数の切り捨てキャストが C4310 でエラーになる。バイト値は `'\xFF'` のような文字リテラルで書く。CI の 5 環境（windows-latest は Visual Studio 18 2026）で全 31 テストが通ることを確認済み。
 - （改訂 9）package config は、形式を指定しない 2 回目の `find_package` では既に読み込まれた形式をそのまま使う（失敗するのは明示のコンポーネントが異なるときだけ）。二重読み込みの判定は `TARGET CLOpts::clopts` の有無なので、兄弟ディレクトリで別々の形式を読み込むと両方成功する（IMPORTED ターゲットはディレクトリスコープ）。`OPTIONAL_COMPONENTS static|shared` も明示の要求として扱う。
+- （改訂 10.1）`run_fixture.cmake` の `FAIL_REGEX` は CMake の `MATCHES` で照合する（`\d` などは使えない）。stdout と stderr をまとめた出力が対象。`FAIL_REGEX` は `build_fail` / `configure_fail` 以外と組み合わせると構成エラーになる。
