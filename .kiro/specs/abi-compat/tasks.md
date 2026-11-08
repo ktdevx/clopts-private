@@ -78,7 +78,7 @@
   - _Depends: 2.6_
   - _Requirements: 6.1, 6.9_
 
-- [ ] 3.3 abidiff 比較の経路を、手元の Linux の仮のタグで確かめる
+- [x] 3.3 abidiff 比較の経路を、手元の Linux の仮のタグで確かめる
   - 手元の Linux に `abigail-tools` を入れ、`abidiff --version` が動くことを確かめる
   - リポジトリの一時的な複製（`git clone` によるもの。タグを付けられる）で、版を 1.0.0 にしたコミットにローカルのタグ `v1.0.0` を付け、(a) 変更なし、(b) 公開関数を 1 つ足した変更（一覧も更新）、(c) 公開関数を 1 つ消した変更、のそれぞれで `MODE=compare` を実行する。複製は検証の後に消し、本物のリポジトリにタグを残さない
   - 実行したコマンドと結果を、4.2 が文書に載せられるよう作業メモ（スクラッチの場所）に残す。このタスクでは文書を編集しない
@@ -124,3 +124,4 @@
 - 2.5: `MODE` を省くと compare（設計どおり）。終了コードの判定は設計の表の順に評価するので、8 と未知のビットが同時に立つ 24 は incompatible になる（どちらでもジョブは失敗する）。`select_baseline` はタグを CMake のリストで受け取るので、2.6 で `git tag --list` の行を分けて渡す
 - 2.6: `MODE=compare` は `SOURCE_DIR` と `WORK_DIR` を必須にする（3.2 の CI でも `-DSOURCE_DIR=$GITHUB_WORKSPACE` を渡す）。`WORK_DIR` が `SOURCE_DIR` を含むか同じなら拒む（設計外の防御）。基準と現在のビルドは最上位なので `CLOPTS_WERROR` が ON になり、新しい gcc で古いタグが警告を出すと tool error になる（4.2 の文書に注意として書く）。手元の clone で compatible（0 と 4）、incompatible（12）、tool error、no tag の skipped を確認済み
 - 3.1: 期待する失敗のテストは `PASS_REGULAR_EXPRESSION` で終了コードを見ないので、正規表現は報告の全体（件数、名前、行、案内）を要求する。スクリプトの文言や fixture を変えたら正規表現も直すこと。C++ の無い構成は `-DCMAKE_CXX_COMPILER=CMAKE_CXX_COMPILER-NOTFOUND` で確かめた（`abi.headers_cxx` が Not Run (Disabled)、ctest は 0 で終わる）。件数は静的 626、共有 628
+- 3.3: abidiff 2.4.0、gcc 13.3.0 で、仮の `v1.0.0` を付けた複製で確かめた: 変更なし → compatible（abidiff 0）、関数の追加 → compatible（4）、関数の削除 → incompatible（12、`1 Removed function` に名前が出る）。手順と出力の作業メモはセッションのスクラッチ `abi-compare-manual-check.md`（4.2 で文書に写す）。レビューはコード差分がないため親で inline に行い、2.6 のレビュアーの独立した再現と照合した
