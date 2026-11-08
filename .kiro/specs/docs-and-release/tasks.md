@@ -18,7 +18,7 @@
   - _Boundary: DocsCheckScript_
   - _Requirements: 8.2, 8.3, 8.4, 8.5, 8.8_
 
-- [ ] 2.2 文書の検査スクリプトに、ソースの照合・リンクの検査・API の網羅の検査を加える
+- [x] 2.2 文書の検査スクリプトに、ソースの照合・リンクの検査・API の網羅の検査を加える
   - MODE=sources: `clopts-source` の印の直後のブロックが、指定されたファイルとバイト単位で一致することを確かめる（CRLF の正規化だけを行う）。不一致では最初に違う行を、ファイルがなければその旨を報告する
   - MODE=links: `[t](target)` と `![a](target)` の相対リンクを集め、先が存在しないもの（`broken link`）と、`docs/dev/` を指すもの（`link to maintainer docs`）を報告する。外部 URL、`mailto:`、`#` だけのリンク、コードスパンとコードブロックの中は無視する
   - MODE=api_coverage: 公開シンボル一覧の名前（空行と `#` の注釈を除く）のうち、文書にバッククォート付きで現れないものを、すべて列挙して失敗する
@@ -153,3 +153,4 @@
 ## Implementation Notes
 - 1.1: `clopts_add_doc_program` は重複時に両方の呼び出し元を示すため、設計にない内部用のグローバルプロパティ `CLOPTS_DOC_PROGRAM_FILE_<name>` を持つ（他のコンポーネントは読まない）。ビルド成果物は `build/examples/taskbook`、`build/tests/docs/hello` に出る。
 - 2.1: `check_docs.cmake` は印の環境を `cmake -E env` ではなくスクリプト内の `set/unset(ENV{})` で隔離する（登録外の変数は元の値に戻す）。値が空の `env=NAME=` と `;` を含む印は書式の誤り。理由の文字列に生の `;` を入れるとリストが割れるので、`_docs_semicolon` の代替文字を使い、最後の報告で戻す。自己テストの match と stderr_mismatch は `cmake -E cat missing.txt` の文面に依存する。
+- 2.2: links モードはフェンスを 0〜3 文字の字下げでしか認識しない。文書（4.x）のコードブロックは行頭（字下げ 3 文字以内）に置くこと。参照形式のリンク `[t]: x` は検査されない。api_coverage は `SYMBOLS=` で一覧を受け取り、不足を `<一覧>:<行>:` で報告する。

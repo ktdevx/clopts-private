@@ -1,10 +1,13 @@
-# Checks the documentation against the programs it describes (requirements
-# 8.2-8.5, 8.8). Run with `cmake -P`; registered by tests/docs/CMakeLists.txt
-# (label: docs).
+# Checks the documentation against the programs, sources, files and public
+# symbols it describes (requirements 2.9, 6.2, 6.5, 8.2-8.8). Run with
+# `cmake -P`; registered by tests/docs/CMakeLists.txt (label: docs).
 #
 # Variables (-D):
 #   MODE        Always. What to check:
-#                 outputs  the output of every clopts-check marker.
+#                 outputs       the output of every clopts-check marker.
+#                 sources       the code block of every clopts-source marker.
+#                 links         every relative link.
+#                 api_coverage  that every public symbol is documented.
 #   SOURCE_DIR  Always. The directory FILES are relative to (a relative path
 #               is taken from the current directory).
 #   FILES       Always. The documents to read, as a ";"-separated list of
@@ -23,33 +26,62 @@
 #               written to <WORK>/outputs/<document>-<line>.expected / .actual.
 #               Only <WORK>/outputs is removed and recreated.
 #
-# Marker format (design "照合用の印の書式"): one line, starting at column 0,
+#   MODE=api_coverage:
+#   SYMBOLS     The public symbol list (format of abi/clopts.symbols: one name
+#               per line, optionally followed by a platform tag; blank lines
+#               and "#" comments are skipped), relative to SOURCE_DIR or
+#               absolute. A missing list is a failure.
+#
+# Marker formats (design "照合用の印の書式"): one line, starting at column 0,
 #
 #   <!-- clopts-check: [exit=<int>] [stream=stdout|stderr] [env=<NAME>=<VALUE>]... -- <program> [<arg>...] -->
+#   <!-- clopts-source: <path relative to SOURCE_DIR> -->
 #
 # immediately followed by a code block fenced with 3 or more backticks that
-# holds the expected output (an empty block means no output). The text after
-# the marker's colon is split with separate_arguments(UNIX_COMMAND); the words
-# before the first "--" are attributes, the first word after it is a name from
-# PROGRAMS and the rest are its arguments. Defaults: exit=0, stream=stdout.
-# An env= value must not be empty (CMake, like _putenv on Windows, removes a
-# variable set to ""), and a marker must not contain ";".
-# Markers inside other fenced code blocks are not checked.
+# holds the expected output (an empty block means no output) or the content
+# of the file. The block closes with a line, starting at column 0, of at least
+# as many backticks. For clopts-check, the text after the marker's colon is
+# split with separate_arguments(UNIX_COMMAND); the words before the first "--"
+# are attributes, the first word after it is a name from PROGRAMS and the rest
+# are its arguments. Defaults: exit=0, stream=stdout. An env= value must not
+# be empty (CMake, like _putenv on Windows, removes a variable set to ""), and
+# a marker must not contain ";".
+# Markers and links inside other fenced code blocks are not checked; links
+# inside code spans are not checked either.
 #
 # Comparison: CRLF is turned into LF on both sides and nothing else is
-# normalized; the expected output is every line of the block followed by LF.
+# normalized; the expected output (or source) is every line of the block
+# followed by LF.
 #
 # Every failure is collected; the script then fails once with
 #   docs_check (<MODE>): <n> failure(s)
 # followed by one or more lines per failure, each starting with
-# "<document>:<line>: ". On success it prints
+# "<document>:<line>: " (api_coverage: "<SYMBOLS>:<line>: "). The failures:
+#   outputs       output of '<command>' differs (first difference at <doc>:<line>)
+#                 exit code <n> (expected <n>)
+#                 malformed marker: <reason>
+#                 <program>: no output marker with exit code 0 / a nonzero ...
+#   sources       code block differs from <file> (first difference at line <n>)
+#                 source file not found: <file>
+#                 malformed marker: <reason>
+#   links         broken link: <target>
+#                 link to maintainer docs: <target>
+#   api_coverage  not documented in <documents>: <name>   (every missing name)
+#   all modes     <file>: file not found (<path>)
+#                 no clopts-check / clopts-source marker found in: <documents>
+#                 no relative link found in: <documents>
+#                 no symbol found in: <SYMBOLS>
+# On success it prints one of
 #   docs_check: checked <n> output marker(s)
+#   docs_check: checked <n> source marker(s)
+#   docs_check: checked <n> link(s)
+#   docs_check: checked <n> symbol(s)
 #
 # The script never writes to the documents.
 
 cmake_minimum_required(VERSION 3.21)
 
-set(_docs_modes outputs)
+set(_docs_modes outputs sources links api_coverage)
 
 # Characters that cannot appear in the documents stand in for ";", "[", "]"
 # and "\" while a text is handled as a CMake list of lines.
@@ -185,6 +217,90 @@ function(_docs_fence_closes out_var char length line)
         endif()
     endif()
     set(${out_var} ${result} PARENT_SCOPE)
+endfunction()
+
+# _docs_first_difference(<out_index> <out_a> <out_b> <lines_a> <lines_b>
+#                        <end_a> <end_b>)
+#
+# Compares two texts split by _docs_split item by item (see _docs_items) and
+# sets <out_index> to the 0-based index of the first item that differs, and
+# <out_a> / <out_b> to that item of each side as shown in the report (<end_a>
+# or <end_b> when that side has no more items). Call it only for texts that
+# differ.
+function(_docs_first_difference out_index out_a out_b lines_a lines_b end_a end_b)
+    _docs_items(items_a count_a "${lines_a}")
+    _docs_items(items_b count_b "${lines_b}")
+    set(index 0)
+    while(TRUE)
+        if(index LESS count_a)
+            list(GET items_a ${index} text_a)
+            string(SUBSTRING "${text_a}" 1 -1 text_a)
+        else()
+            set(text_a "${end_a}")
+        endif()
+        if(index LESS count_b)
+            list(GET items_b ${index} text_b)
+            string(SUBSTRING "${text_b}" 1 -1 text_b)
+        else()
+            set(text_b "${end_b}")
+        endif()
+        if(NOT text_a STREQUAL text_b)
+            break()
+        endif()
+        math(EXPR index "${index} + 1")
+    endwhile()
+    set(${out_index} ${index} PARENT_SCOPE)
+    set(${out_a} "${text_a}" PARENT_SCOPE)
+    set(${out_b} "${text_b}" PARENT_SCOPE)
+endfunction()
+
+# _docs_marker_block(<prefix> <lines> <i> <line>)
+#
+# Reads the code block that must follow a marker on line <line> of a document
+# split into <lines>; <i> is the index of the line after the marker. The block
+# opens with a fence of 3 or more backticks and closes with a line, starting
+# at column 0, of at least as many backticks. Sets in the caller:
+#   <prefix>_block       every line of the block followed by LF (stand-ins kept)
+#   <prefix>_block_line  the line of the document the block starts at
+#   <prefix>_next        the index to continue at (after the block, at the end
+#                        of an unclosed one, or <i> when there is no block)
+#   <prefix>_errors      reasons the block is malformed (empty if not)
+function(_docs_marker_block prefix lines i line)
+    list(LENGTH lines line_count)
+    set(block "")
+    set(block_line "")
+    set(next_index ${i})
+    set(errors "")
+    set(next "")
+    if(i LESS line_count)
+        list(GET lines ${i} next)
+    endif()
+    if(NOT next MATCHES "^(```+)")
+        list(APPEND errors "the next line is not a fence of 3 or more backticks")
+    else()
+        string(LENGTH "${CMAKE_MATCH_1}" open_length)
+        math(EXPR block_line "${line} + 2")
+        math(EXPR j "${i} + 1")
+        set(closed FALSE)
+        while(j LESS line_count)
+            list(GET lines ${j} block_text)
+            math(EXPR j "${j} + 1")
+            _docs_fence_closes(closes "`" "${open_length}" "${block_text}")
+            if(closes AND block_text MATCHES "^`")
+                set(closed TRUE)
+                break()
+            endif()
+            string(APPEND block "${block_text}\n")
+        endwhile()
+        set(next_index ${j})
+        if(NOT closed)
+            list(APPEND errors "the code block is not closed")
+        endif()
+    endif()
+    set(${prefix}_block "${block}" PARENT_SCOPE)
+    set(${prefix}_block_line "${block_line}" PARENT_SCOPE)
+    set(${prefix}_next "${next_index}" PARENT_SCOPE)
+    set(${prefix}_errors "${errors}" PARENT_SCOPE)
 endfunction()
 
 # ---- MODE=outputs ----------------------------------------------------------
@@ -420,27 +536,8 @@ function(_docs_run_marker doc line block_line block prefix)
     if(NOT actual STREQUAL expected)
         _docs_split(expected_lines "${expected}")
         _docs_split(actual_lines "${actual}")
-        _docs_items(expected_items expected_count "${expected_lines}")
-        _docs_items(actual_items actual_count "${actual_lines}")
-        set(index 0)
-        while(TRUE)
-            if(index LESS expected_count)
-                list(GET expected_items ${index} expected_text)
-                string(SUBSTRING "${expected_text}" 1 -1 expected_text)
-            else()
-                set(expected_text "<end of output>")
-            endif()
-            if(index LESS actual_count)
-                list(GET actual_items ${index} actual_text)
-                string(SUBSTRING "${actual_text}" 1 -1 actual_text)
-            else()
-                set(actual_text "<end of output>")
-            endif()
-            if(NOT expected_text STREQUAL actual_text)
-                break()
-            endif()
-            math(EXPR index "${index} + 1")
-        endwhile()
+        _docs_first_difference(index expected_text actual_text
+            "${expected_lines}" "${actual_lines}" "<end of output>" "<end of output>")
         # Line of the document the difference is at: a line of the block, or
         # the closing fence when the program printed more.
         math(EXPR at "${block_line} + ${index}")
@@ -557,35 +654,12 @@ function(_docs_check_outputs)
             endif()
 
             # The expected output: the block right after the marker.
-            set(block "")
-            set(block_line "")
-            set(next "")
-            if(i LESS line_count)
-                list(GET lines ${i} next)
-            endif()
-            if(NOT next MATCHES "^(```+)")
-                list(APPEND errors "the next line is not a fence of 3 or more backticks")
-            else()
-                string(LENGTH "${CMAKE_MATCH_1}" open_length)
-                math(EXPR block_line "${line} + 2")
-                math(EXPR j "${i} + 1")
-                set(closed FALSE)
-                while(j LESS line_count)
-                    list(GET lines ${j} block_text)
-                    math(EXPR j "${j} + 1")
-                    _docs_fence_closes(closes "`" "${open_length}" "${block_text}")
-                    if(closes AND block_text MATCHES "^`")
-                        set(closed TRUE)
-                        break()
-                    endif()
-                    string(APPEND block "${block_text}\n")
-                endwhile()
-                # Continue after the block (or at the end of an unclosed one).
-                set(i ${j})
-                if(NOT closed)
-                    list(APPEND errors "the code block is not closed")
-                endif()
-            endif()
+            _docs_marker_block(found_block "${lines}" ${i} ${line})
+            set(block "${found_block_block}")
+            set(block_line "${found_block_block_line}")
+            list(APPEND errors ${found_block_errors})
+            # Continue after the block (or at the end of an unclosed one).
+            set(i ${found_block_next})
 
             if(errors)
                 foreach(reason IN LISTS errors)
@@ -620,6 +694,365 @@ function(_docs_check_outputs)
     endforeach()
 
     _docs_finish("docs_check: checked ${checked} output marker(s)")
+endfunction()
+
+# ---- MODE=sources ----------------------------------------------------------
+
+# _docs_check_sources()
+#
+# MODE=sources: checks that the block after every clopts-source marker of
+# FILES is the content of the file the marker names (requirement 8.6).
+function(_docs_check_sources)
+    set(found 0)    # markers seen, well-formed or not
+    set(checked 0)  # well-formed markers whose file was compared
+
+    foreach(doc IN LISTS FILES)
+        _docs_read(lines "${doc}")
+        if(lines STREQUAL "NOTFOUND")
+            continue()
+        endif()
+        list(LENGTH lines line_count)
+        set(fence_char "")
+        set(fence_length "")
+        set(i 0)
+        while(i LESS line_count)
+            list(GET lines ${i} text)
+            math(EXPR line "${i} + 1")
+            math(EXPR i "${i} + 1")
+
+            # Inside a fenced code block: only look for its end.
+            if(NOT fence_char STREQUAL "")
+                _docs_fence_closes(closes "${fence_char}" "${fence_length}" "${text}")
+                if(closes)
+                    set(fence_char "")
+                endif()
+                continue()
+            endif()
+            _docs_fence_open(open_char open_length "${text}")
+            if(NOT open_char STREQUAL "")
+                set(fence_char "${open_char}")
+                set(fence_length "${open_length}")
+                continue()
+            endif()
+
+            if(NOT text MATCHES "^<!--[ \t]*clopts-source([: \t]|-->|$)")
+                continue()
+            endif()
+            math(EXPR found "${found} + 1")
+
+            set(errors "")
+            set(source "")
+            string(REGEX REPLACE "[ \t]+$" "" text "${text}")
+            if(NOT text MATCHES "-->$")
+                # The block that may follow is not looked at: the marker may
+                # go on over several lines.
+                _docs_add_failure("${doc}" "${line}"
+                    "malformed marker: the marker does not end with '-->' on the same line")
+                continue()
+            elseif(NOT text MATCHES "^<!-- clopts-source:(.*)-->$")
+                list(APPEND errors "the marker does not start with '<!-- clopts-source:'")
+            else()
+                string(STRIP "${CMAKE_MATCH_1}" source)
+                if(source STREQUAL "")
+                    list(APPEND errors "no file after 'clopts-source:'")
+                endif()
+            endif()
+
+            _docs_marker_block(found_block "${lines}" ${i} ${line})
+            list(APPEND errors ${found_block_errors})
+            set(i ${found_block_next})
+
+            if(errors)
+                foreach(reason IN LISTS errors)
+                    _docs_add_failure("${doc}" "${line}" "malformed marker: ${reason}")
+                endforeach()
+                continue()
+            endif()
+
+            # The file, relative to SOURCE_DIR. "source" holds the stand-ins.
+            _docs_restore(path "${source}")
+            if(NOT EXISTS "${SOURCE_DIR}/${path}" OR IS_DIRECTORY "${SOURCE_DIR}/${path}")
+                _docs_add_failure("${doc}" "${line}" "source file not found: ${source}")
+                continue()
+            endif()
+            math(EXPR checked "${checked} + 1")
+
+            # Byte for byte, except that CRLF is turned into LF on both sides
+            # (the document's lines are already split on LF).
+            file(READ "${SOURCE_DIR}/${path}" content)
+            _docs_split(file_lines "${content}")
+            _docs_split(block_lines "${found_block_block}")
+            if(NOT file_lines STREQUAL block_lines)
+                # Both sides are compared with the stand-ins in place.
+                _docs_first_difference(index block_text file_text
+                    "${block_lines}" "${file_lines}" "<end of block>" "<end of file>")
+                math(EXPR at "${index} + 1")
+                _docs_add_failure("${doc}" "${line}"
+                    "code block differs from ${source} (first difference at line ${at})"
+                    "document: ${block_text}"
+                    "file: ${file_text}"
+                )
+            endif()
+        endwhile()
+    endforeach()
+
+    if(found EQUAL 0)
+        list(JOIN FILES ", " files)
+        _docs_add_failure("" "" "no clopts-source marker found in: ${files}")
+    endif()
+
+    _docs_finish("docs_check: checked ${checked} source marker(s)")
+endfunction()
+
+# ---- MODE=links ------------------------------------------------------------
+
+# A character that cannot appear in the documents stands in for a link once
+# it is checked, so that a link around an image ("[![a](i)](t)") is found.
+string(ASCII 5 _docs_link_done)
+
+# _docs_strip_code_spans(<out_var> <text>)
+#
+# Sets <out_var> to <text> with every code span replaced by one space and the
+# LFs it contained, so that line numbers are kept. A code span opens with a run
+# of backticks and closes with the next run of the same length before a blank
+# line; a run without such a closing run is literal text.
+function(_docs_strip_code_spans out_var text)
+    set(result "")
+    set(rest "${text}")
+    while(rest MATCHES "^([^`]*)(`+)(.*)$")
+        string(APPEND result "${CMAKE_MATCH_1}")
+        set(run "${CMAKE_MATCH_2}")
+        set(after "${CMAKE_MATCH_3}")
+        string(LENGTH "${run}" run_length)
+        set(scan "${after}")
+        set(content "")
+        set(closed FALSE)
+        while(scan MATCHES "^([^`]*)(`+)(.*)$")
+            set(before "${CMAKE_MATCH_1}")
+            set(other "${CMAKE_MATCH_2}")
+            set(scan_rest "${CMAKE_MATCH_3}")
+            string(APPEND content "${before}")
+            if(content MATCHES "\n[ \t]*\n")
+                break()
+            endif()
+            string(LENGTH "${other}" other_length)
+            if(other_length EQUAL run_length)
+                set(closed TRUE)
+                break()
+            endif()
+            string(APPEND content "${other}")
+            set(scan "${scan_rest}")
+        endwhile()
+        if(closed)
+            string(REGEX REPLACE "[^\n]" "" newlines "${content}")
+            string(APPEND result " ${newlines}")
+            set(rest "${scan_rest}")
+        else()
+            string(APPEND result "${run}")
+            set(rest "${after}")
+        endif()
+    endwhile()
+    string(APPEND result "${rest}")
+    set(${out_var} "${result}" PARENT_SCOPE)
+endfunction()
+
+# _docs_links_in_text(<doc> <doc_dir> <text> <first_line>)
+#
+# Checks the links of <text>, a paragraph of <doc> (lines joined with LF, no
+# code block, stand-ins in place) that starts at line <first_line>, and adds
+# their number to the caller's "checked".
+function(_docs_links_in_text doc doc_dir text first_line)
+    set(link_pattern
+        "${_docs_open_bracket}[^${_docs_open_bracket}${_docs_close_bracket}]*${_docs_close_bracket}\\(([^()]*)\\)")
+    _docs_strip_code_spans(text "${text}")
+
+    # The first link left is always checked next; it is then replaced by
+    # _docs_link_done and the LFs it contained.
+    while(text MATCHES "${link_pattern}")
+        set(link "${CMAKE_MATCH_0}")
+        string(STRIP "${CMAKE_MATCH_1}" target)
+        string(FIND "${text}" "${link}" position)
+        string(SUBSTRING "${text}" 0 ${position} before)
+        string(REGEX REPLACE "[^\n]" "" newlines "${before}")
+        string(LENGTH "${newlines}" line)
+        math(EXPR line "${first_line} + ${line}")
+        string(REGEX REPLACE "[^\n]" "" link_newlines "${link}")
+        string(LENGTH "${link}" link_length)
+        math(EXPR after_position "${position} + ${link_length}")
+        string(SUBSTRING "${text}" ${after_position} -1 after)
+        set(text "${before}${_docs_link_done}${link_newlines}${after}")
+
+        # The destination: "<target>", or the first word ("target \"title\"").
+        if(target MATCHES "^<([^>]*)>")
+            set(target "${CMAKE_MATCH_1}")
+        elseif(target MATCHES "^([^ \t\n]*)")
+            set(target "${CMAKE_MATCH_1}")
+        endif()
+        string(TOLOWER "${target}" lower)
+        if(lower MATCHES "^(https?://|mailto:)" OR target MATCHES "^#")
+            continue()
+        endif()
+        math(EXPR checked "${checked} + 1")
+
+        string(REGEX REPLACE "#.*$" "" path "${target}")
+        _docs_restore(path "${path}")
+        if(path STREQUAL "")
+            _docs_add_failure("${doc}" "${line}" "broken link: ${target}")
+            continue()
+        endif()
+        if(path MATCHES "^/")
+            set(absolute "${SOURCE_DIR}${path}")
+        else()
+            set(absolute "${doc_dir}/${path}")
+        endif()
+        get_filename_component(absolute "${absolute}" ABSOLUTE)
+        file(RELATIVE_PATH relative "${SOURCE_DIR}" "${absolute}")
+        if(relative MATCHES "^docs/dev(/|$)")
+            _docs_add_failure("${doc}" "${line}" "link to maintainer docs: ${target}")
+        endif()
+        if(NOT EXISTS "${absolute}")
+            _docs_add_failure("${doc}" "${line}" "broken link: ${target}")
+        endif()
+    endwhile()
+    set(checked ${checked} PARENT_SCOPE)
+endfunction()
+
+# _docs_check_links()
+#
+# MODE=links: checks every relative link ("[t](target)", "![a](target)") of
+# FILES outside code spans and code blocks: its target must exist as a file or
+# directory (requirement 6.5) and must not be under docs/dev/ (requirement
+# 6.2). Links to http://, https:// and mailto: and links to an anchor of the
+# same document ("#...") are skipped; the "#..." part of a target is ignored.
+# A target starting with "/" is taken from SOURCE_DIR, any other from the
+# directory of the document. A link is reported at the line its "[" is on.
+function(_docs_check_links)
+    set(checked 0)
+    foreach(doc IN LISTS FILES)
+        _docs_read(lines "${doc}")
+        if(lines STREQUAL "NOTFOUND")
+            continue()
+        endif()
+        get_filename_component(doc_dir "${SOURCE_DIR}/${doc}" DIRECTORY)
+
+        # Links and code spans do not go past a blank line: the text is
+        # checked a paragraph at a time. A code block (its fences included)
+        # ends a paragraph and is not checked.
+        list(APPEND lines "")
+        set(paragraph "")
+        set(paragraph_line 0)
+        set(fence_char "")
+        set(fence_length "")
+        set(line 0)
+        foreach(text IN LISTS lines)
+            math(EXPR line "${line} + 1")
+            set(blank FALSE)
+            if(NOT fence_char STREQUAL "")
+                _docs_fence_closes(closes "${fence_char}" "${fence_length}" "${text}")
+                if(closes)
+                    set(fence_char "")
+                endif()
+                set(blank TRUE)
+            else()
+                _docs_fence_open(open_char open_length "${text}")
+                if(NOT open_char STREQUAL "")
+                    set(fence_char "${open_char}")
+                    set(fence_length "${open_length}")
+                    set(blank TRUE)
+                elseif(text MATCHES "^[ \t]*$")
+                    set(blank TRUE)
+                endif()
+            endif()
+            if(NOT blank)
+                if(paragraph_line EQUAL 0)
+                    set(paragraph "${text}")
+                    set(paragraph_line ${line})
+                else()
+                    string(APPEND paragraph "\n${text}")
+                endif()
+            elseif(paragraph_line GREATER 0)
+                _docs_links_in_text("${doc}" "${doc_dir}" "${paragraph}" ${paragraph_line})
+                set(paragraph "")
+                set(paragraph_line 0)
+            endif()
+        endforeach()
+    endforeach()
+
+    if(checked EQUAL 0)
+        list(JOIN FILES ", " files)
+        _docs_add_failure("" "" "no relative link found in: ${files}")
+    endif()
+
+    _docs_finish("docs_check: checked ${checked} link(s)")
+endfunction()
+
+# ---- MODE=api_coverage -----------------------------------------------------
+
+# _docs_check_api_coverage()
+#
+# MODE=api_coverage: checks that every name of the symbol list SYMBOLS appears
+# in FILES in backticks, as `name` or `name()` (requirements 2.9, 8.7). Every
+# missing name is reported, at its line of SYMBOLS.
+function(_docs_check_api_coverage)
+    if(NOT DEFINED SYMBOLS OR SYMBOLS STREQUAL "")
+        message(FATAL_ERROR "docs_check: SYMBOLS is required for MODE=api_coverage")
+    endif()
+
+    # The documents, as one text each. A missing document is reported by
+    # _docs_read; the names are then not looked for (every one would be
+    # reported).
+    set(texts "")
+    set(all_found TRUE)
+    foreach(doc IN LISTS FILES)
+        _docs_read(lines "${doc}")
+        if(lines STREQUAL "NOTFOUND")
+            set(all_found FALSE)
+            continue()
+        endif()
+        string(APPEND texts "${lines}\n")
+    endforeach()
+    list(JOIN FILES ", " files)
+
+    # The symbol list (relative to SOURCE_DIR, or absolute): one name per
+    # line, after optional whitespace and before an optional platform tag;
+    # blank lines and "#" comments are skipped.
+    if(IS_ABSOLUTE "${SYMBOLS}")
+        set(symbols_path "${SYMBOLS}")
+    else()
+        set(symbols_path "${SOURCE_DIR}/${SYMBOLS}")
+    endif()
+    if(NOT EXISTS "${symbols_path}" OR IS_DIRECTORY "${symbols_path}")
+        _docs_add_failure("${SYMBOLS}" "" "file not found (${symbols_path})")
+        _docs_finish("")
+    endif()
+    file(READ "${symbols_path}" content)
+    _docs_split(symbol_lines "${content}")
+
+    set(checked 0)
+    set(line 0)
+    foreach(entry IN LISTS symbol_lines)
+        math(EXPR line "${line} + 1")
+        string(STRIP "${entry}" entry)
+        if(entry STREQUAL "" OR entry MATCHES "^#")
+            continue()
+        endif()
+        string(REGEX REPLACE "[ \t].*$" "" name "${entry}")
+        math(EXPR checked "${checked} + 1")
+        if(NOT all_found)
+            continue()
+        endif()
+        string(FIND "${texts}" "`${name}`" plain)
+        string(FIND "${texts}" "`${name}()`" call)
+        if(plain EQUAL -1 AND call EQUAL -1)
+            _docs_add_failure("${SYMBOLS}" "${line}" "not documented in ${files}: ${name}")
+        endif()
+    endforeach()
+
+    if(checked EQUAL 0)
+        _docs_add_failure("" "" "no symbol found in: ${SYMBOLS}")
+    endif()
+
+    _docs_finish("docs_check: checked ${checked} symbol(s)")
 endfunction()
 
 # ---- Main ------------------------------------------------------------------

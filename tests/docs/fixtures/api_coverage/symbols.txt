@@ -1,0 +1,9 @@
+# Self-test symbol list (same format as abi/clopts.symbols).
+
+# clopts/alpha.h
+clopts_alpha
+  clopts_alpha_get  
+clopts_beta
+
+# clopts/platform.h
+clopts_gamma windows
