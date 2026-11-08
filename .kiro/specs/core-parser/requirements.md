@@ -21,7 +21,15 @@ core-parser は、CLOpts の中核となる解析機能を定める spec であ�
   - project-foundation が提供するビルド・テスト基盤と内部ユーティリティ（可変長配列、サイズ計算のオーバーフロー検査）の上に実装する。
   - help-and-messages は本 spec の公開ヘッダの型（宣言型・構造化エラー型・結果型・列挙）だけに依存して文面を生成する。エラー種別の列挙に追加があれば help-and-messages の文面表が追従する前提で、本 spec は列挙を公開ヘッダで確定させる。
   - platform-argv は環境変数を UTF-8 で返す取得関数を提供する。本 spec は取得関数を差し替えられる口を持ち、platform-argv の完了前は `getenv` 相当で動作・テストできる。
-  - Monde の `src/cli_args/` と spec `cli-args` は参照元であり、API 互換は求めない。
+  - Monde の `src/cli_args/` と spec `cli-args`（参照用 submodule `ref/monde`）は参照元であり、API 互換は求めない。
+- **Monde からの意図的な差分**（参照元と突き合わせたうえで、汎用ライブラリとしてのあるべき姿を優先したもの）:
+  - サブコマンドなし構成とグローバルオプション（サブコマンドの前後どちらでも可）を持つ。Monde はサブコマンド必須で、サブコマンド前は `--help` / `-h` / `--version` のみだった。
+  - 位置引数は個数の範囲（min / max）ではなく、位置引数ごとの必須・可変長で宣言する。
+  - リスト値の区切り文字は宣言で選び、区切りで生じた空の項目はエラーにせず項目として保持する（Monde はカンマ固定で、空の項目を使い方エラーにしていた）。値の妥当性検査を持たない方針と揃える。
+  - バージョン文字列は省略可能（NULL）とし、省略時は `--version` を予約しない。Monde は必須だった。
+  - 出所は「明示 / 環境変数 / 既定値 / 未指定」の 4 区分（Monde は明示か否かの 2 区分）。
+  - 宣言エラーは最初の 1 件だけを構造体で返す（Monde は診断リストに複数件）。
+  - 引き継ぐもの: 走査規則（`--name=value` の `=` の後ろ全体、値トークンは `-` 始まりでも消費、`-ov` の残りは値、`--` / `-` の扱い）、最初の使い方エラーを保留して残りのトークンから完全一致の `--help` / `-h` を探す優先規則、`help <cmd>` の余分な引数の扱い、宣言検査の項目。
 
 ## Requirements
 
@@ -53,7 +61,7 @@ core-parser は、CLOpts の中核となる解析機能を定める spec であ�
 4. If 同じ program の中でサブコマンド名が重複している, then the parser shall 宣言エラー「コマンド名の重複」を返す。
 5. If オプション名またはサブコマンド名が予約名と衝突している（`--version` との衝突は program がバージョン文字列を持つ場合に限る）, then the parser shall 宣言エラー「予約名との衝突」を返す。
 6. If option が長い名前も短い名前も持たない, then the parser shall 宣言エラー「名前がない」を返す。
-7. If 長い名前が空、または `=`、空白、先頭の `-` を含むなど形式が不正である、あるいは短い名前が `-` である, then the parser shall 宣言エラー「名前の形式が不正」を返す。
+7. If 長い名前が空、または `=`、空白、先頭の `-` を含むなど形式が不正である、短い名前が `-` または空白である、あるいは環境変数名が空文字列である, then the parser shall 宣言エラー「名前の形式が不正」を返す。
 8. If FLAG 以外の種類の option に否定可能フラグが立っている, then the parser shall 宣言エラー「否定できない種類」を返す。
 9. If 否定可能な FLAG `x` と同じスコープに長い名前 `no-x` の option が宣言されている, then the parser shall 宣言エラー「否定形との衝突」を返す。
 10. If FLAG または COUNT の option に既定値が指定されている, then the parser shall 宣言エラー「既定値を持てない種類」を返す。
@@ -145,7 +153,7 @@ core-parser は、CLOpts の中核となる解析機能を定める spec であ�
 2. While VALUE または LIST の option が argv で指定されていない, when その option に環境変数名が宣言されており、その環境変数が設定されている（空文字列を含む）, the parser shall 環境変数の値を採用し、出所を「環境変数」とする。
 3. While VALUE または LIST の option が argv でも環境変数でも与えられていない, when その option に既定値が宣言されている, the parser shall 既定値を採用し、出所を「既定値」とする。
 4. While option が argv・環境変数・既定値のいずれからも値を得ていない, the parser shall 出所を「未指定」とし、VALUE の値を NULL、LIST を空のリスト、FLAG を偽、COUNT を 0 として返す。
-5. When LIST の option の値が環境変数から採用された, the parser shall 宣言された区切り文字で分割する（区切り文字がなければ 1 項目とする）。
+5. When LIST の option の値が環境変数または既定値から採用された, the parser shall 明示指定と同じ規則で宣言された区切り文字で分割する（区切り文字がなければ 1 項目とする）。
 6. The parser shall 環境変数の取得関数を利用側またはプラットフォーム層が差し替えられるようにし、差し替えがない場合は C 標準の環境変数取得と同等に動作する。
 7. When 環境変数の値を採用した, the parser shall その文字列を結果の中に複製して保持し、取得関数が返したバッファをそれ以降参照しない。
 8. The parser shall 環境変数の参照を、該当する option が属するスコープ（選択されたサブコマンドとグローバル）に限って行い、選択されなかったサブコマンドの option の環境変数は参照しない。
@@ -174,6 +182,8 @@ core-parser は、CLOpts の中核となる解析機能を定める spec であ�
 1. When argv のどこか（サブコマンドの前後を問わず、まとめ書きの中の `h` を含み、ただし `--` より前で、他のオプションの値として消費されたトークンを除く）に `--help` または `-h` が現れた, the parser shall 状態 HELP を返し、サブコマンドが選択済みならそのサブコマンドを、未選択なら program 全体をヘルプの対象とする。
 2. While program がサブコマンドあり構成である, when `-` で始まらない最初のトークンが `help` である, the parser shall 状態 HELP を返し、次のトークンが既存のサブコマンド名ならそれを、次のトークンがなければ program 全体をヘルプの対象とする。
 3. While program がサブコマンドあり構成である, if `help` の次のトークンがどのサブコマンド名にも一致しない, then the parser shall 使い方エラー「不明なコマンド」を返す。
+11. While program がサブコマンドあり構成である, if `help <cmd>` の後ろにさらにトークンがある, then the parser shall 使い方エラー「余分な引数」を返し、最初の余分なトークンを示す。
+12. When 使い方エラーを検出した後にまだトークンが残っている, the parser shall 残りのトークン（`--` より前）のうち `--help`、`-h`、（バージョン文字列があれば）`--version` に完全一致するものだけを探し、見つかれば HELP または VERSION を、見つからなければ最初に検出した使い方エラーを返す。
 4. Where program 宣言がバージョン文字列（非 NULL）を持つ, when argv のどこか（`--` より前で、他のオプションの値として消費されたトークンを除く）に `--version` が現れた, the parser shall 状態 VERSION を返す。
 5. Where program 宣言がバージョン文字列を持たない（NULL）, when `--version` が現れた, the parser shall それを通常の長いオプションとして照合し、宣言になければ使い方エラー「不明なオプション」として扱う。
 6. If HELP または VERSION の要求と使い方エラーが同じ argv に含まれている, then the parser shall 使い方エラーの位置が要求より前であっても HELP または VERSION を優先して返す。
