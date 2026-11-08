@@ -149,30 +149,166 @@ static bool is_version_token(const scan_state_t *state, const char *token)
     return (state->program->version != NULL) && (strcmp(token, "--version") == 0);
 }
 
-/*
- * Main-scan row for a token starting with "-" other than "-" alone and "--"
- * (before "--"): one option token, matched against the selected scope and the
- * global options. Provisional entry: every such token is reported as an
- * unknown option until task 3.4 (long) and 3.5 (short) replace this row with
- * the option processing (including --help / --version and the -h letter).
- */
-static void main_option(scan_state_t *state)
+/* True when the name_len bytes at name are exactly the NUL-terminated word. */
+static bool name_is(const char *name, size_t name_len, const char *word)
 {
-    const char *token = scan_token(state);
+    return (strlen(word) == name_len) && (memcmp(name, word, name_len) == 0);
+}
+
+/*
+ * Records the value of a VALUE / LIST option found through ref: value is the
+ * text after "=", or NULL to consume the next token verbatim (5.2, 5.3). No
+ * next token is a missing value (5.4). VALUE keeps the last one given (6.8);
+ * LIST appends the split items (6.9 to 6.11).
+ */
+static void scan_option_value(scan_state_t *state, const clopts_parser_ref_t *ref,
+                              const char *value, int index)
+{
+    clopts_parser_slot_t *slot = clopts_parser_store_slot(state->store, ref);
+    clopts_error_t *error;
+
+    if (value == NULL)
+    {
+        if (scan_at_end(state))
+        {
+            error = scan_fail(state, CLOPTS_USAGE_MISSING_VALUE, index);
+            if (error != NULL)
+            {
+                error->option = ref->option;
+            }
+            return;
+        }
+        value = scan_token(state);
+        state->pos++;
+    }
+    if (ref->option->kind == CLOPTS_VALUE)
+    {
+        clopts_parser_store_set_value(slot, value, CLOPTS_SOURCE_EXPLICIT);
+    }
+    else if (clopts_parser_store_append_list(slot, value, ref->option->list_delimiter,
+                                             CLOPTS_SOURCE_EXPLICIT) != 0)
+    {
+        state->out_of_memory = true;
+    }
+}
+
+/*
+ * Long option token "--<name>" / "--<name>=<value>" (5.1 to 5.7, 6.1 to 6.5,
+ * 9.1, 9.4, 9.5). <name> ends at the first "=". The reserved --help and
+ * --version (with a version) request HELP of the selected command / VERSION,
+ * and take no value. Otherwise the name is looked up exactly, then as
+ * --no-<name> of a negatable FLAG, in the selected command (if any) and the
+ * global options. FLAG / COUNT take no value; VALUE / LIST take the text after
+ * "=" or the next token.
+ */
+static void scan_long_option(scan_state_t *state)
+{
+    const int index = state->pos;
+    const char *name = scan_token(state) + 2;
+    const size_t name_len = strcspn(name, "=");
+    const char *value = (name[name_len] == '=') ? (name + name_len + 1) : NULL;
+    const bool reserved_help = name_is(name, name_len, "help");
+    const bool reserved_version =
+        (state->program->version != NULL) && name_is(name, name_len, "version");
+    clopts_parser_ref_t ref;
+    clopts_error_t *error;
+
+    state->pos++;
+    if (reserved_help || reserved_version)
+    {
+        if (value != NULL)
+        {
+            (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_VALUE, index);
+        }
+        else if (reserved_help)
+        {
+            scan_request_help(state);
+        }
+        else
+        {
+            scan_request_version(state);
+        }
+        return;
+    }
+
+    /* find_negation does not check for an exact match itself (task 2.1). */
+    ref = clopts_parser_find_long(state->program, state->command, name, name_len);
+    if (ref.option == NULL)
+    {
+        ref = clopts_parser_find_negation(state->program, state->command, name, name_len);
+    }
+    if (ref.option == NULL)
+    {
+        error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, index);
+        if (error != NULL)
+        {
+            error->name_len = 2 + name_len;
+        }
+        return;
+    }
+
+    switch (ref.option->kind)
+    {
+    case CLOPTS_FLAG:
+    case CLOPTS_COUNT:
+        if (value != NULL)
+        {
+            error = scan_fail(state, CLOPTS_USAGE_UNEXPECTED_VALUE, index);
+            if (error != NULL)
+            {
+                error->option = ref.option;
+            }
+        }
+        else if (ref.option->kind == CLOPTS_FLAG)
+        {
+            clopts_parser_store_set_flag(clopts_parser_store_slot(state->store, &ref),
+                                         !ref.negated, CLOPTS_SOURCE_EXPLICIT);
+        }
+        else
+        {
+            clopts_parser_store_add_count(clopts_parser_store_slot(state->store, &ref),
+                                          ref.option->count_max);
+        }
+        break;
+    case CLOPTS_VALUE:
+    case CLOPTS_LIST:
+        scan_option_value(state, &ref, value, index);
+        break;
+    }
+}
+
+/*
+ * Short option token "-<c1><c2>..." (5.8 to 5.11, 9.1). Provisional until
+ * task 3.5 replaces this function with the per-character processing: every
+ * such token is reported as an unknown option on its first character.
+ */
+static void scan_short_option(scan_state_t *state)
+{
     clopts_error_t *error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, state->pos);
 
     if (error != NULL)
     {
-        if (token[1] == '-')
-        {
-            error->name_len = strcspn(token, "=");
-        }
-        else
-        {
-            error->short_name = token[1];
-        }
+        error->short_name = scan_token(state)[1];
     }
     state->pos++;
+}
+
+/*
+ * Row shared by the pre-command phase and the main scan for a token starting
+ * with "-" other than "-" alone and "--" (before "--"): one option token,
+ * matched against the selected command (none before the selection, so only
+ * the global options: 4.3) and the global options (4.4).
+ */
+static void scan_option(scan_state_t *state)
+{
+    if (scan_token(state)[1] == '-')
+    {
+        scan_long_option(state);
+    }
+    else
+    {
+        scan_short_option(state);
+    }
 }
 
 /*
@@ -234,7 +370,7 @@ static void main_token(scan_state_t *state)
     }
     else if ((token[0] == '-') && (token[1] != '\0'))
     {
-        main_option(state);
+        scan_option(state);
     }
     else
     {
@@ -252,32 +388,6 @@ static void scan_main(scan_state_t *state)
     {
         main_token(state);
     }
-}
-
-/*
- * Pre-command row for a token starting with "-" other than "-" alone, "--"
- * and an exact --help / -h / --version: one option token, matched against the global
- * options only (4.3). Provisional entry: every such token is reported as an
- * unknown option until task 3.4 (long) and 3.5 (short) replace this row with
- * the option processing shared with the main scan.
- */
-static void prelude_option(scan_state_t *state)
-{
-    const char *token = scan_token(state);
-    clopts_error_t *error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, state->pos);
-
-    if (error != NULL)
-    {
-        if (token[1] == '-')
-        {
-            error->name_len = strcspn(token, "=");
-        }
-        else
-        {
-            error->short_name = token[1];
-        }
-    }
-    state->pos++;
 }
 
 /*
@@ -370,7 +480,7 @@ static void prelude_token(scan_state_t *state)
     }
     else if ((token[0] == '-') && (token[1] != '\0'))
     {
-        prelude_option(state);
+        scan_option(state);
     }
     else if (strcmp(token, "help") == 0)
     {

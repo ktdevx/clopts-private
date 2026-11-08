@@ -80,7 +80,7 @@
   - _Boundary: Scanner, ParserTests_
   - _Requirements: 1.8, 4.6, 5.12, 5.13, 5.14, 5.15, 8.3, 8.4, 8.5, 8.6, 8.7_
 
-- [ ] 3.4 長いオプション（`=`、値の消費、否定形、グローバルとコマンドの照合）を実装する
+- [x] 3.4 長いオプション（`=`、値の消費、否定形、グローバルとコマンドの照合）を実装する
   - `=` の手前までを名前にして照合 → なければ否定形。FLAG / COUNT に `=` 付きは「値を取らない」、VALUE / LIST は `=` の後ろ全体か次のトークンをそのまま消費、なければ「値がない」、見つからなければ「不明なオプション」と名前の長さ。`--help=x` / `--version=x` は option NULL の「値を取らない」。`--help` / `--version` の完全一致は選択後も HELP（そのコマンド）/ VERSION
   - サブコマンド前はグローバルのみ、選択後はコマンドとグローバルの両方を照合する。3.2 の暫定の入口をこの処理で置き換える
   - テスト（スイート long に追加）: 設計の Testing Strategy の long の各項目、`--output a --output b` で `b`、`--keys a,b --keys c` で 3 項目、`--keys a,,b` の空項目、`tool --verbose build x --output y` と `tool build --verbose x --output y` でグローバル COUNT が 1、`tool --output y build` が不明なオプション、`tool build x --help` が `build` の HELP、サブコマンドなし構成の `filt --lines=5 a` と `filt --lines 5` で値 `5`。各テストで解析後に argv の各要素が変わっていないことを確認する
@@ -124,3 +124,4 @@
 - 3.1: `parse.h` の `clopts_parse*` の事前条件を「ゼロ初期化または前回の結果」に改めた（設計の「未初期化でもよい」からの逸脱。design.md は未更新）。走査状態は `scan_state_t`（pos / command / has_pending / pending_error / dashdash / request / out_of_memory）。`scan_prelude` / `scan_main` は暫定で `scan_stop()`（残りを読み飛ばす）を呼ぶ。3.2〜3.5 で表の各行に置き換え、最終的に `scan_stop` の暫定呼び出しを残さないこと。回復走査（3.6）は `scan_outcome` の保留エラー分岐の直前に入れる。`finish` だけが `result->status` を書く
 - 3.2: 前段の各行は `prelude_token` から小関数（`scan_request_help` / `scan_request_version` / `prelude_option` / `prelude_help_command` / `prelude_command`）へ振り分ける。`scan_fail` は最初のエラーだけを記録し、`pos` は不正トークンの次に残す。`prelude_option` は暫定（UNKNOWN_OPTION）で 3.4 / 3.5 が置き換える。`help <cmd>` は `store_select` で対象を選ぶので `help copy x` の `error.command` は `copy`。3.6 の要確認: `tool help --help` / `tool help copy --help` では `--help` 自体がエラーのトークンになり、文字どおりの回復走査では USAGE_ERROR になる（9.1「どこにあっても」との関係を設計で確かめて決め、テストする）
 - 3.3: 本走査は `main_token` が dashdash → `--` → `-x...`（暫定の `main_option`）→ それ以外（`-` 単体を含む、`main_positional`）の順に振り分ける。`scan_stop` は削除済み。`main_option` と `prelude_option` は同じ本体の暫定実装で、3.4 / 3.5 で共通のオプション処理にまとめて両方を置き換え、重複を残さないこと。選択後の `--help` / `-h` / `--version` も現状は UNKNOWN_OPTION になるため 3.4 / 3.5 で直す
+- 3.4: オプションの入口は前段・本走査とも `scan_option` 1 つ（`--…` → `scan_long_option`、`-x…` → 暫定の `scan_short_option`）。3.5 は `scan_short_option` だけを置き換えればよい。値の消費は `scan_option_value`（`=` の後ろ、または次のトークンをそのまま）を共用できる。テストでは値の参照の前に `NAOS_REQUIRE_INT_EQ` で状態を確かめる（状態違いのまま参照するとライブラリの `assert` でプロセスが落ちるため）
