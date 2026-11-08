@@ -34,7 +34,7 @@
   - 完了条件: `ctest -L help -R option_row` が通る
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11, 4.12, 10.1, 10.2, 12.4_
 
-- [ ] 3.2 全体ヘルプ、サブコマンドのヘルプ、サブコマンドなしのヘルプと、その Usage 行を実装してテストする
+- [x] 3.2 全体ヘルプ、サブコマンドのヘルプ、サブコマンドなしのヘルプと、その Usage 行を実装してテストする
   - 段落の構成と一覧の行の並びを、設計の表どおりに実装する。予約行（`help` コマンド、`-h, --help`、`--version`）と固定の説明、`Global Options:` の省略条件、説明がなければ要約にする規則、全体ヘルプの末尾の案内を含める
   - Usage 行の 3 形と、位置引数の 4 表記（必須、任意、必須で可変長、任意で可変長）を実装する
   - command が NULL または root なら program のヘルプにする。段落の間に空行を 1 行置き、すべての行を LF で終える。文字列は加工せずに書く
@@ -83,4 +83,5 @@
 - 1.1: 公開 5 関数の呼び出し確認は tests/integration/fixtures/consumer/main.c の consumer_help_check()（戻り値が 3 値のどれかであることだけを見る）。位置引数の表記は help_layout.c の static 関数で、内部ヘッダには宣言しない。ローカルは MSVC のみ（build / build-shared、--config Debug）
 - 1.2: フィクスチャは tests/help/test_fixtures.{h,c} の help_fixture_{tool,filt,bare,wide}_t と _init(f) / _free(f)。tool は設計の出力例の文言どおり。copy の位置引数・filt・bare・wide の文言は実装者が決めたもので、期待するバイト列はこのファイルの文字列から作る。wide の表記は HELP_FIXTURE_* マクロ。コールバックは help_recorder_t / help_recorder_write（8192 バイト、溢れたら 1 を返す）と help_failer_t / help_failer_init(f, n) / help_failer_write（n=0 は失敗しない、calls_after_failure を数える）
 - 2.1: 計測モードは clopts_help_out_init に fn == NULL を渡す。spaces は 32 バイトずつ書く（呼び出し回数は契約外）。`ctest -R out` は layout にも一致するので、スイートだけを見るなら `-R help_tests.out` を使う
-- 3.1: 一覧は help_internal.h の clopts_help_row_t {option, left, help} の配列を clopts_help_write_list(out, rows, count) に渡す（設計は型を決めていないので実装で決めた）。行だけを書き、見出しと空行は書かない。option 行では left / help を読まない。`Arguments:` の行には positional のフィールドを足す必要がある（3.2。確保なしで作ること）。種類は「どれか 1 つだけ非 NULL」とコメントで保証する
+- 3.1: 一覧は help_internal.h の clopts_help_row_t {option, left, help} の配列を clopts_help_write_list(out, rows, count) に渡す（設計は型を決めていないので実装で決めた）。行だけを書き、見出しと空行は書かない。option 行では left / help を読まない。3.2 では clopts_help_row_t を変えず、help_layout.c 内の static な help_item_t / help_list_t（宣言の vec をその場で読む）で位置引数とコマンドの行を作った
+- 3.2: clopts_write_help はまだ入口で program->error.status を見ない。3.3 で、プログラム名を読む前に検査を入れる（エラーの program では root.name が NULL になりうる）。Usage 行は static の help_write_usage_line を 3.3 で再利用できる。バージョンなし・サブコマンドありの宣言 nover は test_layout.c の中だけにある
