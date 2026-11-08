@@ -1,7 +1,7 @@
 # Implementation Plan
 
 - [ ] 1. 基盤: 公開契約、モジュールとテストの骨格、確保の入口
-- [ ] 1.1 公開ヘッダと platform モジュールの骨格を用意し、OS 別のソースを選んでライブラリに登録する
+- [x] 1.1 公開ヘッダと platform モジュールの骨格を用意し、OS 別のソースを選んでライブラリに登録する
   - 公開ヘッダに、argv と環境変数の不透明型 2 つ、列挙 2 つ、全 OS の公開関数 11 個と Windows だけの wargv 変換関数を、設計どおりに宣言する。全関数に export の印を付け、`extern "C"` とヘッダガードで囲み、構造体の定義を置かない。wargv 変換関数だけを `_WIN32` の条件で宣言する。Windows 以外で文字列の寿命が利用者の argv に従うことを、ヘッダのコメントに書く。傘ヘッダから include する
   - `src/platform/` を作り、共通の 4 ファイル（確保の入口、分割、argv ハンドル、環境変数の文脈）と、Windows なら Windows 用、それ以外なら POSIX 用の 1 ファイルを、モジュール追加ヘルパで登録する（`src/CMakeLists.txt` で help の後に追加）。リンクするライブラリは足さない
   - 内部ヘッダに、16 bit の符号単位の型、probe、2 つのハンドルの構造体、各部品の内部関数を設計どおり宣言する（Windows だけの内部関数は `_WIN32` の条件の中）
@@ -109,3 +109,7 @@
   - 公開シンボル一覧（abi-compat）がこの時点で存在すれば、追加した公開関数を載せる。存在しなければ、設計の一覧どおりであることを共有ビルドの export で確かめるにとどめる
   - 完了条件: すべてのビルド形式で全テストが通り、上の検査で違反が見つからない
   - _Requirements: 8.3, 8.5, 8.6_
+
+## Implementation Notes
+- 検証環境: Linux（gcc、静的・共有）と、MinGW-w64（Ubuntu の msvcrt 系）+ wine 9 によるクロスビルド。MSVC は手元にない。wine 上の ctest は遅いので `-L platform -j8` に絞る。クロスビルドでは integration が以前から失敗する（入れ子の configure がクロスに対応しない）
+- 1.1: 番兵 `platform_argv_oom` は platform_argv.c で実装済み（static const を非 const で返す）。分割のスタブは `*argc = 0` を返すが、2.1 で契約（`*argc >= 1`）を満たすこと
