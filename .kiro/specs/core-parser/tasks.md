@@ -53,7 +53,7 @@
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7_
 
 - [ ] 3. 走査器: 解析関数と走査規則
-- [ ] 3.1 解析関数の骨格を作り、宣言検査・結果ストア・解決・必須検査を接続する（結合タスク）
+- [x] 3.1 解析関数の骨格を作り、宣言検査・結果ストア・解決・必須検査を接続する（結合タスク）
   - 公開の解析関数 2 つ（既定の取得関数 / 差し替え）。手順: 前回の `impl` を解放 → 宣言検査（違反なら DECL_ERROR、argv を読まない）→ ストア確保 → 走査（前段と本走査の入口は次のタスクで埋める。ここでは「トークンがなければ終端」だけ）→ 保留エラーがあれば返す（回復走査は 3.6）→ HELP / VERSION なら即返却 → 解決 → 必須検査 → OK / NO_COMMAND。`argc == 0` を引数なしとして扱う。失敗は OUT_OF_MEMORY
   - 走査の状態（現在位置、選択コマンド、保留エラー、`--` 到達、HELP / VERSION 要求）を 1 つの構造体にまとめ、以降のタスクが小関数で表の各行を足せる形にする
   - 標準出力・標準エラー・`exit` を使わない
@@ -121,3 +121,4 @@
 - 2.2: `store_begin` は前回の `impl` を `clopts_result_free` で解放してから確保する。未初期化の `result` は前回の結果と区別できず解放すると未定義動作になるため、設計 PublicHeaders の事前条件「未初期化でもよい」は満たせない。3.1 で `parse.h` の契約を「ゼロ初期化または前回の結果」に改める（設計からの逸脱として報告する）
 - 2.2: `clopts_result_run` は `store->command`（なし構成は program）のハンドラを呼ぶ。`store_select` は `result->command` を設定しないので、Scanner が `result->command` を同じ値にそろえること。`append_list` は途中で失敗すると追加済みの項目を残して -1 を返す（解放は `clopts_result_free` が行う）。Resolver は `own` のあと `set_value(ENV)` の順で呼べばよい
 - 2.3: `check_required` は `result->status` を設定しない（Scanner が USAGE_ERROR にする）。`error.command` は `include_command` が真なら選択コマンド、偽なら NULL。`resolve` は `getenv_fn == NULL` なら既定の取得関数を使う。MSVC の C4996 は `CloptsCompilerOptions.cmake` の `_CRT_SECURE_NO_WARNINGS`（PRIVATE）で抑止済み
+- 3.1: `parse.h` の `clopts_parse*` の事前条件を「ゼロ初期化または前回の結果」に改めた（設計の「未初期化でもよい」からの逸脱。design.md は未更新）。走査状態は `scan_state_t`（pos / command / has_pending / pending_error / dashdash / request / out_of_memory）。`scan_prelude` / `scan_main` は暫定で `scan_stop()`（残りを読み飛ばす）を呼ぶ。3.2〜3.5 で表の各行に置き換え、最終的に `scan_stop` の暫定呼び出しを残さないこと。回復走査（3.6）は `scan_outcome` の保留エラー分岐の直前に入れる。`finish` だけが `result->status` を書く

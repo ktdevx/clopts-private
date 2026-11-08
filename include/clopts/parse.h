@@ -191,17 +191,19 @@ clopts_status_t clopts_decl_validate(const clopts_program_t *program, clopts_err
  * copied. Returns result->status.
  *
  * program and result must not be NULL and argc must be >= 0; argv[0..argc-1]
- * must be NUL-terminated strings (argv is not read when argc == 0). result may
- * be uninitialized, zero-initialized or a previous result; a previous result's
- * storage is released first. Neither program nor argv is modified, and both
- * must outlive result. Nothing is written to any stream and exit() is never
- * called.
+ * must be NUL-terminated strings (argv is not read when argc == 0). result must
+ * be zero-initialized (e.g. clopts_result_t r = {0};) or a previous result of
+ * clopts_parse*(); a previous result's storage is released first. An
+ * uninitialized result is not allowed. Neither program nor argv is modified,
+ * and both must outlive result. Nothing is written to any stream and exit() is
+ * never called.
  */
 clopts_status_t clopts_parse(const clopts_program_t *program, int argc, char *const *argv,
                              clopts_result_t *result);
 
 /*
- * Same as clopts_parse(), but environment variables are looked up with
+ * Same as clopts_parse() (including the preconditions on program, argc, argv
+ * and result), but environment variables are looked up with
  * getenv_fn(env_ctx, ...). A NULL getenv_fn selects the default lookup used by
  * clopts_parse().
  */
