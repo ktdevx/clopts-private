@@ -189,7 +189,7 @@
   - _Boundary: PackageSelectionTest_
   - _Requirements: 6.7, 7.6, 12.6, 13.2, 13.3, 13.4, 13.5_
 
-- [ ] 11. CI を 5 環境 × 2 形式に広げる
+- [x] 11. CI を 5 環境 × 2 形式に広げる
   - マトリクスを toolchain と形式（静的・共有）の組み合わせにし、構成に形式の指定を渡す。ジョブ名に両方を含める。失敗は他のジョブを止めない
   - MSYS2 の準備で C++ コンパイラが入ることを確かめる。ラベル別の再実行は linux-gcc の両方の形式で行う
   - 完了条件: push した PR で 10 ジョブが走り、すべて `-Werror` 付きで構成・ビルド・テスト（`integration.package_selection` を含む）に成功する
@@ -216,3 +216,4 @@
 - （改訂 10.1）`run_fixture.cmake` の `FAIL_REGEX` は CMake の `MATCHES` で照合する（`\d` などは使えない）。stdout と stderr をまとめた出力が対象。`FAIL_REGEX` は `build_fail` / `configure_fail` 以外と組み合わせると構成エラーになる。
 - （改訂 10.3）`run_fixture.cmake` は C コンパイラだけを子に渡すので、consumer fixture の C++ は既定の C++ コンパイラ（Clang の構成でも g++）でビルドされる。`consumer_cpp.cpp` は `&clopts_parse` を volatile ポインタに入れて、C++ からの C リンケージ（と Windows の dllimport）を実際にリンクで検査する。
 - （改訂 10.4）`run_package_selection.cmake` の `.lib` 並存の検査（12.6）は、静的版の prefix に `.lib` があるときだけ走る（MSVC 系では常にある。MinGW は `.a` / `.dll.a` なので飛ばし、その旨を表示する）。失敗理由の正規表現の空白は、CMake がメッセージを折り返すため任意の空白に一致させている。
+- （改訂 11）PR #6 の CI（run 42452776792）で 10 ジョブすべてが成功した。windows-msvc は静的版 330 件、共有版 331 件で、`integration.package_selection` は MSVC で約 24 秒かかる。
