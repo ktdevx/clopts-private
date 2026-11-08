@@ -1,7 +1,10 @@
 /*
  * Suite env: environment lookup contexts (creation, release, the failure
  * record and the buffers) and clopts_env_lookup on every OS (getenv outside
- * Windows, the UTF-16 environment and UTF-8 conversion on Windows).
+ * Windows, the UTF-16 environment and UTF-8 conversion on Windows), and
+ * clopts_parse_with_env() with clopts_env_lookup and a context: the value of
+ * an environment fallback and a failed lookup (OUT_OF_MEMORY, the reason
+ * kept in the context).
  *
  * It also checks the code unit array helper of test_util.
  */
@@ -15,6 +18,9 @@
 #include "test_util.h"
 
 #include "platform/platform_internal.h"
+
+#include "clopts/decl.h"
+#include "clopts/parse.h"
 
 #include <naos/naos.h>
 
@@ -397,6 +403,139 @@ NAOS_TEST(env_every_fault_point_leaves_no_live_block)
         clopts_env_free(env);
         NAOS_CHECK_UINT_EQ(probe.live, 0);
     }
+}
+
+/* ---- the parser with clopts_env_lookup, on every OS ---------------------- */
+
+/*
+ * Sets name to the UTF-8 value (NULL deletes it) in the process environment:
+ * setenv() outside Windows, the UTF-16 environment on Windows. 0 on success.
+ */
+static int platform_env_put(const char *name, const char *value)
+{
+#ifdef _WIN32
+    wchar_t wname[256];
+    wchar_t wvalue[1024];
+
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, wname, 256) <= 0)
+    {
+        return -1;
+    }
+    if (value == NULL)
+    {
+        return (SetEnvironmentVariableW(wname, NULL) != 0) ? 0 : -1;
+    }
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value, -1, wvalue, 1024) <= 0)
+    {
+        return -1;
+    }
+    return (SetEnvironmentVariableW(wname, wvalue) != 0) ? 0 : -1;
+#else
+    return (value == NULL) ? unsetenv(name) : setenv(name, value, 1);
+#endif
+}
+
+/* The fictional program tool with one VALUE option --output whose fallback is env_name. */
+typedef struct platform_env_tool
+{
+    clopts_program_t *program;
+    clopts_option_t *output;
+} platform_env_tool_t;
+
+static void platform_env_tool_init(platform_env_tool_t *tool, const char *env_name)
+{
+    tool->program = clopts_program_new("tool");
+    tool->output = clopts_command_add_value(clopts_program_root(tool->program), "output", 'o');
+    clopts_option_set_env(tool->output, env_name);
+}
+
+/* "tool" with nothing else: --output can only come from the environment. */
+static clopts_result_t *platform_env_tool_parse(platform_env_tool_t *tool, void *env_ctx)
+{
+    static char arg0[] = "tool";
+    static char *argv[] = {arg0, NULL};
+
+    return clopts_parse_with_env(tool->program, 1, argv, clopts_env_lookup, env_ctx);
+}
+
+NAOS_TEST(parse_with_env_takes_a_utf8_value_from_the_environment)
+{
+    /* "out テスト.txt" */
+    static const char expected[] = "out \xe3\x83\x86\xe3\x82\xb9\xe3\x83\x88.txt";
+    platform_env_tool_t tool;
+    clopts_env_t *env;
+    clopts_result_t *result;
+
+    NAOS_REQUIRE_INT_EQ(platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", expected), 0);
+    platform_env_tool_init(&tool, "CLOPTS_TEST_TOOL_OUTPUT");
+    NAOS_REQUIRE_NOT_NULL(tool.program);
+    NAOS_REQUIRE_NOT_NULL(tool.output);
+    env = clopts_env_new();
+    NAOS_REQUIRE_NOT_NULL(env);
+
+    result = platform_env_tool_parse(&tool, env);
+    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, tool.output), CLOPTS_SOURCE_ENV);
+    NAOS_CHECK_NOT_NULL(clopts_result_value(result, tool.output));
+    if (clopts_result_value(result, tool.output) != NULL)
+    {
+        NAOS_CHECK_STR_EQ(clopts_result_value(result, tool.output), expected);
+    }
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+
+    /* the parser copied the value: it outlives the context */
+    clopts_env_free(env);
+    if (clopts_result_value(result, tool.output) != NULL)
+    {
+        NAOS_CHECK_STR_EQ(clopts_result_value(result, tool.output), expected);
+    }
+
+    clopts_result_free(result);
+    clopts_program_free(tool.program);
+    platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", NULL);
+}
+
+NAOS_TEST(parse_with_env_leaves_an_unset_variable_unset)
+{
+    platform_env_tool_t tool;
+    clopts_env_t *env;
+    clopts_result_t *result;
+
+    NAOS_REQUIRE_INT_EQ(platform_env_put("CLOPTS_TEST_TOOL_UNSET", "x"), 0);
+    NAOS_REQUIRE_INT_EQ(platform_env_put("CLOPTS_TEST_TOOL_UNSET", NULL), 0);
+    platform_env_tool_init(&tool, "CLOPTS_TEST_TOOL_UNSET");
+    NAOS_REQUIRE_NOT_NULL(tool.program);
+    env = clopts_env_new();
+    NAOS_REQUIRE_NOT_NULL(env);
+
+    result = platform_env_tool_parse(&tool, env);
+    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, tool.output), CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_NULL(clopts_result_value(result, tool.output));
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+
+    clopts_result_free(result);
+    clopts_env_free(env);
+    clopts_program_free(tool.program);
+}
+
+/* A NULL context makes the lookup fail, so the parse ends with OUT_OF_MEMORY. */
+NAOS_TEST(parse_with_env_null_context_ends_with_out_of_memory)
+{
+    platform_env_tool_t tool;
+    clopts_result_t *result;
+
+    NAOS_REQUIRE_INT_EQ(platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", "v"), 0);
+    platform_env_tool_init(&tool, "CLOPTS_TEST_TOOL_OUTPUT");
+    NAOS_REQUIRE_NOT_NULL(tool.program);
+
+    result = platform_env_tool_parse(&tool, NULL);
+    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_CHECK_NULL(clopts_result_value(result, tool.output));
+
+    clopts_result_free(result);
+    clopts_program_free(tool.program);
+    platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", NULL);
 }
 
 #ifndef _WIN32
@@ -829,6 +968,35 @@ NAOS_TEST(env_lookup_reports_out_of_memory_when_an_allocation_fails)
     NAOS_CHECK_UINT_GT(fail_at, 2);
     SetEnvironmentVariableW(L"CLOPTS_TEST_FOUND", NULL);
 }
+/*
+ * The option's variable name is not valid UTF-8, so the lookup fails: the
+ * parse ends with OUT_OF_MEMORY, and the context keeps the real reason.
+ */
+NAOS_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reason)
+{
+    platform_env_tool_t tool;
+    clopts_env_t *env;
+    clopts_result_t *result;
+
+    platform_env_tool_init(&tool, "\xff");
+    NAOS_REQUIRE_NOT_NULL(tool.program);
+    NAOS_REQUIRE_NOT_NULL(tool.output);
+    env = clopts_env_new();
+    NAOS_REQUIRE_NOT_NULL(env);
+
+    result = platform_env_tool_parse(&tool, env);
+    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_NAME);
+    NAOS_CHECK_NOT_NULL(clopts_env_error_name(env));
+    if (clopts_env_error_name(env) != NULL)
+    {
+        NAOS_CHECK_STR_EQ(clopts_env_error_name(env), "\xff");
+    }
+
+    clopts_result_free(result);
+    clopts_env_free(env);
+    clopts_program_free(tool.program);
+}
 #endif /* _WIN32 */
 
 /* Preprocessor directives cannot appear inside the macro arguments, so each OS has its own list. */
@@ -850,6 +1018,9 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(env_reserve_wide_fails_on_size_overflow_and_keeps_the_old_buffer),
     NAOS_ADD_TEST(env_free_releases_name_and_both_buffers),
     NAOS_ADD_TEST(env_every_fault_point_leaves_no_live_block),
+    NAOS_ADD_TEST(parse_with_env_takes_a_utf8_value_from_the_environment),
+    NAOS_ADD_TEST(parse_with_env_leaves_an_unset_variable_unset),
+    NAOS_ADD_TEST(parse_with_env_null_context_ends_with_out_of_memory),
     NAOS_ADD_TEST(env_lookup_finds_a_set_variable_and_borrows_getenvs_pointer),
     NAOS_ADD_TEST(env_lookup_reports_an_unset_variable),
     NAOS_ADD_TEST(env_lookup_finds_an_empty_value),
@@ -874,6 +1045,9 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(env_reserve_wide_fails_on_size_overflow_and_keeps_the_old_buffer),
     NAOS_ADD_TEST(env_free_releases_name_and_both_buffers),
     NAOS_ADD_TEST(env_every_fault_point_leaves_no_live_block),
+    NAOS_ADD_TEST(parse_with_env_takes_a_utf8_value_from_the_environment),
+    NAOS_ADD_TEST(parse_with_env_leaves_an_unset_variable_unset),
+    NAOS_ADD_TEST(parse_with_env_null_context_ends_with_out_of_memory),
     NAOS_ADD_TEST(env_lookup_finds_a_set_variable_in_the_context_buffer),
     NAOS_ADD_TEST(env_lookup_reports_an_unset_variable),
     NAOS_ADD_TEST(env_lookup_finds_an_empty_value),
@@ -884,6 +1058,7 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(env_lookup_reports_an_invalid_utf8_name),
     NAOS_ADD_TEST(env_lookup_clears_an_earlier_failure),
     NAOS_ADD_TEST(env_lookup_with_null_ctx_fails),
-    NAOS_ADD_TEST(env_lookup_reports_out_of_memory_when_an_allocation_fails)
+    NAOS_ADD_TEST(env_lookup_reports_out_of_memory_when_an_allocation_fails),
+    NAOS_ADD_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reason)
 )
 #endif
