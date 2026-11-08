@@ -88,7 +88,7 @@
   - _Boundary: Scanner, ParserTests_
   - _Requirements: 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 6.1, 6.2, 6.3, 6.4, 6.5, 6.8, 6.9, 6.10, 6.11, 6.12, 9.1, 9.4_
 
-- [ ] 3.5 短いオプションのまとめ書きと値の連結を実装する
+- [x] 3.5 短いオプションのまとめ書きと値の連結を実装する
   - 1 文字ずつ照合。`h` で HELP（サブコマンド前なら全体、選択後はそのコマンド）、不明なら該当 1 文字付きの「不明なオプション」、FLAG / COUNT は次の文字へ、VALUE / LIST は残りの文字列（`=` を含めてそのまま）か次のトークンをそのまま消費、なければ「値がない」
   - テスト（スイート short に追加）: 設計の Testing Strategy の short の各項目、`-vvv` で 3、`-j` を 9 回で 8（クランプ）、`-k a,b -k c` で 3 項目、`tool -v build x -o y` と `tool build -v x -o y` でグローバル COUNT が 1、`tool -vv` の NO_COMMAND で COUNT 2、`tool -vh` が全体 HELP、サブコマンドなし構成の `filt -n5 a` と `filt -n 5` で値 `5`。各テストで解析後に argv の各要素が変わっていないことを確認する
   - 完了条件: `ctest -L parser -R short` が通る
@@ -125,3 +125,4 @@
 - 3.2: 前段の各行は `prelude_token` から小関数（`scan_request_help` / `scan_request_version` / `prelude_option` / `prelude_help_command` / `prelude_command`）へ振り分ける。`scan_fail` は最初のエラーだけを記録し、`pos` は不正トークンの次に残す。`prelude_option` は暫定（UNKNOWN_OPTION）で 3.4 / 3.5 が置き換える。`help <cmd>` は `store_select` で対象を選ぶので `help copy x` の `error.command` は `copy`。3.6 の要確認: `tool help --help` / `tool help copy --help` では `--help` 自体がエラーのトークンになり、文字どおりの回復走査では USAGE_ERROR になる（9.1「どこにあっても」との関係を設計で確かめて決め、テストする）
 - 3.3: 本走査は `main_token` が dashdash → `--` → `-x...`（暫定の `main_option`）→ それ以外（`-` 単体を含む、`main_positional`）の順に振り分ける。`scan_stop` は削除済み。`main_option` と `prelude_option` は同じ本体の暫定実装で、3.4 / 3.5 で共通のオプション処理にまとめて両方を置き換え、重複を残さないこと。選択後の `--help` / `-h` / `--version` も現状は UNKNOWN_OPTION になるため 3.4 / 3.5 で直す
 - 3.4: オプションの入口は前段・本走査とも `scan_option` 1 つ（`--…` → `scan_long_option`、`-x…` → 暫定の `scan_short_option`）。3.5 は `scan_short_option` だけを置き換えればよい。値の消費は `scan_option_value`（`=` の後ろ、または次のトークンをそのまま）を共用できる。テストでは値の参照の前に `NAOS_REQUIRE_INT_EQ` で状態を確かめる（状態違いのまま参照するとライブラリの `assert` でプロセスが落ちるため）
+- 3.5: design.md Testing Strategy（short）の「`-vj4` で `j` に `4`」はフィクスチャ（`-j` は上限 8 の COUNT）と矛盾するため、`-vjk4` → `k=["4"]` に読み替え、`-vj4` は `'4'` の UNKNOWN_OPTION として固定した（design.md は未修正）。`h`・不明な文字・VALUE/LIST の後はそのトークンの残りを見ない。`-xh` の `h` は見られない（保留エラーになる）。9.1 との関係は 3.6 の回復走査で扱う

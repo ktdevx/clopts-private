@@ -157,12 +157,14 @@ static bool name_is(const char *name, size_t name_len, const char *word)
 
 /*
  * Records the value of a VALUE / LIST option found through ref: value is the
- * text after "=", or NULL to consume the next token verbatim (5.2, 5.3). No
- * next token is a missing value (5.4). VALUE keeps the last one given (6.8);
- * LIST appends the split items (6.9 to 6.11).
+ * text after "=" (long) or the rest of a short group, or NULL to consume the
+ * next token verbatim (5.2, 5.3, 5.9, 5.10). No next token is a missing value
+ * (5.4): the error recorded on argv[index] is returned so the caller can
+ * complete it, or NULL when none was recorded. VALUE keeps the last one given
+ * (6.8); LIST appends the split items (6.9 to 6.11).
  */
-static void scan_option_value(scan_state_t *state, const clopts_parser_ref_t *ref,
-                              const char *value, int index)
+static clopts_error_t *scan_option_value(scan_state_t *state, const clopts_parser_ref_t *ref,
+                                         const char *value, int index)
 {
     clopts_parser_slot_t *slot = clopts_parser_store_slot(state->store, ref);
     clopts_error_t *error;
@@ -176,7 +178,7 @@ static void scan_option_value(scan_state_t *state, const clopts_parser_ref_t *re
             {
                 error->option = ref->option;
             }
-            return;
+            return error;
         }
         value = scan_token(state);
         state->pos++;
@@ -190,6 +192,7 @@ static void scan_option_value(scan_state_t *state, const clopts_parser_ref_t *re
     {
         state->out_of_memory = true;
     }
+    return NULL;
 }
 
 /*
@@ -272,25 +275,68 @@ static void scan_long_option(scan_state_t *state)
         break;
     case CLOPTS_VALUE:
     case CLOPTS_LIST:
-        scan_option_value(state, &ref, value, index);
+        (void)scan_option_value(state, &ref, value, index);
         break;
     }
 }
 
 /*
- * Short option token "-<c1><c2>..." (5.8 to 5.11, 9.1). Provisional until
- * task 3.5 replaces this function with the per-character processing: every
- * such token is reported as an unknown option on its first character.
+ * Short option token "-<c1><c2>..." (5.8 to 5.11, 6.6, 6.7, 9.1), one
+ * character at a time against the selected command (if any) and the global
+ * options: "h" requests HELP of the selected command (the whole program
+ * before the selection); an unknown character is an unknown option on that
+ * character; FLAG / COUNT go on with the next character; VALUE / LIST take
+ * the rest of the token verbatim ("=" included) when it is not empty, else
+ * the next token verbatim, and end the token. A HELP request or a usage
+ * error ends the token as well.
  */
 static void scan_short_option(scan_state_t *state)
 {
-    clopts_error_t *error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, state->pos);
+    const int index = state->pos;
+    const char *chars = scan_token(state) + 1;
+    clopts_parser_ref_t ref;
+    clopts_error_t *error;
+    size_t i;
 
-    if (error != NULL)
-    {
-        error->short_name = scan_token(state)[1];
-    }
     state->pos++;
+    for (i = 0; chars[i] != '\0'; i++)
+    {
+        if (chars[i] == 'h')
+        {
+            scan_request_help(state);
+            return;
+        }
+        ref = clopts_parser_find_short(state->program, state->command, chars[i]);
+        if (ref.option == NULL)
+        {
+            error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, index);
+            if (error != NULL)
+            {
+                error->short_name = chars[i];
+            }
+            return;
+        }
+        switch (ref.option->kind)
+        {
+        case CLOPTS_FLAG:
+            clopts_parser_store_set_flag(clopts_parser_store_slot(state->store, &ref), true,
+                                         CLOPTS_SOURCE_EXPLICIT);
+            break;
+        case CLOPTS_COUNT:
+            clopts_parser_store_add_count(clopts_parser_store_slot(state->store, &ref),
+                                          ref.option->count_max);
+            break;
+        case CLOPTS_VALUE:
+        case CLOPTS_LIST:
+            error = scan_option_value(state, &ref,
+                                      (chars[i + 1] != '\0') ? (chars + i + 1) : NULL, index);
+            if (error != NULL)
+            {
+                error->short_name = chars[i];
+            }
+            return;
+        }
+    }
 }
 
 /*
