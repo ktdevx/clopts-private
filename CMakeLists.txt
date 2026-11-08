@@ -8,6 +8,17 @@ if(TARGET clopts)
     return()
 endif()
 
+# Library form: shared or static. Defaults to the configure-time value of
+# BUILD_SHARED_LIBS (static when undefined); a parent's normal variable
+# CLOPTS_BUILD_SHARED takes precedence (CMP0077 is NEW).
+if(BUILD_SHARED_LIBS)
+    set(_clopts_shared_default ON)
+else()
+    set(_clopts_shared_default OFF)
+endif()
+option(CLOPTS_BUILD_SHARED "Build CLOpts as a shared library" ${_clopts_shared_default})
+unset(_clopts_shared_default)
+
 option(CLOPTS_BUILD_TESTING "Build CLOpts tests" ${PROJECT_IS_TOP_LEVEL})
 option(CLOPTS_INSTALL "Generate install rules for CLOpts" ${PROJECT_IS_TOP_LEVEL})
 option(CLOPTS_WERROR "Treat warnings as errors in CLOpts targets" ${PROJECT_IS_TOP_LEVEL})
@@ -17,20 +28,12 @@ option(CLOPTS_WERROR "Treat warnings as errors in CLOpts targets" ${PROJECT_IS_T
 include(GNUInstallDirs)
 
 include("${PROJECT_SOURCE_DIR}/cmake/CloptsCompilerOptions.cmake")
+include("${PROJECT_SOURCE_DIR}/cmake/CloptsLibrary.cmake")
 include("${PROJECT_SOURCE_DIR}/cmake/CloptsModules.cmake")
 
-add_library(clopts STATIC)
-add_library(CLOpts::clopts ALIAS clopts)
-
-target_include_directories(clopts
-    PUBLIC
-        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    PRIVATE
-        "${PROJECT_SOURCE_DIR}/src"
-)
-
-clopts_apply_compiler_options(clopts)
+# Creates clopts (static or shared) and CLOpts::clopts; sets CLOPTS_SOVERSION
+# and CLOPTS_VERSION_COMPATIBILITY in this scope.
+clopts_create_library()
 
 add_subdirectory(src)
 

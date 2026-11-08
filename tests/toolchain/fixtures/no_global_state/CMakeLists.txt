@@ -96,14 +96,31 @@ function(fixture_check when)
             message(FATAL_ERROR
                 "no_global_state (${when}): targets clopts / CLOpts::clopts are missing")
         endif()
-        foreach(prop IN ITEMS INTERFACE_COMPILE_OPTIONS INTERFACE_COMPILE_DEFINITIONS)
-            get_target_property(value clopts ${prop})
-            if(value)
-                message(FATAL_ERROR
-                    "no_global_state (${when}): clopts ${prop} is '${value}'; "
-                    "warning flags and internal definitions must be PRIVATE")
-            endif()
-        endforeach()
+        get_target_property(value clopts INTERFACE_COMPILE_OPTIONS)
+        if(value)
+            message(FATAL_ERROR
+                "no_global_state (${when}): clopts INTERFACE_COMPILE_OPTIONS is '${value}'; "
+                "warning flags must be PRIVATE")
+        endif()
+        # Only the form marker may propagate: CLOPTS_STATIC for the static
+        # library, nothing for the shared one. The form is taken from the
+        # target itself.
+        get_target_property(type clopts TYPE)
+        if(type STREQUAL "STATIC_LIBRARY")
+            set(expected_defs "CLOPTS_STATIC")
+        else()
+            set(expected_defs "")
+        endif()
+        get_target_property(value clopts INTERFACE_COMPILE_DEFINITIONS)
+        if(NOT value)
+            set(value "")
+        endif()
+        if(NOT "${value}" STREQUAL "${expected_defs}")
+            message(FATAL_ERROR
+                "no_global_state (${when}): clopts INTERFACE_COMPILE_DEFINITIONS is "
+                "'${value}' (${type}); expected '${expected_defs}': internal "
+                "definitions must be PRIVATE")
+        endif()
         get_target_property(features clopts INTERFACE_COMPILE_FEATURES)
         if(NOT "${features}" STREQUAL "c_std_99")
             message(FATAL_ERROR
