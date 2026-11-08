@@ -1,16 +1,16 @@
 {
   "feature_name": "abi-compat",
   "created_at": "2026-11-08T16:20:35Z",
-  "updated_at": "2026-11-08T16:22:29Z",
+  "updated_at": "2026-11-08T16:30:02Z",
   "language": "ja",
-  "phase": "requirements-generated",
+  "phase": "design-generated",
   "approvals": {
     "requirements": {
       "generated": true,
-      "approved": false
+      "approved": true
     },
     "design": {
-      "generated": false,
+      "generated": true,
       "approved": false
     },
     "tasks": {
