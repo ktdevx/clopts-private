@@ -1,0 +1,99 @@
+# CLOpts public symbol list: the single source of truth for the symbols the
+# shared library exports (checked by the label-abi tests in tests/abi/).
+#
+# Format (UTF-8, LF):
+#   - One symbol name per line, the same on every OS (no macOS leading "_").
+#   - Names must match ^clopts_[a-z0-9_]+$ and must not be duplicated.
+#   - Leading and trailing whitespace is ignored.
+#   - Blank lines and lines starting with "#" (after optional whitespace) are
+#     ignored.
+#   - Order is free; by convention names are grouped per public header under a
+#     "# clopts/<header>.h" comment, in the header's declaration order.
+#   - Only CLOPTS_API functions are listed; static inline functions in the
+#     public headers (e.g. clopts_file_write) are not exported and are not
+#     listed.
+#   - A name exported only on some OS carries one platform tag after it,
+#     separated by whitespace. The only tag is "windows" (declared under
+#     _WIN32; required only by the Windows export formats dumpbin and
+#     objdump-pe, and wrapped in #ifdef _WIN32 by the C++ link check).
+#     Any other tag, or more than two words on a line, is an error.
+#
+# Updating: a change that adds or removes a public (CLOPTS_API) function must
+# update this list in the same commit. Add the name under its header's group
+# at the position of its declaration, or remove it. A mismatch between this
+# list and the exported symbols fails the abi tests; fix it by updating this
+# list or by no longer exporting the symbol. See docs/dev/abi-checks.md for
+# the full procedure.
+
+# clopts/decl.h
+clopts_program_new
+clopts_program_free
+clopts_program_set_version
+clopts_program_root
+clopts_program_add_command
+clopts_command_set_summary
+clopts_command_set_description
+clopts_command_set_handler
+clopts_command_add_flag
+clopts_command_add_count
+clopts_command_add_value
+clopts_command_add_list
+clopts_command_add_positional
+clopts_option_set_help
+clopts_option_set_value_name
+clopts_option_set_env
+clopts_option_set_default
+clopts_option_set_required
+clopts_option_set_negatable
+clopts_option_set_delimiter
+clopts_option_set_count_max
+clopts_positional_set_help
+clopts_positional_set_required
+clopts_positional_set_variadic
+
+# clopts/help.h
+clopts_write_help
+clopts_write_usage
+clopts_write_version
+clopts_write_usage_hint
+clopts_write_error
+
+# clopts/parse.h
+clopts_parse
+clopts_parse_with_env
+clopts_program_validate
+clopts_result_status
+clopts_result_command
+clopts_result_usage_error
+clopts_result_decl_error
+clopts_result_error_command
+clopts_result_error_option
+clopts_result_error_positional
+clopts_result_error_token
+clopts_result_error_argv_index
+clopts_result_error_name_len
+clopts_result_error_short_name
+clopts_result_flag
+clopts_result_count
+clopts_result_value
+clopts_result_list_count
+clopts_result_list_at
+clopts_result_source
+clopts_result_positional_count
+clopts_result_positional_at
+clopts_result_run
+clopts_result_free
+
+# clopts/platform.h
+clopts_argv_get
+clopts_argv_from_wide windows
+clopts_argv_status
+clopts_argv_count
+clopts_argv_values
+clopts_argv_error_index
+clopts_argv_free
+clopts_env_new
+clopts_env_free
+clopts_env_lookup
+clopts_env_error
+clopts_env_error_name

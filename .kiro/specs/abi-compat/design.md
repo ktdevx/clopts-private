@@ -245,9 +245,10 @@ flowchart TB
 
 ##### State Management
 - 形式: UTF-8、LF。1 行に 1 つのシンボル名。行頭と行末の空白は無視する。空行と、`#` で始まる行（先頭の空白の後でもよい）は無視する。
+- OS の注記: 特定の OS でだけ宣言・export される公開関数（現在は `include/clopts/platform.h` の `#ifdef _WIN32` の中の `clopts_argv_from_wide`）は、名前の後に空白で区切って注記 `windows` を 1 つ書く（例: `clopts_argv_from_wide windows`）。注記のない名前は全 OS で export されるもの。受け付ける注記は `windows` だけで、それ以外の語や 3 語以上の行は形式の誤り（`invalid platform tag`）とする。注記付きの名前は Windows（`FORMAT` が `dumpbin` / `objdump-pe`）の照合でだけ要求し、それ以外（`nm-elf` / `nm-macho`）では一覧に無いものとして扱う。（実装時に、設計がこの関数を見落としていたことが分かり、2026-11-08 に追記した）
 - 名前の規則: `^clopts_[a-z0-9_]+$`。重複は許さない。並び順は自由だが、公開ヘッダごとに `# clopts/<header>.h` の注釈でまとめ、ヘッダの中の宣言順に並べることを推奨する（文書に書く。検査はしない）。
 - 初期の内容: 本 spec の実装時点の `include/clopts/` の全公開関数（`decl.h`、`help.h`、`parse.h`、`platform.h` の `CLOPTS_API` 付きの宣言）。`static inline` の `clopts_file_write` は載せない。
-- 不変条件: 公開ヘッダの `CLOPTS_API` 付きの関数の集合、共有ライブラリの export の集合、この一覧の集合は等しい。前の 2 つの等しさは SymbolCheck が、ヘッダと一覧の対応は HeaderCompileFixture の C++ リンク検査（一覧にあってヘッダにない名前はコンパイルで失敗する）と SymbolCheck の組み合わせで保つ。
+- 不変条件: 公開ヘッダの `CLOPTS_API` 付きの関数の集合、共有ライブラリの export の集合、この一覧の集合は等しい（OS の注記付きの名前は、その OS でだけ数える）。前の 2 つの等しさは SymbolCheck が、ヘッダと一覧の対応は HeaderCompileFixture の C++ リンク検査（一覧にあってヘッダにない名前はコンパイルで失敗する）と SymbolCheck の組み合わせで保つ。
 - 更新: 公開関数を足す・消す変更は、同じコミットでこの一覧を更新する（`docs/dev/abi-checks.md` の手順）。
 
 ### Test scripts
@@ -260,7 +261,8 @@ flowchart TB
 | Requirements | 2.3, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9 |
 
 **Responsibilities & Constraints**
-- 一覧を読み、2.3 の誤り（重複、規則に合わない名前）をすべて集めてから失敗する。
+- 一覧を読み、2.3 の誤り（重複、規則に合わない名前、未知の OS の注記）をすべて集めてから失敗する。
+- `FORMAT` から照合の対象の OS を決める（`dumpbin` / `objdump-pe` は Windows、`nm-elf` / `nm-macho` はそれ以外）。Windows でなければ、注記 `windows` の付いた名前を期待する集合から外す。
 - export の出力を得る。`DUMP_FILE` があればそれを読み、なければ `TOOL` を実行する。
 - `FORMAT` ごとの規則で名前を取り出し、除外リストの名前を取り除き、集合として一覧と比べる。
 - 何も書き換えない。ファイルは読むだけ。
@@ -292,7 +294,7 @@ flowchart TB
 | `nm-elf` | `<TOOL> -D --defined-only <LIBRARY>` | `<値> <型> <名前>` の 3 列の行の第 3 列 | `_init`, `_fini`, `_edata`, `_end`, `__bss_start` |
 | `nm-macho` | `<TOOL> -gU <LIBRARY>` | 3 列の行の第 3 列から、先頭の `_` を 1 つ除く | なし |
 | `dumpbin` | `<TOOL> /exports <LIBRARY>`（`link.exe` のときは `/dump /exports`） | `ordinal hint RVA name` の表の行（数字・16 進・16 進・名前）の名前。`=` 以降は捨てる | なし |
-| `objdump-pe` | `<TOOL> -p <LIBRARY>` | `[Ordinal/Name Pointer] Table` の節の、`[` で始まる各行の最後の語 | なし |
+| `objdump-pe` | `<TOOL> -p <LIBRARY>` | `[Ordinal/Name Pointer] Table` の節の、`[` で始まる各行の最後の語（最初の行の前の見出し行は読み飛ばす） | なし |
 
 除外リストは「あれば取り除く」集合で、無くても失敗しない。項目は理由の注釈付きでスクリプトの先頭にまとめる。
 
@@ -308,13 +310,13 @@ flowchart TB
   If the change is intended, update the list; otherwise stop exporting the symbol
   (internal functions must not carry CLOPTS_API). See docs/dev/abi-checks.md.
   ```
-  不足・余分は名前順ですべて出す。一覧の形式の誤りは `<SYMBOLS_FILE>:<行>: duplicate symbol 'x'` / `invalid symbol name 'x'` の形で出す。ツールの欠如は `export dump tool not found for FORMAT <FORMAT>`、ツールの失敗は終了コードと出力を添えて出す。取り出した名前が 0 個のときも、出力の形式が想定と違うものとして失敗する。
+  不足・余分は名前順ですべて出す。一覧の形式の誤りは `<SYMBOLS_FILE>:<行>: duplicate symbol 'x'` / `invalid symbol name 'x'` / `invalid platform tag 'x'` の形で出す。ツールの欠如は `export dump tool not found for FORMAT <FORMAT>`、ツールの失敗は終了コードと出力を添えて出す。取り出した名前が 0 個のときも、出力の形式が想定と違うものとして失敗する。
 - Idempotency & recovery: 副作用なし。何度実行しても同じ結果。
 
 **Implementation Notes**
 - Integration: 3.4 の「CLOpts のソースに由来しないシンボル」は除外リストで扱う。未知のシンボルが CI で出たら、報告に出た名前を確かめ、ツールチェーン由来なら理由付きで除外リストに足す（CLOpts 由来なら一覧か export を直す）。
 - Validation: 記録したツール出力（`fixtures/exports/`）で、4 形式の取り出し・除外・不足・余分の報告を自己テストする（Testing Strategy を参照）。
-- Risks: `objdump -p` の列の形式は binutils の版で変わるので、「行の最後の語」の規則に限る。
+- Risks: `objdump -p` の列の形式は binutils の版で変わるので、「行の最後の語」の規則に限る。binutils 2.44 以降は節の見出しの直後に `Ordinal   Hint Name` の列見出しを出す（CI の MinGW で判明）。
 
 #### HeaderRulesCheck（`tests/abi/check_header_rules.cmake`）
 
@@ -372,8 +374,13 @@ flowchart TB
 - `HEADER_CHECK_LANG=CXX`:
   - `project(... LANGUAGES C CXX)`。生成した `.cpp` をまとめたオブジェクトライブラリを `CXX_STANDARD 11`、`CXX_STANDARD_REQUIRED ON`、`CXX_EXTENSIONS OFF` でコンパイルする（5.2）。
   - 警告は CLOpts の C の設定に対応させる: GCC / Clang / AppleClang は `-Wall -Wextra -Wpedantic -Werror`、MSVC は `/W4 /WX /utf-8 /Zc:preprocessor /Zc:__cplusplus /EHsc`（5.4）。
-  - `add_subdirectory(${CLOPTS_SOURCE_DIR} clopts)` で CLOpts を取り込み（`CLOPTS_BUILD_TESTING=OFF` は `run_fixture.cmake` が渡す）、リンク検査の実行ファイル `abi_link_check` を作る。その翻訳単位 `link_check.cpp` は構成時に一覧から生成し、`#include "clopts/clopts.h"` の後、一覧の全シンボルのアドレスを `reinterpret_cast<void (*)(void)>(&<name>)` の配列に入れ、`main` で配列の要素数を返す。`CLOpts::clopts` にリンクする（5.3）。関数が C++ のリンケージで宣言されていると、修飾された名前が解決できずリンクで失敗する。一覧にあってヘッダにない名前はコンパイルで失敗する。
+  - `add_subdirectory(${CLOPTS_SOURCE_DIR} clopts)` で CLOpts を取り込み（`CLOPTS_BUILD_TESTING=OFF` は `run_fixture.cmake` が渡す）、リンク検査の実行ファイル `abi_link_check` を作る。その翻訳単位 `link_check.cpp` は構成時に一覧から生成し、`#include "clopts/clopts.h"` の後、一覧の全シンボルのアドレスを `reinterpret_cast<void (*)(void)>(&<name>)` の配列に入れ、`main` で配列の要素数を返す。OS の注記 `windows` の付いた名前は `#ifdef _WIN32` / `#endif` で囲んで生成する。`CLOpts::clopts` にリンクする（5.3）。関数が C++ のリンケージで宣言されていると、修飾された名前が解決できずリンクで失敗する。一覧にあってヘッダにない名前はコンパイルで失敗する。
 - 実行はしない（`build_ok`）。Windows の共有版でも DLL を実行ファイルの横に置く必要がない。
+- 実装で決めた点（2026-11-08 追記。理由は tasks.md の Implementation Notes 2.4）:
+  - CLOpts は C と CXX のどちらでも `add_subdirectory(${CLOPTS_SOURCE_DIR} clopts EXCLUDE_FROM_ALL)` で取り込む。ヘッダごとの検査のオブジェクトライブラリは `CLOpts::clopts` にリンクせず、`$<TARGET_PROPERTY:clopts,INTERFACE_INCLUDE_DIRECTORIES>` と `INTERFACE_COMPILE_DEFINITIONS` を受け取る（利用側と同じく、静的版では `CLOPTS_STATIC` が付き、共有版では付かない）。リンクすると CLOpts 本体のソースが先にコンパイルされて失敗し、`check_<header>` の名前が出力に出ないため。
+  - CXX では `add_dependencies(clopts abi_header_check)` で、ヘッダの検査を CLOpts 本体より先にコンパイルする。
+  - 翻訳単位は、ヘッダが include する `clopts/` のヘッダの数の少ない順（同じなら名前順）に並べ、壊れたヘッダ自身の `check_<header>` が傘ヘッダより先に失敗するようにする。
+  - `extern "C"` が欠けたときの失敗は、`check_<header>.cpp` ではなく `abi_link_check` の修飾名の未定義参照として出る。
 
 **Dependencies**
 - Inbound: AbiTestRegistration (P0)
@@ -511,7 +518,7 @@ flowchart TB
 - `docs/abi.md`（利用者向けの章。`docs/dev/` へはリンクしない）:
   - 保証の範囲: 1.0.0 からの後方互換、0.x は minor ごとに壊れ得る、前方互換と静的ライブラリは対象外（1.1、1.2）。
   - 版と SOVERSION: 0.x は `0.<minor>`、1.0.0 以降は `<major>`。Linux のファイル名（`libclopts.so.<SOVERSION>`）の例（1.3）。
-  - Windows: DLL のファイル名は `clopts.dll` で版が入らず、版の取り違えをファイル名で防げない。利用側の実行ファイルの横に、ビルドに使った版と同じ SOVERSION の DLL を置くこと（1.4）。
+  - Windows: DLL のファイル名は `clopts.dll`（MinGW では CMake の既定で `libclopts.dll`）で版が入らず、版の取り違えをファイル名で防げない。利用側の実行ファイルの横に、ビルドに使った版と同じ SOVERSION の DLL を置くこと（1.4）。
   - macOS: compatibility version は SOVERSION から（0.x は `0.<minor>.0`、1.x は `1.0.0`）、current version は `project(VERSION)` から作る。minor ごとには上げない。そのため、新しい minor に対してビルドした利用側を古い minor のライブラリで動かすと、読み込み時ではなく足りない関数を解決するときに失敗する（前方互換は保証しない）（1.5）。
   - 互換を保つ変更: 公開関数の追加、列挙の末尾への値の追加、不透明型の内部の変更、公開関数の内部の挙動の修正（契約の範囲内）（1.6）。
   - 互換を壊す変更: 公開関数の削除・改名、引数・戻り値の型や数の変更、既存の列挙値の変更・並べ替え・途中への挿入、公開ヘッダへの構造体・共用体の定義の追加、関数ポインタ型のシグネチャの変更（1.7）。
@@ -540,9 +547,9 @@ CI のジョブの結果とログで確認する。`abi-compare` の最初の行
 ## Testing Strategy
 
 ### 自己テスト（全 OS、両形式）
-- `abi.symbols_selftest.<format>`: 4 形式それぞれの記録した出力から、除外リストの名前（`nm-elf` の `_init` など）を取り除き、`nm-macho` の先頭の `_` を外し、`dumpbin` の表と `objdump-pe` の節から名前を取り出して、`expected.symbols` と一致すること（3.4、3.9）。
+- `abi.symbols_selftest.<format>`: 4 形式それぞれの記録した出力から、除外リストの名前（`nm-elf` の `_init` など）を取り除き、`nm-macho` の先頭の `_` を外し、`dumpbin` の表と `objdump-pe` の節から名前を取り出して、`expected.symbols` と一致すること（3.4、3.9）。`expected.symbols` は注記 `windows` の付いた名前を 1 つ含み、その名前は Windows の 2 形式の記録にだけ現れる。
 - `abi.symbols_selftest.mismatch`: 1 つ欠けて 1 つ余分な一覧に対し、不足と余分の両方の名前と一覧の場所・案内が報告されること（3.5、3.6、3.7）。
-- `abi.symbols_selftest.bad_list`: 重複と接頭辞のない名前がそれぞれ行番号付きで報告されること。空行と注釈の行は誤りにならないこと（2.3、2.4）。
+- `abi.symbols_selftest.bad_list`: 重複と接頭辞のない名前と未知の OS の注記がそれぞれ行番号付きで報告されること。空行と注釈の行は誤りにならないこと（2.3、2.4）。
 - `abi.header_rules_selftest.*`: `good` に置いた前方宣言・`typedef enum`・関数ポインタ型・`static inline` の定義・コメント中の `struct x { }` が違反にならないこと。`bad` の構造体定義・共用体定義・`CLOPTS_API` のない関数宣言（引数が次の行に続く形を含む）が、ファイルと行と理由付きで報告されること（4.2〜4.6）。
 - `abi.compare_selftest`: 基準の選択（0.x は空、同じ major の最大、`v1.10.0` と `v1.9.0` の数値比較、現在より新しいタグと別の major と `-rc` の除外、候補なし）と、終了コードの判定（0 → compatible、4 → compatible、12 → incompatible、1・2・3・13 → tool_error、16 → tool_error）（6.2、6.3、6.6〜6.8）。
 
@@ -557,5 +564,5 @@ CI のジョブの結果とログで確認する。`abi-compare` の最初の行
 - `abi-compare` ジョブが 0.1.0 では `skipped: version 0.1.0 is before 1.0.0` を出して成功すること（6.1、6.3、6.9）。
 
 ### 手作業の確認（実装時に 1 回）
-- 内部関数に `CLOPTS_API` を付けた一時的な変更で `abi.exports` が余分を報告し、一覧から 1 つ消した変更で不足を報告することを、Linux で確かめる。
+- 内部関数に `CLOPTS_API` を付けた一時的な変更で `abi.exports` が余分を報告し、一覧から 1 つ消した変更で余分を、一覧に export されない名前を足した変更で不足を報告することを、Linux で確かめる。
 - 手元の Linux で仮のタグ（例: 版を 1.0.0 にした一時的なコミットに付けたローカルのタグ）を作り、公開関数の削除で `incompatible`、追加で `compatible` になることを確かめる（6.4〜6.7）。結果は `docs/dev/abi-checks.md` の手順の例に反映する。

@@ -26,7 +26,12 @@
 - `tests/toolchain/`: ビルド構成そのもの（警告のエラー化、VLA の禁止、グローバル設定を置いていないこと）を検証する。ラベルは `toolchain`。
 - `tests/integration/`: 利用側を模したプロジェクトで `add_subdirectory` / `FetchContent` と install → `find_package(CLOpts CONFIG)` の両経路を検証する。ラベルは `integration`。
 - `tests/docs/`: README と `docs/` のサンプル出力をビルドしたサンプルプログラムと照合する。Naos を使わず `cmake -P` で起動する。ラベルは `docs`。
-- `tests/abi/`: 公開シンボル一覧との照合、公開ヘッダの静的検査（構造体定義がないこと、`CLOPTS_API` の付け漏れ、C/C++ の両方でコンパイルできること）を行う。Naos を使わず `cmake -P` で起動する。ラベルは `abi`。公開シンボル一覧の置き場所は spec `abi-compat` の設計で決め、ここに追記する。
+- `tests/abi/`: 公開シンボル一覧との照合、公開ヘッダの静的検査（構造体定義がないこと、`CLOPTS_API` の付け漏れ、C/C++ の両方でコンパイルできること）を行う。Naos を使わず `cmake -P` で起動する。ラベルは `abi`。照合の基準となる公開シンボル一覧はリポジトリ直下の `abi/clopts.symbols`（下の「公開 ABI の基準」）。保守者向けの説明は `docs/dev/abi-checks.md`。
+
+### 公開 ABI の基準
+**Location**: `abi/`  
+**Purpose**: 共有ライブラリの公開 ABI の基準となるデータ。`abi/clopts.symbols` は共有ライブラリが export すべきシンボルの、OS によらない唯一の一覧（1 行に 1 名、`#` の注釈、Windows 専用の名前には注記 `windows`）。公開関数を足す・消す変更は同じコミットでこの一覧を更新する。`tests/abi/` が読み、ビルド・install の対象にしない。  
+**Example**: `abi/clopts.symbols`
 
 ### サンプルプログラム
 **Location**: `examples/`  
@@ -40,7 +45,7 @@
 **Location**: `docs/`、`README.md`  
 **Purpose**: 日本語の利用者向け文書。README は概要（C++ の同名プロジェクト Sirraide/clopts との区別を含む）、最小のサンプル、取り込み方 3 通り、ライセンスを持ち、詳細は `docs/` に委ねる。  
 **User chapters**: `docs/` 直下の `.md` が利用者向けの章（API リファレンス、解析規則、取り込み手順、Windows での注意）。章の間は相対リンクで結び、`docs/dev/` へはリンクしない。サンプル出力の引用には照合用のマーカー（`<!-- clopts-check: ... -->`）を付ける。  
-**Maintainer docs**: `docs/dev/` は保守者向け（`release.md`: 版番号の規則とリリース手順と Naos の更新手順、`naos-feedback.md`: Naos への要望の記録）。
+**Maintainer docs**: `docs/dev/` は保守者向け（`release.md`: 版番号の規則とリリース手順と Naos の更新手順、`naos-feedback.md`: Naos への要望の記録、`abi-checks.md`: ABI の検査の説明と公開関数を足す・消す手順）。
 
 ### CI とリリースのワークフロー
 **Location**: `.github/workflows/`  
