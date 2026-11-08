@@ -219,7 +219,7 @@
   - _Depends: 6.1, 6.3_
   - _Requirements: 3.1, 4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 4.9, 4.10, 4.11, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 10.2, 10.3, 10.4, 10.11_
 
-- [ ] 7.3 (P) 長いオプション・短いオプションのスイートを移植する
+- [x] 7.3 (P) 長いオプション・短いオプションのスイートを移植する
   - 初版の long / short スイートの全ケースを、新しいフィクスチャとアクセサで移植する。対象は、`--name value` / `=value` / 空の値、値の消費、前方一致なし、大文字小文字、`--no-x`、まとめ書き、`-o=v`、不明な 1 文字、末尾の値なし、`-vh` である
   - 状態を確かめてから値を参照する（初版の Implementation Notes 3.4 の注意）
   - 完了条件: `ctest -L parser -R "long|short"` が両形式で通り、件数が初版の各スイート以上である
@@ -306,3 +306,4 @@
 - 6.3: `clopts_parser_resolve` / `clopts_parser_check_required` は、`result` が番兵でないことと `result->program == program` を assert する。どちらも `result->status` は書かない（走査器が書く）。不足時の `error.command` は、`include_command` が真なら選択コマンド、偽なら NULL。位置引数の検査は、選択コマンドの位置引数、サブコマンドなし構成なら root の位置引数に対して行う
 - 7.1: フィクスチャは `fixture_tool_t` / `fixture_filt_t` / `fixture_strict_t`（ハンドルの構造体）と `fixture_<x>_init(f, probe)` / `fixture_<x>_free(f)`。初版の添字の enum 定数はなく、ハンドルで参照する。模擬環境変数 `fixture_env_t` は値を自分のバッファから貸す。`clobber` は次の呼び出しの冒頭で全バッファを書き換え、`fixture_env_clobber()` で任意の時点に書き換えられる（8.8 の検証は、解析の後に `fixture_env_clobber()` を呼んで値が変わらないことを見る）。照会した名前は 31 文字までの複製
 - 7.2: 解析関数は `parse()` が `scan_enter` を共有し、番兵でない結果に `parsed = true` を立てる。走査は `scan_run` で、初版の表と論理をそのまま移した。保留エラーは局所の `scan_error_t` に持って `result->error` に写す。初版の dispatch のうち `previous_result_is_reused` と `invalid_declaration_releases_previous_result` は、結果を再利用しない新 API に合わせて「独立した 2 回の解析」「DECL_ERROR を 2 回解析して全解放」に読み替えた。サブコマンド前の command 固有オプション → UNKNOWN_OPTION（5.3）の専用ケースは 7.3〜7.5 で足すこと
+- 7.3: long 45 件（初版 44 + 番兵）、short 28 件（初版 27 + 番兵）。argv は初版と同一で、検証は同等以上。5.3 は `long.command_option_before_the_command_is_unknown`（`tool --output y build`）が担う
