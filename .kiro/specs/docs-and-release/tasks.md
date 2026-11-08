@@ -1,7 +1,7 @@
 # Implementation Plan
 
-- [ ] 1. 基盤: サンプルのビルドオプションと文書用プログラムの登録
-- [ ] 1.1 `CLOPTS_BUILD_EXAMPLES` と文書用プログラムを登録する関数を用意し、`examples/` と `tests/docs/` をビルドツリーに組み込む
+- [x] 1. 基盤: サンプルのビルドオプションと文書用プログラムの登録
+- [x] 1.1 `CLOPTS_BUILD_EXAMPLES` と文書用プログラムを登録する関数を用意し、`examples/` と `tests/docs/` をビルドツリーに組み込む
   - ルートの `CMakeLists.txt` に、トップレベルのときだけ既定で ON になる `CLOPTS_BUILD_EXAMPLES` を足す。`cmake/CloptsExamples.cmake` は `CLOPTS_BUILD_EXAMPLES` によらず常に include する（`tests/docs/` も同じ関数を使うため）。ON のときだけ `examples/` を加える。サンプルの登録が先に済むよう、この処理をテストのブロックより前に置く
   - 設計の DocProgramRegistry の契約どおりに、`clopts_add_doc_program(<name> SOURCES ... [ENV ...] [EXAMPLE])` を実装する。作るのは実行ファイル `clopts_doc_<name>`（`OUTPUT_NAME` は `<name>`）。`CLOpts::clopts` をリンクし、`clopts_apply_compiler_options` を付け、Windows の共有ビルドでは `$<TARGET_RUNTIME_DLLS>` をコピーする。グローバルプロパティ `CLOPTS_DOC_PROGRAMS`、`CLOPTS_DOC_PROGRAM_TARGET_<name>`、`CLOPTS_DOC_PROGRAM_ENV_<name>`、`CLOPTS_DOC_EXAMPLES` に記録する。名前の規則違反と重複は `FATAL_ERROR` にする
   - `examples/CMakeLists.txt` には、2 つのサンプルの登録（`clopts_add_doc_program(taskbook SOURCES taskbook/taskbook.c ENV TASKBOOK_FORMAT EXAMPLE)` と `clopts_add_doc_program(textcount SOURCES textcount/textcount.c ENV TEXTCOUNT_ENCODING EXAMPLE)`）を、この時点で書く。各ソースは、0 を返すだけの仮の `main` にしておく（3.1 と 3.2 は自分のソースだけを書き換えればよい）。`tests/docs/CMakeLists.txt` は、ラベル `docs` のテストをここで登録する旨の注釈と、README の最小サンプルの登録 `clopts_add_doc_program(hello SOURCES readme_minimal.c)` だけを持つ骨格として作る（`readme_minimal.c` は 0 を返すだけの仮の `main`。3.3 が書き換える）。そのうえで`tests/CMakeLists.txt` に `add_subdirectory(docs)` を足す
@@ -149,3 +149,6 @@
   - CI は main への push と pull request でしか動かないので、ユーザーの承認を得て pull request を作り、CI の 10 ジョブと `abi-compare` の結果を確かめる。Windows（MSVC、MinGW）と macOS で、サンプルのビルドと `docs.outputs` が通ることを確かめ、失敗があれば原因を直す
   - 完了条件: 手元の全件の結果を示せる。承認を得て CI を動かした場合は、全ジョブが成功した実行の記録（実行の識別子とジョブごとの結果）を示せる。承認がなければ、CI での確認が未実施であることと、その手順を記録する
   - _Requirements: 7.8, 8.1, 11.8_
+
+## Implementation Notes
+- 1.1: `clopts_add_doc_program` は重複時に両方の呼び出し元を示すため、設計にない内部用のグローバルプロパティ `CLOPTS_DOC_PROGRAM_FILE_<name>` を持つ（他のコンポーネントは読まない）。ビルド成果物は `build/examples/taskbook`、`build/tests/docs/hello` に出る。
