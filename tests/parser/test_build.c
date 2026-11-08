@@ -1,15 +1,638 @@
 /*
  * Suite build: the builder functions, NULL safety, the first recorded error,
- * string copies, freezing and handle stability.
+ * string copies, freezing, handle stability, the release of a program and
+ * the entry of clopts_program_validate().
  *
- * Until the builder is implemented, only the behavior that never changes is
- * checked here: validating a NULL program returns the out-of-memory
- * sentinel, and releasing it and a NULL program is safe.
+ * The declaration rules of the immediate check are tested in the decl suite
+ * (task 6.1). Stored values are read through the internal model.
  */
 
-#include <clopts/parse.h>
+#include "parser/parser_internal.h"
 
 #include <naos/naos.h>
+
+#include <stdio.h>
+#include <string.h>
+
+/* Returns a probe with the given fail_at and zero counters. */
+static clopts_parser_probe_t make_probe(size_t fail_at)
+{
+    clopts_parser_probe_t probe;
+
+    probe.fail_at = fail_at;
+    probe.calls = 0;
+    probe.live = 0;
+    return probe;
+}
+
+/* Returns option index of scope (an element of scope->options). */
+static clopts_option_t *option_at(const clopts_command_t *scope, size_t index)
+{
+    return *(clopts_option_t **)clopts_core_vec_at(&scope->options, index);
+}
+
+/* Returns positional index of scope. */
+static clopts_positional_t *positional_at(const clopts_command_t *scope, size_t index)
+{
+    return *(clopts_positional_t **)clopts_core_vec_at(&scope->positionals, index);
+}
+
+/* Returns command index of program. */
+static clopts_command_t *command_at(const clopts_program_t *program, size_t index)
+{
+    return *(clopts_command_t **)clopts_core_vec_at(&program->commands, index);
+}
+
+static int dummy_handler(const clopts_result_t *result, void *userdata)
+{
+    (void)result;
+    (void)userdata;
+    return 0;
+}
+
+static int other_handler(const clopts_result_t *result, void *userdata)
+{
+    (void)result;
+    (void)userdata;
+    return 1;
+}
+
+/* ---- NULL handles -------------------------------------------------------- */
+
+NAOS_TEST(null_handles_do_nothing)
+{
+    clopts_program_free(NULL);
+    clopts_program_set_version(NULL, "1.0");
+    NAOS_CHECK_NULL(clopts_program_root(NULL));
+    NAOS_CHECK_NULL(clopts_program_add_command(NULL, "build"));
+
+    clopts_command_set_summary(NULL, "summary");
+    clopts_command_set_description(NULL, "description");
+    clopts_command_set_handler(NULL, dummy_handler, NULL);
+    NAOS_CHECK_NULL(clopts_command_add_flag(NULL, "flag", 'f'));
+    NAOS_CHECK_NULL(clopts_command_add_count(NULL, "count", 'c'));
+    NAOS_CHECK_NULL(clopts_command_add_value(NULL, "value", 'v'));
+    NAOS_CHECK_NULL(clopts_command_add_list(NULL, "list", 'l'));
+    NAOS_CHECK_NULL(clopts_command_add_positional(NULL, "file"));
+
+    clopts_option_set_help(NULL, "help");
+    clopts_option_set_value_name(NULL, "NAME");
+    clopts_option_set_env(NULL, "ENV");
+    clopts_option_set_default(NULL, "default");
+    clopts_option_set_required(NULL, true);
+    clopts_option_set_negatable(NULL, true);
+    clopts_option_set_delimiter(NULL, ',');
+    clopts_option_set_count_max(NULL, 3);
+
+    clopts_positional_set_help(NULL, "help");
+    clopts_positional_set_required(NULL, true);
+    clopts_positional_set_variadic(NULL, true);
+}
+
+NAOS_TEST(free_null_program_does_nothing)
+{
+    clopts_program_free(NULL);
+    NAOS_PASS();
+}
+
+/* ---- program and root -------------------------------------------------- */
+
+NAOS_TEST(program_new_embeds_root_and_copies_name)
+{
+    char name[] = "tool";
+    clopts_program_t *program;
+    clopts_command_t *root;
+
+    program = clopts_program_new(name);
+    NAOS_REQUIRE_NOT_NULL(program);
+    name[0] = 'X';
+
+    root = clopts_program_root(program);
+    NAOS_REQUIRE_PTR_EQ(root, &program->root);
+    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
+    NAOS_CHECK_PTR_EQ(root->program, program);
+    NAOS_REQUIRE_NOT_NULL(root->name);
+    NAOS_CHECK_STR_EQ(root->name, "tool");
+    NAOS_CHECK_NULL(root->summary);
+    NAOS_CHECK_NULL(root->description);
+    NAOS_CHECK_TRUE(root->handler == NULL);
+    NAOS_CHECK_UINT_EQ(root->options.len, 0);
+    NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
+    NAOS_CHECK_UINT_EQ(program->commands.len, 0);
+    NAOS_CHECK_NULL(program->version);
+    NAOS_CHECK_FALSE(program->frozen);
+    NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(program->error.kind, CLOPTS_DECL_NONE);
+    NAOS_CHECK_NULL(program->probe);
+
+    clopts_program_free(program);
+}
+
+/* ---- adders ------------------------------------------------------------ */
+
+NAOS_TEST(adders_link_objects_in_order)
+{
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_command_t *build;
+    clopts_command_t *copy;
+    clopts_option_t *flag;
+    clopts_option_t *count;
+    clopts_option_t *value;
+    clopts_option_t *list;
+    clopts_option_t *local;
+    clopts_positional_t *src;
+    clopts_positional_t *dst;
+
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+
+    flag = clopts_command_add_flag(root, "force", 'f');
+    count = clopts_command_add_count(root, "verbose", 'v');
+    value = clopts_command_add_value(root, NULL, 'o');
+    list = clopts_command_add_list(root, "include", '\0');
+    build = clopts_program_add_command(program, "build");
+    copy = clopts_program_add_command(program, "copy");
+    local = clopts_command_add_flag(build, "release", 'r');
+    src = clopts_command_add_positional(copy, "src");
+    dst = clopts_command_add_positional(copy, "dst");
+
+    NAOS_REQUIRE_NOT_NULL(flag);
+    NAOS_REQUIRE_NOT_NULL(count);
+    NAOS_REQUIRE_NOT_NULL(value);
+    NAOS_REQUIRE_NOT_NULL(list);
+    NAOS_REQUIRE_NOT_NULL(build);
+    NAOS_REQUIRE_NOT_NULL(copy);
+    NAOS_REQUIRE_NOT_NULL(local);
+    NAOS_REQUIRE_NOT_NULL(src);
+    NAOS_REQUIRE_NOT_NULL(dst);
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+
+    /* root options in order of addition */
+    NAOS_REQUIRE_UINT_EQ(root->options.len, 4);
+    NAOS_CHECK_PTR_EQ(option_at(root, 0), flag);
+    NAOS_CHECK_PTR_EQ(option_at(root, 1), count);
+    NAOS_CHECK_PTR_EQ(option_at(root, 2), value);
+    NAOS_CHECK_PTR_EQ(option_at(root, 3), list);
+
+    NAOS_CHECK_INT_EQ(flag->kind, CLOPTS_PARSER_FLAG);
+    NAOS_CHECK_INT_EQ(count->kind, CLOPTS_PARSER_COUNT);
+    NAOS_CHECK_INT_EQ(value->kind, CLOPTS_PARSER_VALUE);
+    NAOS_CHECK_INT_EQ(list->kind, CLOPTS_PARSER_LIST);
+    NAOS_CHECK_UINT_EQ(flag->index, 0);
+    NAOS_CHECK_UINT_EQ(count->index, 1);
+    NAOS_CHECK_UINT_EQ(value->index, 2);
+    NAOS_CHECK_UINT_EQ(list->index, 3);
+    NAOS_CHECK_PTR_EQ(flag->program, program);
+    NAOS_CHECK_PTR_EQ(flag->scope, root);
+    NAOS_CHECK_PTR_EQ(list->scope, root);
+
+    NAOS_REQUIRE_NOT_NULL(flag->long_name);
+    NAOS_CHECK_STR_EQ(flag->long_name, "force");
+    NAOS_CHECK_INT_EQ(flag->short_name, 'f');
+    NAOS_CHECK_NULL(value->long_name);
+    NAOS_CHECK_INT_EQ(value->short_name, 'o');
+    NAOS_CHECK_INT_EQ(list->short_name, '\0');
+
+    /* new options start with every attribute reset */
+    NAOS_CHECK_NULL(value->help);
+    NAOS_CHECK_NULL(value->value_name);
+    NAOS_CHECK_NULL(value->default_value);
+    NAOS_CHECK_NULL(value->env);
+    NAOS_CHECK_INT_EQ(list->delimiter, '\0');
+    NAOS_CHECK_UINT_EQ(count->count_max, 0);
+    NAOS_CHECK_FALSE(value->required);
+    NAOS_CHECK_FALSE(flag->negatable);
+
+    /* commands in order of addition */
+    NAOS_REQUIRE_UINT_EQ(program->commands.len, 2);
+    NAOS_CHECK_PTR_EQ(command_at(program, 0), build);
+    NAOS_CHECK_PTR_EQ(command_at(program, 1), copy);
+    NAOS_CHECK_PTR_EQ(build->program, program);
+    NAOS_REQUIRE_NOT_NULL(build->name);
+    NAOS_CHECK_STR_EQ(build->name, "build");
+    NAOS_CHECK_STR_EQ(copy->name, "copy");
+    NAOS_CHECK_NULL(build->summary);
+    NAOS_CHECK_TRUE(build->handler == NULL);
+
+    /* command options and positionals */
+    NAOS_REQUIRE_UINT_EQ(build->options.len, 1);
+    NAOS_CHECK_PTR_EQ(option_at(build, 0), local);
+    NAOS_CHECK_PTR_EQ(local->scope, build);
+    NAOS_CHECK_PTR_EQ(local->program, program);
+    NAOS_CHECK_UINT_EQ(local->index, 0);
+
+    NAOS_REQUIRE_UINT_EQ(copy->positionals.len, 2);
+    NAOS_CHECK_PTR_EQ(positional_at(copy, 0), src);
+    NAOS_CHECK_PTR_EQ(positional_at(copy, 1), dst);
+    NAOS_CHECK_UINT_EQ(src->index, 0);
+    NAOS_CHECK_UINT_EQ(dst->index, 1);
+    NAOS_CHECK_PTR_EQ(src->scope, copy);
+    NAOS_CHECK_PTR_EQ(src->program, program);
+    NAOS_REQUIRE_NOT_NULL(src->name);
+    NAOS_CHECK_STR_EQ(src->name, "src");
+    NAOS_CHECK_NULL(src->help);
+    NAOS_CHECK_FALSE(src->required);
+    NAOS_CHECK_FALSE(src->variadic);
+
+    clopts_program_free(program);
+}
+
+NAOS_TEST(root_takes_positionals_and_handler)
+{
+    int userdata = 7;
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_positional_t *file;
+
+    program = clopts_program_new("filt");
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+
+    file = clopts_command_add_positional(root, "file");
+    clopts_command_set_handler(root, dummy_handler, &userdata);
+    clopts_command_set_description(root, "Filters lines.");
+
+    NAOS_REQUIRE_NOT_NULL(file);
+    NAOS_REQUIRE_UINT_EQ(root->positionals.len, 1);
+    NAOS_CHECK_PTR_EQ(positional_at(root, 0), file);
+    NAOS_CHECK_PTR_EQ(file->scope, root);
+    NAOS_CHECK_TRUE(root->handler == dummy_handler);
+    NAOS_CHECK_PTR_EQ(root->userdata, &userdata);
+    NAOS_REQUIRE_NOT_NULL(root->description);
+    NAOS_CHECK_STR_EQ(root->description, "Filters lines.");
+
+    clopts_program_free(program);
+}
+
+/* ---- string copies --------------------------------------------------------- */
+
+NAOS_TEST(strings_are_copied)
+{
+    char cmd_name[] = "build";
+    char long_name[] = "output";
+    char pos_name[] = "src";
+    char text[32];
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_command_t *build;
+    clopts_option_t *output;
+    clopts_positional_t *src;
+
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+
+    build = clopts_program_add_command(program, cmd_name);
+    output = clopts_command_add_value(build, long_name, 'o');
+    src = clopts_command_add_positional(build, pos_name);
+    NAOS_REQUIRE_NOT_NULL(build);
+    NAOS_REQUIRE_NOT_NULL(output);
+    NAOS_REQUIRE_NOT_NULL(src);
+    memset(cmd_name, 'X', sizeof(cmd_name) - 1);
+    memset(long_name, 'X', sizeof(long_name) - 1);
+    memset(pos_name, 'X', sizeof(pos_name) - 1);
+
+    strcpy(text, "1.2.3");
+    clopts_program_set_version(program, text);
+    strcpy(text, "XXXXX");
+    strcpy(text, "Builds.");
+    clopts_command_set_summary(build, text);
+    strcpy(text, "XXXXXXX");
+    strcpy(text, "Builds the tree.");
+    clopts_command_set_description(build, text);
+    strcpy(text, "XXXXXXXXXXXXXXXX");
+    strcpy(text, "Program text.");
+    clopts_command_set_description(root, text);
+    strcpy(text, "XXXXXXXXXXXXX");
+    strcpy(text, "Output file.");
+    clopts_option_set_help(output, text);
+    strcpy(text, "XXXXXXXXXXXX");
+    strcpy(text, "FILE");
+    clopts_option_set_value_name(output, text);
+    strcpy(text, "XXXX");
+    strcpy(text, "TOOL_OUTPUT");
+    clopts_option_set_env(output, text);
+    strcpy(text, "XXXXXXXXXXX");
+    strcpy(text, "a.out");
+    clopts_option_set_default(output, text);
+    strcpy(text, "XXXXX");
+    strcpy(text, "Source.");
+    clopts_positional_set_help(src, text);
+    strcpy(text, "XXXXXXX");
+
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+    NAOS_CHECK_STR_EQ(build->name, "build");
+    NAOS_CHECK_STR_EQ(output->long_name, "output");
+    NAOS_CHECK_STR_EQ(src->name, "src");
+    NAOS_REQUIRE_NOT_NULL(program->version);
+    NAOS_CHECK_STR_EQ(program->version, "1.2.3");
+    NAOS_REQUIRE_NOT_NULL(build->summary);
+    NAOS_CHECK_STR_EQ(build->summary, "Builds.");
+    NAOS_REQUIRE_NOT_NULL(build->description);
+    NAOS_CHECK_STR_EQ(build->description, "Builds the tree.");
+    NAOS_REQUIRE_NOT_NULL(root->description);
+    NAOS_CHECK_STR_EQ(root->description, "Program text.");
+    NAOS_REQUIRE_NOT_NULL(output->help);
+    NAOS_CHECK_STR_EQ(output->help, "Output file.");
+    NAOS_REQUIRE_NOT_NULL(output->value_name);
+    NAOS_CHECK_STR_EQ(output->value_name, "FILE");
+    NAOS_REQUIRE_NOT_NULL(output->env);
+    NAOS_CHECK_STR_EQ(output->env, "TOOL_OUTPUT");
+    NAOS_REQUIRE_NOT_NULL(output->default_value);
+    NAOS_CHECK_STR_EQ(output->default_value, "a.out");
+    NAOS_REQUIRE_NOT_NULL(src->help);
+    NAOS_CHECK_STR_EQ(src->help, "Source.");
+
+    clopts_program_free(program);
+}
+
+/* ---- setting again --------------------------------------------------------- */
+
+NAOS_TEST(setting_again_keeps_the_last_value)
+{
+    int first = 1;
+    int second = 2;
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_command_t *build;
+    clopts_option_t *value;
+    clopts_option_t *list;
+    clopts_option_t *count;
+    clopts_option_t *flag;
+    clopts_positional_t *src;
+
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+    build = clopts_program_add_command(program, "build");
+    value = clopts_command_add_value(root, "output", 'o');
+    list = clopts_command_add_list(root, "include", 'I');
+    count = clopts_command_add_count(root, "verbose", 'v');
+    flag = clopts_command_add_flag(root, "color", '\0');
+    src = clopts_command_add_positional(build, "src");
+    NAOS_REQUIRE_NOT_NULL(src);
+
+    clopts_program_set_version(program, "1.0");
+    clopts_program_set_version(program, "2.0");
+    clopts_command_set_summary(build, "first");
+    clopts_command_set_summary(build, "second");
+    clopts_command_set_description(build, "first");
+    clopts_command_set_description(build, "second");
+    clopts_command_set_handler(build, dummy_handler, &first);
+    clopts_command_set_handler(build, other_handler, &second);
+    clopts_option_set_help(value, "first");
+    clopts_option_set_help(value, "second");
+    clopts_option_set_value_name(value, "A");
+    clopts_option_set_value_name(value, "B");
+    clopts_option_set_env(value, "ENV_A");
+    clopts_option_set_env(value, "ENV_B");
+    clopts_option_set_default(value, "x");
+    clopts_option_set_default(value, "y");
+    clopts_option_set_delimiter(list, ',');
+    clopts_option_set_delimiter(list, ':');
+    clopts_option_set_count_max(count, 3);
+    clopts_option_set_count_max(count, 8);
+    clopts_option_set_negatable(flag, true);
+    clopts_option_set_required(list, true);
+    clopts_positional_set_help(src, "first");
+    clopts_positional_set_help(src, "second");
+    clopts_positional_set_required(src, true);
+    clopts_positional_set_variadic(src, true);
+
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+    NAOS_CHECK_STR_EQ(program->version, "2.0");
+    NAOS_CHECK_STR_EQ(build->summary, "second");
+    NAOS_CHECK_STR_EQ(build->description, "second");
+    NAOS_CHECK_TRUE(build->handler == other_handler);
+    NAOS_CHECK_PTR_EQ(build->userdata, &second);
+    NAOS_CHECK_STR_EQ(value->help, "second");
+    NAOS_CHECK_STR_EQ(value->value_name, "B");
+    NAOS_CHECK_STR_EQ(value->env, "ENV_B");
+    NAOS_CHECK_STR_EQ(value->default_value, "y");
+    NAOS_CHECK_INT_EQ(list->delimiter, ':');
+    NAOS_CHECK_UINT_EQ(count->count_max, 8);
+    NAOS_CHECK_TRUE(flag->negatable);
+    NAOS_CHECK_TRUE(list->required);
+    NAOS_CHECK_STR_EQ(src->help, "second");
+    NAOS_CHECK_TRUE(src->required);
+    NAOS_CHECK_TRUE(src->variadic);
+
+    /* NULL, false, '\0' and 0 reset */
+    clopts_program_set_version(program, NULL);
+    clopts_command_set_summary(build, NULL);
+    clopts_command_set_description(build, NULL);
+    clopts_command_set_handler(build, NULL, NULL);
+    clopts_option_set_help(value, NULL);
+    clopts_option_set_value_name(value, NULL);
+    clopts_option_set_env(value, NULL);
+    clopts_option_set_default(value, NULL);
+    clopts_option_set_delimiter(list, '\0');
+    clopts_option_set_count_max(count, 0);
+    clopts_option_set_negatable(flag, false);
+    clopts_option_set_required(list, false);
+    clopts_positional_set_help(src, NULL);
+    clopts_positional_set_variadic(src, false);
+    clopts_positional_set_required(src, false);
+
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+    NAOS_CHECK_NULL(program->version);
+    NAOS_CHECK_NULL(build->summary);
+    NAOS_CHECK_NULL(build->description);
+    NAOS_CHECK_TRUE(build->handler == NULL);
+    NAOS_CHECK_NULL(build->userdata);
+    NAOS_CHECK_NULL(value->help);
+    NAOS_CHECK_NULL(value->value_name);
+    NAOS_CHECK_NULL(value->env);
+    NAOS_CHECK_NULL(value->default_value);
+    NAOS_CHECK_INT_EQ(list->delimiter, '\0');
+    NAOS_CHECK_UINT_EQ(count->count_max, 0);
+    NAOS_CHECK_FALSE(flag->negatable);
+    NAOS_CHECK_FALSE(list->required);
+    NAOS_CHECK_NULL(src->help);
+    NAOS_CHECK_FALSE(src->variadic);
+    NAOS_CHECK_FALSE(src->required);
+
+    clopts_program_free(program);
+}
+
+/* ---- handle stability ---------------------------------------------------- */
+
+NAOS_TEST(hundred_options_keep_the_first_handle)
+{
+    char name[16];
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_option_t *first;
+    clopts_option_t *option;
+    int i;
+
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+
+    first = clopts_command_add_value(root, "o0", 'a');
+    NAOS_REQUIRE_NOT_NULL(first);
+    clopts_option_set_help(first, "first help");
+    for (i = 1; i < 100; i++)
+    {
+        (void)snprintf(name, sizeof(name), "o%d", i);
+        option = clopts_command_add_flag(root, name, '\0');
+        NAOS_NOTE("i=%d", i);
+        NAOS_REQUIRE_NOT_NULL(option);
+        NAOS_CHECK_UINT_EQ(option->index, (size_t)i);
+    }
+
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+    NAOS_REQUIRE_UINT_EQ(root->options.len, 100);
+    NAOS_CHECK_PTR_EQ(option_at(root, 0), first);
+    NAOS_CHECK_PTR_EQ(first->program, program);
+    NAOS_CHECK_PTR_EQ(first->scope, root);
+    NAOS_CHECK_UINT_EQ(first->index, 0);
+    NAOS_CHECK_INT_EQ(first->kind, CLOPTS_PARSER_VALUE);
+    NAOS_CHECK_STR_EQ(first->long_name, "o0");
+    NAOS_CHECK_INT_EQ(first->short_name, 'a');
+    NAOS_CHECK_STR_EQ(first->help, "first help");
+    NAOS_CHECK_STR_EQ(option_at(root, 99)->long_name, "o99");
+
+    clopts_program_free(program);
+}
+
+/* ---- out of memory --------------------------------------------------------- */
+
+NAOS_TEST(first_out_of_memory_stops_the_builder)
+{
+    clopts_parser_probe_t probe;
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_result_t *result;
+
+    probe = make_probe(1);
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_parser_set_probe(program, &probe);
+    NAOS_CHECK_PTR_EQ(program->probe, &probe);
+    root = clopts_program_root(program);
+
+    NAOS_CHECK_NULL(clopts_command_add_flag(root, "force", 'f'));
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OUT_OF_MEMORY);
+
+    /* later calls do nothing, even when allocation would succeed again */
+    probe.fail_at = 0;
+    probe.calls = 0;
+    NAOS_CHECK_NULL(clopts_command_add_value(root, "output", 'o'));
+    NAOS_CHECK_NULL(clopts_program_add_command(program, "build"));
+    NAOS_CHECK_NULL(clopts_command_add_positional(root, "file"));
+    clopts_program_set_version(program, "1.0");
+    clopts_command_set_description(root, "text");
+    NAOS_CHECK_UINT_EQ(probe.calls, 0);
+    NAOS_CHECK_UINT_EQ(root->options.len, 0);
+    NAOS_CHECK_UINT_EQ(program->commands.len, 0);
+    NAOS_CHECK_NULL(program->version);
+    NAOS_CHECK_NULL(root->description);
+    NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OUT_OF_MEMORY);
+
+    /* the root is still returned */
+    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
+
+    result = clopts_program_validate(program);
+    NAOS_CHECK_PTR_EQ(result, clopts_parser_result_oom());
+    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_CHECK_TRUE(program->frozen);
+    clopts_result_free(result);
+
+    clopts_program_free(program);
+    NAOS_CHECK_INT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(setter_out_of_memory_keeps_the_old_copy)
+{
+    clopts_parser_probe_t probe;
+    clopts_program_t *program;
+    clopts_option_t *output;
+
+    probe = make_probe(0);
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_parser_set_probe(program, &probe);
+    output = clopts_command_add_value(clopts_program_root(program), "output", 'o');
+    NAOS_REQUIRE_NOT_NULL(output);
+    clopts_option_set_help(output, "old");
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+
+    probe.fail_at = probe.calls + 1;
+    clopts_option_set_help(output, "new");
+    NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OUT_OF_MEMORY);
+    NAOS_REQUIRE_NOT_NULL(output->help);
+    NAOS_CHECK_STR_EQ(output->help, "old");
+
+    clopts_program_free(program);
+    NAOS_CHECK_INT_EQ(probe.live, 0);
+}
+
+/* Builds a small program through every allocating builder function. */
+static void build_sample(clopts_program_t *program)
+{
+    clopts_command_t *root;
+    clopts_command_t *build;
+    clopts_option_t *output;
+    clopts_option_t *include;
+    clopts_positional_t *src;
+
+    root = clopts_program_root(program);
+    clopts_program_set_version(program, "1.0");
+    clopts_command_set_description(root, "A tool.");
+    (void)clopts_command_add_count(root, "verbose", 'v');
+    build = clopts_program_add_command(program, "build");
+    clopts_command_set_summary(build, "Builds.");
+    clopts_command_set_description(build, "Builds the tree.");
+    output = clopts_command_add_value(build, "output", 'o');
+    clopts_option_set_help(output, "Output file.");
+    clopts_option_set_value_name(output, "FILE");
+    clopts_option_set_env(output, "TOOL_OUTPUT");
+    clopts_option_set_default(output, "a.out");
+    include = clopts_command_add_list(build, "include", 'I');
+    clopts_option_set_delimiter(include, ',');
+    (void)clopts_command_add_flag(build, "release", '\0');
+    src = clopts_command_add_positional(build, "src");
+    clopts_positional_set_help(src, "Source.");
+}
+
+NAOS_TEST(every_failure_point_is_released)
+{
+    clopts_parser_probe_t probe;
+    clopts_program_t *program;
+    size_t fail_at;
+    bool succeeded = false;
+
+    for (fail_at = 1; (fail_at < 200) && (!succeeded); fail_at++)
+    {
+        NAOS_NOTE("fail_at=%u", (unsigned)fail_at);
+        probe = make_probe(fail_at);
+        program = clopts_program_new("tool");
+        NAOS_REQUIRE_NOT_NULL(program);
+        clopts_parser_set_probe(program, &probe);
+
+        build_sample(program);
+        if (probe.calls < fail_at)
+        {
+            NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OK);
+            succeeded = true;
+        }
+        else
+        {
+            NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OUT_OF_MEMORY);
+        }
+
+        clopts_program_free(program);
+        NAOS_CHECK_INT_EQ(probe.live, 0);
+    }
+    NAOS_CHECK_TRUE(succeeded);
+    NAOS_CHECK_UINT_GT(fail_at, 2);
+}
+
+/* ---- validation entry ------------------------------------------------------ */
 
 NAOS_TEST(validate_null_program_returns_sentinel)
 {
@@ -17,12 +640,174 @@ NAOS_TEST(validate_null_program_returns_sentinel)
 
     result = clopts_program_validate(NULL);
     NAOS_REQUIRE_NOT_NULL(result);
+    NAOS_CHECK_PTR_EQ(result, clopts_parser_result_oom());
     NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OUT_OF_MEMORY);
     NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NONE);
     clopts_result_free(result);
-    clopts_program_free(NULL);
+}
+
+NAOS_TEST(validate_fresh_program_returns_ok)
+{
+    clopts_parser_probe_t probe;
+    clopts_program_t *program;
+    clopts_result_t *result;
+
+    probe = make_probe(0);
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_parser_set_probe(program, &probe);
+    build_sample(program);
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+
+    result = clopts_program_validate(program);
+    NAOS_REQUIRE_NOT_NULL(result);
+    NAOS_CHECK_TRUE(result != clopts_parser_result_oom());
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NONE);
+    NAOS_CHECK_NULL(clopts_result_error_command(result));
+    NAOS_CHECK_NULL(clopts_result_error_option(result));
+    NAOS_CHECK_NULL(clopts_result_error_positional(result));
+    NAOS_CHECK_PTR_EQ(result->program, program);
+    NAOS_CHECK_PTR_EQ(result->probe, &probe);
+    NAOS_CHECK_FALSE(result->parsed);
+    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+    NAOS_CHECK_TRUE(program->frozen);
+    NAOS_CHECK_PTR_EQ(clopts_program_root(program), &program->root);
+
+    clopts_result_free(result);
+    clopts_program_free(program);
+    NAOS_CHECK_INT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(validate_result_allocation_failure_returns_sentinel)
+{
+    clopts_parser_probe_t probe;
+    clopts_program_t *program;
+    clopts_result_t *result;
+
+    probe = make_probe(0);
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_parser_set_probe(program, &probe);
+    (void)clopts_command_add_flag(clopts_program_root(program), "force", 'f');
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+
+    probe.fail_at = probe.calls + 1;
+    result = clopts_program_validate(program);
+    NAOS_CHECK_PTR_EQ(result, clopts_parser_result_oom());
+    NAOS_CHECK_TRUE(program->frozen);
+    clopts_result_free(result);
+
+    clopts_program_free(program);
+    NAOS_CHECK_INT_EQ(probe.live, 0);
+}
+
+/*
+ * The immediate checks come with task 6.1; here a recorded declaration error
+ * is put into the model directly to check what the entry copies.
+ */
+NAOS_TEST(validate_copies_a_recorded_declaration_error)
+{
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_command_t *build;
+    clopts_option_t *output;
+    clopts_positional_t *src;
+    clopts_result_t *result;
+
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+    build = clopts_program_add_command(program, "build");
+    output = clopts_command_add_value(build, "output", 'o');
+    src = clopts_command_add_positional(build, "src");
+    NAOS_REQUIRE_NOT_NULL(src);
+
+    program->error.status = CLOPTS_DECL_ERROR;
+    program->error.kind = CLOPTS_DECL_DUPLICATE_OPTION;
+    program->error.command = build;
+    program->error.option = output;
+    program->error.positional = NULL;
+
+    result = clopts_program_validate(program);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_DECL_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_DUPLICATE_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), build);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), output);
+    NAOS_CHECK_NULL(clopts_result_error_positional(result));
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_NONE);
+    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+    clopts_result_free(result);
+
+    /* the root is reported as NULL */
+    program->error.kind = CLOPTS_DECL_POSITIONAL_ORDER;
+    program->error.command = root;
+    program->error.option = NULL;
+    program->error.positional = src;
+    result = clopts_program_validate(program);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_DECL_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_POSITIONAL_ORDER);
+    NAOS_CHECK_NULL(clopts_result_error_command(result));
+    NAOS_CHECK_NULL(clopts_result_error_option(result));
+    NAOS_CHECK_PTR_EQ(clopts_result_error_positional(result), src);
+    clopts_result_free(result);
+
+    clopts_program_free(program);
+}
+
+/* ---- freezing ---------------------------------------------------------------- */
+
+NAOS_TEST(builder_after_validation_does_nothing)
+{
+#ifdef NDEBUG
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_option_t *flag;
+    clopts_result_t *result;
+
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+    flag = clopts_command_add_flag(root, "force", 'f');
+    NAOS_REQUIRE_NOT_NULL(flag);
+
+    result = clopts_program_validate(program);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    clopts_result_free(result);
+
+    NAOS_CHECK_NULL(clopts_command_add_flag(root, "other", 'o'));
+    NAOS_CHECK_NULL(clopts_program_add_command(program, "build"));
+    NAOS_CHECK_NULL(clopts_command_add_positional(root, "file"));
+    clopts_option_set_help(flag, "help");
+    clopts_program_set_version(program, "1.0");
+    NAOS_CHECK_UINT_EQ(root->options.len, 1);
+    NAOS_CHECK_UINT_EQ(program->commands.len, 0);
+    NAOS_CHECK_NULL(flag->help);
+    NAOS_CHECK_NULL(program->version);
+    NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
+
+    clopts_program_free(program);
+#else
+    NAOS_SKIP("needs NDEBUG: a builder call on a frozen program is caught by assert");
+#endif
 }
 
 NAOS_SUITE(build,
-    NAOS_ADD_TEST(validate_null_program_returns_sentinel)
+    NAOS_ADD_TEST(null_handles_do_nothing),
+    NAOS_ADD_TEST(free_null_program_does_nothing),
+    NAOS_ADD_TEST(program_new_embeds_root_and_copies_name),
+    NAOS_ADD_TEST(adders_link_objects_in_order),
+    NAOS_ADD_TEST(root_takes_positionals_and_handler),
+    NAOS_ADD_TEST(strings_are_copied),
+    NAOS_ADD_TEST(setting_again_keeps_the_last_value),
+    NAOS_ADD_TEST(hundred_options_keep_the_first_handle),
+    NAOS_ADD_TEST(first_out_of_memory_stops_the_builder),
+    NAOS_ADD_TEST(setter_out_of_memory_keeps_the_old_copy),
+    NAOS_ADD_TEST(every_failure_point_is_released),
+    NAOS_ADD_TEST(validate_null_program_returns_sentinel),
+    NAOS_ADD_TEST(validate_fresh_program_returns_ok),
+    NAOS_ADD_TEST(validate_result_allocation_failure_returns_sentinel),
+    NAOS_ADD_TEST(validate_copies_a_recorded_declaration_error),
+    NAOS_ADD_TEST(builder_after_validation_does_nothing)
 )

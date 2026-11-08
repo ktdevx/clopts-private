@@ -2,13 +2,18 @@
  * Result handle: allocation, the out-of-memory sentinel, recording into
  * slots, the accessors, run and release.
  *
- * Implemented: the sentinel, and clopts_result_free() ignoring NULL and the
- * sentinel. Every accessor reads a NULL result like the sentinel. Skeleton:
- * the other functions are placeholders that return fixed values (the
- * sentinel's values for the accessors). Task 6.2 implements them.
+ * Implemented: the sentinel; clopts_parser_result_new() for the result
+ * itself (no slots yet); clopts_result_status() and the declaration error
+ * accessors; clopts_result_free() ignoring NULL and the sentinel and
+ * releasing the result itself. Every accessor reads a NULL result like the
+ * sentinel. Skeleton: the other functions are placeholders that return fixed
+ * values (the sentinel's values for the accessors). Task 6.2 implements them,
+ * together with the slots of clopts_parser_result_new() and their release.
  */
 
 #include "parser/parser_internal.h"
+
+#include <assert.h>
 
 /*
  * The out-of-memory sentinel. Never written to; shared between threads
@@ -42,8 +47,35 @@ static const struct clopts_result parser_result_sentinel = {
 
 clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
 {
-    (void)program;
-    return NULL;
+    clopts_result_t *result;
+
+    assert(program != NULL);
+
+    result = (clopts_result_t *)clopts_parser_calloc(program->probe, 1, sizeof(*result));
+    if (result == NULL)
+    {
+        return NULL;
+    }
+    result->status = CLOPTS_OK;
+    result->program = program;
+    result->command = NULL;
+    result->error.usage = CLOPTS_USAGE_NONE;
+    result->error.decl = CLOPTS_DECL_NONE;
+    result->error.command = NULL;
+    result->error.option = NULL;
+    result->error.positional = NULL;
+    result->error.token = NULL;
+    result->error.argv_index = -1;
+    result->error.name_len = 0;
+    result->error.short_name = '\0';
+    result->parsed = false;
+    result->global_slots = NULL;
+    result->global_count = 0;
+    result->command_slots = NULL;
+    result->command_count = 0;
+    clopts_core_vec_init(&result->positionals, sizeof(const char *));
+    result->probe = program->probe;
+    return result;
 }
 
 clopts_result_t *clopts_parser_result_oom(void)
@@ -114,6 +146,13 @@ int clopts_parser_result_add_positional(clopts_result_t *result, const char *tok
 
 /* ---- public accessors ---- */
 
+/* Returns true when result carries an error (status USAGE_ERROR or DECL_ERROR). */
+static bool result_has_error(const clopts_result_t *result)
+{
+    return ((result != NULL) &&
+            ((result->status == CLOPTS_USAGE_ERROR) || (result->status == CLOPTS_DECL_ERROR)));
+}
+
 clopts_status_t clopts_result_status(const clopts_result_t *result)
 {
     if (result == NULL)
@@ -137,26 +176,38 @@ clopts_usage_error_t clopts_result_usage_error(const clopts_result_t *result)
 
 clopts_decl_error_t clopts_result_decl_error(const clopts_result_t *result)
 {
-    (void)result;
-    return CLOPTS_DECL_NONE;
+    if (!result_has_error(result))
+    {
+        return CLOPTS_DECL_NONE;
+    }
+    return result->error.decl;
 }
 
 const clopts_command_t *clopts_result_error_command(const clopts_result_t *result)
 {
-    (void)result;
-    return NULL;
+    if (!result_has_error(result))
+    {
+        return NULL;
+    }
+    return result->error.command;
 }
 
 const clopts_option_t *clopts_result_error_option(const clopts_result_t *result)
 {
-    (void)result;
-    return NULL;
+    if (!result_has_error(result))
+    {
+        return NULL;
+    }
+    return result->error.option;
 }
 
 const clopts_positional_t *clopts_result_error_positional(const clopts_result_t *result)
 {
-    (void)result;
-    return NULL;
+    if (!result_has_error(result))
+    {
+        return NULL;
+    }
+    return result->error.positional;
 }
 
 const char *clopts_result_error_token(const clopts_result_t *result)
@@ -251,4 +302,5 @@ void clopts_result_free(clopts_result_t *result)
     {
         return;
     }
+    clopts_parser_free(result->probe, result);
 }
