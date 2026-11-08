@@ -17,7 +17,7 @@
   - 完了条件: `ctest -N` に各スイートの `platform_tests.<suite>.<test>` が並び（Windows では 6 スイート、それ以外では 4 スイート）、`ctest -L platform` が静的ビルドと共有ビルドで通る
   - _Requirements: 9.1_
 
-- [ ] 1.3 確保の入口と probe を実装してテストする
+- [x] 1.3 確保の入口と probe を実装してテストする
   - probe がなければ標準の確保と解放をそのまま呼ぶ。probe があれば、確保の試行を数え、指定した回数目以降を失敗させ、生きているブロック数を増減する。サイズ 0 の確保を失敗と取り違えない。要素数 × サイズの確保は core の桁あふれ検査を通し、桁あふれなら確保しない
   - テスト（スイート oom のみ編集）: probe なしでの確保と解放、n 回目とそれ以降の失敗、生きているブロック数が解放で 0 に戻ること、桁あふれで確保しないこと
   - 完了条件: `ctest -L platform -R oom` が通る
@@ -114,3 +114,4 @@
 - 検証環境: Linux（gcc、静的・共有）と、MinGW-w64（Ubuntu の msvcrt 系）+ wine 9 によるクロスビルド。MSVC は手元にない。wine 上の ctest は遅いので `-L platform -j8` に絞る。クロスビルドでは integration が以前から失敗する（入れ子の configure がクロスに対応しない）
 - 1.1: 番兵 `platform_argv_oom` は platform_argv.c で実装済み（static const を非 const で返す）。分割のスタブは `*argc = 0` を返すが、2.1 で契約（`*argc >= 1`）を満たすこと
 - 1.2: 補助は tests/platform/test_util.{h,c}。呼び出し側が持つ固定長バッファ `platform_test_u16_t`（容量 `PLATFORM_TEST_U16_CAP` = 1024 単位）に `platform_test_u16_from_ascii` / `_from_units` で作る。容量超過は NDEBUG でも `abort`。1023 単位を超える入力（3.3 の数 KB の値など）は自前で確保すること。分割の比較は `platform_test_split_mismatch`（一致で -1）。convert / crt のファイルは CMake の `if(WIN32)` でだけビルドし、エントリは `#ifdef _WIN32` / `#else` で NAOS_MAIN を 2 つ持つ
+- 1.3: `clopts_platform_malloc_array` の桁あふれは parser と同じく 1 回の試行として `calls` に数える（確保せず `live` は変えない）。probe の失敗位置を総当たりするテストはこの数え方を前提にする
