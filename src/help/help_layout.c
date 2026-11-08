@@ -6,9 +6,9 @@
  * every row is written and padded to it. The rows of a list are read in
  * place from the declaration (no allocation).
  *
- * clopts_write_usage, clopts_write_version and clopts_write_usage_hint are
- * still skeletons: they return CLOPTS_WRITE_UNAVAILABLE without calling
- * write_fn.
+ * Every clopts_write_* function first checks the program: with a declaration error
+ * or out-of-memory recorded it returns CLOPTS_WRITE_UNAVAILABLE without
+ * reading anything else and without calling write_fn.
  */
 
 #include "help/help_internal.h"
@@ -534,6 +534,16 @@ static void help_write_single_help(clopts_help_out_t *out, const clopts_program_
 
 /* ---- public functions -------------------------------------------------- */
 
+/*
+ * Text can be generated for program: no declaration error and no
+ * out-of-memory is recorded on it (11.6). Checked before anything else is
+ * read, since names may be NULL in a program with a recorded error.
+ */
+static bool help_program_available(const clopts_program_t *program)
+{
+    return program->error.status == CLOPTS_OK;
+}
+
 clopts_write_status_t clopts_write_help(const clopts_program_t *program, const clopts_command_t *command,
                                         clopts_write_fn write_fn, void *ctx)
 {
@@ -543,6 +553,10 @@ clopts_write_status_t clopts_write_help(const clopts_program_t *program, const c
     assert(write_fn != NULL);
     assert((command == NULL) || (command->program == program));
 
+    if (!help_program_available(program))
+    {
+        return CLOPTS_WRITE_UNAVAILABLE;
+    }
     if (command == NULL)
     {
         command = &program->root;
@@ -567,27 +581,68 @@ clopts_write_status_t clopts_write_help(const clopts_program_t *program, const c
 clopts_write_status_t clopts_write_usage(const clopts_program_t *program, const clopts_command_t *command,
                                          clopts_write_fn write_fn, void *ctx)
 {
-    (void)program;
-    (void)command;
-    (void)write_fn;
-    (void)ctx;
-    return CLOPTS_WRITE_UNAVAILABLE;
+    clopts_help_out_t out;
+
+    assert(program != NULL);
+    assert(write_fn != NULL);
+    assert((command == NULL) || (command->program == program));
+
+    if (!help_program_available(program))
+    {
+        return CLOPTS_WRITE_UNAVAILABLE;
+    }
+    if (command == NULL)
+    {
+        command = &program->root;
+    }
+
+    clopts_help_out_init(&out, write_fn, ctx);
+    help_write_usage_line(&out, program, command);
+    return clopts_help_out_status(&out);
 }
 
 clopts_write_status_t clopts_write_version(const clopts_program_t *program, clopts_write_fn write_fn, void *ctx)
 {
-    (void)program;
-    (void)write_fn;
-    (void)ctx;
-    return CLOPTS_WRITE_UNAVAILABLE;
+    clopts_help_out_t out;
+
+    assert(program != NULL);
+    assert(write_fn != NULL);
+
+    if (!help_program_available(program) || (program->version == NULL))
+    {
+        return CLOPTS_WRITE_UNAVAILABLE;
+    }
+
+    clopts_help_out_init(&out, write_fn, ctx);
+    clopts_help_out_str(&out, program->root.name);
+    clopts_help_out_char(&out, ' ');
+    clopts_help_out_str(&out, program->version);
+    clopts_help_out_char(&out, '\n');
+    return clopts_help_out_status(&out);
 }
 
 clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, const clopts_command_t *command,
                                               clopts_write_fn write_fn, void *ctx)
 {
-    (void)program;
-    (void)command;
-    (void)write_fn;
-    (void)ctx;
-    return CLOPTS_WRITE_UNAVAILABLE;
+    clopts_help_out_t out;
+
+    assert(program != NULL);
+    assert(write_fn != NULL);
+    assert((command == NULL) || (command->program == program));
+
+    if (!help_program_available(program))
+    {
+        return CLOPTS_WRITE_UNAVAILABLE;
+    }
+
+    clopts_help_out_init(&out, write_fn, ctx);
+    clopts_help_out_str(&out, "Run '");
+    clopts_help_out_str(&out, program->root.name);
+    if ((command != NULL) && (command != &program->root))
+    {
+        clopts_help_out_char(&out, ' ');
+        clopts_help_out_str(&out, command->name);
+    }
+    clopts_help_out_str(&out, " --help' for usage.\n");
+    return clopts_help_out_status(&out);
 }

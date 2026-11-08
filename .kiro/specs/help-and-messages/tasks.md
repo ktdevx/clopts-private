@@ -25,7 +25,7 @@
   - 完了条件: `ctest -L help -R out` が通る
   - _Requirements: 10.2, 10.3, 11.1, 11.4, 11.5, 12.5_
 
-- [ ] 3. ヘルプのレイアウト
+- [x] 3. ヘルプのレイアウト
 - [x] 3.1 オプションの行（左列の表記と注記）と、一覧の 2 パスの桁揃えを実装してテストする
   - 左列: 短い名前と長い名前、長い名前だけ（空白 4 個の字下げ）、短い名前だけ、否定可能な FLAG の `--[no-]name`、COUNT の `...`、VALUE の ` <V>`、区切り文字付き LIST の ` <V>[d<V>...]`、区切り文字なし LIST の ` <V>...`、値の表示名が未設定なら `VALUE`
   - 注記: 説明の後に `(required)`、`(default: X)`、`[env: NAME]` をこの順で付け、半角空白 1 個で区切る。説明がなければ最初の注記を説明の位置から書く。説明も注記もなければ左列だけを書き、行末に空白を残さない。空文字列は未設定として扱う
@@ -42,7 +42,7 @@
   - 完了条件: `ctest -L help -R layout` が通り、期待するバイト列が設計の出力例の規則（字下げ 2、最大幅 + 2）と一致する
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 5.1, 5.2, 5.4, 10.4, 10.5, 10.7, 12.3_
 
-- [ ] 3.3 Usage 行だけ、バージョン行、使い方の案内と、エラーが記録された program に対する入口の検査を実装してテストする
+- [x] 3.3 Usage 行だけ、バージョン行、使い方の案内と、エラーが記録された program に対する入口の検査を実装してテストする
   - Usage 行だけを書く関数は、ヘルプの先頭と同じ 1 行を書く。バージョン行は `<program> <version>`、版がなければ何も書かずに UNAVAILABLE を返す。使い方の案内は、command の有無で 2 形を書く
   - ヘルプ系の 4 関数は、program に宣言エラーかメモリ不足が記録されていれば、何も書かずに UNAVAILABLE を返す
   - テスト（スイート layout に追加）: Usage 行の 3 形、バージョン行の OK と UNAVAILABLE、案内の 2 形、宣言エラーを記録した program でヘルプ系 4 関数が UNAVAILABLE を返しコールバックが呼ばれないこと、生成の前後で宣言が変わらないこと（同じ宣言での 2 回目の生成が同じバイト列になること）
@@ -85,3 +85,4 @@
 - 2.1: 計測モードは clopts_help_out_init に fn == NULL を渡す。spaces は 32 バイトずつ書く（呼び出し回数は契約外）。`ctest -R out` は layout にも一致するので、スイートだけを見るなら `-R help_tests.out` を使う
 - 3.1: 一覧は help_internal.h の clopts_help_row_t {option, left, help} の配列を clopts_help_write_list(out, rows, count) に渡す（設計は型を決めていないので実装で決めた）。行だけを書き、見出しと空行は書かない。option 行では left / help を読まない。3.2 では clopts_help_row_t を変えず、help_layout.c 内の static な help_item_t / help_list_t（宣言の vec をその場で読む）で位置引数とコマンドの行を作った
 - 3.2: clopts_write_help はまだ入口で program->error.status を見ない。3.3 で、プログラム名を読む前に検査を入れる（エラーの program では root.name が NULL になりうる）。Usage 行は static の help_write_usage_line を 3.3 で再利用できる。バージョンなし・サブコマンドありの宣言 nover は test_layout.c の中だけにある
+- 3.3: ヘルプ系 4 関数の入口は static の help_program_available（program->error.status == CLOPTS_OK）。メモリ不足も同じ error.status に記録されるので、この 1 つの検査で足りる（メモリ不足の program のテストはない）。validate・凍結は起動しない。msys の sed -i は CRLF を落とすことがあるので、フラグの切り替えには使わない
