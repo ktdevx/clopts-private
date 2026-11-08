@@ -71,7 +71,7 @@
   - _Depends: 2.2, 2.3, 2.4, 2.5_
   - _Requirements: 3.1, 3.2, 3.3, 4.7, 5.5, 5.6, 5.8_
 
-- [ ] 3.2 CI に独立した `abi-compare` ジョブを足す
+- [x] 3.2 CI に独立した `abi-compare` ジョブを足す
   - `.github/workflows/ci.yml` に、既存のトリガで動き、既存の `build-and-test` ジョブと互いに `needs` で依存しないジョブ `abi-compare`（`ubuntu-latest`）を足す。手順は `actions/checkout@v4`（`fetch-depth: 0`）、`abigail-tools` の apt でのインストール、`run_abidiff.cmake` の `MODE=compare` 実行（`WORK_DIR` は `RUNNER_TEMP` の下、`C_COMPILER=gcc`、`GENERATOR="Unix Makefiles"`）
   - 既存の `build-and-test` ジョブとマトリクスは変えない
   - 完了条件: ワークフローの YAML が構文として正しく（手元で YAML として読み込めることを確かめる）、既存のジョブとの差分が新しいジョブの追加だけである

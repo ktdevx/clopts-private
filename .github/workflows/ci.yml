@@ -1,5 +1,7 @@
 # Builds and tests CLOpts on the five supported toolchains, as both the
 # static and the shared library (5 x 2 = 10 jobs).
+# A separate abi-compare job checks ABI compatibility with the latest
+# release of the same SOVERSION on Linux.
 # No release steps here: tag checks and GitHub Releases are not part of CI.
 name: CI
 
@@ -107,3 +109,27 @@ jobs:
       - name: Test (label integration)
         if: matrix.toolchain == 'linux-gcc'
         run: ctest --test-dir build -L integration --output-on-failure
+
+  # Compares the ABI of the current sources with the latest release tag of the
+  # same SOVERSION (tests/abi/run_abidiff.cmake). Independent of
+  # build-and-test: neither job needs the other.
+  abi-compare:
+    name: abi-compare
+    runs-on: ubuntu-latest
+    steps:
+      # Full history so the release tags are available as baselines.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install abidiff
+        run: sudo apt-get update && sudo apt-get install -y abigail-tools
+
+      # Builds the baseline tag and the current sources in RUNNER_TEMP, then
+      # runs abidiff; prints "abi-compare: skipped: ..." when there is no
+      # baseline to compare against.
+      - name: Compare ABI
+        run: >-
+          cmake -DSOURCE_DIR=$GITHUB_WORKSPACE -DWORK_DIR=$RUNNER_TEMP/abi
+          -DC_COMPILER=gcc -DGENERATOR="Unix Makefiles"
+          -P tests/abi/run_abidiff.cmake
