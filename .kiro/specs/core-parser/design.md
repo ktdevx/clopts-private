@@ -49,6 +49,7 @@
 - `clopts_getenv_fn` のシグネチャ、戻り値、`*out` の所有権の変更 → platform-argv。
 - 結果の殻 `clopts_result_t` の公開フィールド（`status` / `command` / `error`）の変更 → help-and-messages（`result.command` を読む）。
 - 走査規則・予約名・既定値の変更 → docs-and-release の解析規則の章。
+- `clopts_parse*` の事前条件（`result` はゼロ初期化か前回の結果）の変更 → docs-and-release、examples（利用例は `clopts_result_t r = {0};` で始める）。
 
 ## Architecture
 
@@ -85,7 +86,6 @@ graph TB
     Scanner --> Store
     Scanner --> Resolver
     Resolver --> Store
-    Resolver --> DeclCheck
     Store --> Vec
     Store --> Size
     DeclCheck --> DeclH
@@ -173,7 +173,7 @@ stateDiagram-v2
 
 - Prelude（前段）は argv の先頭からサブコマンド名が現れるまでを処理する。サブコマンドなし構成では Prelude を経ずに Scan に入る。
 - Scan 中の `--help` / `-h` / `--version` は即座に状態を決める（以降のトークンは見ない）。
-- Recover は最初の使い方エラーのトークンの次から `--` の手前までを見る（9.12）。
+- Recover は最初の使い方エラーのトークン自身から `--` の手前までを見る（9.12）。エラーのトークン自身を含めるのは、`tool help --help` のように `help` コマンドの引数として扱われてエラーになった `--help` も要求として拾うため（9.1）。
 - Resolve は「環境変数 → 既定値 → 必須検査」の順で、選択されたスコープ（グローバル + 選択コマンド、または program）に限って行う。NO_COMMAND ではグローバルのみ（7.8、8.6）。
 
 ### 利用側の典型的な流れ
@@ -238,8 +238,8 @@ sequenceDiagram
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | PublicHeaders | 公開 API | 宣言型、状態、エラー、結果、公開関数の契約 | 1.1〜1.9, 2.17, 3.2, 7.6, 10.1〜10.7 | writer.h (P2) | State |
 | DeclCheck | parser | 宣言検査と宣言の照合（コマンド、長い名前、短い名前、否定形） | 2.1〜2.18, 4.5, 5.7, 6.4 | PublicHeaders (P0) | Service |
-| ResultStore | parser | スロットと位置引数の保持、記述子ポインタ参照、解放、ハンドラ呼び出し | 3.4, 5.15, 6.1〜6.12, 11.1〜11.8, 12.1〜12.6 | CoreVec (P0), CoreSize (P0), DeclCheck (P1) | Service, State |
-| Resolver | parser | 環境変数・既定値・必須の解決、既定の取得関数 | 7.1〜7.9, 8.1〜8.7 | ResultStore (P0), DeclCheck (P1) | Service |
+| ResultStore | parser | スロットと位置引数の保持、記述子ポインタ参照、解放、ハンドラ呼び出し | 3.4, 5.15, 6.1〜6.12, 11.1〜11.8, 12.1〜12.6 | CoreVec (P0), CoreSize (P0) | Service, State |
+| Resolver | parser | 環境変数・既定値・必須の解決、既定の取得関数 | 7.1〜7.9, 8.1〜8.7 | ResultStore (P0) | Service |
 | Scanner | parser | 前段・本走査・回復走査・状態決定、`clopts_parse` | 3.1〜3.8, 4.1〜4.6, 5.1〜5.15, 9.1〜9.12, 10.3〜10.4 | DeclCheck (P0), ResultStore (P0), Resolver (P0) | Service |
 | ParserTests | テスト | `tests/parser/` の Naos テスト | 13.1〜13.6 | Naos (P0) | — |
 
@@ -434,8 +434,8 @@ int clopts_result_run(const clopts_result_t *result);
 void clopts_result_free(clopts_result_t *result);
 ```
 
-- 事前条件: `clopts_parse*` は `program != NULL`、`result != NULL`、`argc >= 0`、`argv[0..argc-1]` が NUL 終端（`argc == 0` のとき `argv` の要素は読まない）。`result` は未初期化でも、ゼロ初期化でも、前回の解析結果でもよく、前回の `impl` は解放してから書く。
-- 事後条件: 戻り値 `== result->status`。`CLOPTS_OK` では全スロットの解決済み、位置引数の個数が宣言の範囲内。`CLOPTS_HELP` / `CLOPTS_VERSION` / `CLOPTS_NO_COMMAND` では `error` を触らない。`CLOPTS_DECL_ERROR` では argv を読まない。どの状態でも `clopts_result_free` を呼べる。
+- 事前条件: `clopts_parse*` は `program != NULL`、`result != NULL`、`argc >= 0`、`argv[0..argc-1]` が NUL 終端（`argc == 0` のとき `argv` の要素は読まない）。`result` はゼロ初期化（`clopts_result_t r = {0};`）か前回の解析結果でなければならず、前回の `impl` は解放してから書く。未初期化の `result` は前回の結果と区別できず、解放すると未定義動作になるため受け付けない。
+- 事後条件: 戻り値 `== result->status`。`CLOPTS_OK` では全スロットの解決済み、位置引数の個数が宣言の範囲内。`CLOPTS_USAGE_ERROR` / `CLOPTS_DECL_ERROR` 以外では `error` は初期化済み（ゼロ、`argv_index == -1`）で意味を持たない。`CLOPTS_DECL_ERROR` では argv を読まない。どの状態でも `clopts_result_free` を呼べる。
 - 不変条件: 宣言テーブルと argv は変更されない。`CLOPTS_OK` / `CLOPTS_NO_COMMAND` 以外では値の参照関数を呼ばない（契約違反は `assert`）。
 
 **Implementation Notes**
@@ -480,7 +480,7 @@ void clopts_result_free(clopts_result_t *result);
 - 同一スコープのオプション同士の重複はグローバルと command の間も含めて検査するが、異なる command 同士の重複は許す。
 
 **Dependencies**
-- Inbound: Scanner、Resolver、ResultStore — 照合と検査（P0）
+- Inbound: Scanner — 照合と検査（P0）
 - Outbound: PublicHeaders — 型（P0）
 
 **Contracts**: Service [x]
@@ -642,7 +642,7 @@ int clopts_parser_check_required(clopts_result_t *result, bool include_command);
 | `--help` / `-h`（まとめ書き内の `h` を含む） | `HELP`、`command = NULL`。以降は見ない（9.1） |
 | `--version`（version 非 NULL） | `VERSION`。以降は見ない（9.4） |
 | `--` | 次のトークンから位置引数扱いになるが、サブコマンドが未選択なので最初の位置引数は `UNKNOWN_COMMAND`（4.2） |
-| `help` | 次がなければ `HELP`（全体）。次がサブコマンド名ならその command の `HELP`、さらに次があれば `UNEXPECTED_ARGUMENT`。次がサブコマンド名でなければ `UNKNOWN_COMMAND`（9.2、9.3、9.11） |
+| `help` | 次がなければ `HELP`（全体）。次がサブコマンド名ならその command の `HELP`、さらに次があれば `UNEXPECTED_ARGUMENT`（`help <cmd>` で対象を選択済みなので `error.command` はその command）。次がサブコマンド名でなければ `UNKNOWN_COMMAND`（9.2、9.3、9.11） |
 | サブコマンド名 | `store_select` して本走査へ（4.1） |
 | `-` で始まる（`-` 単体を除く） | グローバルオプションとして本走査と同じ規則で照合・記録（4.3）。見つからなければ `UNKNOWN_OPTION` |
 | 上記以外（`-` 単体を含む） | `UNKNOWN_COMMAND`（4.2） |
@@ -665,7 +665,7 @@ int clopts_parser_check_required(clopts_result_t *result, bool include_command);
 3. FLAG: `set_flag(true, EXPLICIT)`。COUNT: `add_count`。次の文字へ。
 4. VALUE / LIST: 残りの文字列があればそれを値（`=` を含めてそのまま、5.10）、なければ次のトークンをそのまま消費、なければ `MISSING_VALUE`（`short_name = c`）。このトークンの処理を終える。
 
-回復走査（9.12）: 保留した使い方エラーのトークンの次から `--` の手前まで、`--help` / `-h` / `--version`（version 非 NULL）に完全一致するトークンだけを探す。見つかれば `HELP`（選択済みなら選択コマンド）/ `VERSION`、見つからなければ `USAGE_ERROR`。HELP と VERSION が両方あれば先に現れたほう（9.7）。
+回復走査（9.12）: 保留した使い方エラーのトークン自身から `--` の手前まで（エラーより前に `--` に達していれば行わない）、`--help` / `-h` / `--version`（version 非 NULL）に完全一致するトークンだけを探す。見つかれば `HELP`（選択済みなら選択コマンド）/ `VERSION`、見つからなければ `USAGE_ERROR`。HELP と VERSION が両方あれば先に現れたほう（9.7）。エラー後のトークンは解釈しないので、`--bad -o -h` の `-h` も要求として数え、`tool --bad build --help` は未選択のまま program 全体の `HELP` になる。エラーより前に値として消費されたトークンは数えない。
 
 **Dependencies**
 - Inbound: 利用側 — `clopts_parse*`（P0）
@@ -674,7 +674,7 @@ int clopts_parser_check_required(clopts_result_t *result, bool include_command);
 **Contracts**: Service [x]（公開関数は PublicHeaders に記載）
 
 **Implementation Notes**
-- Integration: 走査の状態（現在位置、選択コマンド、保留エラー、`--` 到達、HELP / VERSION 要求）は 1 つの `static` 構造体 `scan_state` にまとめ、表の各行を小関数に分ける。
+- Integration: 走査の状態（現在位置、選択コマンド、保留エラー、`--` 到達、HELP / VERSION 要求）は `parse` の自動変数である 1 つの構造体 `scan_state_t` にまとめ（ファイルスコープの可変状態は持たない）、表の各行を小関数に分ける。
 - Validation: `test_dispatch.c`（前段）、`test_long.c` / `test_short.c`（本走査）、`test_errors.c`（回復走査、優先度、エラーのフィールド）。
 - Risks: 前段で `--` を見た場合の扱いは要件に明示がないため、表のとおり「次のトークンを `UNKNOWN_COMMAND`」とし、テストで固定する。
 
@@ -773,7 +773,7 @@ classDiagram
 ### Error Strategy
 - 使い方エラー: `CLOPTS_USAGE_ERROR` と `result->error`（1 件）。表示と終了コードは利用側。
 - 宣言エラー: `CLOPTS_DECL_ERROR` と `result->error`（1 件）。argv を読まない。開発者の不具合として扱う。
-- メモリ不足・取得失敗: `CLOPTS_OUT_OF_MEMORY`。ストアは解放可能な状態を保つ。`error` は触らない。
+- メモリ不足・取得失敗: `CLOPTS_OUT_OF_MEMORY`。ストアは解放可能な状態を保つ。`error` は初期化済み（ゼロ、`argv_index == -1`）のまま意味を持たない。
 - 契約違反（NULL 渡し、未宣言の記述子、OK 以外での値参照、`handler == NULL` での `run`）: `assert`。戻り値で報告しない（tech.md）。
 
 ### Error Categories and Responses
@@ -781,7 +781,7 @@ classDiagram
 |---|---|---|---|
 | 利用者の入力 | `USAGE_ERROR` | `usage`、`command`、`option` / `positional`、`token`、`argv_index`、`name_len` / `short_name` | help-and-messages で文面化、終了コード決定 |
 | 開発者の宣言 | `DECL_ERROR` | `decl`、`command`、`option` / `positional` | 修正。テストで本番の宣言を `clopts_decl_validate` に通す |
-| 資源 | `OUT_OF_MEMORY` | 変更なし | 終了。`clopts_result_free` は安全 |
+| 資源 | `OUT_OF_MEMORY` | 初期化済み（意味を持たない） | 終了。`clopts_result_free` は安全 |
 
 ## Testing Strategy
 
@@ -789,7 +789,7 @@ classDiagram
 - **decl**: 規則表の 14 行それぞれで `DECL_ERROR` と対応する `decl` 種別、`command` / `option` / `positional` の指し先。妥当な宣言 2 つで `OK`。`clopts_decl_validate` と `clopts_parse` の結果が一致。`version == NULL` のとき `--version` を自前のオプションとして宣言できる（2.1〜2.18）。
 - **dispatch**: `tool build x -o y` が `build` を選択。`tool bulid` が `UNKNOWN_COMMAND`。`tool Build` も不明。`tool -v build x -o y` でグローバル COUNT が 1、`tool build -v x -o y` でも 1（4.1〜4.4）。`tool -o y build` が `UNKNOWN_OPTION`。`tool`、`tool -vv` が `NO_COMMAND` で COUNT 2。`tool --help`、`tool -h`、`tool help`、`tool help copy`、`tool help nope`、`tool help copy x`、`tool --version`、`tool --version build` の状態と `command`（3.6、3.8、9.1〜9.5、9.11）。`filt a b` がなし構成で位置引数 2（4.6）。
 - **long**: `--output y`、`--output -y`（値として消費）、`--output=`（空）、`--output=a=b`、末尾の `--output`（`MISSING_VALUE`）、`--verbose=1`（`UNEXPECTED_VALUE`）、`--out`（不明、前方一致なし）、`--Output`（不明）、`--no-color` で偽・出所 EXPLICIT、`--color --no-color` で偽、`--no-color --color` で真、`--no-output`（不明）、`--no-color=1`（`UNEXPECTED_VALUE`）、`--help=1`（5.1〜5.7、6.1〜6.5）。
-- **short**: `-vvv` で 3、`-vj4` で `j` に `4`、`-vo file`、`-vofile`、`-o=file` で値 `=file`、`-vx` で `UNKNOWN_OPTION` と `short_name == 'x'`、末尾の `-o`（`MISSING_VALUE`、`short_name == 'o'`）、`-vh` が `HELP`（5.8〜5.11、9.1）。
+- **short**: `-vvv` で 3、`-vjk4` で `v` と `j` が 1・`k` に `4`（`-j` は COUNT のため `-vj4` は `'4'` の `UNKNOWN_OPTION`）、`-vo file`、`-vofile`、`-o=file` で値 `=file`、`-vx` で `UNKNOWN_OPTION` と `short_name == 'x'`、末尾の `-o`（`MISSING_VALUE`、`short_name == 'o'`）、`-vh` が `HELP`（5.8〜5.11、9.1）。
 - **values**: `-k a,b -k c` で 3 項目、`-k " a , b"` の空白保持、`-k a,,b` で空項目を保持（3 項目）、`-k ,` で 2 つの空項目、区切りなしの LIST で 1 回 1 項目、`--output a --output b` で `b`、`-j` を 9 回で 8（クランプ）、`-v` の既定上限でクランプされないこと（大きな回数でも増える）（6.6〜6.12）。
 - **positional**: `tool build -o y src a b` で `SRC` と `EXTRA` 2 個、`tool build -o y -- -x --y` で位置引数 2、`tool build -o y -` で `-`、`tool copy a` が `MISSING_ARGUMENT`（`DST`）、`tool copy a b c` が `UNEXPECTED_ARGUMENT`（`c`）、`tool cat` が OK で 0 個、`tool build -o y` が `MISSING_ARGUMENT`（`SRC`）（5.12〜5.15、8.3〜8.5）。
 - **resolve**: モックで `TOOL_CONFIG=/etc/t` → `--config` が ENV、`--config x` で EXPLICIT、未設定で NONE（VALUE は NULL）、`filt` の `--lines` が未設定で DEFAULT `10`、環境変数が空文字列で ENV `""`、LIST の既定値と環境変数の分割、`tool build ...` でモックが `build` 以外のコマンドの `env` を照会しないこと、`FAILED` で `OUT_OF_MEMORY`、`required` が環境変数で満たされること、`tool build x` が `MISSING_OPTION`（`--output`）、`tool -vv` の NO_COMMAND で必須のグローバルがあれば `MISSING_OPTION`（7.1〜7.9、8.1、8.2、8.6、8.7）。
