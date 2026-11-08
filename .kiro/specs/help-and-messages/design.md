@@ -38,7 +38,7 @@
 - `src/parser/parser_model.h`（宣言モデルの読み取り専用の参照）。`parser_internal.h` と走査器・結果ストアの実装は参照しない。
 - `include/clopts/parse.h` の結果のアクセサ（`clopts_result_status` と `clopts_result_error_*`）。結果ハンドルの内部は読まない。
 - `src/core/core_internal.h` の `clopts_core_write`。
-- C 標準ライブラリのうち `<string.h>`、`<stddef.h>`、`<stdbool.h>`、`<assert.h>`。`<stdio.h>` と `<stdlib.h>`（確保）は使わない。
+- C 標準ライブラリのうち `<string.h>`、`<stddef.h>`、`<stdbool.h>`、`<assert.h>`。`<stdio.h>` と `<stdlib.h>`（確保）は直接 include しない（`<stdio.h>` は公開ヘッダ `clopts/writer.h` の `clopts_file_write` のために間接的に入るが、src/help では使わない）。
 - 依存の向き: core ← parser ← help。help に依存する内部モジュールはない。
 
 ### Revalidation Triggers
@@ -95,7 +95,7 @@ include/clopts/
 └── help.h                  # 公開: 5 関数、clopts_write_status_t、CLOPTS_PREFIX_*
 src/help/
 ├── CMakeLists.txt          # clopts_add_module(help SOURCES help_out.c help_layout.c help_message.c)
-├── help_internal.h         # モジュール内とテストで共有する内部宣言（出力器、幅、文面表、位置引数の表記）
+├── help_internal.h         # モジュール内とテストで共有する内部宣言（出力器、幅、文面表、一覧の行）
 ├── help_out.c              # HelpOut: 出力器（書き込み・計測モード、失敗の保持）と UTF-8 の幅
 ├── help_layout.c           # HelpLayout: clopts_write_help / usage / version / usage_hint と一覧の桁揃え
 └── help_message.c          # HelpMessage: clopts_write_error、使い方・宣言エラーの文面表、接頭辞
@@ -114,6 +114,7 @@ tests/help/
 - `include/clopts/clopts.h` — `#include "clopts/help.h"` を足す。
 - `src/CMakeLists.txt` — `add_subdirectory(help)` を parser の後に足す。
 - `tests/CMakeLists.txt` — `add_subdirectory(help)` を parser の後に足す。
+- `tests/integration/fixtures/consumer/main.c` — 傘ヘッダだけを include した C ファイルから 5 関数を呼べること（共有ビルドでは export されていること）を確かめる `consumer_help_check()` を足す。戻り値が 3 値のどれかであることだけを見る。
 
 ## System Flows
 
@@ -293,7 +294,8 @@ size_t clopts_help_width(const char *data, size_t len);
 - 入口の検査: `program->error.status != CLOPTS_OK` なら UNAVAILABLE（11.6）。`clopts_write_version` は `program->version == NULL` でも UNAVAILABLE（6.2）。
 - `command` が NULL または `&program->root` のときは program のヘルプにする。サブコマンドあり構成なら全体ヘルプ（3.4）、サブコマンドなし構成ならサブコマンドなしのヘルプ。
 - 「テキストがある」とは、NULL でなく空文字列でもないことをいう。空文字列の説明・要約・ヘルプは未設定と同じに扱う。
-- 一覧は「行の配列」として内部で表し、同じ行生成の手続きを計測モード → 書き込みモードの順に 2 回走らせる（research.md の Decision）。
+- 一覧は「行の配列」として内部で表し、同じ行生成の手続きを計測モード → 書き込みモードの順に 2 回走らせる（research.md の Decision）。本番の一覧は help_layout.c の static な行の型と行の列挙（宣言の vec をその場で読み、予約行を続ける）で作り、確保しない。入口の検査は static の `help_program_available` 1 つで、4 関数がプログラム名を読む前に呼ぶ。
+- テスト用に、`help_internal.h` に行の型 `clopts_help_row_t {option, left, help}` と `clopts_help_write_list(out, rows, count)` を置く。本番と同じ行の書き込みの手続きを通るので、option_row スイートはこれでオプションの行と桁揃えを確かめる。本番コードはこの関数を呼ばない。
 - 文字列は折り返し・切り詰め・エスケープをせずにそのまま書く（10.7）。
 
 **Contracts**: Service [x]
@@ -573,7 +575,7 @@ const char *clopts_help_decl_reason(clopts_decl_error_t kind);
 - 網羅性: `clopts_help_usage_text` が 1〜7 で空でない互いに異なる文字列を、0 と 8 で NULL を返すこと。`clopts_help_decl_reason` が 1〜15 で同様で、0 と 16 で NULL を返すこと（12.1、12.2）。最大値の定数はテストの中に持ち、列挙に値を足したときに更新を迫る。
 
 ### Build-level Checks
-- 種別の `switch` に `default` を置かないので、列挙に値を足して文面を足さないと、GCC / Clang（`-Wall -Werror`）のビルドが失敗する（12.2）。
+- 種別の `switch` に `default` を置かないので、列挙に値を足して文面を足さないと、GCC / Clang（`-Wall -Werror`）のビルドが失敗する（12.2）。MSVC の `/W4` では該当する警告 C4062 が既定で無効なので、MSVC のビルドはこれを検出しない。MSVC だけの環境では、網羅テストが実行時に NULL として検出し、ビルドでの検出は CI の GCC / Clang が担う。
 - 共有ビルドの統合テスト（既存）で、`clopts_write_*` が export されていること。公開シンボル一覧との照合は abi-compat が担う。
 
 ## Security Considerations
