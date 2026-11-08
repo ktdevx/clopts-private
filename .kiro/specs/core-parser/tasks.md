@@ -31,7 +31,7 @@
   - _Boundary: DeclCheck, ParserTests_
   - _Requirements: 1.4, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14, 2.15, 2.16, 2.17, 2.18, 4.5, 5.7_
 
-- [ ] 2.2 (P) 結果ストアと参照 API、解放、ハンドラ呼び出しを実装し、記録規則と所有を内部 API でテストする
+- [x] 2.2 (P) 結果ストアと参照 API、解放、ハンドラ呼び出しを実装し、記録規則と所有を内部 API でテストする
   - ストアの確保（グローバルのスロット配列）、サブコマンド選択時のコマンド側スロット配列の確保、各スロットのリスト用可変長配列の初期化。サイズ計算はオーバーフロー検査を通し、失敗時は既存の内容を変えずに失敗を返す
   - 記録関数: FLAG は真偽、COUNT は +1 と上限（0 なら既定上限）でのクランプ、VALUE は置換、LIST は区切り文字で分割して複製を追加（空の項目も追加、区切りなしは 1 項目）。出所を引数で受けて一緒に記録する。環境変数の複製の所有権移動、位置引数の追加
   - 公開アクセサ（FLAG / COUNT / VALUE / LIST 項目数と項目 / 出所 / 位置引数の個数と項目）。記述子ポインタ → スロットは選択コマンド → グローバルの順に要素アドレスの等値比較で解決し、見つからなければ `assert`（`NDEBUG` では未指定相当）
@@ -118,3 +118,5 @@
 - 1.2: `clopts_result_free` は 1.2 で本実装済み（`free_slots` ヘルパ）。`add_count` は出所引数を持たず EXPLICIT を記録する（設計のシグネチャどおり）
 - Clang ビルドは `CC=clang cmake -S . -B build-clang -DCLOPTS_WERROR=ON -DFETCHCONTENT_SOURCE_DIR_NAOS=$(pwd)/build/_deps/naos-src` で Naos の再取得を避けられる
 - 2.1: `clopts_parser_find_negation` は「完全一致なし」を自分では確かめない。呼び出し側（3.4 の Scanner）が `find_long` を先に試すこと。DUPLICATE / NEGATION_CONFLICT は後に宣言された側を指す。「宣言検査と `clopts_parse` の結果一致」のテストは 3.1 で追加する
+- 2.2: `store_begin` は前回の `impl` を `clopts_result_free` で解放してから確保する。未初期化の `result` は前回の結果と区別できず解放すると未定義動作になるため、設計 PublicHeaders の事前条件「未初期化でもよい」は満たせない。3.1 で `parse.h` の契約を「ゼロ初期化または前回の結果」に改める（設計からの逸脱として報告する）
+- 2.2: `clopts_result_run` は `store->command`（なし構成は program）のハンドラを呼ぶ。`store_select` は `result->command` を設定しないので、Scanner が `result->command` を同じ値にそろえること。`append_list` は途中で失敗すると追加済みの項目を残して -1 を返す（解放は `clopts_result_free` が行う）。Resolver は `own` のあと `set_value(ENV)` の順で呼べばよい
