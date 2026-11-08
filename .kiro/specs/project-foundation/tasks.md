@@ -195,7 +195,7 @@
   - 完了条件: push した PR で 10 ジョブが走り、すべて `-Werror` 付きで構成・ビルド・テスト（`integration.package_selection` を含む）に成功する
   - _Requirements: 1.6, 4.5, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 14.4_
 
-- [ ] 12. 最終確認: 改訂後の受入条件を通しで確認する
+- [x] 12. 最終確認: 改訂後の受入条件を通しで確認する
   - クリーンな状態から、ローカルの GCC と Clang で静的版と共有版をそれぞれ構成・ビルド・テストし、全テストが通る
   - `ctest -N` のテスト名とラベル（`core` / `parser` / `toolchain` / `integration`）、共有版の公開シンボル（7.3 の条件）、ルートと `cmake/` にグローバル設定がないこと（grep）、`git status` がクリーンであることを確認する
   - 初版から変えていない要件（コンパイラ別のフラグ、Naos の固定、可変長配列、`.gitignore`、コーディング規約）が退行していないことを、既存のテストと grep で確認する
@@ -217,3 +217,4 @@
 - （改訂 10.3）`run_fixture.cmake` は C コンパイラだけを子に渡すので、consumer fixture の C++ は既定の C++ コンパイラ（Clang の構成でも g++）でビルドされる。`consumer_cpp.cpp` は `&clopts_parse` を volatile ポインタに入れて、C++ からの C リンケージ（と Windows の dllimport）を実際にリンクで検査する。
 - （改訂 10.4）`run_package_selection.cmake` の `.lib` 並存の検査（12.6）は、静的版の prefix に `.lib` があるときだけ走る（MSVC 系では常にある。MinGW は `.a` / `.dll.a` なので飛ばし、その旨を表示する）。失敗理由の正規表現の空白は、CMake がメッセージを折り返すため任意の空白に一致させている。
 - （改訂 11）PR #6 の CI（run 42452776792）で 10 ジョブすべてが成功した。windows-msvc は静的版 330 件、共有版 331 件で、`integration.package_selection` は MSVC で約 24 秒かかる。
+- （改訂 12）要件 2.5（子プロジェクトとしての既定値）、4.6 / 4.7（Naos の固定とオフライン経路）、9.8（assert）は、登録済みのテストではなく一回限りの確認と目視で検証している。`decl.h` / `parse.h` の構造体は core-parser の作り直しで扱う。
