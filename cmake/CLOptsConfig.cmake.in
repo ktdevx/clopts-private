@@ -1,24 +1,169 @@
 # Package config for CLOpts. Provides the imported target CLOpts::clopts.
+#
+# A prefix may hold the static form, the shared form, or both (built from the
+# same version of the sources). This file is identical for both forms and
+# selects one of them:
+#
+#   find_package(CLOpts CONFIG COMPONENTS static)   static form
+#   find_package(CLOpts CONFIG COMPONENTS shared)   shared form
+#   find_package(CLOpts CONFIG)                     CLOPTS_SHARED_LIBS if
+#       defined, otherwise BUILD_SHARED_LIBS (static when undefined); if the
+#       preferred form is not installed, the installed one is used
+#
+# The search fails (CLOpts_FOUND FALSE, with the reason in
+# CLOpts_NOT_FOUND_MESSAGE) when both static and shared are requested, when a
+# required component is unknown, when the requested form is not installed, or
+# when CLOpts::clopts already exists in another form.
+#
+# On success, CLOpts_LIBRARY_TYPE is STATIC or SHARED, and CLOpts_static_FOUND
+# or CLOpts_shared_FOUND is TRUE for the selected form.
 
 @PACKAGE_INIT@
 
-# MSVC runtime library (CRT) used when this CLOpts install was built.
-#
-# The check below is best effort only: the recorded value and the consuming
-# project's CMAKE_MSVC_RUNTIME_LIBRARY are compared as plain strings, and
-# generator expressions in either are not evaluated. No warning is given when
-# either value is empty (i.e. CMake's default runtime library). Link CLOpts
-# with the same runtime library it was built with.
-set(CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY "@CLOPTS_RECORDED_MSVC_RUNTIME_LIBRARY@")
-if(MSVC AND CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY AND CMAKE_MSVC_RUNTIME_LIBRARY
-   AND NOT CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY STREQUAL CMAKE_MSVC_RUNTIME_LIBRARY)
-    message(WARNING
-        "CLOpts was built with MSVC runtime library "
-        "'${CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY}', but this project uses "
-        "'${CMAKE_MSVC_RUNTIME_LIBRARY}'. Mixing runtime libraries may fail to "
-        "link or misbehave.")
+set(_clopts_dir "${CMAKE_CURRENT_LIST_DIR}")
+
+# Requested form from the components.
+set(_clopts_want "")
+set(_clopts_unknown "")
+foreach(_clopts_comp IN LISTS CLOpts_FIND_COMPONENTS)
+    if(_clopts_comp STREQUAL "static" OR _clopts_comp STREQUAL "shared")
+        if(_clopts_want AND NOT _clopts_want STREQUAL _clopts_comp)
+            set(_clopts_want "both")
+        elseif(NOT _clopts_want STREQUAL "both")
+            set(_clopts_want "${_clopts_comp}")
+        endif()
+    elseif(CLOpts_FIND_REQUIRED_${_clopts_comp})
+        list(APPEND _clopts_unknown "${_clopts_comp}")
+    endif()
+endforeach()
+unset(_clopts_comp)
+
+macro(_clopts_fail _clopts_msg)
+    set(CLOpts_FOUND FALSE)
+    set(CLOpts_NOT_FOUND_MESSAGE "${_clopts_msg}")
+    unset(_clopts_dir)
+    unset(_clopts_want)
+    unset(_clopts_unknown)
+    unset(_clopts_form)
+    unset(_clopts_have_static)
+    unset(_clopts_have_shared)
+    unset(_clopts_loaded)
+endmacro()
+
+if(NOT _clopts_unknown STREQUAL "")
+    _clopts_fail("CLOpts: unknown component(s): ${_clopts_unknown} (available components: static, shared)")
+    return()
+endif()
+if(_clopts_want STREQUAL "both")
+    _clopts_fail("CLOpts: components 'static' and 'shared' cannot be used together; request only one of them")
+    return()
 endif()
 
-include("${CMAKE_CURRENT_LIST_DIR}/CLOptsTargets.cmake")
+set(_clopts_have_static FALSE)
+set(_clopts_have_shared FALSE)
+if(EXISTS "${_clopts_dir}/CLOptsStaticTargets.cmake")
+    set(_clopts_have_static TRUE)
+endif()
+if(EXISTS "${_clopts_dir}/CLOptsSharedTargets.cmake")
+    set(_clopts_have_shared TRUE)
+endif()
+
+# Form already loaded by an earlier find_package (or provided by the build).
+set(_clopts_loaded "")
+if(TARGET CLOpts::clopts)
+    get_target_property(_clopts_loaded CLOpts::clopts TYPE)
+    if(_clopts_loaded STREQUAL "STATIC_LIBRARY")
+        set(_clopts_loaded "static")
+    elseif(_clopts_loaded STREQUAL "SHARED_LIBRARY")
+        set(_clopts_loaded "shared")
+    else()
+        _clopts_fail("CLOpts: the existing target CLOpts::clopts has unexpected type '${_clopts_loaded}'")
+        return()
+    endif()
+endif()
+
+if(_clopts_want)
+    # An explicitly requested form.
+    if(_clopts_loaded AND NOT _clopts_loaded STREQUAL _clopts_want)
+        _clopts_fail("CLOpts: the ${_clopts_want} form was requested, but CLOpts::clopts has already been loaded as the ${_clopts_loaded} form; only one form can be used in a build")
+        return()
+    endif()
+    if(NOT _clopts_loaded AND NOT _clopts_have_${_clopts_want})
+        _clopts_fail("CLOpts: the ${_clopts_want} form (component '${_clopts_want}') is not installed in ${_clopts_dir}")
+        return()
+    endif()
+    set(_clopts_form "${_clopts_want}")
+elseif(_clopts_loaded)
+    set(_clopts_form "${_clopts_loaded}")
+else()
+    # Default: CLOPTS_SHARED_LIBS, then BUILD_SHARED_LIBS, then whichever form
+    # is installed.
+    if(DEFINED CLOPTS_SHARED_LIBS)
+        set(_clopts_form "static")
+        if(CLOPTS_SHARED_LIBS)
+            set(_clopts_form "shared")
+        endif()
+    else()
+        set(_clopts_form "static")
+        if(BUILD_SHARED_LIBS)
+            set(_clopts_form "shared")
+        endif()
+    endif()
+    if(NOT _clopts_have_${_clopts_form})
+        if(_clopts_have_static)
+            set(_clopts_form "static")
+        elseif(_clopts_have_shared)
+            set(_clopts_form "shared")
+        else()
+            _clopts_fail("CLOpts: neither the static nor the shared form is installed in ${_clopts_dir}")
+            return()
+        endif()
+    endif()
+endif()
+
+if(NOT TARGET CLOpts::clopts)
+    if(_clopts_form STREQUAL "static")
+        include("${_clopts_dir}/CLOptsStaticTargets.cmake")
+    else()
+        include("${_clopts_dir}/CLOptsSharedTargets.cmake")
+    endif()
+endif()
+
+if(_clopts_form STREQUAL "static")
+    # MSVC runtime library (CRT) used when the static CLOpts was built.
+    #
+    # The check below is best effort only: the recorded value and the
+    # consuming project's CMAKE_MSVC_RUNTIME_LIBRARY are compared as plain
+    # strings, and generator expressions in either are not evaluated. No
+    # warning is given when either value is empty (i.e. CMake's default
+    # runtime library). Link CLOpts with the same runtime library it was built
+    # with.
+    if(EXISTS "${_clopts_dir}/CLOptsStaticRuntime.cmake")
+        include("${_clopts_dir}/CLOptsStaticRuntime.cmake")
+        if(MSVC AND CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY AND CMAKE_MSVC_RUNTIME_LIBRARY
+           AND NOT CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY STREQUAL CMAKE_MSVC_RUNTIME_LIBRARY)
+            message(WARNING
+                "CLOpts was built with MSVC runtime library "
+                "'${CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY}', but this project uses "
+                "'${CMAKE_MSVC_RUNTIME_LIBRARY}'. Mixing runtime libraries may fail to "
+                "link or misbehave.")
+        endif()
+    endif()
+    set(CLOpts_LIBRARY_TYPE "STATIC")
+    set(CLOpts_static_FOUND TRUE)
+    set(CLOpts_shared_FOUND FALSE)
+else()
+    set(CLOpts_LIBRARY_TYPE "SHARED")
+    set(CLOpts_shared_FOUND TRUE)
+    set(CLOpts_static_FOUND FALSE)
+endif()
+
+unset(_clopts_dir)
+unset(_clopts_want)
+unset(_clopts_unknown)
+unset(_clopts_form)
+unset(_clopts_have_static)
+unset(_clopts_have_shared)
+unset(_clopts_loaded)
 
 check_required_components(CLOpts)

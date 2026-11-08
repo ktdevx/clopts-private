@@ -144,7 +144,7 @@
   - _Boundary: PublicHeaders, CoreWriter, CoreTests, IntegrationTests（利用側 fixture の `main.c` の最小の追従のみ）_
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 9.8, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 14.5_
 
-- [ ] 9. 配布: 形式ごとの install / export と、package config での形式の選択
+- [x] 9. 配布: 形式ごとの install / export と、package config での形式の選択
   - ライブラリの install に、共有版の実行時ファイル（Windows では `bin` の DLL）、Linux / macOS の版付きファイルとリンク用の名前、Windows のインポートライブラリの行き先を足す
   - ターゲット定義のファイルを形式ごとの名前（静的版用と共有版用）で install し、同じ prefix に両方を入れても上書きし合わないようにする。静的版だけが、ビルド時の MSVC の CRT 種別を記録する断片を生成して install する。version file の互換規則は 7.1 の計算結果から取る（`ARCH_INDEPENDENT` は付けない）
   - package config を作り直す: コンポーネント `static` / `shared` の指定、指定なしのときの `CLOPTS_SHARED_LIBS` → `BUILD_SHARED_LIBS` → 入っている方の順の既定、両方の指定・未知のコンポーネント・入っていない形式の指定での失敗（理由を示すメッセージ）、`CLOpts_LIBRARY_TYPE`、静的版を選んだときだけの CRT の警告、2 回目の `find_package` で別の形式を求められたときの失敗。config の内容は形式によらず同じにする
@@ -212,3 +212,4 @@
 - `toolchain.vla_fails` は `CLOPTS_WERROR=OFF` で取り込み、失敗が `-Werror=vla` そのものから来ることを確かめる（要件 3.7 は WERROR に依存しない）。`no_global_state` はルートのディレクトリスコープの変数も検出できるよう、CLOpts が追加したディレクトリを再帰的に検査する。
 - `-Wall` 単独の INTERFACE 漏れは利用側に `-Werror` がないためコンパイルでは検出できない（未使用引数で落ちるのは `-Wall -Wextra -Werror` がそろって漏れたときだけ）。そのため consumer フィクスチャは構成時に `CLOpts::clopts` の `INTERFACE_COMPILE_OPTIONS` に警告フラグがないこと、`INTERFACE_COMPILE_DEFINITIONS` に `_CRT_SECURE_NO_WARNINGS` がないことも検査する。design.md の IntegrationTests の記述はこの検査を反映していない。
 - MSVC の `/W4 /WX` では `(char)0xFF` のような定数の切り捨てキャストが C4310 でエラーになる。バイト値は `'\xFF'` のような文字リテラルで書く。CI の 5 環境（windows-latest は Visual Studio 18 2026）で全 31 テストが通ることを確認済み。
+- （改訂 9）package config は、形式を指定しない 2 回目の `find_package` では既に読み込まれた形式をそのまま使う（失敗するのは明示のコンポーネントが異なるときだけ）。二重読み込みの判定は `TARGET CLOpts::clopts` の有無なので、兄弟ディレクトリで別々の形式を読み込むと両方成功する（IMPORTED ターゲットはディレクトリスコープ）。`OPTIONAL_COMPONENTS static|shared` も明示の要求として扱う。

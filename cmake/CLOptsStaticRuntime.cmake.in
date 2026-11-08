@@ -1,0 +1,5 @@
+# MSVC runtime library (CRT) used when the static CLOpts in this prefix was
+# built: the build's CMAKE_MSVC_RUNTIME_LIBRARY as a plain string, empty when
+# it was unset or the compiler was not MSVC. Installed with the static form
+# only and read by CLOptsConfig.cmake when that form is selected.
+set(CLOpts_RECORDED_MSVC_RUNTIME_LIBRARY "@CLOPTS_RECORDED_MSVC_RUNTIME_LIBRARY@")
