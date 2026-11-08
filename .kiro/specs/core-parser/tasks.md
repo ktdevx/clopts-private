@@ -20,7 +20,7 @@
   - _Requirements: 12.3, 13.1, 13.2_
 
 - [ ] 2. コア: 宣言検査、結果ストア、値の解決
-- [ ] 2.1 (P) 宣言検査と宣言の照合を実装し、宣言エラー種別ごとにテストする
+- [x] 2.1 (P) 宣言検査と宣言の照合を実装し、宣言エラー種別ごとにテストする
   - 設計の規則表 14 行を宣言テーブルの先頭から順に検査し、最初の違反で種別・該当 command・該当 option / positional をエラー構造体に入れて止める
   - 予約名は長い名前 `help`、短い名前 `h`、コマンド名 `help`、バージョン文字列があるときの長い名前 `version`。サブコマンドあり構成では program 直下の位置引数とハンドラを検査しない
   - 照合関数（コマンド名、長い名前、否定形 `no-<name>`、短い名前）をバイト単位の完全一致・大文字小文字区別で実装し、選択コマンド → グローバルの順に探す
@@ -117,3 +117,4 @@
 - 1.2: フィクスチャは `tests/parser/test_fixtures.{h,c}`。`strict` のサブコマンド名は `run`。`build` にもハンドラ `fixture_handler`（userdata `&fixture_build_handler_record`）を付けてある。オプション・コマンドの添字は enum 定数で公開。モック環境変数は `fixture_env_t` / `fixture_env_init` / `fixture_env_getenv` / `fixture_env_was_queried`、`fail_next` は 1 回だけ FAILED を返す
 - 1.2: `clopts_result_free` は 1.2 で本実装済み（`free_slots` ヘルパ）。`add_count` は出所引数を持たず EXPLICIT を記録する（設計のシグネチャどおり）
 - Clang ビルドは `CC=clang cmake -S . -B build-clang -DCLOPTS_WERROR=ON -DFETCHCONTENT_SOURCE_DIR_NAOS=$(pwd)/build/_deps/naos-src` で Naos の再取得を避けられる
+- 2.1: `clopts_parser_find_negation` は「完全一致なし」を自分では確かめない。呼び出し側（3.4 の Scanner）が `find_long` を先に試すこと。DUPLICATE / NEGATION_CONFLICT は後に宣言された側を指す。「宣言検査と `clopts_parse` の結果一致」のテストは 3.1 で追加する
