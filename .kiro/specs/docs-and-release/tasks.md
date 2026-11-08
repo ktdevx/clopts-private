@@ -4,8 +4,8 @@
 - [ ] 1.1 `CLOPTS_BUILD_EXAMPLES` と文書用プログラムを登録する関数を用意し、`examples/` と `tests/docs/` をビルドツリーに組み込む
   - ルートの `CMakeLists.txt` に、トップレベルのときだけ既定で ON になる `CLOPTS_BUILD_EXAMPLES` を足す。`cmake/CloptsExamples.cmake` は `CLOPTS_BUILD_EXAMPLES` によらず常に include する（`tests/docs/` も同じ関数を使うため）。ON のときだけ `examples/` を加える。サンプルの登録が先に済むよう、この処理をテストのブロックより前に置く
   - 設計の DocProgramRegistry の契約どおりに、`clopts_add_doc_program(<name> SOURCES ... [ENV ...] [EXAMPLE])` を実装する。作るのは実行ファイル `clopts_doc_<name>`（`OUTPUT_NAME` は `<name>`）。`CLOpts::clopts` をリンクし、`clopts_apply_compiler_options` を付け、Windows の共有ビルドでは `$<TARGET_RUNTIME_DLLS>` をコピーする。グローバルプロパティ `CLOPTS_DOC_PROGRAMS`、`CLOPTS_DOC_PROGRAM_TARGET_<name>`、`CLOPTS_DOC_PROGRAM_ENV_<name>`、`CLOPTS_DOC_EXAMPLES` に記録する。名前の規則違反と重複は `FATAL_ERROR` にする
-  - `examples/CMakeLists.txt` には、2 つのサンプルの登録（`clopts_add_doc_program(taskbook SOURCES taskbook/taskbook.c ENV TASKBOOK_FORMAT EXAMPLE)` と `clopts_add_doc_program(textcount SOURCES textcount/textcount.c ENV TEXTCOUNT_ENCODING EXAMPLE)`）を、この時点で書く。各ソースは、0 を返すだけの仮の `main` にしておく（3.1 と 3.2 は自分のソースだけを書き換えればよい）。`tests/docs/CMakeLists.txt` も、ラベル `docs` のテストをここで登録する旨の注釈だけを持つ骨格として作り、`tests/CMakeLists.txt` に `add_subdirectory(docs)` を足す
-  - 完了条件: 静的・共有の両形式で、`CLOPTS_WERROR=ON` のもとで構成とビルドが通り、既存の `ctest` がすべて通る。`-DCLOPTS_BUILD_EXAMPLES=OFF` でも構成が通り、そのとき `clopts_doc_taskbook` が作られない。検証のために一時的に同じ名前を 2 回登録すると、構成が名前と呼び出し元を示して止まることを確かめてから、その一時的な重複登録（と、そのためだけに置いたファイル）を元に戻す。2 つのサンプルの仮のソースは残す（3.1 と 3.2 が書き換える）
+  - `examples/CMakeLists.txt` には、2 つのサンプルの登録（`clopts_add_doc_program(taskbook SOURCES taskbook/taskbook.c ENV TASKBOOK_FORMAT EXAMPLE)` と `clopts_add_doc_program(textcount SOURCES textcount/textcount.c ENV TEXTCOUNT_ENCODING EXAMPLE)`）を、この時点で書く。各ソースは、0 を返すだけの仮の `main` にしておく（3.1 と 3.2 は自分のソースだけを書き換えればよい）。`tests/docs/CMakeLists.txt` は、ラベル `docs` のテストをここで登録する旨の注釈と、README の最小サンプルの登録 `clopts_add_doc_program(hello SOURCES readme_minimal.c)` だけを持つ骨格として作る（`readme_minimal.c` は 0 を返すだけの仮の `main`。3.3 が書き換える）。そのうえで`tests/CMakeLists.txt` に `add_subdirectory(docs)` を足す
+  - 完了条件: 静的・共有の両形式で、`CLOPTS_WERROR=ON` のもとで構成とビルドが通り、既存の `ctest` がすべて通る。`-DCLOPTS_BUILD_EXAMPLES=OFF` でも構成が通り、そのとき `clopts_doc_taskbook` が作られない。検証のために一時的に同じ名前を 2 回登録すると、構成が名前と呼び出し元を示して止まることを確かめてから、その一時的な重複登録（と、そのためだけに置いたファイル）を元に戻す。2 つのサンプルと `readme_minimal.c` の仮のソースは残す（3.1〜3.3 が書き換える）
   - _Requirements: 7.6, 7.7_
 
 - [ ] 2. 検査スクリプト
@@ -61,7 +61,7 @@
 
 - [ ] 3.3 (P) README の最小サンプル hello を作り、テストのビルドに加える
   - 設計の ReadmeMinimal どおりに、オプション 1 つと位置引数 1 つを持つ `hello 1.0.0` を、README にそのまま載せられる短さで書く。中身は、宣言、`clopts_parse`、状態による分岐、値の参照、ヘルプとエラーの出力、解放
-  - `tests/docs/CMakeLists.txt` で `clopts_add_doc_program(hello SOURCES readme_minimal.c)` として作る
+  - 1.1 で登録済みの仮のソース `tests/docs/readme_minimal.c` を書き換える（`tests/docs/CMakeLists.txt` は変えない）
   - 完了条件: テストを有効にした構成で、静的・共有の両形式で警告なくビルドできる。`hello --help` が終了コード 0 で、未知のオプションが終了コード 2 で、それぞれの出力先に出す
   - _Boundary: ReadmeMinimal_
   - _Depends: 1.1_
@@ -71,7 +71,7 @@
   - `tests/docs/fixtures/subproject/` に、CLOpts を `add_subdirectory` で取り込む利用側を作る。`EXPECT_EXAMPLES` が ON でなければ、`TARGET clopts_doc_taskbook` があるときに `FATAL_ERROR` にする。ON なら、ないときに `FATAL_ERROR` にする
   - これを `tests/cmake/run_fixture.cmake`（EXPECT=configure_ok）で起動する `docs.examples_subproject_default` と `docs.examples_subproject_on`（`-DCLOPTS_BUILD_EXAMPLES=ON -DEXPECT_EXAMPLES=ON`）を、`tests/docs/CMakeLists.txt` に登録する（ラベル `docs`）
   - 完了条件: 両方のテストが通る。fixture の判定を一時的に逆にすると、両方とも失敗することを確かめてから戻す
-  - _Depends: 2.4, 3.1, 3.3_
+  - _Depends: 2.4_
   - _Requirements: 7.6, 7.7_
 
 - [ ] 4. 利用者向けの文書
@@ -85,8 +85,8 @@
 
 - [ ] 4.2 (P) 解析規則の章を書く
   - 設計の ParsingDoc どおりに、3.1〜3.8 の規則ごとに節を設け（各節に実行例を置く）、textcount（グローバルオプションと並べ替えは taskbook）の実行例を `clopts-check` の印付きで載せる。優先順位の例では `env=` を使う
-  - textcount と taskbook のヘルプ出力を印付きで載せる
-  - 完了条件: outputs をビルドした taskbook と textcount で直接呼ぶと、この章の印がすべて一致する。各規則（3.1〜3.8）に少なくとも 1 つの説明があり、3.1〜3.8 のすべてに実行例がある（3.8 は、数値を期待しそうなオプションに数値でない値を渡しても、そのまま文字列として報告される例）
+  - textcount と taskbook のヘルプ出力を印付きで載せる。textcount については、終了コード 0 の印のほかに、終了コードが 0 でない使い方エラーの印（3.4 の前方一致を試した例など）を少なくとも 1 つ載せる
+  - 完了条件: outputs をビルドした taskbook と textcount で直接呼ぶと、この章の印がすべて一致し、`REQUIRE=textcount` を渡すと、終了コード 0 と 0 以外の両方の印があることで通る。各規則（3.1〜3.8）に少なくとも 1 つの説明があり、3.1〜3.8 のすべてに実行例がある（3.8 は、数値を期待しそうなオプションに数値でない値を渡しても、そのまま文字列として報告される例）
   - _Boundary: ParsingDoc_
   - _Depends: 2.1, 3.1, 3.2_
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 6.3, 8.3_
