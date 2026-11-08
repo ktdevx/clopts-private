@@ -75,7 +75,7 @@
   - _Requirements: 7.6, 7.7_
 
 - [ ] 4. 利用者向けの文書
-- [ ] 4.1 (P) API リファレンスの章を書く
+- [x] 4.1 (P) API リファレンスの章を書く
   - 設計の ApiReferenceDoc の節の構成どおりに書く。全体の流れ、ハンドルと寿命の表、宣言、解析と状態の表、結果とエラーのアクセサ、使い方エラー 7 種と宣言エラー 15 種の表、文面の出力、メモリの所有と寿命、プラットフォームの関数の一覧
   - 内容は公開ヘッダの注釈と矛盾させない。各公開関数を少なくとも 1 回、バッククォート付きで書く。taskbook の使い方エラーの出力を `clopts-check` の印付きで載せる
   - 完了条件: `check_docs.cmake` の api_coverage を `abi/clopts.symbols` と `docs/api.md` で直接呼ぶと成功する。outputs をビルドした taskbook で直接呼ぶと、この章の印がすべて一致する
@@ -159,3 +159,4 @@
 - 3.1: サンプルの報告の書式は、1 行目 `command: <name>`、続いてそのコマンドの値、最後にグローバル（`verbose`、`color`）。オプションは `key: value (explicit|env|default)`、値を得なかったオプション（出所 NONE）と位置引数には出所を付けない。リストは `", "` で結ぶ。taskbook の版は 1.2.3。空の `TASKBOOK_FORMAT=` は `format:  (env)`（空白 2 つ）になるので文書の例に使わない。
 - 3.2: textcount（0.4.0）の報告は `files:` から始まり、宣言順に続く。`-q` に上限はなく、`--total` に既定値はない。3.5 の上限の例と 3.7 の `help <cmd>` は taskbook（`-vvvv`）で示す。3.8 の数値でない値の例には、数値らしい引数を持つ taskbook（`done abc` など）を使う。
 - 3.3: 共通の規約は README の最小サンプルにも適用される（例外は環境変数の行だけ）。hello も `clopts_argv_get` を使い、到達しない NO_COMMAND の分岐（終了コード 2）を持つ。ヘルプと使い方の案内には `clopts_result_command` / `clopts_result_error_command` を渡す。ファイルは 78 行で、README には 1 バイトも変えずに載せる。
+- 4.1: api_coverage は `` `name` `` か `` `name()` `` だけを数えるので、引数付きで書くときは `` `name`（`args`）`` の形にする。docs/api.md は parsing.md と windows.md へリンクしているので、links の検査は 4.2 と 4.4 が済むまで通らない。
