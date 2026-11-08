@@ -261,7 +261,7 @@
   - 完了条件: `ctest -L parser -R oom` が両形式で通る。各場面で、少なくとも 1 回は OUT_OF_MEMORY に、最後の 1 回は成功になる
   - _Requirements: 4.7, 4.8, 13.6, 13.7, 15.7_
 
-- [ ] 8.2 統合テストの利用側コードで、宣言から解放までを公開関数だけで通す
+- [x] 8.2 統合テストの利用側コードで、宣言から解放までを公開関数だけで通す
   - consumer fixture の main に、次の流れを足す:
     - program を作り、VALUE の `--name` を宣言する
     - 固定の argv（`consumer`、`--name`、`ok`）を解析する
