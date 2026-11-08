@@ -28,7 +28,7 @@
   - _Depends: 2.1_
   - _Requirements: 3.3, 3.4, 3.8, 3.9_
 
-- [ ] 2.3 (P) 公開ヘッダの静的検査スクリプトと、その良い例・悪い例を実装する
+- [x] 2.3 (P) 公開ヘッダの静的検査スクリプトと、その良い例・悪い例を実装する
   - `HEADER_DIR` の直下の `*.h` を毎回名前順に列挙し、コメント（複数行の `/* */` と `//`）と前処理指令の行（継続行を含む）を、行番号を保ったまま取り除く
   - 波括弧の深さを追って最上位の文に区切る。`extern "C" {` とその `}` は透過的に扱い、`static` で始まる文は本体が閉じたところで終える
   - 設計の分類表どおりに判定する: 構造体・共用体の定義（`typedef` の有無によらない）は違反、前方宣言・`typedef` の列挙・関数ポインタ型は許可、`static` の文は `CLOPTS_API` の検査の対象外、それ以外の関数の宣言は先頭が `CLOPTS_API` でなければ違反（名前は最初の `(` の直前の識別子）。違反をすべて集めて `<file>:<line>: <reason>` で出してから失敗し、なければヘッダと関数の数を表示して成功する。扱わない構文をスクリプトの先頭の注釈に書く
@@ -119,3 +119,4 @@
 - 1.1: `clopts_argv_from_wide` は `platform.h` の `#ifdef _WIN32` の中だけで宣言されるため、設計の SymbolList に OS の注記（`<name> windows`）を追記した（ユーザー承認済み）。注記付きの名前は `dumpbin` / `objdump-pe` の照合でだけ要求し、`link_check.cpp` では `#ifdef _WIN32` で囲む。Linux の `libclopts.so` の export は注記なしの 64 個
 - 2.1: `check_symbols.cmake` は形式ごとに `_check_symbols_extract_<FORMAT>` と `_check_symbols_exclude_<FORMAT>` を持つ（2.2 はここに足す）。データ由来のリストの空判定は必ず `list(LENGTH)` で行う（`if(<var>)` だと `off` などの名前が偽になり見逃す）。FATAL_ERROR の報告行は先頭に空白 1 つを付けて CMake の折り返しを防ぐ。`nm-elf.txt` は実出力の 12 名の部分集合で、他形式の記録も同じ 12 名（Windows の 2 形式は加えて `clopts_argv_from_wide`）にそろえる
 - 2.2: `TOOL` は PATH 上の名前も `find_program` で解決する（3.1 ではフルパスを渡す）。dumpbin の取り出しは英語の出力（`ordinal hint RVA name` と `Summary`）に依存する。objdump-pe は binutils 2.42 の実出力（旧形式）と、記録した新形式の両方で通る
+- 2.3: `check_header_rules.cmake` は `static` でない本体付きの関数定義も本体の閉じで文を終え、`CLOPTS_API` なしとして報告する。波括弧の不整合も違反として報告する。扱わない構文はスクリプト先頭の注釈にあり、4.2 で `docs/dev/abi-checks.md` に写す
