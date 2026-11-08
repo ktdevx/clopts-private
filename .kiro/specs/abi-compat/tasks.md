@@ -103,8 +103,8 @@
   - _Requirements: 1.9, 1.10, 1.11_
 
 - [ ] 5. 検証
-- [ ] 5.1 検査が実際の違反を捕まえることを Linux で確かめる
-  - 一時的な変更で、(a) 内部関数に `CLOPTS_API` を付けると共有ビルドの `abi.exports` が余分として報告する、(b) 一覧から 1 つ消すと不足として報告する、(c) 公開ヘッダに構造体の定義を足すと `abi.header_rules` が報告する、(d) 公開関数の `CLOPTS_API` を外すと `abi.header_rules` と `abi.exports` が報告する、ことを確かめ、すべての変更を戻す
+- [x] 5.1 検査が実際の違反を捕まえることを Linux で確かめる
+  - 一時的な変更で、(a) 内部関数に `CLOPTS_API` を付けると共有ビルドの `abi.exports` が余分として報告する、(b) 一覧から 1 つ消すと余分として、export されない名前を一覧に足すと不足として報告する、(c) 公開ヘッダに構造体の定義を足すと `abi.header_rules` が報告する、(d) 公開関数の `CLOPTS_API` を外すと `abi.header_rules` と `abi.exports` が報告する、ことを確かめ、すべての変更を戻す
   - 完了条件: 各ケースの失敗の出力（該当する名前・ファイル・行を含む）を記録し、変更を戻した後に静的・共有の両方で `ctest` 全体が通る
   - _Depends: 3.1_
   - _Requirements: 3.5, 3.6, 4.2, 4.4_
@@ -126,3 +126,4 @@
 - 3.1: 期待する失敗のテストは `PASS_REGULAR_EXPRESSION` で終了コードを見ないので、正規表現は報告の全体（件数、名前、行、案内）を要求する。スクリプトの文言や fixture を変えたら正規表現も直すこと。C++ の無い構成は `-DCMAKE_CXX_COMPILER=CMAKE_CXX_COMPILER-NOTFOUND` で確かめた（`abi.headers_cxx` が Not Run (Disabled)、ctest は 0 で終わる）。件数は静的 626、共有 628
 - 3.3: abidiff 2.4.0、gcc 13.3.0 で、仮の `v1.0.0` を付けた複製で確かめた: 変更なし → compatible（abidiff 0）、関数の追加 → compatible（4）、関数の削除 → incompatible（12、`1 Removed function` に名前が出る）。手順と出力の作業メモはセッションのスクラッチ `abi-compare-manual-check.md`（4.2 で文書に写す）。レビューはコード差分がないため親で inline に行い、2.6 のレビュアーの独立した再現と照合した
 - 4.1: MinGW の DLL は CMake の既定（`Windows-GNU.cmake`）で `libclopts.dll` / `libclopts.dll.a` になるので、文書に両方を書き、design.md も合わせた。macOS の前方互換の失敗は chained fixups では起動時にもなりうるため、時点を言わず `Symbol not found` として書いた
+- 5.1: 共有ビルドの複製で確かめた: (a) 内部関数 `clopts_core_size_mul` に `CLOPTS_API`（内部ヘッダは `clopts/export.h` を含まないので、include も足さないとまずコンパイルが失敗する）→ `abi.exports` が extra。(b) 一覧から `clopts_result_status` を消す → extra（当初の記述「不足」は誤りで、design と tasks を直した）。一覧に無い名前を足す → missing と `abi.headers_cxx` の失敗。(c) `decl.h` に構造体定義 → `abi.header_rules` が `decl.h:45`。(d) `parse.h:160` の `CLOPTS_API` を外す → `abi.header_rules`、`abi.exports`（missing）、`abi.headers_cxx`。戻した後、静的 626 / 共有 628 がすべて通る。レビューはコード差分がないため親で inline に行い、(b) を再現して確かめた
