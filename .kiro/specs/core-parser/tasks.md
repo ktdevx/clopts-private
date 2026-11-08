@@ -207,7 +207,7 @@
   - 完了条件: 3 つのフィクスチャを検査関数に通すと OK になる。build スイートに、宣言の内容（名前、種類、必須、可変長、区切り、上限）を確かめるケースを足し、それが両形式で通る
   - _Requirements: 15.2_
 
-- [ ] 7.2 走査器を内部モデルに移植して解析関数を本実装にし、ディスパッチのスイートを移植する
+- [x] 7.2 走査器を内部モデルに移植して解析関数を本実装にし、ディスパッチのスイートを移植する
   - 解析関数の入口を、設計の順で実装する。順序は、NULL → 凍結 → OOM なら番兵 → 結果の確保（失敗なら番兵）→ 記録済みの宣言エラーを写す（argv は読まない）→ サブコマンドの有無で前段または本走査、である。入口の処理は、5.3 の検査関数と共有する
   - 前段・本走査・短いオプション・回復走査・値の記録・解決・必須検査は、`src/parser/legacy/` の初版の処理と表をそのまま使う。置き換えるのは、宣言の参照（モデルの一覧へ）と、結果とエラーの書き込み（結果ハンドルの記録関数へ）である。照合は 6.1 の関数を使う。環境変数の取得関数の引数が NULL なら、既定の取得を使う
   - 初版の dispatch スイートの全ケースを、7.1 のフィクスチャとアクセサで移植する
@@ -305,3 +305,4 @@
 - 6.2: `clopts_parser_result_select` が `result->command` と command 側のスロットを設定し、1 回だけ呼べる（`assert`）。走査器は select の前に `result->command` を書かないこと。help の対象（`help <cmd>`）は select で選ぶ。command のスロットは状態 OK のときだけ読まれる（NO_COMMAND は root だけ）。`positional_count` は OK / NO_COMMAND 以外で 0。`clopts_parser_result_new` は root に option があると確保点 2 つ
 - 6.3: `clopts_parser_resolve` / `clopts_parser_check_required` は、`result` が番兵でないことと `result->program == program` を assert する。どちらも `result->status` は書かない（走査器が書く）。不足時の `error.command` は、`include_command` が真なら選択コマンド、偽なら NULL。位置引数の検査は、選択コマンドの位置引数、サブコマンドなし構成なら root の位置引数に対して行う
 - 7.1: フィクスチャは `fixture_tool_t` / `fixture_filt_t` / `fixture_strict_t`（ハンドルの構造体）と `fixture_<x>_init(f, probe)` / `fixture_<x>_free(f)`。初版の添字の enum 定数はなく、ハンドルで参照する。模擬環境変数 `fixture_env_t` は値を自分のバッファから貸す。`clobber` は次の呼び出しの冒頭で全バッファを書き換え、`fixture_env_clobber()` で任意の時点に書き換えられる（8.8 の検証は、解析の後に `fixture_env_clobber()` を呼んで値が変わらないことを見る）。照会した名前は 31 文字までの複製
+- 7.2: 解析関数は `parse()` が `scan_enter` を共有し、番兵でない結果に `parsed = true` を立てる。走査は `scan_run` で、初版の表と論理をそのまま移した。保留エラーは局所の `scan_error_t` に持って `result->error` に写す。初版の dispatch のうち `previous_result_is_reused` と `invalid_declaration_releases_previous_result` は、結果を再利用しない新 API に合わせて「独立した 2 回の解析」「DECL_ERROR を 2 回解析して全解放」に読み替えた。サブコマンド前の command 固有オプション → UNKNOWN_OPTION（5.3）の専用ケースは 7.3〜7.5 で足すこと
