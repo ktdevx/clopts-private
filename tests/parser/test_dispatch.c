@@ -17,6 +17,64 @@
 
 #define TOOL_OPT(i) (&fixture_tool_options[(i)])
 #define FILT_OPT(i) (&fixture_filt_options[(i)])
+#define TOOL_CMD(i) (&fixture_tool_commands[(i)])
+
+/* Maximum number of argv elements the helpers below handle. */
+#define MAX_ARGV 8
+
+/*
+ * Parses argv[0..argc-1] (NULL-terminated) for program with the mock
+ * environment env and checks that argv is unchanged afterwards.
+ */
+static clopts_status_t parse_checked(const clopts_program_t *program, int argc, char **argv,
+                                     fixture_env_t *env, clopts_result_t *result)
+{
+    char *saved[MAX_ARGV];
+    clopts_status_t status;
+    int i;
+
+    NAOS_REQUIRE_TRUE(argc < MAX_ARGV);
+    for (i = 0; i < argc; i++)
+    {
+        saved[i] = argv[i];
+    }
+    status = clopts_parse_with_env(program, argc, argv, fixture_env_getenv, env, result);
+    NAOS_CHECK_INT_EQ(result->status, status);
+    for (i = 0; i < argc; i++)
+    {
+        NAOS_CHECK_PTR_EQ(argv[i], saved[i]);
+    }
+    NAOS_CHECK_NULL(argv[argc]);
+    return status;
+}
+
+/*
+ * Checks a usage error of kind usage on token argv[index] that names no
+ * option, positional or short name; command is the expected error.command.
+ */
+static void check_token_error(const clopts_result_t *result, clopts_usage_error_t usage,
+                              const clopts_command_t *command, char **argv, int index)
+{
+    NAOS_CHECK_INT_EQ(result->status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(result->error.usage, usage);
+    NAOS_CHECK_PTR_EQ(result->error.command, command);
+    NAOS_CHECK_NULL(result->error.option);
+    NAOS_CHECK_NULL(result->error.positional);
+    NAOS_CHECK_PTR_EQ(result->error.token, argv[index]);
+    NAOS_CHECK_INT_EQ(result->error.argv_index, index);
+    NAOS_CHECK_UINT_EQ(result->error.name_len, 0);
+    NAOS_CHECK_INT_EQ(result->error.short_name, '\0');
+}
+
+/* Checks that error is still in the state the parse reset it to. */
+static void check_error_untouched(const clopts_result_t *result)
+{
+    NAOS_CHECK_NULL(result->error.command);
+    NAOS_CHECK_NULL(result->error.option);
+    NAOS_CHECK_NULL(result->error.positional);
+    NAOS_CHECK_NULL(result->error.token);
+    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+}
 
 /*
  * An invalid declaration: its second option has neither a long nor a short
@@ -241,6 +299,197 @@ NAOS_TEST(previous_result_is_reused)
     clopts_result_free(&result);
 }
 
+/* ---- pre-command phase: selection and unknown commands ---------------- */
+
+NAOS_TEST(tool_build_selects_build_and_checks_its_required_options)
+{
+    char *argv[] = { "tool", "build", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &env, &result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_PTR_EQ(result.command, TOOL_CMD(FIXTURE_TOOL_CMD_BUILD));
+    NAOS_CHECK_INT_EQ(result.error.usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(result.error.option, &fixture_build_options[FIXTURE_BUILD_OPT_OUTPUT]);
+    NAOS_CHECK_PTR_EQ(result.error.command, TOOL_CMD(FIXTURE_TOOL_CMD_BUILD));
+    NAOS_CHECK_NULL(result.error.token);
+    NAOS_CHECK_INT_EQ(result.error.argv_index, -1);
+    /* The selected scope (global and build) was resolved. */
+    NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_misspelled_command_is_unknown_command)
+{
+    char *argv[] = { "tool", "bulid", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &env, &result), CLOPTS_USAGE_ERROR);
+    check_token_error(&result, CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, argv, 1);
+    NAOS_CHECK_NULL(result.command);
+    NAOS_CHECK_UINT_EQ(env.query_count, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_command_name_is_case_sensitive)
+{
+    char *argv[] = { "tool", "Build", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &env, &result), CLOPTS_USAGE_ERROR);
+    check_token_error(&result, CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, argv, 1);
+    NAOS_CHECK_NULL(result.command);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_dashdash_then_command_is_unknown_command)
+{
+    char *argv[] = { "tool", "--", "build", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 3, argv, &env, &result), CLOPTS_USAGE_ERROR);
+    check_token_error(&result, CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, argv, 2);
+    NAOS_CHECK_NULL(result.command);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_single_dash_is_unknown_command)
+{
+    char *argv[] = { "tool", "-", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &env, &result), CLOPTS_USAGE_ERROR);
+    check_token_error(&result, CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, argv, 1);
+    NAOS_CHECK_NULL(result.command);
+    clopts_result_free(&result);
+}
+
+/* ---- pre-command phase: --help / -h / help / --version ---------------- */
+
+NAOS_TEST(tool_long_help_is_program_help)
+{
+    char *argv[] = { "tool", "--help", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &env, &result), CLOPTS_HELP);
+    NAOS_CHECK_NULL(result.command);
+    check_error_untouched(&result);
+    /* No resolution and no required check with HELP. */
+    NAOS_CHECK_UINT_EQ(env.query_count, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_short_help_is_program_help)
+{
+    char *argv[] = { "tool", "-h", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &env, &result), CLOPTS_HELP);
+    NAOS_CHECK_NULL(result.command);
+    check_error_untouched(&result);
+    NAOS_CHECK_UINT_EQ(env.query_count, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_help_command_alone_is_program_help)
+{
+    char *argv[] = { "tool", "help", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &env, &result), CLOPTS_HELP);
+    NAOS_CHECK_NULL(result.command);
+    check_error_untouched(&result);
+    NAOS_CHECK_UINT_EQ(env.query_count, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_help_with_command_is_that_command_help)
+{
+    char *argv[] = { "tool", "help", "copy", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 3, argv, &env, &result), CLOPTS_HELP);
+    NAOS_CHECK_PTR_EQ(result.command, TOOL_CMD(FIXTURE_TOOL_CMD_COPY));
+    check_error_untouched(&result);
+    /* copy has required positionals, but HELP does not check them. */
+    NAOS_CHECK_UINT_EQ(env.query_count, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_help_with_unknown_command_is_unknown_command)
+{
+    char *argv[] = { "tool", "help", "nope", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 3, argv, &env, &result), CLOPTS_USAGE_ERROR);
+    check_token_error(&result, CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, argv, 2);
+    NAOS_CHECK_NULL(result.command);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_help_with_command_and_extra_is_unexpected_argument)
+{
+    char *argv[] = { "tool", "help", "copy", "x", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 4, argv, &env, &result), CLOPTS_USAGE_ERROR);
+    check_token_error(&result, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, TOOL_CMD(FIXTURE_TOOL_CMD_COPY),
+                      argv, 3);
+    NAOS_CHECK_PTR_EQ(result.command, TOOL_CMD(FIXTURE_TOOL_CMD_COPY));
+    NAOS_CHECK_UINT_EQ(env.query_count, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_long_version_is_version)
+{
+    char *argv[] = { "tool", "--version", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &env, &result), CLOPTS_VERSION);
+    NAOS_CHECK_NULL(result.command);
+    check_error_untouched(&result);
+    NAOS_CHECK_UINT_EQ(env.query_count, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(tool_long_version_ignores_following_tokens)
+{
+    char *argv[] = { "tool", "--version", "build", NULL };
+    fixture_env_t env;
+    clopts_result_t result = { 0 };
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 3, argv, &env, &result), CLOPTS_VERSION);
+    /* build is not looked at, so it is not selected. */
+    NAOS_CHECK_NULL(result.command);
+    check_error_untouched(&result);
+    NAOS_CHECK_UINT_EQ(env.query_count, 0);
+    clopts_result_free(&result);
+}
+
 /* ---- parse entry: declaration errors ---------------------------------- */
 
 NAOS_TEST(invalid_declaration_is_decl_error_like_validate)
@@ -315,6 +564,19 @@ NAOS_SUITE(dispatch,
     NAOS_ADD_TEST(filt_takes_value_from_env),
     NAOS_ADD_TEST(env_failure_is_out_of_memory_and_result_is_freeable),
     NAOS_ADD_TEST(previous_result_is_reused),
+    NAOS_ADD_TEST(tool_build_selects_build_and_checks_its_required_options),
+    NAOS_ADD_TEST(tool_misspelled_command_is_unknown_command),
+    NAOS_ADD_TEST(tool_command_name_is_case_sensitive),
+    NAOS_ADD_TEST(tool_dashdash_then_command_is_unknown_command),
+    NAOS_ADD_TEST(tool_single_dash_is_unknown_command),
+    NAOS_ADD_TEST(tool_long_help_is_program_help),
+    NAOS_ADD_TEST(tool_short_help_is_program_help),
+    NAOS_ADD_TEST(tool_help_command_alone_is_program_help),
+    NAOS_ADD_TEST(tool_help_with_command_is_that_command_help),
+    NAOS_ADD_TEST(tool_help_with_unknown_command_is_unknown_command),
+    NAOS_ADD_TEST(tool_help_with_command_and_extra_is_unexpected_argument),
+    NAOS_ADD_TEST(tool_long_version_is_version),
+    NAOS_ADD_TEST(tool_long_version_ignores_following_tokens),
     NAOS_ADD_TEST(invalid_declaration_is_decl_error_like_validate),
     NAOS_ADD_TEST(invalid_declaration_releases_previous_result)
 )

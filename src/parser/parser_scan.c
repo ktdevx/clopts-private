@@ -76,13 +76,88 @@ static bool scan_at_end(const scan_state_t *state)
 
 /*
  * Ends the scan at the current token as if no token were left. The token rows
- * of the pre-command phase and of the main scan are not in place yet, so the
- * phases call this for every token (provisional behavior of the parse
- * skeleton, replaced by the token rows).
+ * of the main scan are not in place yet, so the main scan calls this for
+ * every token (provisional behavior of the parse skeleton: positionals come
+ * with task 3.3, long options with 3.4, short options with 3.5).
  */
 static void scan_stop(scan_state_t *state)
 {
     state->pos = state->argc;
+}
+
+/* True when the scan has decided the outcome before the end of the tokens. */
+static bool scan_decided(const scan_state_t *state)
+{
+    return state->has_pending || (state->request != SCAN_REQUEST_NONE) || state->out_of_memory;
+}
+
+/* The current token; there must be one. */
+static const char *scan_token(const scan_state_t *state)
+{
+    assert(!scan_at_end(state));
+    return state->argv[state->pos];
+}
+
+/*
+ * Records the usage error usage on the token argv[index] (its option,
+ * positional, name_len and short_name are left empty) unless one is already
+ * pending: only the first usage error is reported. error.command is the
+ * selected command, or NULL before the selection.
+ */
+static clopts_error_t *scan_fail(scan_state_t *state, clopts_usage_error_t usage, int index)
+{
+    clopts_error_t *error = &state->pending_error;
+
+    assert((index >= 0) && (index < state->argc));
+    if (state->has_pending)
+    {
+        return NULL;
+    }
+    memset(error, 0, sizeof(*error));
+    error->usage = usage;
+    error->command = state->command;
+    error->token = state->argv[index];
+    error->argv_index = index;
+    state->has_pending = true;
+    return error;
+}
+
+/*
+ * Selects command: allocates its slots and keeps state->command equal to
+ * store->command. An allocation failure ends the scan with OUT_OF_MEMORY.
+ */
+static void scan_select(scan_state_t *state, const clopts_command_t *command)
+{
+    if (clopts_parser_store_select(state->result, command) != 0)
+    {
+        state->out_of_memory = true;
+        return;
+    }
+    state->command = command;
+}
+
+/* HELP of the selected command (NULL: the whole program); the scan ends. */
+static void scan_request_help(scan_state_t *state)
+{
+    state->request = SCAN_REQUEST_HELP;
+}
+
+/* VERSION; the scan ends. */
+static void scan_request_version(scan_state_t *state)
+{
+    state->request = SCAN_REQUEST_VERSION;
+}
+
+/* True when token is exactly "--help" or "-h". */
+static bool is_help_token(const char *token)
+{
+    return (strcmp(token, "--help") == 0) || (strcmp(token, "-h") == 0);
+}
+
+/* True when token is exactly "--version" and the program has a version. */
+static bool is_version_token(const scan_state_t *state, const char *token)
+{
+    return (state->program->version != NULL) && (strcmp(token, "--version") == 0);
 }
 
 /*
@@ -91,9 +166,137 @@ static void scan_stop(scan_state_t *state)
  */
 static void scan_main(scan_state_t *state)
 {
-    while (!scan_at_end(state))
+    while (!scan_at_end(state) && !scan_decided(state))
     {
         scan_stop(state);
+    }
+}
+
+/*
+ * Pre-command row for a token starting with "-" other than "-" alone, "--"
+ * and an exact --help / -h / --version: one option token, matched against the global
+ * options only (4.3). Provisional entry: every such token is reported as an
+ * unknown option until task 3.4 (long) and 3.5 (short) replace this row with
+ * the option processing shared with the main scan.
+ */
+static void prelude_option(scan_state_t *state)
+{
+    const char *token = scan_token(state);
+    clopts_error_t *error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, state->pos);
+
+    if (error != NULL)
+    {
+        if (token[1] == '-')
+        {
+            error->name_len = strcspn(token, "=");
+        }
+        else
+        {
+            error->short_name = token[1];
+        }
+    }
+    state->pos++;
+}
+
+/*
+ * Pre-command row "help" (9.2, 9.3, 9.11): alone it is HELP of the whole
+ * program; followed by a command name it is HELP of that command, and a
+ * further token is an unexpected argument; followed by anything else it is an
+ * unknown command.
+ */
+static void prelude_help_command(scan_state_t *state)
+{
+    const clopts_command_t *command;
+
+    state->pos++;
+    if (scan_at_end(state))
+    {
+        scan_request_help(state);
+        return;
+    }
+    command = clopts_parser_find_command(state->program, scan_token(state));
+    if (command == NULL)
+    {
+        (void)scan_fail(state, CLOPTS_USAGE_UNKNOWN_COMMAND, state->pos);
+        state->pos++;
+        return;
+    }
+    scan_select(state, command);
+    if (state->out_of_memory)
+    {
+        return;
+    }
+    state->pos++;
+    if (!scan_at_end(state))
+    {
+        (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, state->pos);
+        state->pos++;
+        return;
+    }
+    scan_request_help(state);
+}
+
+/*
+ * Pre-command row for a token that does not start with "-" (or is "-" alone,
+ * or follows "--"): a command name selects that command (4.1); anything else
+ * is an unknown command (4.2, 4.5: exact, case-sensitive, no prefix).
+ */
+static void prelude_command(scan_state_t *state)
+{
+    const clopts_command_t *command;
+
+    command = clopts_parser_find_command(state->program, scan_token(state));
+    if (state->dashdash || (command == NULL))
+    {
+        (void)scan_fail(state, CLOPTS_USAGE_UNKNOWN_COMMAND, state->pos);
+        state->pos++;
+        return;
+    }
+    scan_select(state, command);
+    if (!state->out_of_memory)
+    {
+        state->pos++;
+    }
+}
+
+/*
+ * One token of the pre-command phase, in the order of the design table:
+ * after "--" every token is a positional, which is an unknown command since no
+ * command is selected; exact --help / -h, exact --version (with a version),
+ * "--", "-" alone, other "-" tokens (options), "help", then command names.
+ */
+static void prelude_token(scan_state_t *state)
+{
+    const char *token = scan_token(state);
+
+    if (state->dashdash)
+    {
+        prelude_command(state);
+    }
+    else if (is_help_token(token))
+    {
+        scan_request_help(state);
+    }
+    else if (is_version_token(state, token))
+    {
+        scan_request_version(state);
+    }
+    else if (strcmp(token, "--") == 0)
+    {
+        state->dashdash = true;
+        state->pos++;
+    }
+    else if ((token[0] == '-') && (token[1] != '\0'))
+    {
+        prelude_option(state);
+    }
+    else if (strcmp(token, "help") == 0)
+    {
+        prelude_help_command(state);
+    }
+    else
+    {
+        prelude_command(state);
     }
 }
 
@@ -103,16 +306,10 @@ static void scan_main(scan_state_t *state)
  */
 static void scan_prelude(scan_state_t *state)
 {
-    while (!scan_at_end(state))
+    while (!scan_at_end(state) && !scan_decided(state) && (state->command == NULL))
     {
-        scan_stop(state);
+        prelude_token(state);
     }
-}
-
-/* True when the scan has decided the outcome before the end of the tokens. */
-static bool scan_decided(const scan_state_t *state)
-{
-    return state->has_pending || (state->request != SCAN_REQUEST_NONE) || state->out_of_memory;
 }
 
 /* Finishes the parse with status, which is also returned. */

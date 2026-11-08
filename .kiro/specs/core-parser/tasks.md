@@ -63,7 +63,7 @@
   - _Depends: 2.1, 2.2, 2.3_
   - _Requirements: 3.1, 3.2, 3.3, 3.7, 3.8, 7.2, 7.3, 7.9, 8.1, 8.6_
 
-- [ ] 3.2 前段（サブコマンド前）の表と help / version の各形を実装する
+- [x] 3.2 前段（サブコマンド前）の表と help / version の各形を実装する
   - 前段の表: トークン終端で NO_COMMAND、トークン全体が `--help` / `-h` に完全一致すれば全体 HELP、`--version`（バージョンあり）に完全一致すれば VERSION（まとめ書き内の `h` は 3.5 の短いオプション処理が扱う）、`help` / `help <cmd>` / `help <cmd> extra`（余分な引数）/ `help nope`（不明なコマンド）、サブコマンド名で選択してコマンド側スロットを確保、`--` の次は不明なコマンド、`-` 始まりは「オプション 1 トークンの処理」へ（本体は 3.4 / 3.5。ここでは入口だけ用意し、暫定的に不明なオプションを返す。この暫定挙動は 3.4 で置き換えるため、本タスクのテストにサブコマンド前のグローバルオプションのケースを含めない）、それ以外は不明なコマンド
   - サブコマンドなし構成は前段を経ずに本走査へ入る。NO_COMMAND ではグローバルのみ解決・必須検査する
   - HELP / VERSION ではヘルプの対象（program 全体か選択コマンドか）を結果に入れ、以降のトークンを見ない。HELP / VERSION では解決と必須検査を行わない
@@ -122,3 +122,4 @@
 - 2.2: `clopts_result_run` は `store->command`（なし構成は program）のハンドラを呼ぶ。`store_select` は `result->command` を設定しないので、Scanner が `result->command` を同じ値にそろえること。`append_list` は途中で失敗すると追加済みの項目を残して -1 を返す（解放は `clopts_result_free` が行う）。Resolver は `own` のあと `set_value(ENV)` の順で呼べばよい
 - 2.3: `check_required` は `result->status` を設定しない（Scanner が USAGE_ERROR にする）。`error.command` は `include_command` が真なら選択コマンド、偽なら NULL。`resolve` は `getenv_fn == NULL` なら既定の取得関数を使う。MSVC の C4996 は `CloptsCompilerOptions.cmake` の `_CRT_SECURE_NO_WARNINGS`（PRIVATE）で抑止済み
 - 3.1: `parse.h` の `clopts_parse*` の事前条件を「ゼロ初期化または前回の結果」に改めた（設計の「未初期化でもよい」からの逸脱。design.md は未更新）。走査状態は `scan_state_t`（pos / command / has_pending / pending_error / dashdash / request / out_of_memory）。`scan_prelude` / `scan_main` は暫定で `scan_stop()`（残りを読み飛ばす）を呼ぶ。3.2〜3.5 で表の各行に置き換え、最終的に `scan_stop` の暫定呼び出しを残さないこと。回復走査（3.6）は `scan_outcome` の保留エラー分岐の直前に入れる。`finish` だけが `result->status` を書く
+- 3.2: 前段の各行は `prelude_token` から小関数（`scan_request_help` / `scan_request_version` / `prelude_option` / `prelude_help_command` / `prelude_command`）へ振り分ける。`scan_fail` は最初のエラーだけを記録し、`pos` は不正トークンの次に残す。`prelude_option` は暫定（UNKNOWN_OPTION）で 3.4 / 3.5 が置き換える。`help <cmd>` は `store_select` で対象を選ぶので `help copy x` の `error.command` は `copy`。3.6 の要確認: `tool help --help` / `tool help copy --help` では `--help` 自体がエラーのトークンになり、文字どおりの回復走査では USAGE_ERROR になる（9.1「どこにあっても」との関係を設計で確かめて決め、テストする）
