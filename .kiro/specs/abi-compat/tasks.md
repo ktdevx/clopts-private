@@ -46,7 +46,7 @@
   - _Depends: 1.1_
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.7_
 
-- [ ] 2.5 (P) abidiff 比較スクリプトの基準の選択と終了コードの判定を、自己テストとともに実装する
+- [x] 2.5 (P) abidiff 比較スクリプトの基準の選択と終了コードの判定を、自己テストとともに実装する
   - `select_baseline`: `^v([0-9]+)\.([0-9]+)\.([0-9]+)$` に合うタグだけを候補にし、現在の major と同じで現在の版以下のものから最大の版を数値の比較で選ぶ。現在の版が 1.0.0 未満なら空を返す
   - `classify_exit_code`: ビット 1 か 2 は `tool_error`、それ以外でビット 8 は `incompatible`、0 と 4 は `compatible`、未知のビットは `tool_error`
   - `MODE=self_test` で両関数を表駆動で検査する（0.x、同じ major の最大、`v1.10.0` と `v1.9.0`、現在より新しいタグ・別の major・`-rc` の除外、候補なし。0、4、12、1、2、3、13、16）。git、ビルド、abidiff を使わない
@@ -121,3 +121,4 @@
 - 2.2: `TOOL` は PATH 上の名前も `find_program` で解決する（3.1 ではフルパスを渡す）。dumpbin の取り出しは英語の出力（`ordinal hint RVA name` と `Summary`）に依存する。objdump-pe は binutils 2.42 の実出力（旧形式）と、記録した新形式の両方で通る
 - 2.3: `check_header_rules.cmake` は `static` でない本体付きの関数定義も本体の閉じで文を終え、`CLOPTS_API` なしとして報告する。波括弧の不整合も違反として報告する。扱わない構文はスクリプト先頭の注釈にあり、4.2 で `docs/dev/abi-checks.md` に写す
 - 2.4: 子プロジェクトは CLOpts を `EXCLUDE_FROM_ALL` で取り込み、ヘッダごとの検査は `$<TARGET_PROPERTY:clopts,INTERFACE_*>` で include と `CLOPTS_STATIC` を受け取る（リンクすると CLOpts 本体が先に失敗して `check_<header>` が出ないため）。CXX では `add_dependencies(clopts abi_header_check)` でヘッダ検査を先にコンパイルする。`extern "C"` の欠落は `abi_link_check` の未定義参照（修飾名）で報告される。MSVC / AppleClang / MinGW は CI で確かめる
+- 2.5: `MODE` を省くと compare（設計どおり）。終了コードの判定は設計の表の順に評価するので、8 と未知のビットが同時に立つ 24 は incompatible になる（どちらでもジョブは失敗する）。`select_baseline` はタグを CMake のリストで受け取るので、2.6 で `git tag --list` の行を分けて渡す
