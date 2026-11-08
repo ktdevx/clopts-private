@@ -38,7 +38,7 @@
 
 ### Allowed Dependencies
 - C99 標準ライブラリ（`<stdlib.h>`、`<string.h>`、`<stdbool.h>`、`<stddef.h>`、`<limits.h>`、`<assert.h>`）。
-- `src/core/core_internal.h`（`clopts_core_vec_t`、`clopts_core_size_mul` / `add`）。core の構造体のフィールドを読むのは、確保プローブ（`parser_alloc.c`）だけ。
+- `src/core/core_internal.h`（`clopts_core_vec_t`、`clopts_core_size_mul` / `add`）。vec の要素数（`len`）はどのファイルも読んでよい。バッファと容量（`data` / `cap`）を直接読むのは、確保プローブ（`parser_alloc.c`）だけ。
 - `include/clopts/export.h`（`CLOPTS_API`）。
 - 依存の向き: `export.h` → 公開ヘッダ（`decl.h` → `parse.h`）→ `parser_model.h` → `parser_internal.h` → 各 `.c`。help-and-messages は `parser_model.h` と公開ヘッダだけを include してよい。`parser_internal.h` は include しない。
 
@@ -608,7 +608,7 @@ void clopts_parser_free(clopts_parser_probe_t *probe, void *ptr);
 | 呼び出し | 規則（上から順に検査） | 種別 | 報告するハンドル |
 |---|---|---|---|
 | `clopts_program_new(name)` | `name` が NULL・空・`-` で始まる・空白を含む | `INVALID_NAME` | なし |
-| `clopts_program_set_version(v)` | `v != NULL` で、照合範囲のどこかに長い名前 `version` がある | `RESERVED_NAME` | 宣言順で最初のその option と、そのスコープ |
+| `clopts_program_set_version(v)` | `v != NULL` で、照合範囲のどこかに長い名前 `version` がある | `RESERVED_NAME` | 照合範囲の順（root、次に command の追加順）で最初のその option と、そのスコープ |
 | `clopts_program_add_command(name)` | `name` が NULL・空・`-` で始まる・空白を含む | `INVALID_NAME` | 新しい command |
 | 〃 | `name` が `help` | `RESERVED_NAME` | 新しい command |
 | 〃 | 同名の command がある | `DUPLICATE_COMMAND` | 新しい command |
@@ -696,7 +696,7 @@ clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, co
 
 **Responsibilities & Constraints**
 - 入口: 「解析の全体の流れ」の図のとおり。program が NULL か OOM を記録済みなら番兵を返す。結果の確保に失敗した場合も番兵を返す。DECL_ERROR を記録済みなら、結果にエラーを写して返し、argv は読まない（3.1、2.6、11.6）。
-- サブコマンドの有無は `program->commands.count > 0` で判定する。スロットは root の option 数だけ確保し、サブコマンドを選択した時点でその command の分を確保する。
+- サブコマンドの有無は `program->commands.len > 0` で判定する。スロットは root の option 数だけ確保し、サブコマンドを選択した時点でその command の分を確保する。
 - `stdout` / `stderr` に書かず、`exit` / `abort` を呼ばない（4.3）。program と argv を書き換えない（4.11）。書き込むのは `frozen` だけ。
 - 走査の状態（位置、選択コマンド、保留エラー、`--` 到達、HELP / VERSION の要求）は、自動変数の `scan_state_t` 1 つにまとめる。
 
@@ -739,7 +739,7 @@ clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, co
 値の記録（7.1〜7.12）: FLAG は後勝ち、COUNT は `count_max`（0 なら `UINT_MAX`）でクランプ、VALUE は後勝ち、LIST は指定順に連結する。区切り文字があれば分割し、空の項目も保持する。
 
 **Implementation Notes**
-- Integration: 初版の `parser_scan.c` の表の処理をそのまま残し、`program->options[i]` などの参照を `clopts_core_vec_at` に、`result->error` への書き込みを `parser_result.c` の記録関数に置き換える。
+- Integration: 初版の `parser_scan.c` の表の処理をそのまま残し、`program->options[i]` などの参照を `clopts_core_vec_at` に、値の記録を `parser_result.c` の記録関数に置き換える。`result->status` / `result->error` は、内部ヘッダの `struct clopts_result` のフィールドへ直接書く（5.2 のコントローラ判断）。
 - Validation: `test_dispatch.c`（前段）、`test_long.c` / `test_short.c` / `test_values.c`（本走査）、`test_errors.c`（回復走査と優先度）。
 
 #### Resolve（`src/parser/parser_resolve.c`）

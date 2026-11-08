@@ -1,9 +1,17 @@
 /*
  * Suite positional: positionals mixed with options, --, a lone -, required /
  * optional / variadic positionals and unexpected arguments.
+ *
+ * Ported from the first-version positional suite onto the builder fixtures of
+ * test_fixtures.c (handles instead of index constants) and the result handle
+ * accessors. The status is always checked with NAOS_REQUIRE_INT_EQ before
+ * values are read.
  */
 
+#include "parser/parser_internal.h"
 #include "test_fixtures.h"
+
+#include <clopts/parse.h>
 
 #include <naos/naos.h>
 
@@ -12,44 +20,50 @@
 
 /* ---- helpers ----------------------------------------------------------- */
 
-#define COPY_POS(i) (&fixture_copy_positionals[(i)])
-#define TOOL_CMD(i) (&fixture_tool_commands[(i)])
-
 /* Maximum number of argv elements parse_checked handles. */
 #define MAX_ARGV 8
 
 /*
- * Parses argv[0..argc-1] (NULL-terminated) for program with an empty mock
- * environment and checks that argv is unchanged afterwards.
+ * Parses the NULL-terminated argv for program with an empty mock environment
+ * and checks that the result is a parse result (not the sentinel) and that
+ * neither the argv array nor the strings it points to changed.
  */
-static clopts_status_t parse_checked(const clopts_program_t *program, int argc, char **argv,
-                                     clopts_result_t *result)
+static clopts_result_t *parse_checked(clopts_program_t *program, char **argv)
 {
     char *saved[MAX_ARGV];
-    char saved_text[MAX_ARGV][16];
+    char text[MAX_ARGV][16];
     fixture_env_t env;
-    clopts_status_t status;
+    clopts_result_t *result;
+    int argc = 0;
     int i;
 
-    NAOS_REQUIRE_TRUE(argc < MAX_ARGV);
-    for (i = 0; i < argc; i++)
+    while (argv[argc] != NULL)
     {
-        size_t len = strlen(argv[i]);
-
-        NAOS_REQUIRE_TRUE(len < sizeof(saved_text[i]));
-        saved[i] = argv[i];
-        memcpy(saved_text[i], argv[i], len + 1);
+        NAOS_REQUIRE_TRUE(argc + 1 < MAX_ARGV);
+        NAOS_REQUIRE_TRUE(strlen(argv[argc]) < sizeof(text[0]));
+        saved[argc] = argv[argc];
+        strcpy(text[argc], argv[argc]);
+        argc++;
     }
     fixture_env_init(&env, NULL, 0);
-    status = clopts_parse_with_env(program, argc, argv, fixture_env_getenv, &env, result);
-    NAOS_CHECK_INT_EQ(result->status, status);
+    result = clopts_parse_with_env(program, argc, argv, fixture_env_getenv, &env);
+    NAOS_REQUIRE_NOT_NULL(result);
+    NAOS_CHECK_TRUE(result != clopts_parser_result_oom());
     for (i = 0; i < argc; i++)
     {
         NAOS_CHECK_PTR_EQ(argv[i], saved[i]);
-        NAOS_CHECK_STR_EQ(argv[i], saved_text[i]);
+        NAOS_CHECK_STR_EQ(argv[i], text[i]);
     }
     NAOS_CHECK_NULL(argv[argc]);
-    return status;
+    return result;
+}
+
+/* Builds the tool fixture into f and parses argv with it. */
+static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
+{
+    fixture_tool_init(f, NULL);
+    NAOS_REQUIRE_NOT_NULL(f->program);
+    return parse_checked(f->program, argv);
 }
 
 /*
@@ -60,7 +74,7 @@ static void check_positionals(const clopts_result_t *result, char *const *expect
 {
     size_t i;
 
-    NAOS_REQUIRE_INT_EQ(result->status, CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(result), count);
     for (i = 0; i < count; i++)
     {
@@ -72,139 +86,207 @@ static void check_positionals(const clopts_result_t *result, char *const *expect
 static void check_positional(const clopts_positional_t *positional, const char *name,
                              bool required, bool variadic)
 {
+    NAOS_REQUIRE_NOT_NULL(positional);
     NAOS_CHECK_STR_EQ(positional->name, name);
     NAOS_CHECK_INT_EQ(positional->required ? 1 : 0, required ? 1 : 0);
     NAOS_CHECK_INT_EQ(positional->variadic ? 1 : 0, variadic ? 1 : 0);
 }
 
+/* ---- sentinel ----------------------------------------------------------- */
+
+NAOS_TEST(sentinel_has_no_positionals)
+{
+    clopts_result_t *result;
+
+    result = clopts_parse(NULL, 0, NULL);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_CHECK_UINT_EQ(clopts_result_positional_count(result), 0);
+    clopts_result_free(result);
+}
+
+/* ---- fixtures ---------------------------------------------------------- */
+
 NAOS_TEST(fixture_positionals_are_as_designed)
 {
-    check_positional(&fixture_build_positionals[FIXTURE_BUILD_POS_SRC], "SRC", true, false);
-    check_positional(&fixture_build_positionals[FIXTURE_BUILD_POS_EXTRA], "EXTRA", false, true);
-    check_positional(&fixture_copy_positionals[FIXTURE_COPY_POS_SRC], "SRC", true, false);
-    check_positional(&fixture_copy_positionals[FIXTURE_COPY_POS_DST], "DST", true, false);
-    check_positional(&fixture_cat_positionals[FIXTURE_CAT_POS_FILE], "FILE", false, true);
-    check_positional(&fixture_filt_positionals[FIXTURE_FILT_POS_FILE], "FILE", false, true);
+    fixture_tool_t t;
+    fixture_filt_t f;
+
+    fixture_tool_init(&t, NULL);
+    NAOS_REQUIRE_NOT_NULL(t.program);
+    check_positional(t.build_src, "SRC", true, false);
+    check_positional(t.build_extra, "EXTRA", false, true);
+    check_positional(t.copy_src, "SRC", true, false);
+    check_positional(t.copy_dst, "DST", true, false);
+    check_positional(t.cat_file, "FILE", false, true);
+    fixture_tool_free(&t);
+
+    fixture_filt_init(&f, NULL);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    check_positional(f.file, "FILE", false, true);
+    fixture_filt_free(&f);
 }
 
 NAOS_TEST(fixture_programs_with_commands_have_no_program_positionals)
 {
-    NAOS_CHECK_UINT_EQ(fixture_tool.positional_count, 0);
-    NAOS_CHECK_NULL(fixture_tool.positionals);
-    NAOS_CHECK_UINT_EQ(fixture_strict.positional_count, 0);
-    NAOS_CHECK_NULL(fixture_strict.positionals);
+    fixture_tool_t t;
+    fixture_strict_t s;
+
+    fixture_tool_init(&t, NULL);
+    NAOS_REQUIRE_NOT_NULL(t.program);
+    NAOS_CHECK_UINT_EQ(t.root->positionals.len, 0);
+    fixture_tool_free(&t);
+
+    fixture_strict_init(&s, NULL);
+    NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_CHECK_UINT_EQ(s.root->positionals.len, 0);
+    fixture_strict_free(&s);
 }
+
+/* ---- through the parse function ---------------------------------------- */
 
 NAOS_TEST(copy_takes_two_positionals_in_order)
 {
     char *argv[] = { "tool", "copy", "a", "b", NULL };
-    clopts_result_t result = { 0 };
+    fixture_tool_t f;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 4, argv, &result), CLOPTS_OK);
-    NAOS_CHECK_PTR_EQ(result.command, TOOL_CMD(FIXTURE_TOOL_CMD_COPY));
-    check_positionals(&result, &argv[2], 2);
-    clopts_result_free(&result);
+    result = parse_tool(&f, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_command(result), f.copy);
+    check_positionals(result, &argv[2], 2);
+    clopts_result_free(result);
+    fixture_tool_free(&f);
 }
 
 NAOS_TEST(copy_without_dst_is_missing_argument)
 {
     char *argv[] = { "tool", "copy", "a", NULL };
-    clopts_result_t result = { 0 };
+    fixture_tool_t f;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 3, argv, &result), CLOPTS_USAGE_ERROR);
-    NAOS_CHECK_INT_EQ(result.error.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(result.error.command, TOOL_CMD(FIXTURE_TOOL_CMD_COPY));
-    NAOS_CHECK_PTR_EQ(result.error.positional, COPY_POS(FIXTURE_COPY_POS_DST));
-    NAOS_CHECK_STR_EQ(result.error.positional->name, "DST");
-    NAOS_CHECK_NULL(result.error.option);
-    clopts_result_free(&result);
+    result = parse_tool(&f, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), f.copy);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_positional(result), f.copy_dst);
+    NAOS_REQUIRE_NOT_NULL(clopts_result_error_positional(result));
+    NAOS_CHECK_STR_EQ(clopts_result_error_positional(result)->name, "DST");
+    NAOS_CHECK_NULL(clopts_result_error_option(result));
+    clopts_result_free(result);
+    fixture_tool_free(&f);
 }
 
 NAOS_TEST(copy_with_a_third_token_is_unexpected_argument)
 {
     char *argv[] = { "tool", "copy", "a", "b", "c", NULL };
-    clopts_result_t result = { 0 };
+    fixture_tool_t f;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 5, argv, &result), CLOPTS_USAGE_ERROR);
-    NAOS_CHECK_INT_EQ(result.error.usage, CLOPTS_USAGE_UNEXPECTED_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(result.error.command, TOOL_CMD(FIXTURE_TOOL_CMD_COPY));
-    NAOS_CHECK_PTR_EQ(result.error.token, argv[4]);
-    NAOS_CHECK_STR_EQ(result.error.token, "c");
-    NAOS_CHECK_INT_EQ(result.error.argv_index, 4);
-    NAOS_CHECK_NULL(result.error.option);
-    NAOS_CHECK_NULL(result.error.positional);
-    NAOS_CHECK_UINT_EQ(result.error.name_len, 0);
-    NAOS_CHECK_INT_EQ(result.error.short_name, '\0');
-    clopts_result_free(&result);
+    result = parse_tool(&f, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_UNEXPECTED_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), f.copy);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_token(result), argv[4]);
+    NAOS_CHECK_STR_EQ(clopts_result_error_token(result), "c");
+    NAOS_CHECK_INT_EQ(clopts_result_error_argv_index(result), 4);
+    NAOS_CHECK_NULL(clopts_result_error_option(result));
+    NAOS_CHECK_NULL(clopts_result_error_positional(result));
+    NAOS_CHECK_UINT_EQ(clopts_result_error_name_len(result), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_error_short_name(result), '\0');
+    clopts_result_free(result);
+    fixture_tool_free(&f);
 }
 
 NAOS_TEST(cat_without_tokens_has_no_positionals)
 {
     char *argv[] = { "tool", "cat", NULL };
-    clopts_result_t result = { 0 };
+    fixture_tool_t f;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 2, argv, &result), CLOPTS_OK);
-    NAOS_CHECK_PTR_EQ(result.command, TOOL_CMD(FIXTURE_TOOL_CMD_CAT));
-    check_positionals(&result, NULL, 0);
-    clopts_result_free(&result);
+    result = parse_tool(&f, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_command(result), f.cat);
+    check_positionals(result, NULL, 0);
+    clopts_result_free(result);
+    fixture_tool_free(&f);
 }
 
 NAOS_TEST(cat_variadic_takes_every_remaining_token)
 {
     char *argv[] = { "tool", "cat", "x", "y", "z", NULL };
-    clopts_result_t result = { 0 };
+    fixture_tool_t f;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 5, argv, &result), CLOPTS_OK);
-    check_positionals(&result, &argv[2], 3);
-    clopts_result_free(&result);
+    result = parse_tool(&f, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    check_positionals(result, &argv[2], 3);
+    clopts_result_free(result);
+    fixture_tool_free(&f);
 }
 
 NAOS_TEST(cat_after_dashdash_dash_tokens_are_positionals)
 {
     char *argv[] = { "tool", "cat", "--", "-x", "--y", NULL };
-    clopts_result_t result = { 0 };
+    fixture_tool_t f;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 5, argv, &result), CLOPTS_OK);
-    check_positionals(&result, &argv[3], 2);
-    clopts_result_free(&result);
+    result = parse_tool(&f, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    check_positionals(result, &argv[3], 2);
+    clopts_result_free(result);
+    fixture_tool_free(&f);
 }
 
 NAOS_TEST(cat_lone_dash_is_a_positional)
 {
     char *argv[] = { "tool", "cat", "-", NULL };
-    clopts_result_t result = { 0 };
+    fixture_tool_t f;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 3, argv, &result), CLOPTS_OK);
-    check_positionals(&result, &argv[2], 1);
-    NAOS_CHECK_STR_EQ(clopts_result_positional_at(&result, 0), "-");
-    clopts_result_free(&result);
+    result = parse_tool(&f, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    check_positionals(result, &argv[2], 1);
+    NAOS_CHECK_STR_EQ(clopts_result_positional_at(result, 0), "-");
+    clopts_result_free(result);
+    fixture_tool_free(&f);
 }
 
 NAOS_TEST(filt_without_subcommands_takes_positionals)
 {
     char *argv[] = { "filt", "a", "b", NULL };
-    clopts_result_t result = { 0 };
+    fixture_filt_t f;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_filt, 3, argv, &result), CLOPTS_OK);
-    NAOS_CHECK_NULL(result.command);
-    check_positionals(&result, &argv[1], 2);
-    clopts_result_free(&result);
+    fixture_filt_init(&f, NULL);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    result = parse_checked(f.program, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_NULL(clopts_result_command(result));
+    check_positionals(result, &argv[1], 2);
+    clopts_result_free(result);
+    fixture_filt_free(&f);
 }
 
 NAOS_TEST(strict_without_tokens_checks_the_global_required_option)
 {
     char *argv[] = { "strict", NULL };
-    clopts_result_t result = { 0 };
+    fixture_strict_t s;
+    clopts_result_t *result;
 
-    NAOS_CHECK_INT_EQ(parse_checked(&fixture_strict, 1, argv, &result), CLOPTS_USAGE_ERROR);
-    NAOS_CHECK_INT_EQ(result.error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result.error.option, &fixture_strict_options[FIXTURE_STRICT_OPT_TOKEN]);
-    NAOS_CHECK_NULL(result.error.command);
-    NAOS_CHECK_NULL(result.command);
-    clopts_result_free(&result);
+    fixture_strict_init(&s, NULL);
+    NAOS_REQUIRE_NOT_NULL(s.program);
+    result = parse_checked(s.program, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), s.token);
+    NAOS_CHECK_NULL(clopts_result_error_command(result));
+    NAOS_CHECK_NULL(clopts_result_command(result));
+    clopts_result_free(result);
+    fixture_strict_free(&s);
 }
 
 NAOS_SUITE(positional,
+    NAOS_ADD_TEST(sentinel_has_no_positionals),
     NAOS_ADD_TEST(fixture_positionals_are_as_designed),
     NAOS_ADD_TEST(fixture_programs_with_commands_have_no_program_positionals),
     NAOS_ADD_TEST(copy_takes_two_positionals_in_order),

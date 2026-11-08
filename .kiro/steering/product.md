@@ -1,6 +1,6 @@
 # Product Overview
 
-> 2026-11-08 同期。project-foundation と core-parser は初版の方式（`static const` の宣言テーブル、静的ライブラリのみ）で実装済みだが、2026-11-08 の改訂（roadmap.md の Approach Decision）で、共有ライブラリへの対応と、ビルダー API + 不透明ハンドルへの作り直しが決まった。本ファイルは改訂後の目指す姿を正とする。既存のコードとの差は、roadmap.md の「Existing Spec Updates」で解消する。
+> 2026-11-08 同期。2026-11-08 の改訂（roadmap.md の Approach Decision）で、共有ライブラリへの対応と、ビルダー API + 不透明ハンドルへの作り直しが決まり、project-foundation と core-parser はその方式で実装し直した（roadmap.md の「Existing Spec Updates」）。本ファイルは改訂後の姿を正とする。
 
 CLOpts は、C99 で書かれた外部依存ゼロのコマンドライン引数パーサライブラリである。呼び出し側はビルダー API（`clopts_program_new` から始めて、サブコマンド・オプション・位置引数を関数で追加する）で宣言を組み立てるだけで、解析・ヘルプ文面・エラーの 3 つが同じ宣言から決まる。静的ライブラリとしても共有ライブラリとしても使え、1.0.0 以降は共有ライブラリの ABI 後方互換を保証する。出発点は [Monde](https://github.com/ktdevx/monde-private) の内部モジュール `cli_args` だが、そのまま抜き出すのではなく、コマンドライン引数を扱うソフトウェア一般のための設計に作り直す。
 

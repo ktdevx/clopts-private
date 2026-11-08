@@ -1,208 +1,177 @@
 /*
  * Definitions of the shared parser test fixtures (see test_fixtures.h).
+ *
+ * The three programs reproduce the first-version declarations (names, kinds,
+ * help texts, value names, environment variables, defaults, delimiters, count
+ * limit, positionals, handlers and version) with the builder functions.
  */
 
 #include "test_fixtures.h"
 
-#include <stdlib.h>
+#include <assert.h>
 #include <string.h>
 
 /* ---- tool -------------------------------------------------------------- */
 
-const clopts_option_t fixture_tool_options[FIXTURE_TOOL_OPT_COUNT] = {
-    [FIXTURE_TOOL_OPT_VERBOSE] = {
-        .long_name = "verbose",
-        .short_name = 'v',
-        .kind = CLOPTS_COUNT,
-        .help = "Increase verbosity.",
-    },
-    [FIXTURE_TOOL_OPT_COLOR] = {
-        .long_name = "color",
-        .kind = CLOPTS_FLAG,
-        .help = "Colorize the output.",
-        .negatable = true,
-    },
-    [FIXTURE_TOOL_OPT_CONFIG] = {
-        .long_name = "config",
-        .kind = CLOPTS_VALUE,
-        .value_name = "PATH",
-        .help = "Configuration file.",
-        .env = "TOOL_CONFIG",
-    },
-};
-
-const clopts_option_t fixture_build_options[FIXTURE_BUILD_OPT_COUNT] = {
-    [FIXTURE_BUILD_OPT_OUTPUT] = {
-        .long_name = "output",
-        .short_name = 'o',
-        .kind = CLOPTS_VALUE,
-        .value_name = "FILE",
-        .help = "Output file.",
-        .required = true,
-    },
-    [FIXTURE_BUILD_OPT_KEYS] = {
-        .long_name = "keys",
-        .short_name = 'k',
-        .kind = CLOPTS_LIST,
-        .value_name = "KEY",
-        .help = "Keys to build.",
-        .list_delimiter = ',',
-    },
-    [FIXTURE_BUILD_OPT_JOBS] = {
-        .short_name = 'j',
-        .kind = CLOPTS_COUNT,
-        .help = "Add a parallel job.",
-        .count_max = 8,
-    },
-};
-
-const clopts_positional_t fixture_build_positionals[FIXTURE_BUILD_POS_COUNT] = {
-    [FIXTURE_BUILD_POS_SRC] = {
-        .name = "SRC",
-        .help = "Source to build.",
-        .required = true,
-    },
-    [FIXTURE_BUILD_POS_EXTRA] = {
-        .name = "EXTRA",
-        .help = "Extra inputs.",
-        .variadic = true,
-    },
-};
-
-const clopts_positional_t fixture_copy_positionals[FIXTURE_COPY_POS_COUNT] = {
-    [FIXTURE_COPY_POS_SRC] = {
-        .name = "SRC",
-        .help = "Source.",
-        .required = true,
-    },
-    [FIXTURE_COPY_POS_DST] = {
-        .name = "DST",
-        .help = "Destination.",
-        .required = true,
-    },
-};
-
-const clopts_option_t fixture_cat_options[FIXTURE_CAT_OPT_COUNT] = {
-    [FIXTURE_CAT_OPT_TAGS] = {
-        .long_name = "tags",
-        .kind = CLOPTS_LIST,
-        .value_name = "TAG",
-        .help = "Tags to show.",
-        .default_value = "a,b",
-        .env = "TOOL_TAGS",
-        .list_delimiter = ',',
-    },
-};
-
-const clopts_positional_t fixture_cat_positionals[FIXTURE_CAT_POS_COUNT] = {
-    [FIXTURE_CAT_POS_FILE] = {
-        .name = "FILE",
-        .help = "Files to show.",
-        .variadic = true,
-    },
-};
-
 fixture_handler_record_t fixture_build_handler_record;
 
-const clopts_command_t fixture_tool_commands[FIXTURE_TOOL_CMD_COUNT] = {
-    [FIXTURE_TOOL_CMD_BUILD] = {
-        .name = "build",
-        .summary = "Build a source.",
-        .options = fixture_build_options,
-        .option_count = FIXTURE_BUILD_OPT_COUNT,
-        .positionals = fixture_build_positionals,
-        .positional_count = FIXTURE_BUILD_POS_COUNT,
-        .handler = fixture_handler,
-        .userdata = &fixture_build_handler_record,
-    },
-    [FIXTURE_TOOL_CMD_COPY] = {
-        .name = "copy",
-        .summary = "Copy a file.",
-        .positionals = fixture_copy_positionals,
-        .positional_count = FIXTURE_COPY_POS_COUNT,
-    },
-    [FIXTURE_TOOL_CMD_CAT] = {
-        .name = "cat",
-        .summary = "Show files.",
-        .options = fixture_cat_options,
-        .option_count = FIXTURE_CAT_OPT_COUNT,
-        .positionals = fixture_cat_positionals,
-        .positional_count = FIXTURE_CAT_POS_COUNT,
-    },
-};
+void fixture_tool_init(fixture_tool_t *f, clopts_parser_probe_t *probe)
+{
+    assert(f != NULL);
 
-const clopts_program_t fixture_tool = {
-    .name = "tool",
-    .description = "A fictional tool with subcommands.",
-    .version = "1.2.3",
-    .options = fixture_tool_options,
-    .option_count = FIXTURE_TOOL_OPT_COUNT,
-    .commands = fixture_tool_commands,
-    .command_count = FIXTURE_TOOL_CMD_COUNT,
-};
+    memset(f, 0, sizeof(*f));
+    f->program = clopts_program_new("tool");
+    if ((f->program != NULL) && (probe != NULL))
+    {
+        clopts_parser_set_probe(f->program, probe);
+    }
+    f->root = clopts_program_root(f->program);
+    clopts_command_set_description(f->root, "A fictional tool with subcommands.");
+    clopts_program_set_version(f->program, "1.2.3");
+
+    f->verbose = clopts_command_add_count(f->root, "verbose", 'v');
+    clopts_option_set_help(f->verbose, "Increase verbosity.");
+
+    f->color = clopts_command_add_flag(f->root, "color", '\0');
+    clopts_option_set_help(f->color, "Colorize the output.");
+    clopts_option_set_negatable(f->color, true);
+
+    f->config = clopts_command_add_value(f->root, "config", '\0');
+    clopts_option_set_value_name(f->config, "PATH");
+    clopts_option_set_help(f->config, "Configuration file.");
+    clopts_option_set_env(f->config, "TOOL_CONFIG");
+
+    /* build */
+    f->build = clopts_program_add_command(f->program, "build");
+    clopts_command_set_summary(f->build, "Build a source.");
+    clopts_command_set_handler(f->build, fixture_handler, &fixture_build_handler_record);
+
+    f->output = clopts_command_add_value(f->build, "output", 'o');
+    clopts_option_set_value_name(f->output, "FILE");
+    clopts_option_set_help(f->output, "Output file.");
+    clopts_option_set_required(f->output, true);
+
+    f->keys = clopts_command_add_list(f->build, "keys", 'k');
+    clopts_option_set_value_name(f->keys, "KEY");
+    clopts_option_set_help(f->keys, "Keys to build.");
+    clopts_option_set_delimiter(f->keys, ',');
+
+    f->jobs = clopts_command_add_count(f->build, NULL, 'j');
+    clopts_option_set_help(f->jobs, "Add a parallel job.");
+    clopts_option_set_count_max(f->jobs, 8);
+
+    f->build_src = clopts_command_add_positional(f->build, "SRC");
+    clopts_positional_set_help(f->build_src, "Source to build.");
+    clopts_positional_set_required(f->build_src, true);
+
+    f->build_extra = clopts_command_add_positional(f->build, "EXTRA");
+    clopts_positional_set_help(f->build_extra, "Extra inputs.");
+    clopts_positional_set_variadic(f->build_extra, true);
+
+    /* copy */
+    f->copy = clopts_program_add_command(f->program, "copy");
+    clopts_command_set_summary(f->copy, "Copy a file.");
+
+    f->copy_src = clopts_command_add_positional(f->copy, "SRC");
+    clopts_positional_set_help(f->copy_src, "Source.");
+    clopts_positional_set_required(f->copy_src, true);
+
+    f->copy_dst = clopts_command_add_positional(f->copy, "DST");
+    clopts_positional_set_help(f->copy_dst, "Destination.");
+    clopts_positional_set_required(f->copy_dst, true);
+
+    /* cat */
+    f->cat = clopts_program_add_command(f->program, "cat");
+    clopts_command_set_summary(f->cat, "Show files.");
+
+    f->tags = clopts_command_add_list(f->cat, "tags", '\0');
+    clopts_option_set_value_name(f->tags, "TAG");
+    clopts_option_set_help(f->tags, "Tags to show.");
+    clopts_option_set_default(f->tags, "a,b");
+    clopts_option_set_env(f->tags, "TOOL_TAGS");
+    clopts_option_set_delimiter(f->tags, ',');
+
+    f->cat_file = clopts_command_add_positional(f->cat, "FILE");
+    clopts_positional_set_help(f->cat_file, "Files to show.");
+    clopts_positional_set_variadic(f->cat_file, true);
+}
+
+void fixture_tool_free(fixture_tool_t *f)
+{
+    assert(f != NULL);
+
+    clopts_program_free(f->program);
+    memset(f, 0, sizeof(*f));
+}
 
 /* ---- filt -------------------------------------------------------------- */
 
-const clopts_option_t fixture_filt_options[FIXTURE_FILT_OPT_COUNT] = {
-    [FIXTURE_FILT_OPT_LINES] = {
-        .long_name = "lines",
-        .short_name = 'n',
-        .kind = CLOPTS_VALUE,
-        .value_name = "N",
-        .help = "Number of lines.",
-        .default_value = "10",
-        .env = "FILT_LINES",
-    },
-};
-
-const clopts_positional_t fixture_filt_positionals[FIXTURE_FILT_POS_COUNT] = {
-    [FIXTURE_FILT_POS_FILE] = {
-        .name = "FILE",
-        .help = "Files to filter.",
-        .variadic = true,
-    },
-};
-
 fixture_handler_record_t fixture_filt_handler_record;
 
-const clopts_program_t fixture_filt = {
-    .name = "filt",
-    .description = "A fictional filter without subcommands.",
-    .options = fixture_filt_options,
-    .option_count = FIXTURE_FILT_OPT_COUNT,
-    .positionals = fixture_filt_positionals,
-    .positional_count = FIXTURE_FILT_POS_COUNT,
-    .handler = fixture_handler,
-    .userdata = &fixture_filt_handler_record,
-};
+void fixture_filt_init(fixture_filt_t *f, clopts_parser_probe_t *probe)
+{
+    assert(f != NULL);
+
+    memset(f, 0, sizeof(*f));
+    f->program = clopts_program_new("filt");
+    if ((f->program != NULL) && (probe != NULL))
+    {
+        clopts_parser_set_probe(f->program, probe);
+    }
+    f->root = clopts_program_root(f->program);
+    clopts_command_set_description(f->root, "A fictional filter without subcommands.");
+    clopts_command_set_handler(f->root, fixture_handler, &fixture_filt_handler_record);
+
+    f->lines = clopts_command_add_value(f->root, "lines", 'n');
+    clopts_option_set_value_name(f->lines, "N");
+    clopts_option_set_help(f->lines, "Number of lines.");
+    clopts_option_set_default(f->lines, "10");
+    clopts_option_set_env(f->lines, "FILT_LINES");
+
+    f->file = clopts_command_add_positional(f->root, "FILE");
+    clopts_positional_set_help(f->file, "Files to filter.");
+    clopts_positional_set_variadic(f->file, true);
+}
+
+void fixture_filt_free(fixture_filt_t *f)
+{
+    assert(f != NULL);
+
+    clopts_program_free(f->program);
+    memset(f, 0, sizeof(*f));
+}
 
 /* ---- strict ------------------------------------------------------------ */
 
-const clopts_option_t fixture_strict_options[FIXTURE_STRICT_OPT_COUNT] = {
-    [FIXTURE_STRICT_OPT_TOKEN] = {
-        .long_name = "token",
-        .kind = CLOPTS_VALUE,
-        .value_name = "TOKEN",
-        .help = "Access token.",
-        .required = true,
-    },
-};
+void fixture_strict_init(fixture_strict_t *f, clopts_parser_probe_t *probe)
+{
+    assert(f != NULL);
 
-const clopts_command_t fixture_strict_commands[FIXTURE_STRICT_CMD_COUNT] = {
-    [FIXTURE_STRICT_CMD_RUN] = {
-        .name = "run",
-        .summary = "Run it.",
-    },
-};
+    memset(f, 0, sizeof(*f));
+    f->program = clopts_program_new("strict");
+    if ((f->program != NULL) && (probe != NULL))
+    {
+        clopts_parser_set_probe(f->program, probe);
+    }
+    f->root = clopts_program_root(f->program);
+    clopts_command_set_description(f->root, "A fictional program with a required global option.");
 
-const clopts_program_t fixture_strict = {
-    .name = "strict",
-    .description = "A fictional program with a required global option.",
-    .options = fixture_strict_options,
-    .option_count = FIXTURE_STRICT_OPT_COUNT,
-    .commands = fixture_strict_commands,
-    .command_count = FIXTURE_STRICT_CMD_COUNT,
-};
+    f->token = clopts_command_add_value(f->root, "token", '\0');
+    clopts_option_set_value_name(f->token, "TOKEN");
+    clopts_option_set_help(f->token, "Access token.");
+    clopts_option_set_required(f->token, true);
+
+    f->run = clopts_program_add_command(f->program, "run");
+    clopts_command_set_summary(f->run, "Run it.");
+}
+
+void fixture_strict_free(fixture_strict_t *f)
+{
+    assert(f != NULL);
+
+    clopts_program_free(f->program);
+    memset(f, 0, sizeof(*f));
+}
 
 /* ---- handler ----------------------------------------------------------- */
 
@@ -230,24 +199,54 @@ void fixture_env_init(fixture_env_t *env, const fixture_env_var_t *vars, size_t 
 {
     size_t i;
 
+    assert(env != NULL);
+    assert(var_count <= FIXTURE_ENV_MAX_VARS);
+    assert((vars != NULL) || (var_count == 0));
+
+    memset(env, 0, sizeof(*env));
+    for (i = 0; i < var_count; i++)
+    {
+        assert((vars[i].name != NULL) && (vars[i].value != NULL));
+        assert(strlen(vars[i].value) < FIXTURE_ENV_VALUE_SIZE);
+    }
     env->vars = vars;
     env->var_count = var_count;
     env->fail_next = false;
-    for (i = 0; i < FIXTURE_ENV_MAX_QUERIES; i++)
-    {
-        env->queried[i] = NULL;
-    }
+    env->clobber = false;
     env->query_count = 0;
 }
 
-clopts_env_status_t fixture_env_getenv(void *ctx, const char *name, char **out)
+void fixture_env_clobber(fixture_env_t *env)
+{
+    size_t i;
+
+    assert(env != NULL);
+
+    for (i = 0; i < FIXTURE_ENV_MAX_VARS; i++)
+    {
+        memset(env->buffers[i], '#', FIXTURE_ENV_VALUE_SIZE - 1);
+        env->buffers[i][FIXTURE_ENV_VALUE_SIZE - 1] = '\0';
+    }
+}
+
+clopts_env_status_t fixture_env_getenv(void *ctx, const char *name, const char **value)
 {
     fixture_env_t *env = (fixture_env_t *)ctx;
     size_t i;
 
+    assert((env != NULL) && (name != NULL) && (value != NULL));
+
+    if (env->clobber)
+    {
+        fixture_env_clobber(env);
+    }
+
     if (env->query_count < FIXTURE_ENV_MAX_QUERIES)
     {
-        env->queried[env->query_count] = name;
+        char *slot = env->queried[env->query_count];
+
+        strncpy(slot, name, FIXTURE_ENV_NAME_SIZE - 1);
+        slot[FIXTURE_ENV_NAME_SIZE - 1] = '\0';
     }
     env->query_count++;
 
@@ -261,24 +260,18 @@ clopts_env_status_t fixture_env_getenv(void *ctx, const char *name, char **out)
     {
         if (strcmp(env->vars[i].name, name) == 0)
         {
-            size_t size = strlen(env->vars[i].value) + 1;
-            char *copy = (char *)malloc(size);
-
-            if (copy == NULL)
-            {
-                return CLOPTS_ENV_FAILED;
-            }
-            memcpy(copy, env->vars[i].value, size);
-            *out = copy;
+            memcpy(env->buffers[i], env->vars[i].value, strlen(env->vars[i].value) + 1);
+            *value = env->buffers[i];
             return CLOPTS_ENV_FOUND;
         }
     }
     return CLOPTS_ENV_UNSET;
 }
 
-bool fixture_env_was_queried(const fixture_env_t *env, const char *name)
+size_t fixture_env_query_count(const fixture_env_t *env, const char *name)
 {
     size_t stored = env->query_count;
+    size_t n = 0;
     size_t i;
 
     if (stored > FIXTURE_ENV_MAX_QUERIES)
@@ -287,10 +280,15 @@ bool fixture_env_was_queried(const fixture_env_t *env, const char *name)
     }
     for (i = 0; i < stored; i++)
     {
-        if (strcmp(env->queried[i], name) == 0)
+        if (strncmp(env->queried[i], name, FIXTURE_ENV_NAME_SIZE - 1) == 0)
         {
-            return true;
+            n++;
         }
     }
-    return false;
+    return n;
+}
+
+bool fixture_env_was_queried(const fixture_env_t *env, const char *name)
+{
+    return (fixture_env_query_count(env, name) > 0);
 }

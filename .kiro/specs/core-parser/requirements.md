@@ -277,7 +277,7 @@ core-parser は、CLOpts の中核となる解析機能を定める spec であ�
 
 1. The parser shall option の値を、宣言時に返された option のハンドルをキーとして参照する関数群を提供し、文字列キーによる参照を公開しない。
 2. The parser shall 次のものを結果ハンドルから参照する手段を提供する: FLAG の真偽、COUNT の回数、VALUE の文字列（未指定なら NULL）、LIST の項目数と各項目、各 option の出所。
-3. If 結果ハンドルに対して、解析に使った program に属さない option のハンドルが渡された, then the parser shall これを契約違反としてデバッグビルドで検出する。黙って未指定として返すことはしない。
+3. If 結果ハンドルに対して、解析に使った program に属さない option のハンドルが渡された, then the parser shall これを契約違反としてデバッグビルドで検出して止め、黙って未指定として返すことはしない（リリースビルドでは未指定の値を返す）。
 4. The parser shall 選択されたサブコマンドの command ハンドル（サブコマンドなし構成では NULL）と、位置引数の個数および各トークンを、結果ハンドルから参照する手段を提供する。
 5. The parser shall 選択されたサブコマンド（サブコマンドなし構成では program）の handler を呼び出す関数を提供する。この関数は、結果ハンドルと宣言で設定した userdata を handler に渡し、handler の戻り値をそのまま返す。
 6. If handler を呼び出す関数が、状態 OK 以外の結果ハンドル、または handler が設定されていないスコープに対して呼ばれた, then the parser shall これを契約違反としてデバッグビルドで検出する。

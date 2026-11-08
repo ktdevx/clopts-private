@@ -1,59 +1,46 @@
 /*
- * Resolver: environment variable fallback, default values, required checks
- * and the default environment lookup.
+ * Resolver: the default environment lookup, resolution from the environment
+ * and the defaults, and the required checks.
  *
- * getenv is called only from clopts_parser_getenv_default, whose result is
- * copied at once (its storage may be invalidated by later getenv / putenv
- * calls). MSVC's deprecation warning for getenv is silenced by the PRIVATE
- * _CRT_SECURE_NO_WARNINGS definition of the clopts target.
+ * A lookup callback lends its string: it stays valid only until the next
+ * call of the callback. The resolver copies a found string through the
+ * allocation gateway right after the callback returns, before any further
+ * call, and never reads the borrowed string afterwards. getenv is called only
+ * from clopts_parser_getenv_default; MSVC's deprecation warning for it is
+ * silenced by the PRIVATE _CRT_SECURE_NO_WARNINGS definition of the target.
  */
 
 #include "parser/parser_internal.h"
 
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 
-clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, char **out)
+clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, const char **value)
 {
-    const char *value;
-    size_t len;
-    size_t bytes;
-    char *copy;
+    const char *found;
 
     (void)ctx;
     assert(name != NULL);
-    assert(out != NULL);
+    assert(value != NULL);
 
-    value = getenv(name);
-    if (value == NULL)
+    found = getenv(name);
+    if (found == NULL)
     {
         return CLOPTS_ENV_UNSET;
     }
-    len = strlen(value);
-    if (clopts_core_size_add(len, 1, &bytes) != 0)
-    {
-        return CLOPTS_ENV_FAILED;
-    }
-    copy = malloc(bytes);
-    if (copy == NULL)
-    {
-        return CLOPTS_ENV_FAILED;
-    }
-    memcpy(copy, value, bytes);
-    *out = copy;
+    *value = found;
     return CLOPTS_ENV_FOUND;
 }
 
 /*
- * Resolves one slot of option that got nothing from argv: the environment
- * first, then default_value. Returns 0 on success and -1 when the lookup or
- * an allocation fails.
+ * Resolves the slot of option when argv gave it nothing: the environment
+ * first, then the default value. Returns 0, or -1 when the lookup fails or a
+ * copy cannot be allocated (the default is not used then).
  */
-static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *option,
+static int resolve_slot(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const clopts_option_t *option,
                         clopts_getenv_fn getenv_fn, void *env_ctx)
 {
-    if ((option->kind != CLOPTS_VALUE) && (option->kind != CLOPTS_LIST))
+    if ((option->kind != CLOPTS_PARSER_VALUE) && (option->kind != CLOPTS_PARSER_LIST))
     {
         return 0;
     }
@@ -64,8 +51,8 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
 
     if (option->env != NULL)
     {
-        char *found = NULL;
-        clopts_env_status_t status = getenv_fn(env_ctx, option->env, &found);
+        const char *borrowed = NULL;
+        clopts_env_status_t status = getenv_fn(env_ctx, option->env, &borrowed);
 
         if (status == CLOPTS_ENV_FAILED)
         {
@@ -73,19 +60,31 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
         }
         if (status == CLOPTS_ENV_FOUND)
         {
-            assert(found != NULL);
-            if (option->kind == CLOPTS_VALUE)
+            char *copy;
+
+            assert((borrowed != NULL) && "a lookup that reports FOUND must set *value");
+            if (borrowed == NULL)
             {
-                clopts_parser_store_own(slot, found);
-                clopts_parser_store_set_value(slot, found, CLOPTS_SOURCE_ENV);
+                return -1;
+            }
+            /* Copy before the callback is called again; the loan ends there. */
+            copy = clopts_parser_strdup(probe, borrowed);
+            if (copy == NULL)
+            {
+                return -1;
+            }
+            if (option->kind == CLOPTS_PARSER_VALUE)
+            {
+                clopts_parser_slot_own(probe, slot, copy);
+                clopts_parser_slot_set_value(probe, slot, copy, CLOPTS_SOURCE_ENV);
                 return 0;
             }
             else
             {
-                int rc = clopts_parser_store_append_list(slot, found, option->list_delimiter,
-                                                         CLOPTS_SOURCE_ENV);
+                int rc = clopts_parser_slot_append_list(probe, slot, copy, option->delimiter, CLOPTS_SOURCE_ENV);
 
-                free(found);
+                /* The items are copies of their own; the whole string is no longer needed. */
+                clopts_parser_free(probe, copy);
                 return rc;
             }
         }
@@ -93,26 +92,30 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
 
     if (option->default_value != NULL)
     {
-        if (option->kind == CLOPTS_VALUE)
+        if (option->kind == CLOPTS_PARSER_VALUE)
         {
-            clopts_parser_store_set_value(slot, option->default_value, CLOPTS_SOURCE_DEFAULT);
+            /* Borrows the model's copy, which outlives the result's use of it. */
+            clopts_parser_slot_set_value(probe, slot, option->default_value, CLOPTS_SOURCE_DEFAULT);
             return 0;
         }
-        return clopts_parser_store_append_list(slot, option->default_value,
-                                               option->list_delimiter, CLOPTS_SOURCE_DEFAULT);
+        return clopts_parser_slot_append_list(probe, slot, option->default_value, option->delimiter,
+                                              CLOPTS_SOURCE_DEFAULT);
     }
     return 0;
 }
 
-/* Resolves the count slots of options in order. Returns 0 or -1. */
-static int resolve_scope(clopts_parser_slot_t *slots, const clopts_option_t *options,
-                         size_t count, clopts_getenv_fn getenv_fn, void *env_ctx)
+/* Resolves the slots of the options of scope in declaration order. Returns 0 or -1. */
+static int resolve_scope(clopts_parser_probe_t *probe, clopts_parser_slot_t *slots, size_t slot_count,
+                         const clopts_command_t *scope, clopts_getenv_fn getenv_fn, void *env_ctx)
 {
     size_t i;
 
-    for (i = 0; i < count; i++)
+    assert(slot_count == scope->options.len);
+    for (i = 0; i < slot_count; i++)
     {
-        if (resolve_slot(&slots[i], &options[i], getenv_fn, env_ctx) != 0)
+        const clopts_option_t *option = *(clopts_option_t *const *)clopts_core_vec_at(&scope->options, i);
+
+        if (resolve_slot(probe, &slots[i], option, getenv_fn, env_ctx) != 0)
         {
             return -1;
         }
@@ -120,29 +123,28 @@ static int resolve_scope(clopts_parser_slot_t *slots, const clopts_option_t *opt
     return 0;
 }
 
-int clopts_parser_resolve(clopts_result_t *result, clopts_getenv_fn getenv_fn, void *env_ctx,
-                          bool include_command)
+int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *program,
+                          clopts_getenv_fn getenv_fn, void *env_ctx, bool include_command)
 {
-    clopts_parser_store_t *store;
-
     assert(result != NULL);
-    store = result->impl;
-    assert(store != NULL);
+    assert(result != clopts_parser_result_oom());
+    assert(program != NULL);
+    assert(result->program == program);
 
     if (getenv_fn == NULL)
     {
         getenv_fn = clopts_parser_getenv_default;
     }
 
-    if (resolve_scope(store->global_slots, store->program->options,
-                      store->program->option_count, getenv_fn, env_ctx) != 0)
+    if (resolve_scope(result->probe, result->global_slots, result->global_count, &program->root,
+                      getenv_fn, env_ctx) != 0)
     {
         return -1;
     }
-    if (include_command && (store->command != NULL))
+    if (include_command && (result->command != NULL))
     {
-        if (resolve_scope(store->command_slots, store->command->options,
-                          store->command->option_count, getenv_fn, env_ctx) != 0)
+        if (resolve_scope(result->probe, result->command_slots, result->command_count, result->command,
+                          getenv_fn, env_ctx) != 0)
         {
             return -1;
         }
@@ -151,60 +153,64 @@ int clopts_parser_resolve(clopts_result_t *result, clopts_getenv_fn getenv_fn, v
 }
 
 /*
- * Fills result->error for a missing required option (positional == NULL) or
- * positional (option == NULL).
+ * Records a missing required option (positional == NULL) or positional
+ * (option == NULL) in result->error. result->status is left to the scanner.
  */
 static void set_missing(clopts_result_t *result, const clopts_command_t *command,
                         const clopts_option_t *option, const clopts_positional_t *positional)
 {
-    clopts_error_t error;
-
-    memset(&error, 0, sizeof(error));
-    error.usage = (option != NULL) ? CLOPTS_USAGE_MISSING_OPTION : CLOPTS_USAGE_MISSING_ARGUMENT;
-    error.command = command;
-    error.option = option;
-    error.positional = positional;
-    error.token = NULL;
-    error.argv_index = -1;
-    error.name_len = 0;
-    error.short_name = '\0';
-    result->error = error;
+    result->error.usage = (option != NULL) ? CLOPTS_USAGE_MISSING_OPTION : CLOPTS_USAGE_MISSING_ARGUMENT;
+    result->error.decl = CLOPTS_DECL_NONE;
+    result->error.command = command;
+    result->error.option = option;
+    result->error.positional = positional;
+    result->error.token = NULL;
+    result->error.argv_index = -1;
+    result->error.name_len = 0;
+    result->error.short_name = '\0';
 }
 
-/* Returns the first required option of options whose slot got no value, or NULL. */
-static const clopts_option_t *first_missing_option(const clopts_parser_slot_t *slots,
-                                                   const clopts_option_t *options, size_t count)
+/* Returns true when slot got a value that satisfies required (from argv or the environment). */
+static bool slot_given(const clopts_parser_slot_t *slot)
+{
+    return ((slot->source == CLOPTS_SOURCE_EXPLICIT) || (slot->source == CLOPTS_SOURCE_ENV));
+}
+
+/* Returns the first required option of scope whose slot was not given, or NULL. */
+static const clopts_option_t *first_missing_option(const clopts_parser_slot_t *slots, size_t slot_count,
+                                                   const clopts_command_t *scope)
 {
     size_t i;
 
-    for (i = 0; i < count; i++)
+    assert(slot_count == scope->options.len);
+    for (i = 0; i < slot_count; i++)
     {
-        if (options[i].required && (slots[i].source == CLOPTS_SOURCE_NONE))
+        const clopts_option_t *option = *(clopts_option_t *const *)clopts_core_vec_at(&scope->options, i);
+
+        if (option->required && !slot_given(&slots[i]))
         {
-            return &options[i];
+            return option;
         }
     }
     return NULL;
 }
 
-int clopts_parser_check_required(clopts_result_t *result, bool include_command)
+int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t *program, bool include_command)
 {
-    clopts_parser_store_t *store;
     const clopts_command_t *command;
+    const clopts_command_t *positional_scope;
     const clopts_option_t *missing;
-    const clopts_positional_t *positionals;
-    size_t positional_count;
     size_t recorded;
     size_t i;
 
     assert(result != NULL);
-    store = result->impl;
-    assert(store != NULL);
+    assert(result != clopts_parser_result_oom());
+    assert(program != NULL);
+    assert(result->program == program);
 
-    command = include_command ? store->command : NULL;
+    command = include_command ? result->command : NULL;
 
-    missing = first_missing_option(store->global_slots, store->program->options,
-                                   store->program->option_count);
+    missing = first_missing_option(result->global_slots, result->global_count, &program->root);
     if (missing != NULL)
     {
         set_missing(result, command, missing, NULL);
@@ -217,23 +223,21 @@ int clopts_parser_check_required(clopts_result_t *result, bool include_command)
 
     if (command != NULL)
     {
-        missing = first_missing_option(store->command_slots, command->options,
-                                       command->option_count);
+        missing = first_missing_option(result->command_slots, result->command_count, command);
         if (missing != NULL)
         {
             set_missing(result, command, missing, NULL);
             return -1;
         }
-        positionals = command->positionals;
-        positional_count = command->positional_count;
+        positional_scope = command;
     }
-    else if (store->program->command_count == 0)
+    else if (program->commands.len == 0)
     {
-        positionals = store->program->positionals;
-        positional_count = store->program->positional_count;
+        positional_scope = &program->root;
     }
     else
     {
+        /* NO_COMMAND: only the root options are checked. */
         return 0;
     }
 
@@ -242,12 +246,15 @@ int clopts_parser_check_required(clopts_result_t *result, bool include_command)
      * ones, so the i-th positional got a token exactly when i < recorded. A
      * required variadic positional therefore needs at least one token.
      */
-    recorded = store->positionals.len;
-    for (i = 0; i < positional_count; i++)
+    recorded = result->positionals.len;
+    for (i = 0; i < positional_scope->positionals.len; i++)
     {
-        if (positionals[i].required && (i >= recorded))
+        const clopts_positional_t *positional =
+            *(clopts_positional_t *const *)clopts_core_vec_at(&positional_scope->positionals, i);
+
+        if (positional->required && (i >= recorded))
         {
-            set_missing(result, command, NULL, &positionals[i]);
+            set_missing(result, command, NULL, positional);
             return -1;
         }
     }

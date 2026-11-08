@@ -1,11 +1,11 @@
 /*
- * DeclCheck: declaration validation and lookup of commands and options.
+ * Name rules and lookups, shared by the builder and the scanner.
  *
- * The check walks the declaration in table order (program name, global
- * options, program positionals without subcommands, then each command's
- * name, options and positionals) and, for each element, applies the rule
- * table of the design in row order, stopping at the first violation.
- * Lookups compare bytes exactly and case-sensitively, with no prefix match.
+ * Names are compared byte by byte, exactly and case-sensitively, with no
+ * prefix matching. The lookup range of a scope is the scope itself followed,
+ * for the root, by every command in declaration order and, for a command, by
+ * the root. The find_* functions used by the scanner search the selected
+ * command (when there is one) and then the root.
  */
 
 #include "parser/parser_internal.h"
@@ -13,19 +13,20 @@
 #include <assert.h>
 #include <string.h>
 
-/* ---- declaration check ------------------------------------------------- */
+/* ---- name rules ---------------------------------------------------------- */
 
-/* True for the C locale whitespace characters. */
-static bool is_space(char c)
+/* True for the white space characters of the C locale. */
+static bool decl_is_space(char c)
 {
-    return (c == ' ') || (c == '\t') || (c == '\n') || (c == '\v') || (c == '\f') || (c == '\r');
+    return ((c == ' ') || (c == '\t') || (c == '\n') || (c == '\v') || (c == '\f') || (c == '\r'));
 }
 
-static bool has_space(const char *s)
+/* True when s contains a white space character. */
+static bool decl_has_space(const char *s)
 {
     for (; *s != '\0'; s++)
     {
-        if (is_space(*s))
+        if (decl_is_space(*s))
         {
             return true;
         }
@@ -33,384 +34,203 @@ static bool has_space(const char *s)
     return false;
 }
 
-/* True for the kinds that take a value (VALUE / LIST). */
-static bool takes_value(clopts_kind_t kind)
+bool clopts_parser_valid_command_name(const char *name)
 {
-    return (kind == CLOPTS_VALUE) || (kind == CLOPTS_LIST);
+    return ((name != NULL) && (name[0] != '\0') && (name[0] != '-') && (!decl_has_space(name)));
 }
 
-/*
- * Stores a declaration error in *error (when not NULL) and returns -1. The
- * fields that only describe usage errors are reset; usage is left as is.
- */
-static int fail(clopts_error_t *error, clopts_decl_error_t kind, const clopts_command_t *command,
-                const clopts_option_t *option, const clopts_positional_t *positional)
+bool clopts_parser_valid_long_name(const char *name)
 {
-    if (error != NULL)
-    {
-        error->decl = kind;
-        error->command = command;
-        error->option = option;
-        error->positional = positional;
-        error->token = NULL;
-        error->argv_index = -1;
-        error->name_len = 0;
-        error->short_name = '\0';
-    }
-    return -1;
+    return ((name != NULL) && (name[0] != '\0') && (name[0] != '-') && (strchr(name, '=') == NULL)
+            && (!decl_has_space(name)));
 }
 
-/* A program / command name: not NULL, not empty. */
-static bool valid_name(const char *name)
+bool clopts_parser_valid_short_name(char c)
 {
-    return (name != NULL) && (name[0] != '\0');
+    /* '\0' means "no short name" and is not a name. */
+    return ((c != '\0') && (c != '-') && (c != '=') && (!decl_is_space(c)));
 }
 
-/* A command name: a valid name that does not start with '-' and has no whitespace. */
-static bool valid_command_name(const char *name)
+/* ---- scopes ---------------------------------------------------------------- */
+
+/* Returns option index of scope. */
+static const clopts_option_t *decl_option_at(const clopts_command_t *scope, size_t index)
 {
-    return valid_name(name) && (name[0] != '-') && !has_space(name);
+    return *(clopts_option_t *const *)clopts_core_vec_at(&scope->options, index);
 }
 
-/* Row 3 of the rule table: long name, short name and env are well formed. */
-static bool valid_option_names(const clopts_option_t *option)
+/* Returns command index of program. */
+static const clopts_command_t *decl_command_at(const clopts_program_t *program, size_t index)
 {
-    const char *long_name = option->long_name;
-    char short_name = option->short_name;
-
-    if ((long_name != NULL)
-        && ((long_name[0] == '\0') || (long_name[0] == '-') || (strchr(long_name, '=') != NULL)
-            || has_space(long_name)))
-    {
-        return false;
-    }
-    if ((short_name == '-') || (short_name == '=') || is_space(short_name))
-    {
-        return false;
-    }
-    if ((option->env != NULL) && (option->env[0] == '\0'))
-    {
-        return false;
-    }
-    return true;
-}
-
-/* True when a and b share a long name or a short name. */
-static bool names_collide(const clopts_option_t *a, const clopts_option_t *b)
-{
-    if ((a->long_name != NULL) && (b->long_name != NULL) && (strcmp(a->long_name, b->long_name) == 0))
-    {
-        return true;
-    }
-    return (a->short_name != '\0') && (a->short_name == b->short_name);
-}
-
-/* True when flag is negatable and other is named "no-<flag's long name>". */
-static bool negation_of(const clopts_option_t *flag, const clopts_option_t *other)
-{
-    return flag->negatable && (flag->long_name != NULL) && (other->long_name != NULL)
-           && (strncmp(other->long_name, "no-", 3) == 0)
-           && (strcmp(other->long_name + 3, flag->long_name) == 0);
-}
-
-/* True when option collides with one of the count options at others. */
-static bool any_duplicate(const clopts_option_t *option, const clopts_option_t *others, size_t count)
-{
-    size_t i;
-
-    for (i = 0; i < count; i++)
-    {
-        if (names_collide(option, &others[i]))
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/* True when option and one of the count options at others negate each other. */
-static bool any_negation_conflict(const clopts_option_t *option, const clopts_option_t *others,
-                                  size_t count)
-{
-    size_t i;
-
-    for (i = 0; i < count; i++)
-    {
-        if (negation_of(option, &others[i]) || negation_of(&others[i], option))
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/*
- * Checks options[index] against the rule table. The options checked before it
- * in the same lookup range are options[0..index) and, for a command option
- * (command != NULL), all of program->options.
- */
-static int check_option(const clopts_program_t *program, const clopts_command_t *command,
-                        const clopts_option_t *options, size_t index, clopts_error_t *error)
-{
-    const clopts_option_t *option = &options[index];
-    const clopts_option_t *globals = (command != NULL) ? program->options : NULL;
-    size_t global_count = (command != NULL) ? program->option_count : 0;
-    bool value_kind = takes_value(option->kind);
-
-    if ((option->long_name == NULL) && (option->short_name == '\0'))
-    {
-        return fail(error, CLOPTS_DECL_NO_NAME, command, option, NULL);
-    }
-    if (!valid_option_names(option))
-    {
-        return fail(error, CLOPTS_DECL_INVALID_NAME, command, option, NULL);
-    }
-    if (any_duplicate(option, globals, global_count) || any_duplicate(option, options, index))
-    {
-        return fail(error, CLOPTS_DECL_DUPLICATE_OPTION, command, option, NULL);
-    }
-    if (((option->long_name != NULL)
-         && ((strcmp(option->long_name, "help") == 0)
-             || ((program->version != NULL) && (strcmp(option->long_name, "version") == 0))))
-        || (option->short_name == 'h'))
-    {
-        return fail(error, CLOPTS_DECL_RESERVED_NAME, command, option, NULL);
-    }
-    if (option->negatable && (option->kind != CLOPTS_FLAG))
-    {
-        return fail(error, CLOPTS_DECL_NOT_NEGATABLE, command, option, NULL);
-    }
-    if (any_negation_conflict(option, globals, global_count)
-        || any_negation_conflict(option, options, index))
-    {
-        return fail(error, CLOPTS_DECL_NEGATION_CONFLICT, command, option, NULL);
-    }
-    if ((option->default_value != NULL) && !value_kind)
-    {
-        return fail(error, CLOPTS_DECL_DEFAULT_NOT_ALLOWED, command, option, NULL);
-    }
-    if ((option->env != NULL) && !value_kind)
-    {
-        return fail(error, CLOPTS_DECL_ENV_NOT_ALLOWED, command, option, NULL);
-    }
-    if (option->required && (option->default_value != NULL))
-    {
-        return fail(error, CLOPTS_DECL_REQUIRED_WITH_DEFAULT, command, option, NULL);
-    }
-    if (option->required && !value_kind)
-    {
-        return fail(error, CLOPTS_DECL_REQUIRED_NOT_ALLOWED, command, option, NULL);
-    }
-    return 0;
-}
-
-/* Checks every option of one scope (the globals when command is NULL). */
-static int check_options(const clopts_program_t *program, const clopts_command_t *command,
-                         const clopts_option_t *options, size_t count, clopts_error_t *error)
-{
-    size_t i;
-
-    assert((count == 0) || (options != NULL));
-    for (i = 0; i < count; i++)
-    {
-        if (check_option(program, command, options, i, error) != 0)
-        {
-            return -1;
-        }
-    }
-    return 0;
-}
-
-/* Checks the order of required and variadic positionals. */
-static int check_positionals(const clopts_command_t *command,
-                             const clopts_positional_t *positionals, size_t count,
-                             clopts_error_t *error)
-{
-    bool seen_optional = false;
-    size_t i;
-
-    assert((count == 0) || (positionals != NULL));
-    for (i = 0; i < count; i++)
-    {
-        const clopts_positional_t *positional = &positionals[i];
-
-        if (positional->required && seen_optional)
-        {
-            return fail(error, CLOPTS_DECL_POSITIONAL_ORDER, command, NULL, positional);
-        }
-        if (positional->variadic && ((i + 1) != count))
-        {
-            return fail(error, CLOPTS_DECL_VARIADIC_POSITION, command, NULL, positional);
-        }
-        if (!positional->required)
-        {
-            seen_optional = true;
-        }
-    }
-    return 0;
-}
-
-/* Checks commands[index]: its name, then its options, then its positionals. */
-static int check_command(const clopts_program_t *program, size_t index, clopts_error_t *error)
-{
-    const clopts_command_t *command = &program->commands[index];
-    size_t i;
-
-    if (!valid_command_name(command->name))
-    {
-        return fail(error, CLOPTS_DECL_INVALID_NAME, command, NULL, NULL);
-    }
-    for (i = 0; i < index; i++)
-    {
-        if (strcmp(program->commands[i].name, command->name) == 0)
-        {
-            return fail(error, CLOPTS_DECL_DUPLICATE_COMMAND, command, NULL, NULL);
-        }
-    }
-    if (strcmp(command->name, "help") == 0)
-    {
-        return fail(error, CLOPTS_DECL_RESERVED_NAME, command, NULL, NULL);
-    }
-    if (check_options(program, command, command->options, command->option_count, error) != 0)
-    {
-        return -1;
-    }
-    return check_positionals(command, command->positionals, command->positional_count, error);
-}
-
-int clopts_parser_decl_check(const clopts_program_t *program, clopts_error_t *error)
-{
-    size_t i;
-
-    assert(program != NULL);
-    if (!valid_name(program->name))
-    {
-        return fail(error, CLOPTS_DECL_INVALID_NAME, NULL, NULL, NULL);
-    }
-    if (check_options(program, NULL, program->options, program->option_count, error) != 0)
-    {
-        return -1;
-    }
-    if (program->command_count == 0)
-    {
-        /* Without subcommands the program's own positionals are parsed (1.4). */
-        return check_positionals(NULL, program->positionals, program->positional_count, error);
-    }
-    assert(program->commands != NULL);
-    for (i = 0; i < program->command_count; i++)
-    {
-        if (check_command(program, i, error) != 0)
-        {
-            return -1;
-        }
-    }
-    return 0;
-}
-
-clopts_status_t clopts_decl_validate(const clopts_program_t *program, clopts_error_t *error)
-{
-    assert(program != NULL);
-    return (clopts_parser_decl_check(program, error) == 0) ? CLOPTS_OK : CLOPTS_DECL_ERROR;
-}
-
-/* ---- lookup ------------------------------------------------------------ */
-
-static clopts_parser_ref_t no_ref(void)
-{
-    clopts_parser_ref_t ref = { NULL, false, 0, false };
-
-    return ref;
-}
-
-static clopts_parser_ref_t make_ref(const clopts_option_t *options, bool global, size_t index)
-{
-    clopts_parser_ref_t ref = { NULL, false, 0, false };
-
-    ref.option = &options[index];
-    ref.global = global;
-    ref.index = index;
-    return ref;
+    return *(clopts_command_t *const *)clopts_core_vec_at(&program->commands, index);
 }
 
 /* True when long_name is exactly the name_len bytes at name. */
-static bool long_equals(const char *long_name, const char *name, size_t name_len)
+static bool decl_long_equals(const char *long_name, const char *name, size_t name_len)
 {
-    return (long_name != NULL) && (strlen(long_name) == name_len)
-           && (memcmp(long_name, name, name_len) == 0);
+    return ((long_name != NULL) && (strlen(long_name) == name_len) && (memcmp(long_name, name, name_len) == 0));
 }
 
-/* Returns the index of the option named name (name_len bytes), or count. */
-static size_t index_of_long(const clopts_option_t *options, size_t count, const char *name,
-                            size_t name_len)
+/* What an option search in one scope looks for. */
+typedef struct decl_query
+{
+    const char *long_name;  /* NULL: do not compare long names */
+    size_t long_len;
+    char short_name;        /* '\0': do not compare short names */
+} decl_query_t;
+
+/* True when option matches query. */
+static bool decl_matches(const clopts_option_t *option, const decl_query_t *query)
+{
+    if ((query->long_name != NULL) && decl_long_equals(option->long_name, query->long_name, query->long_len))
+    {
+        return true;
+    }
+    return ((query->short_name != '\0') && (option->short_name == query->short_name));
+}
+
+/* Returns the index in scope of the first option matching query, or scope->options.len. */
+static size_t decl_index_in(const clopts_command_t *scope, const decl_query_t *query)
 {
     size_t i;
 
-    for (i = 0; i < count; i++)
+    for (i = 0; i < scope->options.len; i++)
     {
-        if (long_equals(options[i].long_name, name, name_len))
+        if (decl_matches(decl_option_at(scope, i), query))
         {
             return i;
         }
     }
-    return count;
+    return scope->options.len;
 }
 
-/* Returns the index of the option with short name c, or count. */
-static size_t index_of_short(const clopts_option_t *options, size_t count, char c)
+/* Returns the first option matching query in scope, or NULL. */
+static const clopts_option_t *decl_find_in(const clopts_command_t *scope, const decl_query_t *query)
 {
+    size_t index = decl_index_in(scope, query);
+
+    return (index < scope->options.len) ? decl_option_at(scope, index) : NULL;
+}
+
+/* Returns the first option matching query in the lookup range of scope, or NULL. */
+static const clopts_option_t *decl_find_in_range(const clopts_command_t *scope, const decl_query_t *query)
+{
+    const clopts_program_t *program = scope->program;
+    const clopts_option_t *found;
     size_t i;
 
-    for (i = 0; i < count; i++)
+    found = decl_find_in(scope, query);
+    if (found != NULL)
     {
-        if (options[i].short_name == c)
-        {
-            return i;
-        }
+        return found;
     }
-    return count;
-}
-
-const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program,
-                                                   const char *name)
-{
-    size_t i;
-
-    assert((program != NULL) && (name != NULL));
-    for (i = 0; i < program->command_count; i++)
+    if (scope != &program->root)
     {
-        if (strcmp(program->commands[i].name, name) == 0)
+        return decl_find_in(&program->root, query);
+    }
+    for (i = 0; i < program->commands.len; i++)
+    {
+        found = decl_find_in(decl_command_at(program, i), query);
+        if (found != NULL)
         {
-            return &program->commands[i];
+            return found;
         }
     }
     return NULL;
 }
 
-clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program,
-                                            const clopts_command_t *command,
-                                            const char *name, size_t name_len)
+const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *scope, const char *l, char s)
 {
-    size_t index;
+    decl_query_t query;
 
-    assert((program != NULL) && (name != NULL));
-    if (command != NULL)
-    {
-        index = index_of_long(command->options, command->option_count, name, name_len);
-        if (index < command->option_count)
-        {
-            return make_ref(command->options, false, index);
-        }
-    }
-    index = index_of_long(program->options, program->option_count, name, name_len);
-    if (index < program->option_count)
-    {
-        return make_ref(program->options, true, index);
-    }
-    return no_ref();
+    assert(scope != NULL);
+    query.long_name = l;
+    query.long_len = (l != NULL) ? strlen(l) : 0;
+    query.short_name = s;
+    return decl_find_in_range(scope, &query);
 }
 
-clopts_parser_ref_t clopts_parser_find_negation(const clopts_program_t *program,
-                                                const clopts_command_t *command,
+const clopts_option_t *clopts_parser_find_named(const clopts_command_t *scope, const char *name, size_t name_len)
+{
+    decl_query_t query;
+
+    assert((scope != NULL) && (name != NULL));
+    query.long_name = name;
+    query.long_len = name_len;
+    query.short_name = '\0';
+    return decl_find_in_range(scope, &query);
+}
+
+/* ---- lookups for the scanner --------------------------------------------- */
+
+static clopts_parser_ref_t decl_no_ref(void)
+{
+    clopts_parser_ref_t ref = { NULL, false, 0, false };
+
+    return ref;
+}
+
+/*
+ * Searches the selected command (NULL or the root means none) and then the
+ * root for the first option matching query.
+ */
+static clopts_parser_ref_t decl_lookup(const clopts_program_t *program, const clopts_command_t *command,
+                                       const decl_query_t *query)
+{
+    clopts_parser_ref_t ref = { NULL, false, 0, false };
+    size_t index;
+
+    if ((command != NULL) && (command != &program->root))
+    {
+        index = decl_index_in(command, query);
+        if (index < command->options.len)
+        {
+            ref.option = decl_option_at(command, index);
+            ref.global = false;
+            ref.index = index;
+            return ref;
+        }
+    }
+    index = decl_index_in(&program->root, query);
+    if (index < program->root.options.len)
+    {
+        ref.option = decl_option_at(&program->root, index);
+        ref.global = true;
+        ref.index = index;
+    }
+    return ref;
+}
+
+const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program, const char *name)
+{
+    size_t i;
+
+    assert((program != NULL) && (name != NULL));
+    for (i = 0; i < program->commands.len; i++)
+    {
+        const clopts_command_t *command = decl_command_at(program, i);
+
+        if ((command->name != NULL) && (strcmp(command->name, name) == 0))
+        {
+            return command;
+        }
+    }
+    return NULL;
+}
+
+clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program, const clopts_command_t *command,
+                                            const char *name, size_t name_len)
+{
+    decl_query_t query;
+
+    assert((program != NULL) && (name != NULL));
+    query.long_name = name;
+    query.long_len = name_len;
+    query.short_name = '\0';
+    return decl_lookup(program, command, &query);
+}
+
+clopts_parser_ref_t clopts_parser_find_negation(const clopts_program_t *program, const clopts_command_t *command,
                                                 const char *name, size_t name_len)
 {
     clopts_parser_ref_t ref;
@@ -418,39 +238,28 @@ clopts_parser_ref_t clopts_parser_find_negation(const clopts_program_t *program,
     assert((program != NULL) && (name != NULL));
     if ((name_len <= 3) || (memcmp(name, "no-", 3) != 0))
     {
-        return no_ref();
+        return decl_no_ref();
     }
     ref = clopts_parser_find_long(program, command, name + 3, name_len - 3);
-    if ((ref.option == NULL) || (ref.option->kind != CLOPTS_FLAG) || !ref.option->negatable)
+    if ((ref.option == NULL) || (ref.option->kind != CLOPTS_PARSER_FLAG) || (!ref.option->negatable))
     {
-        return no_ref();
+        return decl_no_ref();
     }
     ref.negated = true;
     return ref;
 }
 
-clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program,
-                                             const clopts_command_t *command, char c)
+clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, const clopts_command_t *command, char c)
 {
-    size_t index;
+    decl_query_t query;
 
     assert(program != NULL);
     if (c == '\0')
     {
-        return no_ref();
+        return decl_no_ref();
     }
-    if (command != NULL)
-    {
-        index = index_of_short(command->options, command->option_count, c);
-        if (index < command->option_count)
-        {
-            return make_ref(command->options, false, index);
-        }
-    }
-    index = index_of_short(program->options, program->option_count, c);
-    if (index < program->option_count)
-    {
-        return make_ref(program->options, true, index);
-    }
-    return no_ref();
+    query.long_name = NULL;
+    query.long_len = 0;
+    query.short_name = c;
+    return decl_lookup(program, command, &query);
 }

@@ -1,10 +1,10 @@
 /*
- * Shared fixtures for the parser tests: fictional program declarations and a
- * mock environment lookup.
+ * Shared fixtures for the parser tests: fictional programs assembled with the
+ * builder functions, the handler they use and a borrowing mock environment.
  *
  * The programs are made up for the tests and do not describe any real tool.
  * Only valid declarations live here; a suite that needs an invalid or special
- * declaration defines its own static const table in its own file.
+ * declaration builds its own program in its own file.
  *
  *   tool 1.2.3   with subcommands
  *     global: -v/--verbose COUNT, --color negatable FLAG,
@@ -18,119 +18,83 @@
  *   strict       with one subcommand and a required global option
  *     global: --token VALUE required
  *     run:    no options, no positionals
+ *
+ * Each init function fills a struct of handles. When probe is not NULL it is
+ * attached with clopts_parser_set_probe() right after clopts_program_new(), so
+ * every later allocation of the assembly is a fault point. When an allocation
+ * fails, the remaining builder calls get NULL handles and do nothing; the
+ * struct then holds NULL for the handles that could not be created (program
+ * itself is NULL when clopts_program_new() failed). The free function
+ * releases the program (NULL is fine) and clears the struct.
  */
 
 #ifndef CLOPTS_TESTS_PARSER_TEST_FIXTURES_H
 #define CLOPTS_TESTS_PARSER_TEST_FIXTURES_H
 
-#include "clopts/clopts.h"
+#include "parser/parser_internal.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 
 /* ---- tool -------------------------------------------------------------- */
 
-enum
+typedef struct fixture_tool
 {
-    FIXTURE_TOOL_OPT_VERBOSE,
-    FIXTURE_TOOL_OPT_COLOR,
-    FIXTURE_TOOL_OPT_CONFIG,
-    FIXTURE_TOOL_OPT_COUNT
-};
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_command_t *build;
+    clopts_command_t *copy;
+    clopts_command_t *cat;
+    clopts_option_t *verbose;   /* root:  -v/--verbose COUNT */
+    clopts_option_t *color;     /* root:  --color negatable FLAG */
+    clopts_option_t *config;    /* root:  --config VALUE, env TOOL_CONFIG */
+    clopts_option_t *output;    /* build: -o/--output VALUE required */
+    clopts_option_t *keys;      /* build: -k/--keys LIST ',' */
+    clopts_option_t *jobs;      /* build: -j COUNT max 8 */
+    clopts_option_t *tags;      /* cat:   --tags LIST ',', default "a,b", env TOOL_TAGS */
+    clopts_positional_t *build_src;    /* build: SRC required */
+    clopts_positional_t *build_extra;  /* build: EXTRA variadic */
+    clopts_positional_t *copy_src;     /* copy:  SRC required */
+    clopts_positional_t *copy_dst;     /* copy:  DST required */
+    clopts_positional_t *cat_file;     /* cat:   FILE variadic */
+} fixture_tool_t;
 
-enum
-{
-    FIXTURE_TOOL_CMD_BUILD,
-    FIXTURE_TOOL_CMD_COPY,
-    FIXTURE_TOOL_CMD_CAT,
-    FIXTURE_TOOL_CMD_COUNT
-};
-
-enum
-{
-    FIXTURE_BUILD_OPT_OUTPUT,
-    FIXTURE_BUILD_OPT_KEYS,
-    FIXTURE_BUILD_OPT_JOBS,
-    FIXTURE_BUILD_OPT_COUNT
-};
-
-enum
-{
-    FIXTURE_BUILD_POS_SRC,
-    FIXTURE_BUILD_POS_EXTRA,
-    FIXTURE_BUILD_POS_COUNT
-};
-
-enum
-{
-    FIXTURE_COPY_POS_SRC,
-    FIXTURE_COPY_POS_DST,
-    FIXTURE_COPY_POS_COUNT
-};
-
-enum
-{
-    FIXTURE_CAT_OPT_TAGS,
-    FIXTURE_CAT_OPT_COUNT
-};
-
-enum
-{
-    FIXTURE_CAT_POS_FILE,
-    FIXTURE_CAT_POS_COUNT
-};
-
-extern const clopts_option_t fixture_tool_options[FIXTURE_TOOL_OPT_COUNT];
-extern const clopts_option_t fixture_build_options[FIXTURE_BUILD_OPT_COUNT];
-extern const clopts_positional_t fixture_build_positionals[FIXTURE_BUILD_POS_COUNT];
-extern const clopts_positional_t fixture_copy_positionals[FIXTURE_COPY_POS_COUNT];
-extern const clopts_option_t fixture_cat_options[FIXTURE_CAT_OPT_COUNT];
-extern const clopts_positional_t fixture_cat_positionals[FIXTURE_CAT_POS_COUNT];
-extern const clopts_command_t fixture_tool_commands[FIXTURE_TOOL_CMD_COUNT];
-extern const clopts_program_t fixture_tool;
+void fixture_tool_init(fixture_tool_t *f, clopts_parser_probe_t *probe);
+void fixture_tool_free(fixture_tool_t *f);
 
 /* ---- filt -------------------------------------------------------------- */
 
-enum
+typedef struct fixture_filt
 {
-    FIXTURE_FILT_OPT_LINES,
-    FIXTURE_FILT_OPT_COUNT
-};
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_option_t *lines;     /* -n/--lines VALUE, default "10", env FILT_LINES */
+    clopts_positional_t *file;  /* FILE variadic */
+} fixture_filt_t;
 
-enum
-{
-    FIXTURE_FILT_POS_FILE,
-    FIXTURE_FILT_POS_COUNT
-};
-
-extern const clopts_option_t fixture_filt_options[FIXTURE_FILT_OPT_COUNT];
-extern const clopts_positional_t fixture_filt_positionals[FIXTURE_FILT_POS_COUNT];
-extern const clopts_program_t fixture_filt;
+void fixture_filt_init(fixture_filt_t *f, clopts_parser_probe_t *probe);
+void fixture_filt_free(fixture_filt_t *f);
 
 /* ---- strict ------------------------------------------------------------ */
 
-enum
+typedef struct fixture_strict
 {
-    FIXTURE_STRICT_OPT_TOKEN,
-    FIXTURE_STRICT_OPT_COUNT
-};
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_command_t *run;
+    clopts_option_t *token;     /* root: --token VALUE required */
+} fixture_strict_t;
 
-enum
-{
-    FIXTURE_STRICT_CMD_RUN,
-    FIXTURE_STRICT_CMD_COUNT
-};
-
-extern const clopts_option_t fixture_strict_options[FIXTURE_STRICT_OPT_COUNT];
-extern const clopts_command_t fixture_strict_commands[FIXTURE_STRICT_CMD_COUNT];
-extern const clopts_program_t fixture_strict;
+void fixture_strict_init(fixture_strict_t *f, clopts_parser_probe_t *probe);
+void fixture_strict_free(fixture_strict_t *f);
 
 /* ---- handler ----------------------------------------------------------- */
 
 /*
- * Record kept by fixture_handler. fixture_filt passes &fixture_filt_handler_record
- * and the build command of fixture_tool passes &fixture_build_handler_record as
- * userdata. Reset a record with fixture_handler_reset() before use.
+ * Record kept by fixture_handler. The root of filt passes
+ * &fixture_filt_handler_record and the build command of tool passes
+ * &fixture_build_handler_record as userdata. Reset a record with
+ * fixture_handler_reset() before use.
  */
 typedef struct fixture_handler_record
 {
@@ -162,37 +126,63 @@ typedef struct fixture_env_var
     const char *value;
 } fixture_env_var_t;
 
+/* Maximum number of variables in a fixture_env_t. */
+#define FIXTURE_ENV_MAX_VARS 8
+/* Size of the lending buffer of one variable (value length + 1 at most). */
+#define FIXTURE_ENV_VALUE_SIZE 64
 /* Maximum number of looked-up names recorded in fixture_env_t.queried. */
 #define FIXTURE_ENV_MAX_QUERIES 32
+/* Size of one recorded name (longer names are truncated). */
+#define FIXTURE_ENV_NAME_SIZE 32
 
 /*
  * Mock environment, passed as ctx to fixture_env_getenv. Initialize it with
  * fixture_env_init().
+ *
+ * A found value is copied from the table into the variable's own buffer and
+ * lent from there. With clobber set, every call first overwrites all buffers
+ * (so a value lent by an earlier call is destroyed as soon as the next call
+ * starts); fixture_env_clobber() destroys them on demand, e.g. right after a
+ * parse returns. A library that keeps the borrowed pointer instead of copying
+ * the string then shows "#..." instead of the value.
  */
 typedef struct fixture_env
 {
     const fixture_env_var_t *vars; /* name -> value table */
     size_t var_count;
+    char buffers[FIXTURE_ENV_MAX_VARS][FIXTURE_ENV_VALUE_SIZE];
     /* When true, the next lookup returns CLOPTS_ENV_FAILED and clears it. */
     bool fail_next;
-    /* Names looked up so far, in order (the first FIXTURE_ENV_MAX_QUERIES). */
-    const char *queried[FIXTURE_ENV_MAX_QUERIES];
+    /* When true, every lookup first overwrites all lending buffers. */
+    bool clobber;
+    /* Copies of the names looked up so far, in order (the first FIXTURE_ENV_MAX_QUERIES). */
+    char queried[FIXTURE_ENV_MAX_QUERIES][FIXTURE_ENV_NAME_SIZE];
     /* Total number of lookups, including those not stored in queried. */
     size_t query_count;
 } fixture_env_t;
 
-/* Sets the table, clears fail_next and the lookup record. */
+/*
+ * Sets the table (var_count <= FIXTURE_ENV_MAX_VARS, each value shorter than
+ * FIXTURE_ENV_VALUE_SIZE; both asserted), clears fail_next, clobber, the
+ * buffers and the lookup record.
+ */
 void fixture_env_init(fixture_env_t *env, const fixture_env_var_t *vars, size_t var_count);
 
 /*
- * clopts_getenv_fn over a fixture_env_t (ctx). Records name, then returns
- * CLOPTS_ENV_FAILED if fail_next was set, CLOPTS_ENV_FOUND with a malloc'ed
- * copy of the value if name is in the table (CLOPTS_ENV_FAILED if the copy
- * cannot be allocated), and CLOPTS_ENV_UNSET otherwise.
+ * clopts_getenv_fn over a fixture_env_t (ctx). Overwrites the buffers when
+ * clobber is set, records name, then returns CLOPTS_ENV_FAILED if fail_next
+ * was set (clearing it), CLOPTS_ENV_FOUND with *value borrowed from the
+ * variable's buffer if name is in the table, and CLOPTS_ENV_UNSET otherwise.
  */
-clopts_env_status_t fixture_env_getenv(void *ctx, const char *name, char **out);
+clopts_env_status_t fixture_env_getenv(void *ctx, const char *name, const char **value);
+
+/* Overwrites every lending buffer with '#' characters. */
+void fixture_env_clobber(fixture_env_t *env);
 
 /* True when name was looked up (compared by string content). */
 bool fixture_env_was_queried(const fixture_env_t *env, const char *name);
+
+/* Number of lookups of name among the recorded ones. */
+size_t fixture_env_query_count(const fixture_env_t *env, const char *name);
 
 #endif /* CLOPTS_TESTS_PARSER_TEST_FIXTURES_H */
