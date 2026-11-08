@@ -200,7 +200,7 @@
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 8.10, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7_
 
 - [ ] 7. 走査器: 解析関数の移植と、初版テストの観点の移植
-- [ ] 7.1 フィクスチャをビルダーで作り直す
+- [x] 7.1 フィクスチャをビルダーで作り直す
   - 初版と同じ架空の program 3 つ（`tool 1.2.3`、`filt`、`strict`）を、ビルダーで組み立てる関数にする。各関数は、ハンドルをまとめた構造体を埋め、プローブを受け取って生成の直後に取り付ける。解放関数も用意する
   - 環境変数の模擬関数は、名前 → 値の表、「次の呼び出しで FAILED を返す」フラグ、照会された名前の記録を持ち、借用を返す形にする。返した直後に表のバッファを書き換えるモードも持たせる
   - フィクスチャのファイルを、テストの CMake の共通ソースとして登録する（スイートのファイルは編集しない）
@@ -304,3 +304,4 @@
 - 6.1: `set_version` の RESERVED_NAME は、照合範囲の順（root、次に command の追加順）で最初の `version` を報告する（モデルに通し番号がないため。design.md の表も改めた）。`set_negatable(o, true)` は一時的な "no-x" を窓口経由で確保して `find_named` を呼ぶので、確保点を 1 つ持つ（失敗なら OOM を記録）。root への `no-x` の追加は command ごとに照会する。規則が成立しても確保に失敗すれば OOM を記録する。`valid_short_name('\0')` は偽
 - 6.2: `clopts_parser_result_select` が `result->command` と command 側のスロットを設定し、1 回だけ呼べる（`assert`）。走査器は select の前に `result->command` を書かないこと。help の対象（`help <cmd>`）は select で選ぶ。command のスロットは状態 OK のときだけ読まれる（NO_COMMAND は root だけ）。`positional_count` は OK / NO_COMMAND 以外で 0。`clopts_parser_result_new` は root に option があると確保点 2 つ
 - 6.3: `clopts_parser_resolve` / `clopts_parser_check_required` は、`result` が番兵でないことと `result->program == program` を assert する。どちらも `result->status` は書かない（走査器が書く）。不足時の `error.command` は、`include_command` が真なら選択コマンド、偽なら NULL。位置引数の検査は、選択コマンドの位置引数、サブコマンドなし構成なら root の位置引数に対して行う
+- 7.1: フィクスチャは `fixture_tool_t` / `fixture_filt_t` / `fixture_strict_t`（ハンドルの構造体）と `fixture_<x>_init(f, probe)` / `fixture_<x>_free(f)`。初版の添字の enum 定数はなく、ハンドルで参照する。模擬環境変数 `fixture_env_t` は値を自分のバッファから貸す。`clobber` は次の呼び出しの冒頭で全バッファを書き換え、`fixture_env_clobber()` で任意の時点に書き換えられる（8.8 の検証は、解析の後に `fixture_env_clobber()` を呼んで値が変わらないことを見る）。照会した名前は 31 文字までの複製
