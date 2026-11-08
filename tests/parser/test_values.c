@@ -2,8 +2,8 @@
  * Suite values: repetition rules of FLAG / COUNT / VALUE / LIST, list
  * delimiters and the count limit.
  *
- * The cases here record through the internal result store API directly; the
- * cases that go through argv are added by the scanner task.
+ * The first cases record through the internal result store API directly; the
+ * cases named parse_* go through argv with clopts_parse_with_env.
  */
 
 #include "test_fixtures.h"
@@ -569,6 +569,183 @@ NAOS_TEST(set_value_after_own_releases_the_copy)
     clopts_result_free(&result);
 }
 
+/* ---- through clopts_parse_with_env ------------------------------------- */
+
+#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
+
+#define KEYS_OPT (&fixture_build_options[FIXTURE_BUILD_OPT_KEYS])
+#define OUTPUT_OPT (&fixture_build_options[FIXTURE_BUILD_OPT_OUTPUT])
+#define JOBS_OPT (&fixture_build_options[FIXTURE_BUILD_OPT_JOBS])
+#define COLOR_OPT (&fixture_tool_options[FIXTURE_TOOL_OPT_COLOR])
+#define TAGS_OPT (&fixture_cat_options[FIXTURE_CAT_OPT_TAGS])
+
+/*
+ * Parses argv (argc elements, NULL-terminated) with an empty mock environment
+ * and checks that the status matches result->status.
+ */
+static clopts_status_t parse_argv(const clopts_program_t *program, int argc, char **argv,
+                                  clopts_result_t *result)
+{
+    fixture_env_t env;
+    clopts_status_t status;
+
+    fixture_env_init(&env, NULL, 0);
+    status = clopts_parse_with_env(program, argc, argv, fixture_env_getenv, &env, result);
+    NAOS_CHECK_INT_EQ(result->status, status);
+    return status;
+}
+
+/* Checks the items of a LIST option against expected[0..count-1]. */
+static void check_items(const clopts_result_t *result, const clopts_option_t *option,
+                        const char *const *expected, size_t count)
+{
+    size_t i;
+
+    NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, option), count);
+    for (i = 0; i < count; i++)
+    {
+        NAOS_CHECK_STR_EQ(clopts_result_list_at(result, option, i), expected[i]);
+    }
+}
+
+NAOS_TEST(parse_short_list_repeats_are_concatenated)
+{
+    static const char *const expected[] = { "a", "b", "c" };
+    char *argv[] = { "tool", "build", "x", "-o", "y", "-k", "a,b", "-k", "c", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 9, argv, &result), CLOPTS_OK);
+    check_items(&result, KEYS_OPT, expected, ARRAY_LEN(expected));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, KEYS_OPT), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_long_list_repeats_are_concatenated)
+{
+    static const char *const expected[] = { "a", "b", "c" };
+    char *argv[] = { "tool", "build", "x", "-o", "y", "--keys=a", "--keys", "b,c", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 8, argv, &result), CLOPTS_OK);
+    check_items(&result, KEYS_OPT, expected, ARRAY_LEN(expected));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, KEYS_OPT), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_list_keeps_empty_items)
+{
+    static const char *const expected[] = { "a", "", "b" };
+    char *argv[] = { "tool", "build", "x", "-o", "y", "-k", "a,,b", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 7, argv, &result), CLOPTS_OK);
+    check_items(&result, KEYS_OPT, expected, ARRAY_LEN(expected));
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_list_lone_delimiter_gives_two_empty_items)
+{
+    static const char *const expected[] = { "", "" };
+    char *argv[] = { "tool", "build", "x", "-o", "y", "-k", ",", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 7, argv, &result), CLOPTS_OK);
+    check_items(&result, KEYS_OPT, expected, ARRAY_LEN(expected));
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_value_last_occurrence_wins)
+{
+    char *argv[] = { "tool", "build", "x", "--output", "a", "--output", "b", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 7, argv, &result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(&result, OUTPUT_OPT), argv[6]);
+    NAOS_CHECK_STR_EQ(clopts_result_value(&result, OUTPUT_OPT), "b");
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, OUTPUT_OPT), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_count_nine_times_is_clamped_to_eight)
+{
+    char *argv[] = { "tool", "build", "x", "-o", "y", "-j", "-j", "-j", "-j",
+                     "-j", "-j", "-j", "-j", "-j", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 14, argv, &result), CLOPTS_OK);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, JOBS_OPT), 8);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, JOBS_OPT), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_flag_then_negation_is_false)
+{
+    char *argv[] = { "tool", "--color", "--no-color", "cat", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 4, argv, &result), CLOPTS_OK);
+    NAOS_CHECK_FALSE(clopts_result_flag(&result, COLOR_OPT));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, COLOR_OPT), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_negation_then_flag_is_true)
+{
+    char *argv[] = { "tool", "cat", "--no-color", "--color", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 4, argv, &result), CLOPTS_OK);
+    NAOS_CHECK_TRUE(clopts_result_flag(&result, COLOR_OPT));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, COLOR_OPT), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_cat_tags_default_is_split)
+{
+    static const char *const expected[] = { "a", "b" };
+    char *argv[] = { "tool", "cat", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_argv(&fixture_tool, 2, argv, &result), CLOPTS_OK);
+    check_items(&result, TAGS_OPT, expected, ARRAY_LEN(expected));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TAGS_OPT), CLOPTS_SOURCE_DEFAULT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_cat_tags_env_is_split)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_TAGS", "x,,y" } };
+    static const char *const expected[] = { "x", "", "y" };
+    char *argv[] = { "tool", "cat", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    NAOS_REQUIRE_INT_EQ(
+        clopts_parse_with_env(&fixture_tool, 2, argv, fixture_env_getenv, &env, &result),
+        CLOPTS_OK);
+    check_items(&result, TAGS_OPT, expected, ARRAY_LEN(expected));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TAGS_OPT), CLOPTS_SOURCE_ENV);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_cat_tags_explicit_is_split_and_wins)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_TAGS", "x,y" } };
+    static const char *const expected[] = { "p", "q", "r" };
+    char *argv[] = { "tool", "cat", "--tags", "p,q", "--tags=r", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    NAOS_REQUIRE_INT_EQ(
+        clopts_parse_with_env(&fixture_tool, 5, argv, fixture_env_getenv, &env, &result),
+        CLOPTS_OK);
+    check_items(&result, TAGS_OPT, expected, ARRAY_LEN(expected));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TAGS_OPT), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
 NAOS_SUITE(values,
     NAOS_ADD_TEST(fixture_list_delimiters_are_as_designed),
     NAOS_ADD_TEST(fixture_count_limits_are_as_designed),
@@ -593,5 +770,16 @@ NAOS_SUITE(values,
     NAOS_ADD_TEST(list_record_overwrites_source),
     NAOS_ADD_TEST(own_moves_the_copy_into_the_slot),
     NAOS_ADD_TEST(own_replaces_and_releases_the_previous_copy),
-    NAOS_ADD_TEST(set_value_after_own_releases_the_copy)
+    NAOS_ADD_TEST(set_value_after_own_releases_the_copy),
+    NAOS_ADD_TEST(parse_short_list_repeats_are_concatenated),
+    NAOS_ADD_TEST(parse_long_list_repeats_are_concatenated),
+    NAOS_ADD_TEST(parse_list_keeps_empty_items),
+    NAOS_ADD_TEST(parse_list_lone_delimiter_gives_two_empty_items),
+    NAOS_ADD_TEST(parse_value_last_occurrence_wins),
+    NAOS_ADD_TEST(parse_count_nine_times_is_clamped_to_eight),
+    NAOS_ADD_TEST(parse_flag_then_negation_is_false),
+    NAOS_ADD_TEST(parse_negation_then_flag_is_true),
+    NAOS_ADD_TEST(parse_cat_tags_default_is_split),
+    NAOS_ADD_TEST(parse_cat_tags_env_is_split),
+    NAOS_ADD_TEST(parse_cat_tags_explicit_is_split_and_wins)
 )

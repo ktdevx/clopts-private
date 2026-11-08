@@ -3,8 +3,8 @@
  * idempotent release, release of a zero-initialized result and release after
  * CLOPTS_OUT_OF_MEMORY.
  *
- * The cases here build the result through the internal result store API
- * directly; the cases that go through argv are added by the scanner task.
+ * The first cases build the result through the internal result store API
+ * directly; the cases named parse_* go through argv with clopts_parse_with_env.
  */
 
 #include "test_fixtures.h"
@@ -490,6 +490,258 @@ NAOS_TEST(free_after_out_of_memory_status_is_safe)
     NAOS_CHECK_NULL(result.impl);
 }
 
+/* ---- through clopts_parse_with_env ------------------------------------- */
+
+#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
+
+#define TOOL_OPT(i) (&fixture_tool_options[(i)])
+#define BUILD_OPT(i) (&fixture_build_options[(i)])
+#define CAT_OPT(i) (&fixture_cat_options[(i)])
+#define FILT_OPT(i) (&fixture_filt_options[(i)])
+#define TOOL_CMD(i) (&fixture_tool_commands[(i)])
+
+/* Maximum number of argv elements parse_checked handles. */
+#define MAX_ARGV 16
+
+/*
+ * Parses argv[0..argc-1] (NULL-terminated) for program with the mock
+ * environment env, checks that the status matches result->status and that
+ * argv is unchanged afterwards.
+ */
+static clopts_status_t parse_checked(const clopts_program_t *program, int argc, char **argv,
+                                     fixture_env_t *env, clopts_result_t *result)
+{
+    char *saved[MAX_ARGV];
+    char *saved_text[MAX_ARGV];
+    clopts_status_t status;
+    int i;
+
+    NAOS_REQUIRE_TRUE(argc < MAX_ARGV);
+    for (i = 0; i < argc; i++)
+    {
+        saved[i] = argv[i];
+        saved_text[i] = copy_string(argv[i]);
+        NAOS_REQUIRE_NOT_NULL(saved_text[i]);
+    }
+    status = clopts_parse_with_env(program, argc, argv, fixture_env_getenv, env, result);
+    NAOS_CHECK_INT_EQ(result->status, status);
+    for (i = 0; i < argc; i++)
+    {
+        NAOS_CHECK_PTR_EQ(argv[i], saved[i]);
+        NAOS_CHECK_STR_EQ(argv[i], saved_text[i]);
+        free(saved_text[i]);
+    }
+    NAOS_CHECK_NULL(argv[argc]);
+    return status;
+}
+
+NAOS_TEST(parse_accessors_return_every_kind_and_source)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_CONFIG", "/etc/t" } };
+    char *argv[] = { "tool", "-vv", "--no-color", "build", "src", "-o", "out",
+                     "-k", "a,b", "-jjj", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_tool, 10, argv, &env, &result), CLOPTS_OK);
+
+    /* COUNT and negated FLAG of the global scope. */
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, TOOL_OPT(FIXTURE_TOOL_OPT_VERBOSE)), 2);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TOOL_OPT(FIXTURE_TOOL_OPT_VERBOSE)),
+                      CLOPTS_SOURCE_EXPLICIT);
+    NAOS_CHECK_FALSE(clopts_result_flag(&result, TOOL_OPT(FIXTURE_TOOL_OPT_COLOR)));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TOOL_OPT(FIXTURE_TOOL_OPT_COLOR)),
+                      CLOPTS_SOURCE_EXPLICIT);
+    /* VALUE from the environment: a copy owned by the result. */
+    NAOS_CHECK_STR_EQ(clopts_result_value(&result, TOOL_OPT(FIXTURE_TOOL_OPT_CONFIG)), "/etc/t");
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TOOL_OPT(FIXTURE_TOOL_OPT_CONFIG)),
+                      CLOPTS_SOURCE_ENV);
+
+    /* VALUE, LIST and COUNT of the selected command. */
+    NAOS_CHECK_PTR_EQ(clopts_result_value(&result, BUILD_OPT(FIXTURE_BUILD_OPT_OUTPUT)), argv[6]);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, BUILD_OPT(FIXTURE_BUILD_OPT_OUTPUT)),
+                      CLOPTS_SOURCE_EXPLICIT);
+    NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(&result, BUILD_OPT(FIXTURE_BUILD_OPT_KEYS)), 2);
+    NAOS_CHECK_STR_EQ(clopts_result_list_at(&result, BUILD_OPT(FIXTURE_BUILD_OPT_KEYS), 0), "a");
+    NAOS_CHECK_STR_EQ(clopts_result_list_at(&result, BUILD_OPT(FIXTURE_BUILD_OPT_KEYS), 1), "b");
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, BUILD_OPT(FIXTURE_BUILD_OPT_KEYS)),
+                      CLOPTS_SOURCE_EXPLICIT);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, BUILD_OPT(FIXTURE_BUILD_OPT_JOBS)), 3);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, BUILD_OPT(FIXTURE_BUILD_OPT_JOBS)),
+                      CLOPTS_SOURCE_EXPLICIT);
+
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_accessors_report_none_for_options_not_given)
+{
+    char *argv[] = { "tool", "build", "src", "-o", "out", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_tool, 5, argv, &env, &result), CLOPTS_OK);
+
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, TOOL_OPT(FIXTURE_TOOL_OPT_VERBOSE)), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TOOL_OPT(FIXTURE_TOOL_OPT_VERBOSE)),
+                      CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_FALSE(clopts_result_flag(&result, TOOL_OPT(FIXTURE_TOOL_OPT_COLOR)));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TOOL_OPT(FIXTURE_TOOL_OPT_COLOR)),
+                      CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_NULL(clopts_result_value(&result, TOOL_OPT(FIXTURE_TOOL_OPT_CONFIG)));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, TOOL_OPT(FIXTURE_TOOL_OPT_CONFIG)),
+                      CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_UINT_EQ(clopts_result_list_count(&result, BUILD_OPT(FIXTURE_BUILD_OPT_KEYS)), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, BUILD_OPT(FIXTURE_BUILD_OPT_KEYS)),
+                      CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, BUILD_OPT(FIXTURE_BUILD_OPT_JOBS)), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, BUILD_OPT(FIXTURE_BUILD_OPT_JOBS)),
+                      CLOPTS_SOURCE_NONE);
+
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_result_has_the_command_and_positionals_from_argv)
+{
+    char *argv[] = { "tool", "build", "-o", "out", "src", "e1", "--", "-e2", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_tool, 8, argv, &env, &result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(result.command, TOOL_CMD(FIXTURE_TOOL_CMD_BUILD));
+    NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(&result), 3);
+    /* Positionals are the argv elements themselves, not copies. */
+    NAOS_CHECK_PTR_EQ(clopts_result_positional_at(&result, 0), argv[4]);
+    NAOS_CHECK_PTR_EQ(clopts_result_positional_at(&result, 1), argv[5]);
+    NAOS_CHECK_PTR_EQ(clopts_result_positional_at(&result, 2), argv[7]);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_result_without_subcommands_has_no_command)
+{
+    char *argv[] = { "filt", "-n", "3", "a", "b", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_filt, 5, argv, &env, &result), CLOPTS_OK);
+    NAOS_CHECK_NULL(result.command);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(&result, FILT_OPT(FIXTURE_FILT_OPT_LINES)), argv[2]);
+    NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(&result), 2);
+    NAOS_CHECK_PTR_EQ(clopts_result_positional_at(&result, 0), argv[3]);
+    NAOS_CHECK_PTR_EQ(clopts_result_positional_at(&result, 1), argv[4]);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_then_run_calls_the_filt_handler)
+{
+    char *argv[] = { "filt", "a", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, NULL, 0);
+    fixture_handler_reset(&fixture_filt_handler_record, 42);
+    fixture_handler_reset(&fixture_build_handler_record, 0);
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_filt, 2, argv, &env, &result), CLOPTS_OK);
+    /* Parsing alone calls no handler. */
+    NAOS_CHECK_INT_EQ(fixture_filt_handler_record.calls, 0);
+
+    NAOS_CHECK_INT_EQ(clopts_result_run(&result), 42);
+    NAOS_CHECK_INT_EQ(fixture_filt_handler_record.calls, 1);
+    NAOS_CHECK_PTR_EQ(fixture_filt_handler_record.last_result, &result);
+    NAOS_CHECK_PTR_EQ(fixture_filt_handler_record.last_userdata, &fixture_filt_handler_record);
+    NAOS_CHECK_INT_EQ(fixture_build_handler_record.calls, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_then_run_calls_the_build_handler)
+{
+    char *argv[] = { "tool", "build", "src", "-o", "out", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, NULL, 0);
+    fixture_handler_reset(&fixture_build_handler_record, -3);
+    fixture_handler_reset(&fixture_filt_handler_record, 0);
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_tool, 5, argv, &env, &result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(fixture_build_handler_record.calls, 0);
+
+    NAOS_CHECK_INT_EQ(clopts_result_run(&result), -3);
+    NAOS_CHECK_INT_EQ(fixture_build_handler_record.calls, 1);
+    NAOS_CHECK_PTR_EQ(fixture_build_handler_record.last_result, &result);
+    NAOS_CHECK_PTR_EQ(fixture_build_handler_record.last_userdata, &fixture_build_handler_record);
+    NAOS_CHECK_INT_EQ(fixture_filt_handler_record.calls, 0);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(parse_out_of_memory_result_is_freed_twice)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_CONFIG", "/etc/t" } };
+    char *argv[] = { "tool", "cat", "--tags", "a,b,c", "f", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    /* The store, the cat slots and the list items exist when the lookup fails. */
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    env.fail_next = true;
+    NAOS_CHECK_INT_EQ(parse_checked(&fixture_tool, 5, argv, &env, &result),
+                      CLOPTS_OUT_OF_MEMORY);
+    clopts_result_free(&result);
+    NAOS_CHECK_NULL(result.impl);
+    NAOS_CHECK_INT_EQ(result.status, CLOPTS_OUT_OF_MEMORY);
+    clopts_result_free(&result);
+    NAOS_CHECK_NULL(result.impl);
+}
+
+NAOS_TEST(parse_twice_into_the_same_result_does_not_leak)
+{
+    static const fixture_env_var_t vars[] = {
+        { "TOOL_CONFIG", "/etc/t" },
+        { "TOOL_TAGS", "x,y" },
+    };
+    char *first[] = { "tool", "cat", "--tags", "p,q", "f", NULL };
+    char *second[] = { "tool", "build", "src", "-o", "out", "-k", "k1,k2", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    /* Both parses own an env copy and list items; the second releases the first. */
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_tool, 5, first, &env, &result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(result.command, TOOL_CMD(FIXTURE_TOOL_CMD_CAT));
+    NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(&result, CAT_OPT(FIXTURE_CAT_OPT_TAGS)), 2);
+
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_tool, 7, second, &env, &result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(result.command, TOOL_CMD(FIXTURE_TOOL_CMD_BUILD));
+    NAOS_CHECK_STR_EQ(clopts_result_value(&result, TOOL_OPT(FIXTURE_TOOL_OPT_CONFIG)), "/etc/t");
+    NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(&result, BUILD_OPT(FIXTURE_BUILD_OPT_KEYS)), 2);
+    NAOS_CHECK_STR_EQ(clopts_result_list_at(&result, BUILD_OPT(FIXTURE_BUILD_OPT_KEYS), 1), "k2");
+    NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(&result), 1);
+    NAOS_CHECK_PTR_EQ(clopts_result_positional_at(&result, 0), second[2]);
+
+    clopts_result_free(&result);
+    NAOS_CHECK_NULL(result.impl);
+}
+
+NAOS_TEST(parse_after_an_error_result_is_reusable)
+{
+    char *bad[] = { "tool", "build", "--bad", NULL };
+    char *good[] = { "filt", "a", NULL };
+    clopts_result_t result = { 0 };
+    fixture_env_t env;
+
+    fixture_env_init(&env, NULL, 0);
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_tool, 3, bad, &env, &result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(parse_checked(&fixture_filt, 2, good, &env, &result), CLOPTS_OK);
+    NAOS_CHECK_NULL(result.command);
+    NAOS_CHECK_INT_EQ(result.error.argv_index, -1);
+    NAOS_CHECK_NULL(result.error.token);
+    NAOS_CHECK_UINT_EQ(clopts_result_positional_count(&result), 1);
+    clopts_result_free(&result);
+}
+
 NAOS_SUITE(result,
     NAOS_ADD_TEST(store_begin_sets_impl_with_global_slots),
     NAOS_ADD_TEST(store_select_allocates_command_slots),
@@ -509,5 +761,14 @@ NAOS_SUITE(result,
     NAOS_ADD_TEST(free_zero_initialized_result_is_safe),
     NAOS_ADD_TEST(free_zero_initialized_result_twice_is_safe),
     NAOS_ADD_TEST(free_releases_everything_and_is_idempotent),
-    NAOS_ADD_TEST(free_after_out_of_memory_status_is_safe)
+    NAOS_ADD_TEST(free_after_out_of_memory_status_is_safe),
+    NAOS_ADD_TEST(parse_accessors_return_every_kind_and_source),
+    NAOS_ADD_TEST(parse_accessors_report_none_for_options_not_given),
+    NAOS_ADD_TEST(parse_result_has_the_command_and_positionals_from_argv),
+    NAOS_ADD_TEST(parse_result_without_subcommands_has_no_command),
+    NAOS_ADD_TEST(parse_then_run_calls_the_filt_handler),
+    NAOS_ADD_TEST(parse_then_run_calls_the_build_handler),
+    NAOS_ADD_TEST(parse_out_of_memory_result_is_freed_twice),
+    NAOS_ADD_TEST(parse_twice_into_the_same_result_does_not_leak),
+    NAOS_ADD_TEST(parse_after_an_error_result_is_reusable)
 )

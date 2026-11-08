@@ -103,8 +103,8 @@
   - _Boundary: Scanner, ParserTests_
   - _Requirements: 9.6, 9.7, 9.10, 9.12, 10.3, 10.4, 10.5, 10.7_
 
-- [ ] 4. 検証: 解析関数経由の結合テストと全体確認
-- [ ] 4.1 解析関数を通した値の解決と結果参照のテストを追加し、モジュール全体を検証する
+- [x] 4. 検証: 解析関数経由の結合テストと全体確認
+- [x] 4.1 解析関数を通した値の解決と結果参照のテストを追加し、モジュール全体を検証する
   - スイート resolve に解析関数経由のケースを追加: `--config` の ENV / EXPLICIT / NONE、`tool build ...` で選択外コマンドの環境変数名を照会しない、環境変数で必須が満たされる、`tool build x` の MISSING_OPTION、`filt` の既定値、FAILED で OUT_OF_MEMORY とその後の解放
   - スイート values に解析関数経由の繰り返し規則を追加: `-k a,b -k c` と `--keys=a --keys b,c` の連結、`-k a,,b` と `-k ,` の空項目、`--output a --output b` の後勝ち、`-j` を 9 回で 8、`--color --no-color` と `--no-color --color`、`cat` の `--tags` が既定値・環境変数・明示指定のそれぞれで分割されること
   - スイート result に解析関数経由のケースを追加: 記述子ポインタで全種類の値と出所、選択コマンドと位置引数、`filt` と `build` のハンドラ呼び出しと userdata・戻り値の伝達、OUT_OF_MEMORY 後の 2 回の解放、同じ結果変数で 2 回解析しても漏れない
