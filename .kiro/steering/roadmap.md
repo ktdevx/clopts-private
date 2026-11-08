@@ -71,7 +71,7 @@ Monde 版の強みである「宣言を 1 か所に書けば、解析とヘル�
 
 `/kiro-spec-batch` の前にこの順で行う。どちらも requirements から作り直す（`/kiro-spec-requirements <feature>` → design → tasks → impl）。
 
-- [ ] project-foundation -- 静的／共有の選択（`CLOPTS_BUILD_SHARED`）、`clopts/export.h` と `CLOPTS_API`、visibility を hidden に、VERSION / SOVERSION、静的版の PIC と `CLOPTS_STATIC`、MSVC での静的版の別名、install の export セットを静的・共有で分け config で選ばせる（`COMPONENTS static|shared`）、Windows のテストで DLL を配置、CI を両方の形式に広げる、書き込みコールバックの扱いを変える（`clopts_writer_t` の値渡しと `clopts_writer_file(FILE*)` をやめ、`(write_fn, ctx)` を引数で渡す形とヘッダ内の `static inline` の `FILE*` 用コールバックにする）、統合テストを両形式で行う。Non-Goals の「共有ライブラリとしてのビルド」を外す。Dependencies: none
+- [x] project-foundation -- 静的／共有の選択（`CLOPTS_BUILD_SHARED`）、`clopts/export.h` と `CLOPTS_API`、visibility を hidden に、VERSION / SOVERSION、静的版の PIC と `CLOPTS_STATIC`、MSVC での静的版の別名、install の export セットを静的・共有で分け config で選ばせる（`COMPONENTS static|shared`）、Windows のテストで DLL を配置、CI を両方の形式に広げる、書き込みコールバックの扱いを変える（`clopts_writer_t` の値渡しと `clopts_writer_file(FILE*)` をやめ、`(write_fn, ctx)` を引数で渡す形とヘッダ内の `static inline` の `FILE*` 用コールバックにする）、統合テストを両形式で行う。Non-Goals の「共有ライブラリとしてのビルド」を外す。Dependencies: none
 - [ ] core-parser -- 宣言 API をビルダー + 不透明ハンドルに作り直す（program / command / option / positional のハンドル、種類別の追加関数と属性の設定関数、最初のエラーを記録して以降は何もしない方式、NULL を渡しても安全、文字列は複製）。結果は不透明な `clopts_result *` をライブラリが確保し、OOM のときも状態を読めるようにする。構造化エラーはアクセサで読む。環境変数のコールバックは借用した文字列を返す形にし、ライブラリが複製する。help-and-messages 向けに内部の宣言モデルの読み出し口を用意する。全公開関数に `CLOPTS_API` を付ける。既存の解析規則（走査、優先順位、エラー優先度）とテストの観点は引き継ぎ、API の形だけを置き換える。Dependencies: project-foundation（更新）
 
 ## Direct Implementation Candidates
