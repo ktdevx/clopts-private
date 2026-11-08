@@ -1,13 +1,13 @@
 # Implementation Plan
 
-- [ ] 1. 基盤: 公開シンボル一覧と検査ディレクトリの骨格
+- [x] 1. 基盤: 公開シンボル一覧と検査ディレクトリの骨格
 - [x] 1.1 公開シンボル一覧を作り、`tests/abi/` をテストツリーに登録する
   - リポジトリ直下の `abi/clopts.symbols` を作り、現在の公開ヘッダにある `CLOPTS_API` 付きの全関数を、ヘッダごとの `# clopts/<header>.h` の注釈でまとめ、ヘッダの宣言順に 1 行 1 名で並べる。`static inline` の `clopts_file_write` は載せない。ファイルの先頭に、形式（1 行 1 名、空行と `#` の注釈を無視）と更新の手順の要約を注釈で書く
   - `tests/abi/CMakeLists.txt` を、ラベル `abi` のテストをここで登録する旨の注釈だけを持つ骨格として作り、`tests/CMakeLists.txt` の末尾に `add_subdirectory(abi)` を足す。この時点ではテストを登録しない
   - 完了条件: 一覧の名前の集合が、`include/clopts/*.h` の `CLOPTS_API` 付きの宣言から抜き出した名前の集合と一致する（grep などで突き合わせた結果を示す）。静的ビルドと共有ビルドの構成・ビルドが `CLOPTS_WERROR=ON` で通り、既存の `ctest` がすべて通る
   - _Requirements: 2.1, 2.2, 2.4_
 
-- [ ] 2. 検査スクリプトと子プロジェクト
+- [x] 2. 検査スクリプトと子プロジェクト
 - [x] 2.1 (P) シンボル照合スクリプトの一覧の検査と集合の比較・報告を、`nm-elf` の形式で実装する
   - 一覧を読み、空行と注釈の行を無視し、重複と規則（`clopts_` で始まる小文字・数字・`_`）に合わない名前と未知の OS の注記（設計の SymbolList の「OS の注記」）を、一覧のパスと行番号付きですべて集めてから失敗する。`LIBRARY` も `DUMP_FILE` もなければ、ここで成功して終わる
   - `DUMP_FILE` を読み、`nm-elf` の規則で名前を取り出し、除外リスト（`_init`、`_fini`、`_edata`、`_end`、`__bss_start`。理由の注釈付き）を取り除く。取り出した名前が 0 個なら、出力の形式が想定と違うものとして失敗する
@@ -62,7 +62,7 @@
   - _Depends: 2.5_
   - _Requirements: 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
 
-- [ ] 3. 統合: CTest への登録と CI
+- [x] 3. 統合: CTest への登録と CI
 - [x] 3.1 `abi.*` のテストを CTest に登録する
   - 設計の登録表どおりに、`abi.symbol_list`、`abi.exports`（共有ビルドのときだけ）、`abi.symbols_selftest.<format>` の 4 件と `.mismatch`・`.bad_list`、`abi.header_rules`、`abi.header_rules_selftest.good` と各 `bad` のケース（`PASS_REGULAR_EXPRESSION` で期待するファイル・行・理由）、`abi.headers_c`、`abi.headers_cxx`、`abi.compare_selftest` を、すべてラベル `abi` で登録する
   - `abi.exports` の `FORMAT` と `TOOL` を設計の表どおりに選ぶ（MSVC は `CMAKE_LINKER` のディレクトリの `dumpbin`、なければ `link.exe` を `/dump` で、MinGW は `CMAKE_OBJDUMP`、macOS と Linux は `CMAKE_NM`）。見つからなくても登録し、空の `TOOL` を渡す
@@ -86,7 +86,7 @@
   - _Depends: 2.6_
   - _Requirements: 6.4, 6.5, 6.6, 6.7_
 
-- [ ] 4. 文書
+- [x] 4. 文書
 - [x] 4.1 (P) ABI 方針の文書 `docs/abi.md` を書く
   - 設計の AbiPolicyDocs の `docs/abi.md` の項目（保証の範囲、版と SOVERSION、Windows の DLL 名、macOS の互換版と現在版と前方互換を保証しないときの挙動、互換を保つ変更、互換を壊す変更、壊すときの手順）を日本語で書く。識別子・コマンド・ファイル名は英語のまま。`docs/dev/` へはリンクしない
   - 書いた SOVERSION の規則と macOS の版が、`cmake/CloptsLibrary.cmake` の実装と一致することを確かめる
@@ -102,7 +102,7 @@
   - _Depends: 3.1, 3.2, 3.3_
   - _Requirements: 1.9, 1.10, 1.11_
 
-- [ ] 5. 検証
+- [x] 5. 検証
 - [x] 5.1 検査が実際の違反を捕まえることを Linux で確かめる
   - 一時的な変更で、(a) 内部関数に `CLOPTS_API` を付けると共有ビルドの `abi.exports` が余分として報告する、(b) 一覧から 1 つ消すと余分として、export されない名前を一覧に足すと不足として報告する、(c) 公開ヘッダに構造体の定義を足すと `abi.header_rules` が報告する、(d) 公開関数の `CLOPTS_API` を外すと `abi.header_rules` と `abi.exports` が報告する、ことを確かめ、すべての変更を戻す
   - 完了条件: 各ケースの失敗の出力（該当する名前・ファイル・行を含む）を記録し、変更を戻した後に静的・共有の両方で `ctest` 全体が通る
