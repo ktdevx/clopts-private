@@ -87,7 +87,7 @@
   - _Depends: 3.1, 3.2, 3.3_
   - _Requirements: 5.4, 7.2, 7.8, 7.9_
 
-- [ ] 4.2 (P) Windows で実際の CRT と分割結果を突き合わせる probe とテストを作る
+- [x] 4.2 (P) Windows で実際の CRT と分割結果を突き合わせる probe とテストを作る
   - probe は Windows だけでビルドする小さな実行ファイルで、公開の取得関数の結果と CRT の `__argc` / `__argv` を比べ、一致なら 0、不一致なら 1、取得の失敗なら 2 を終了コードで返す。単体テストと同じリンク先にリンクする
   - スイート crt は、設計に列挙した生のコマンドライン文字列（ASCII のみ、ワイルドカードなし）ごとに、probe の場所とその文字列で子プロセスを起動し、終了コード 0 を確かめる。probe の場所はコンパイル定義で渡し、テスト実行ファイルを probe に依存させる
   - 完了条件: Windows（MSVC と、可能なら MinGW-w64 ucrt64）で `ctest -L platform -R crt` が通り、表のすべての行で終了コード 0 になる
@@ -121,3 +121,4 @@
 - 3.2: MSVC は手元にないため、Windows の確認は MinGW-w64（msvcrt）+ wine の静的・共有で行い、MSVC は CI に委ねた。wine の `__argv` と分割結果の食い違いは見つからなかった。test_argv.c の `#ifndef __argc` の回避（`__p___argc` / `__p___argv` を宣言してマクロを定義）は MinGW では働かない。MSVC で働くと dllimport なしの再宣言で C4273（/WX でエラー）になりうるので、CI で失敗したら `__MINGW32__` に限るなどで直す。4.2 の probe も同じ回避を使う
 - 3.3: wide バッファは「名前の UTF-16 + 値」で、`reserve_wide` のたびに名前を変換し直す。`GetEnvironmentVariableW` が not-found 以外のエラーで 0 を返したときは OUT_OF_MEMORY として記録する。wine 9 の空の値・未設定の挙動は Windows の文書どおりだった。リトライ中の確保失敗の経路は 4.1 の総当たりで通すこと
 - 4.1: 結合テストは test_env.c の `tool`（`--output` に環境変数フォールバック）。builder は `"\xff"` の環境変数名を受け付けるので、Windows の不正な名前はそのまま使える。Windows 以外では getenv が失敗しないので、失敗の経路は NULL の文脈で確かめる。test_oom.c も `#ifndef _WIN32` / `#else` の 2 つのスイート一覧に分けた
+- 4.2: probe は tests/platform/platform_probe.c（CLOPTS_TEST_LINK_TARGET にリンクするので両形式とも DLL は不要）。パスは `PLATFORM_PROBE_PATH` で渡す。wine 9 + msvcrt では表の 11 行すべてが終了コード 0 だった。MSVC（UCRT）と MinGW ucrt64 での確認は CI に委ねた
