@@ -1,31 +1,32 @@
 # Project Structure
 
-> 2026-11-07 時点、実装未着手。ディレクトリ構成とターゲット作成関数は spec `project-foundation` で確定する。ここでは後続のすべての spec に共通させる規約を先に決めておく。
+> 2026-11-08 同期。project-foundation と core-parser は初版の方式（`static const` の宣言テーブル、静的ライブラリのみ）で実装済みだが、2026-11-08 の改訂（roadmap.md の Approach Decision）で、共有ライブラリへの対応と、ビルダー API + 不透明ハンドルへの作り直しが決まった。本ファイルは改訂後の目指す姿を正とする。既存のコードとの差は、roadmap.md の「Existing Spec Updates」で解消する。
 
 ## Organization Philosophy
 
-**1 ライブラリ・内部モジュール分割**。利用者に見せるのは 1 つのライブラリターゲット `CLOpts::clopts` と `include/clopts/` の公開ヘッダだけにし、内部は責務ごとのモジュール（`src/<module>/`）に分けてソースとテストを同じ名前で対にする。依存は下位モジュールへ向かう一方向とし、公開ヘッダを除いて内部モジュールのヘッダは install しない。
+**1 ライブラリ・内部モジュール分割**。利用者に見せるのは 1 つのライブラリターゲット `CLOpts::clopts`（静的か共有かはビルド時に選ぶ）と `include/clopts/` の公開ヘッダだけにし、内部は責務ごとのモジュール（`src/<module>/`）に分けてソースとテストを同じ名前で対にする。依存は下位モジュールへ向かう一方向とし、公開ヘッダを除いて内部モジュールのヘッダは install しない。
 
 ## Directory Patterns
 
 ### 公開ヘッダ
 **Location**: `include/clopts/`  
-**Purpose**: 利用者が include するヘッダ。`clopts/clopts.h` を入口（傘ヘッダ）とし、必要なら責務ごとに分けたヘッダ（例: `clopts/argv.h`）をそこから include する。公開ヘッダは内部モジュールのヘッダを include しない。  
+**Purpose**: 利用者が include するヘッダ。`clopts/clopts.h` を入口（傘ヘッダ）とし、必要なら責務ごとに分けたヘッダ（例: `clopts/argv.h`）をそこから include する。公開ヘッダは内部モジュールのヘッダを include しない。export の印 `CLOPTS_API` は `clopts/export.h` で定め、各公開ヘッダがこれを include する。公開ヘッダには構造体の定義を置かない（不透明型、列挙、関数ポインタ型、関数、`static inline` の便宜関数だけ）。  
 **Example**: `#include <clopts/clopts.h>`
 
 ### 内部モジュールのソース
 **Location**: `src/<module>/`  
 **Purpose**: 1 つの責務の実装と内部ヘッダ。別々のライブラリターゲットにはせず、`clopts` ターゲットに `target_sources` で加える（ヘルパ関数 `clopts_add_module` 相当で統一する）。モジュール間で共有する内部ヘッダは `<module>_internal.h` と名付け、install しない。  
-**Example**: `src/core/`（可変長配列、書き込みコールバック）、`src/parser/`（宣言検査、走査器、結果ストア）、`src/help/`（文面生成）、`src/platform/`（Windows の argv と環境変数）
+**Example**: `src/core/`（可変長配列、書き込みコールバック）、`src/parser/`（ビルダーと宣言モデル、宣言検査、走査器、結果ストア）、`src/help/`（文面生成）、`src/platform/`（Windows の argv と環境変数）
 
 ### モジュールのテスト
 **Location**: `tests/<module>/`  
 **Purpose**: 対応する内部モジュールの Naos テスト。`clopts_add_module_tests` 相当で CTest に登録する。CTest のラベルは `<module>`。  
 **Example**: `tests/parser/` は `src/parser/` をテストする  
-**Exception**: `src/` に対応するモジュールを持たないテストディレクトリは次の 3 つに限る。
+**Exception**: `src/` に対応するモジュールを持たないテストディレクトリは次の 4 つに限る。
 - `tests/toolchain/`: ビルド構成そのもの（警告のエラー化、VLA の禁止、グローバル設定を置いていないこと）を検証する。ラベルは `toolchain`。
 - `tests/integration/`: 利用側を模したプロジェクトで `add_subdirectory` / `FetchContent` と install → `find_package(CLOpts CONFIG)` の両経路を検証する。ラベルは `integration`。
 - `tests/docs/`: README と `docs/` のサンプル出力をビルドしたサンプルプログラムと照合する。Naos を使わず `cmake -P` で起動する。ラベルは `docs`。
+- `tests/abi/`: 公開シンボル一覧との照合、公開ヘッダの静的検査（構造体定義がないこと、`CLOPTS_API` の付け漏れ、C/C++ の両方でコンパイルできること）を行う。Naos を使わず `cmake -P` で起動する。ラベルは `abi`。公開シンボル一覧の置き場所は spec `abi-compat` の設計で決め、ここに追記する。
 
 ### サンプルプログラム
 **Location**: `examples/`  
@@ -51,7 +52,7 @@
 
 ### 仕様とプロジェクトメモリ
 **Location**: `.kiro/specs/<feature>/`、`.kiro/steering/`  
-**Purpose**: spec 駆動開発の仕様（brief → requirements → design → tasks）と、プロジェクト全体の方針。spec 名は kebab-case（例: `core-parser`、`help-and-messages`）。spec と内部モジュールの対応は roadmap.md に従う（`core-parser` → `parser`、`help-and-messages` → `help`、`platform-argv` → `platform`、`project-foundation` → `core` とビルド構成）。
+**Purpose**: spec 駆動開発の仕様（brief → requirements → design → tasks）と、プロジェクト全体の方針。spec 名は kebab-case（例: `core-parser`、`help-and-messages`）。spec と内部モジュールの対応は roadmap.md に従う（`core-parser` → `parser`、`help-and-messages` → `help`、`platform-argv` → `platform`、`project-foundation` → `core` とビルド構成、`abi-compat` → `tests/abi/` と CI の ABI ジョブ）。
 
 ## Naming Conventions
 
@@ -60,8 +61,10 @@
 - **ファイル**: 小文字の snake_case（`.c` / `.h`）。モジュール内のファイルには `<module>_` の接頭辞を付ける（例: `src/parser/parser_scan.c`）。公開ヘッダは接頭辞なし（`include/clopts/clopts.h`）。
 - **公開シンボル**: 接頭辞 `clopts_`。
   - 関数: `clopts_<名詞>_<動作>`（例: `clopts_parse`、`clopts_result_free`、`clopts_write_help`）。型名の `_t` は関数名に含めない。
-  - 型: `typedef` で定義し末尾に `_t`。構造体・列挙のタグ名は `_t` を除いた同じ名前（例: `typedef struct clopts_option { ... } clopts_option_t;`）。
-  - マクロ・列挙値: `CLOPTS_<名詞>_`（例: `CLOPTS_UNLIMITED`、`CLOPTS_ERROR_UNKNOWN_OPTION`）。`_T` は含めない。
+  - 不透明ハンドルを扱う関数は `clopts_<ハンドルの名詞>_<動作>`（例: `clopts_program_new`、`clopts_program_free`、`clopts_result_status`）。ビルダー関数の最終的な形は core-parser の設計で決めるが、この規則に沿わせる。
+  - 公開関数の宣言には `CLOPTS_API` を付ける（例: `CLOPTS_API clopts_status_t clopts_parse(...);`）。
+  - 型: `typedef` で定義し末尾に `_t`。不透明型はタグ名だけを前方宣言する（例: `typedef struct clopts_program clopts_program_t;`）。列挙のタグ名は `_t` を除いた同じ名前。
+  - マクロ・列挙値: `CLOPTS_<名詞>_`（例: `CLOPTS_COUNT_MAX_DEFAULT`、`CLOPTS_USAGE_UNKNOWN_OPTION`）。`_T` は含めない。
 - **内部シンボル**: 翻訳単位内で閉じるものは `static`。モジュール間で共有する内部シンボルは `clopts_<module>_` の接頭辞（例: `clopts_core_vec_push`）を付け、`<module>_internal.h` で宣言する。利用者のシンボルと衝突しないよう、接頭辞なしの外部リンケージは作らない。
 - **ヘッダガード**: 公開ヘッダは `CLOPTS_<FILE>_H`（例: `CLOPTS_CLOPTS_H`）、内部ヘッダは `CLOPTS_<MODULE>_<FILE>_H`（例: `CLOPTS_PARSER_INTERNAL_H`）。
 
@@ -79,10 +82,10 @@
 
 ## Code Organization Principles
 
-- **依存は一方向**: core ← parser ← help、core ← platform。`help` は `parser` の公開型（公開ヘッダ）に依存するが実装には依存しない。`platform` は `parser` を知らず、`parser` は環境変数の取得関数を差し替え口として受け取る。
-- **公開ヘッダに置くのは契約だけ**: 宣言型、結果型、構造化エラー型、状態の列挙、公開関数。内部のデータ構造（結果ストアの実装、可変長配列）は公開ヘッダに出さない。
-- **I/O は境界の外**: ライブラリは stdout / stderr に書かず `exit` しない。文面は書き込みコールバックへ、エラーは構造体で返し、表示と終了コードの決定は利用側が行う。`stdio` への依存は `FILE*` 便宜関数の翻訳単位に閉じ込める。
-- **宣言は読み取り専用**: ライブラリは宣言テーブルと argv を書き換えない。実行時に決まる値（バージョン文字列）はポインタとして宣言に持たせる。
+- **依存は一方向**: core ← parser ← help、core ← platform。`help` は、`parser` が用意する読み取り専用の宣言モデル（`parser_internal.h` などの内部ヘッダ）と結果のアクセサに依存するが、走査器の実装には依存しない。`platform` は `parser` を知らず、`parser` は環境変数の取得関数を差し替え口として受け取る。
+- **公開ヘッダに置くのは契約だけ**: 不透明ハンドル型、状態とエラー種別の列挙、コールバックの関数ポインタ型、公開関数。構造体の中身（宣言モデル、結果ストア、エラー、可変長配列）は公開ヘッダに出さない。
+- **I/O は境界の外**: ライブラリは stdout / stderr に書かず `exit` しない。文面は書き込みコールバックへ、エラーは構造体で返し、表示と終了コードの決定は利用側が行う。ライブラリ本体は `stdio` に依存しない。`FILE*` 用のコールバックは公開ヘッダの `static inline` で提供する。
+- **宣言はライブラリが所有する**: ビルダーに渡された文字列は複製して宣言モデルに持つ。argv は書き換えない。宣言の解放は `clopts_program_free` で行う。
 - **テストは架空の宣言で**: 実在のツールの宣言をテストに持ち込まず、ライブラリの機能ごとに架空のプログラム宣言を用意する。
 
 ---

@@ -76,7 +76,7 @@ Monde 版の強みである「宣言を 1 か所に書けば、解析とヘル�
 
 ## Direct Implementation Candidates
 
-- [ ] steering-sync -- `tech.md` / `structure.md` / `product.md` の「静的ライブラリ」「`static const` の宣言テーブル」「help は公開ヘッダのみに依存」などの記述を、改訂後の方針に合わせる。`/kiro-steering` で行い、spec の作成ではない。
+- [x] steering-sync -- `tech.md` / `structure.md` / `product.md` の「静的ライブラリ」「`static const` の宣言テーブル」「help は公開ヘッダのみに依存」などの記述を、改訂後の方針に合わせる。`/kiro-steering` で行い、spec の作成ではない。
 
 ## Specs (dependency order)
 - [x] project-foundation -- CMake 骨格（ターゲット単位の警告と C99、`PROJECT_IS_TOP_LEVEL` ガード、install/export と package config、`CLOpts::clopts` エイリアス）、Naos の固定取り込み、CI マトリクス、内部ユーティリティ（可変長配列、書き込みコールバック型と `FILE*` ライタ）。Dependencies: none（共有ライブラリ化の改訂は Existing Spec Updates を参照）
