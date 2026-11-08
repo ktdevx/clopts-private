@@ -255,3 +255,90 @@
   `clopts_testing` は共有ビルドでもテスト用の静的コピーとして存在する（project-foundation 7.2）ので、ここにだけ差し替え口を入れれば、公開 API と ABI に影響しない。
 - **番兵の結果オブジェクト**: `const` な静的オブジェクトを、非 const のハンドルとして返す場合の扱い。C99 で未定義動作にならない形（書き込まないことの保証）を確認する。
 - **統合テストの追従**: `consumer_cpp.cpp` の `decltype(&clopts_parse)` は、名前を保てばそのまま通る。名前を変えるなら fixture の修正が要る（requirements の In scope で、本 spec が直すと決めてある）。
+
+---
+
+# 設計判断（2026-11-08 改訂）
+
+## Summary
+- **Feature**: core-parser（ビルダー API と不透明ハンドルへの改訂）
+- **Discovery Scope**: Extension（ライトな調査）。走査規則は初版の実装を流用し、新しい部分は宣言層・結果ハンドル・確保プローブだけである。外部ライブラリは使わない。
+- **参照したスキル・ガイド**: `kiro-spec-design` の design-principles、design-discovery-light、design-synthesis、design-review-gate。ドメイン固有のスキルは該当なし。
+- **Key Findings**:
+  - 宣言エラーの規則はどれも、「その呼び出しで新しく成立する誤り」として、その呼び出しの中で判定できる。設定関数で付ける属性にも、その場で種類の検査を掛けられる。そのため、3.19（呼び出し順で最初の誤り）に通し番号や凍結時の一括検査は要らない。
+  - 静的ビルドのテストは `clopts` に、共有ビルドのテストは `clopts_testing` にリンクする。したがって、テスト専用の口は、hidden な内部関数として常に置けば足りる。ビルド構成（project-foundation の境界）を変えずに済む。
+  - CI は Release 構成（`NDEBUG`）なので、契約違反の「リリースでは何もしない」側をテストできる。
+
+## Design Decisions
+
+### Decision: 宣言エラーはすべてビルダー呼び出しの中で即時に検査する
+- **Context**: 2.1、3.3〜3.19。
+- **Alternatives Considered**:
+  1. 凍結時（最初の解析・検査）にまとめて検査し、各事実に通し番号を付けて、成立順の最小を選ぶ。
+  2. 即時検査と凍結時の検査を混ぜる（ギャップ分析の案C）。
+  3. すべて即時に検査する。
+- **Selected Approach**: 3。規則表は呼び出しごとに定める（design.md の「即時検査の規則表」）。
+- **Rationale**:
+  - 位置引数の必須・可変長は、設定関数の中で前後の位置引数と比べれば判定できる。種類と属性の組み合わせは、設定関数の中で種類を見れば判定できる。version との衝突は、`set_version` と option の追加の両方で判定する。
+  - 成立した時点がそのまま呼び出しの順になるので、3.19 を構造的に満たす。凍結時の検査がなくなり、解析の入口が単純になる。
+- **Trade-offs**: 衝突の検査を、追加関数と設定関数の両方に書く必要がある（例: 否定形の衝突、必須と既定値）。規則関数を Decl に集め、Build は呼ぶ順だけを持つ。
+
+### Decision: program 直下を root という command ハンドルで表す
+- **Context**: 1.3〜1.5、1.7。追加関数は、program と command のどちらも追加先として受け付ける必要がある。
+- **Alternatives Considered**:
+  1. program 用と command 用に、追加関数を 2 組用意する（10 関数）。
+  2. 共通のスコープ型と、変換関数を設ける。
+  3. program が root の command を内蔵し、`clopts_program_root` で取り出す。
+- **Selected Approach**: 3。追加関数・説明文・handler は command のハンドルで受ける。version と サブコマンドの追加だけを program で受ける。
+- **Rationale**: 公開関数の数が最小で、型の安全性も保てる。内部では初版の「グローバルのスロット / 選択コマンドのスロット」の区別がそのまま root / 選択コマンドに対応する。
+- **Trade-offs**: 利用側は `clopts_program_root` を 1 回呼ぶ必要がある。結果やエラーで root を command として返すと紛らわしいので、要件どおり NULL で報告する。
+
+### Decision: 公開関数の命名は `clopts_<ハンドル>_<動作>` に揃える
+- **Context**: structure.md の命名規則。roadmap の例（`clopts_add_flag`、`clopts_opt_env`）は仮の名前である。
+- **Selected Approach**: `clopts_program_add_command`、`clopts_command_add_value`、`clopts_option_set_env`、`clopts_result_error_token` など。初版の `clopts_parse`、`clopts_parse_with_env`、`clopts_result_*` は名前を保つ（consumer fixture の `decltype(&clopts_parse)` がそのまま通る）。
+
+### Decision: 結果から得る文字列は argv を借用する
+- **Context**: 11.8、12.8、13.3。
+- **Alternatives Considered**:
+  1. すべてを結果に複製する（寿命は「結果を解放するまで」だけになる）。
+  2. argv と既定値を借用する（初版どおり）。
+- **Selected Approach**: 2。
+- **Rationale**: 位置引数や値の複製が要らず、確保点が減る（15.7 の網羅試験も短くなる）。13.3 で、アクセサは program を解放する前にだけ呼べると決めているので、既定値の借用と矛盾しない。argv は通常 `main` の間生きている。
+- **Trade-offs**: 利用側が argv を一時バッファで作る場合（platform-argv の wargv 変換など）は、その寿命に注意が要る。API リファレンスに明記する。platform-argv は、取得した argv をライブラリが所有し、明示的に解放する方針なので、問題はない。
+
+### Decision: OOM の番兵は `static const` の結果オブジェクトにする
+- **Context**: 4.8、13.1。
+- **Selected Approach**: `static const struct clopts_result` を `(clopts_result_t *)` にキャストして返す。全アクセサは `const` で受ける。`clopts_result_free` はアドレスで見分けて何もしない。`clopts_result_run` は `parsed` が偽なので `assert` で止まる。
+- **Rationale**: C99 では、`const` オブジェクトのポインタから `const` を外すこと自体は未定義動作ではない。書き込まない限り問題はない。グローバルな可変状態を持たずに済み、スレッド間でも安全である。
+
+### Decision: 失敗注入と漏れの検出は、program ごとの確保プローブで行う
+- **Context**: 15.7。初版の「`malloc` の失敗は注入しない」を覆す必要がある。
+- **Alternatives Considered**:
+  1. グローバルな確保関数の差し替え（グローバルな可変状態が増える）。
+  2. リンク時の `malloc` の差し替え（OS ごとに方法が違い、共有版では効かない）。
+  3. サニタイザ（ASan / LeakSanitizer）の CI ジョブを足す（project-foundation の CI の境界。MSVC では漏れを検出できない）。
+  4. program に付ける確保プローブ（失敗位置の指定と、生存ブロックの計数）。
+- **Selected Approach**: 4。parser のすべての確保を `parser_alloc.c` の窓口に通す。プローブが NULL のときは、`malloc` などを直接呼ぶだけ。
+- **Rationale**: グローバル状態がなく、全 OS・両形式で同じテストが動く。窓口は `malloc` / `free` を直接呼ぶので、tech.md の規約の範囲に収まる。
+- **Trade-offs**: 確保点は「呼び出し」の単位で数えるので、実際には確保しない `vec_push` も確保点に含まれる。網羅のためには十分である。`clopts_program_new` は 1 ブロックで確保し、プローブの対象外にする。
+
+### Decision: 環境変数のコールバックは `const char **value` に借用を返す 3 値の形にする
+- **Context**: 8.6〜8.8、10。platform-argv の brief。
+- **Selected Approach**: `clopts_env_status_t (*)(void *ctx, const char *name, const char **value)`。FOUND / UNSET / FAILED の 3 値。ライブラリは戻った直後に複製する。既定の取得は `getenv` の戻り値をそのまま返す。
+- **Rationale**: コールバック側の確保をライブラリが `free` しないので、CRT の境界をまたがない（steering の ABI 規律）。platform-argv は、ctx が持つバッファに UTF-8 の値を書いて貸せばよい。
+
+## Synthesis
+- **一般化**:
+  - root も command として扱い、追加・説明文・handler の関数を 1 組にした。
+  - スロットの記録関数は初版と同じく種類ごとに 1 つで、明示指定・環境変数・既定値のどの出所からも呼ぶ。
+- **Build vs. Adopt**: steering で外部依存ゼロと決まっている。ビルダー・失敗注入とも自前で作る。サニタイザは補助としてローカルで使えるが、要件の検証手段には採らない。
+- **単純化**:
+  - store と結果の殻を 1 つの構造体にした。
+  - 凍結時の一括検査と通し番号をなくした。
+  - 種類の列挙を公開ヘッダから外した（追加関数が種類を決めるため、利用側は要らない）。
+
+## Risks & Mitigations
+- 公開関数が約 48 個に増え、abi-compat の一覧の保守が増える。設計の宣言から一覧を作り、追加のたびに更新する（Revalidation Triggers）。
+- 凍結フラグを書くので、同じ program を複数のスレッドから同時に解析できない。Non-Goals と API の説明に明記する。
+- 即時検査の規則が追加関数と設定関数に分散する。規則表の行ごとにテストを置く（`test_decl_check.c`）。
+- 初版のテストを書き換える際に観点を落とす。検証の部分は関数名の置換に留め、件数を初版と比べる（15.8）。

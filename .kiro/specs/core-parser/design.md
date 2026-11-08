@@ -2,246 +2,284 @@
 
 ## Overview
 
-**Purpose**: core-parser は、CLOpts の中核となる内部モジュール `parser` と、その公開契約（宣言型・状態・構造化エラー・結果・解析関数）を提供する。利用側は `static const` の宣言テーブルを書き、`clopts_parse` を 1 回呼ぶだけで、解析結果か構造化エラーを受け取る。
-
-**Users**: C で CLI ツールを書く開発者が、サブコマンド・オプション・位置引数を宣言し、値を記述子ポインタで参照し、選択されたサブコマンドのハンドラを呼ぶ。help-and-messages は本 spec の型から文面を生成し、platform-argv は本 spec の環境変数取得関数の型に合わせた関数を提供する。
-
-**Impact**: 新しい内部モジュール `src/parser/` とテスト `tests/parser/`、公開ヘッダ `include/clopts/decl.h` と `include/clopts/parse.h` を追加する。既存の変更は `src/CMakeLists.txt`、`tests/CMakeLists.txt`、傘ヘッダ `include/clopts/clopts.h` への 1 行ずつの追加に限る。
+**Purpose**: core-parser は CLOpts の中核である。宣言のビルダー API、解析関数、結果ハンドルの 3 つを提供する。利用側は `clopts_program_new` から始め、`clopts_program_add_command` や `clopts_command_add_value` などで宣言を組み立てる。そのうえで `clopts_parse` を 1 回呼ぶと、状態・値・出所・位置引数・構造化エラーを読める結果ハンドルが返る。
+**Users**: C でコマンドラインツールを書く開発者が、宣言・解析・ディスパッチに使う。downstream の help-and-messages は、内部の宣言モデルと結果ハンドルのアクセサを読んで文面を作る。platform-argv は環境変数の取得コールバックを差し込む。
+**Impact**: 初版（2026-11-07）は `static const` の宣言構造体と公開の結果構造体を使っていた。これを不透明ハンドルとビルダーに置き換える。走査規則・値の解決・必須検査・エラー優先度は初版の実装（`src/parser/`）を流用し、宣言の参照先と結果の置き場所だけを差し替える。0.x の間なので、初版の公開 API との互換は持たない。
 
 ### Goals
-- 公開ヘッダの宣言型・状態・エラー型・結果型を確定させ、help-and-messages と platform-argv が依存できる契約にする。
-- 要件 1〜13 の挙動（宣言検査、走査規則、値の解決、必須検査、help / version の優先、構造化エラー、記述子ポインタ参照、メモリ所有）を 1 つのモジュールで満たす。
-- I/O をせず、`exit` せず、宣言と argv を書き換えない。
-- 架空の宣言だけを使う Naos テストで、全状態・全エラー種別を到達させる。
+- 公開ヘッダに構造体の定義を置かず、ハンドル・列挙・関数ポインタ型・関数だけで宣言から解放まで完結させる（14.1〜14.6）。
+- ビルダーは NULL を渡しても安全にし、最初のエラーを program に記録して以降は何もしない（2.1〜2.8）。宣言エラーは、ビルダー呼び出しの順で最初に成立したもの 1 件にする（3.19）。
+- 初版の走査規則とテストの観点をすべて保つ（5〜10、15.8）。
+- ビルダー・解析・結果確保のそれぞれで、メモリ不足の経路をテストで再現し、漏れがないことを確かめる（15.7）。
 
 ### Non-Goals
-- 文面の生成（help-and-messages）、Windows での argv / 環境変数の UTF-8 取得（platform-argv）、利用者向け文書とサンプル（docs-and-release）。
-- 値の型変換・妥当性検査、前方一致、候補提示、入れ子サブコマンド、グループ化・排他、隠しオプション・別名、設定ファイル、レスポンスファイル。
-- Monde との API 互換。
+- 文面の生成（help-and-messages）、Windows の argv / 環境変数の UTF-8 取得（platform-argv）、公開シンボル一覧と ABI 検査（abi-compat）。
+- 宣言のイントロスペクション API。ハンドルから名前を読む公開関数も含めない。
+- 同じ program を複数のスレッドから同時に解析すること（凍結フラグを書くため）。異なる program・異なる結果ハンドルは独立に使える。
+- 初版の API との互換、および初版の API から移行する手段。
 
 ## Boundary Commitments
 
 ### This Spec Owns
-- 公開ヘッダ `include/clopts/decl.h`（宣言型 `clopts_program_t` / `clopts_command_t` / `clopts_option_t` / `clopts_positional_t`、`clopts_kind_t`、`clopts_handler_fn`）と `include/clopts/parse.h`（`clopts_status_t`、`clopts_usage_error_t`、`clopts_decl_error_t`、`clopts_error_t`、`clopts_source_t`、`clopts_result_t`、`clopts_getenv_fn`、公開関数）。
-- 宣言検査の規則と宣言エラー種別の列挙。
-- 走査規則（サブコマンド選択、グローバルオプション、長短オプション、まとめ書き、`--`、`-`、位置引数、`--no-<name>`、COUNT、LIST の分割）。
-- 値の解決順（明示 > 環境変数 > 既定値）と出所、必須検査、help / version の優先と回復走査、最初の使い方エラーだけの報告。
-- 結果ストア（スロット、位置引数、リスト項目と環境変数値の複製）、記述子ポインタによる参照 API、ハンドラ呼び出し、結果の解放。
-- 既定の環境変数取得関数（`getenv` の戻り値を即座に複製する）。
-- `tests/parser/` の単体テスト。
+- 公開ヘッダ `include/clopts/decl.h`（ハンドル型、handler 型、ビルダー関数）と `include/clopts/parse.h`（状態・使い方エラー・宣言エラー・出所・環境変数の状態の列挙、環境変数の取得コールバック型、解析・検査関数、結果ハンドルのアクセサ、解放）。
+- 内部の宣言モデル `src/parser/parser_model.h`。program / command / option / positional の構造体と、その不変条件を定める。help-and-messages はこれを読み取り専用で読む。
+- ビルダーの即時検査（宣言エラーの全規則）と、program へのエラーの記録。
+- 走査器、値の解決（環境変数 → 既定値）、必須検査、エラー優先度、ハンドラ呼び出し。
+- 結果ハンドル（OOM 用の番兵を含む）、所有と寿命の規則。
+- テスト用の確保プローブ。失敗の注入と、生存する確保ブロックの計数を行う内部の口で、公開しない。
+- `tests/parser/` の単体テストと、統合テストの利用側コード `tests/integration/fixtures/consumer/main.c` を新しい API に合わせること。
 
 ### Out of Boundary
-- 文面（ヘルプ・使い方・バージョン・エラー）の生成と `FILE*` への出力。本 spec は文面に必要な情報（`value_name`、`summary`、`description`、エラーの各フィールド）を型に持たせるだけで、文字列を組み立てない。
-- Windows の `GetCommandLineW` 分割と `GetEnvironmentVariableW`。本 spec は `clopts_getenv_fn` の型と既定実装（`getenv`）だけを持つ。
-- 値の型変換や妥当性検査、オプション間の制約。
-- サンプルプログラム、README、API リファレンス。
+- 文面・桁揃え・出力先（help-and-messages）。本 spec は文字列を整形しない。
+- argv の取得と UTF-8 変換、Windows 用の環境変数取得関数（platform-argv）。本 spec が持つのはコールバックの型と既定の取得だけ。
+- 公開シンボル一覧の作成・照合、abidiff（abi-compat）。本 spec は公開関数のすべてに `CLOPTS_API` を付ける。
+- ビルド構成、CI、`clopts_testing` の仕組み、統合テストの枠組み（project-foundation）。本 spec が変えるのは `src/parser/CMakeLists.txt` と `tests/parser/CMakeLists.txt` のソース一覧、および consumer fixture の `main.c` の中身だけ。
+- 値の型変換・妥当性検査、前方一致、候補提示、入れ子のサブコマンド、別名、排他。
 
 ### Allowed Dependencies
-- `include/clopts/writer.h`（project-foundation）: 公開ヘッダの傘からの include のみ。`parser` は writer を使わない。
-- `src/core/core_internal.h`（project-foundation）: `clopts_core_vec_*`、`clopts_core_size_*`。
-- C 標準ライブラリ: `<stddef.h>`、`<stdbool.h>`、`<stdlib.h>`（`malloc` / `calloc` / `free` / `getenv`）、`<string.h>`、`<assert.h>`、`<limits.h>`。`<stdio.h>` は使わない。
-- 依存方向: `include/clopts/decl.h` ← `include/clopts/parse.h` ← `src/parser/parser_internal.h` ← `src/parser/*.c`。`src/parser/` が include してよい内部ヘッダは `core/core_internal.h` だけ。`help` / `platform` を include しない。
+- C99 標準ライブラリ（`<stdlib.h>`、`<string.h>`、`<stdbool.h>`、`<stddef.h>`、`<limits.h>`、`<assert.h>`）。
+- `src/core/core_internal.h`（`clopts_core_vec_t`、`clopts_core_size_mul` / `add`）。core の構造体のフィールドを読むのは、確保プローブ（`parser_alloc.c`）だけ。
+- `include/clopts/export.h`（`CLOPTS_API`）。
+- 依存の向き: `export.h` → 公開ヘッダ（`decl.h` → `parse.h`）→ `parser_model.h` → `parser_internal.h` → 各 `.c`。help-and-messages は `parser_model.h` と公開ヘッダだけを include してよい。`parser_internal.h` は include しない。
 
 ### Revalidation Triggers
-- `decl.h` の宣言型のフィールド追加・変更・並び替え（`static const` 初期化子の互換に影響）→ help-and-messages、docs-and-release、examples。
-- `clopts_usage_error_t` / `clopts_decl_error_t` / `clopts_status_t` の列挙値の追加・改名 → help-and-messages の文面表と網羅テスト。
-- `clopts_error_t` のフィールドの意味（いつ有効か）の変更 → help-and-messages。
-- `clopts_getenv_fn` のシグネチャ、戻り値、`*out` の所有権の変更 → platform-argv。
-- 結果の殻 `clopts_result_t` の公開フィールド（`status` / `command` / `error`）の変更 → help-and-messages（`result.command` を読む）。
-- 走査規則・予約名・既定値の変更 → docs-and-release の解析規則の章。
-- `clopts_parse*` の事前条件（`result` はゼロ初期化か前回の結果）の変更 → docs-and-release、examples（利用例は `clopts_result_t r = {0};` で始める）。
+- `parser_model.h` の構造体のフィールド・不変条件の変更 → help-and-messages を再検証する。
+- 使い方エラー・宣言エラーの列挙への追加 → help-and-messages の文面表を追従させる。
+- `clopts_getenv_fn` のシグネチャや借用の規則の変更 → platform-argv を再検証する。
+- 公開関数の追加・削除・改名 → abi-compat の公開シンボル一覧を更新する。
+- 結果ハンドルから得た文字列の寿命の規則の変更 → docs-and-release の API リファレンスを更新する。
 
 ## Architecture
 
 ### Existing Architecture Analysis
-- project-foundation が `clopts` ターゲット、`clopts_add_module` / `clopts_add_module_tests`、`src/core/`（可変長配列、サイズ計算、writer）、`include/clopts/{clopts,writer}.h` を提供している。本 spec は tech.md の内部モジュール図の `parser` を埋める。
-- 傘ヘッダ `clopts.h` は現在 `writer.h` を include するだけ。`decl.h` と `parse.h` を加える。
-- `_CRT_SECURE_NO_WARNINGS` は `clopts` ターゲットに PRIVATE 定義済みで、`getenv` を MSVC で警告なしに呼べる。
-- Monde の `cli_args` の内部構造（型 ← 宣言検査 ← 結果 ← 走査器）と走査表・回復走査を踏襲し、グローバルオプション・否定・カウント・環境変数・記述子ポインタ参照を加える（research.md）。
+- `src/parser/` には 4 つのファイル（decl / scan / resolve / store）と `parser_internal.h` がある。照合の結果は「どちらのスコープか（グローバル / 選択コマンド）+ 添字」の ref で表し、スロットは option と同じ添字を持つ。新しい設計もこの形を保つ。
+- 宣言は「配列 + 要素数」だった。これを「ポインタの vec」に変えるので、参照箇所（scan 15、decl 45、resolve 23、store 16 か所）を機械的に置き換える。
+- 結果は `clopts_result_t`（公開の殻）と `impl`（store）の 2 段だった。これを 1 つの内部構造体 `struct clopts_result` にまとめる。
+- テストは共有ビルドでは `clopts_testing`（静的コピー）に、静的ビルドでは `clopts` にリンクする（project-foundation 7.2）。どちらでも内部関数を呼べるので、確保プローブを内部関数として置ける。
 
 ### Architecture Pattern & Boundary Map
 
 ```mermaid
 graph TB
-    subgraph PublicHeaders[include clopts]
-        DeclH[decl.h 宣言型]
-        ParseH[parse.h 状態 エラー 結果 関数]
+    subgraph Public
+        DeclH[decl.h handles and builder]
+        ParseH[parse.h enums parse result]
     end
-    subgraph ParserModule[src parser]
-        DeclCheck[DeclCheck 宣言検査と照合]
-        Store[ResultStore スロットと参照]
-        Resolver[Resolver 環境変数 既定値 必須]
-        Scanner[Scanner 走査と状態決定]
+    subgraph Parser
+        Model[parser_model.h model]
+        Internal[parser_internal.h contracts]
+        Alloc[parser_alloc.c probe]
+        Build[parser_build.c builder and checks]
+        Decl[parser_decl.c name rules and lookup]
+        Scan[parser_scan.c scanner]
+        Resolve[parser_resolve.c env default required]
+        Result[parser_result.c result handle]
     end
-    subgraph Core[src core]
-        Vec[clopts_core_vec]
-        Size[clopts_core_size]
-    end
-    Caller[利用側 main] --> ParseH
-    HelpSpec[help-and-messages] --> DeclH
-    HelpSpec --> ParseH
-    PlatformSpec[platform-argv] --> ParseH
-    ParseH --> DeclH
-    Scanner --> DeclCheck
-    Scanner --> Store
-    Scanner --> Resolver
-    Resolver --> Store
-    Store --> Vec
-    Store --> Size
-    DeclCheck --> DeclH
-    Store --> ParseH
+    Core[core vec and size]
+    Help[help-and-messages]
+    Platform[platform-argv]
+    DeclH --> ParseH
+    ParseH --> Model
+    Model --> Internal
+    Internal --> Alloc
+    Internal --> Build
+    Internal --> Decl
+    Internal --> Scan
+    Internal --> Resolve
+    Internal --> Result
+    Alloc --> Core
+    Build --> Decl
+    Scan --> Decl
+    Scan --> Result
+    Scan --> Resolve
+    Resolve --> Result
+    Help --> Model
+    Help --> ParseH
+    Platform --> ParseH
 ```
 
 **Architecture Integration**:
-- Selected pattern: 静的宣言テーブル + 単一パス走査器 + 構造化結果（roadmap 案A）。走査器は「前段（サブコマンド前）→ 本走査 → 回復走査 → 走査後の解決と検査」の 4 段。
-- Domain/feature boundaries: DeclCheck は宣言だけを見る。Scanner は argv を読み、Store に記録を依頼し、状態を決める。Resolver は走査後にスロットを見て環境変数・既定値・必須を解決する。Store だけがメモリを所有する。
-- Existing patterns preserved: `clopts_add_module`、内部ヘッダ `<module>_internal.h`、`clopts_core_` の再利用、`assert` による契約違反の検出、Allman スタイル。
-- New components rationale: 4 つの責務（検査・走査・解決・保持）を 1 ファイルずつにして、テストもその単位で書く。
-- Steering compliance: I/O なし、`exit` なし、宣言と argv は読み取り専用、確保はリスト項目と環境変数値と結果ストアのみ。
+- **Selected pattern**: 不透明ハンドル + ビルダー + 内部モデル（研究ノートの案C の改良）。宣言エラーはすべてビルダー呼び出しの中で即時に検査する。設定関数で付ける属性に「種類に合うか」の検査をその場で掛けるので、凍結時の一括検査や通し番号は要らない。
+- **Domain boundaries**: 宣言の組み立てと検査は Build（+ Decl の規則関数）、走査は Scan、解決は Resolve、結果の保持と参照は Result。モデルの構造体を書くのは Build だけ。Scan / Resolve / Result はモデルを読むだけ。
+- **Existing patterns preserved**: ref + スロット添字、4 段の走査（前段・本走査・回復走査・走査後）、`assert` による契約違反の検出、Allman スタイル。
+- **New components rationale**: Build（ビルダーが新設のため）、Model（help-and-messages との継ぎ目）、Alloc（15.7 の注入と計数）、Result（store と殻を 1 つにした結果ハンドル）。
+- **Steering compliance**: 公開ヘッダに構造体なし、全公開関数に `CLOPTS_API`、列挙値は明示、利用側の確保したメモリを解放しない、`FILE*` を受けない、グローバルな可変状態を持たない（番兵は `const`）。
 
 ### Technology Stack
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Language | C99 | 公開ヘッダと `src/parser/` | `<stdbool.h>` を使う。VLA、`_Complex` 不使用 |
-| Internal utilities | project-foundation `core_internal.h` | 位置引数とリスト項目の可変長配列、サイズ計算の検査 | `clopts_core_vec_t`、`clopts_core_size_mul` |
-| Build | CMake 3.21+、`clopts_add_module(parser ...)` | `clopts` ターゲットへのソース追加 | `src/parser/CMakeLists.txt` |
-| Test | Naos v0.4.0、`clopts_add_module_tests(parser ...)` | `parser_tests`、ラベル `parser` | `tests/parser/CMakeLists.txt` |
+| 言語 | C99 | 全実装 | VLA なし、`//` コメントなし |
+| ビルド | CMake 3.21（project-foundation） | `clopts_add_module` / `clopts_add_module_tests` | ソース一覧だけ変える |
+| テスト | Naos v0.4.0（project-foundation） | `tests/parser/` | ラベル `parser` |
+| 内部ユーティリティ | `src/core`（vec、size） | 子の一覧、スロット、位置引数、リスト項目 | vec の要素はポインタ（ハンドルの安定のため） |
 
 ## File Structure Plan
 
 ### Directory Structure
 ```
 include/clopts/
-├── clopts.h                 # 傘ヘッダ。decl.h と parse.h の include を追加（変更）
-├── decl.h                   # 宣言型: clopts_kind_t、clopts_option_t、clopts_positional_t、clopts_handler_fn、clopts_command_t、clopts_program_t、CLOPTS_COUNT_MAX_DEFAULT
-└── parse.h                  # 解析契約: clopts_status_t、clopts_usage_error_t、clopts_decl_error_t、clopts_error_t、clopts_source_t、clopts_result_t、clopts_env_status_t、clopts_getenv_fn、公開関数
+├── decl.h            # 書き直し: ハンドル型、clopts_handler_fn、ビルダー関数（program / command / option / positional）
+└── parse.h           # 書き直し: 列挙（値を明示）、clopts_getenv_fn、解析・検査関数、結果ハンドルのアクセサ、解放
 src/parser/
-├── CMakeLists.txt           # clopts_add_module(parser SOURCES parser_decl.c parser_store.c parser_resolve.c parser_scan.c)
-├── parser_internal.h        # 内部契約: clopts_parser_store_t と slot、DeclCheck / Store / Resolver の内部関数
-├── parser_decl.c            # DeclCheck: clopts_decl_validate と照合関数（コマンド、長い名前、短い名前、否定形）
-├── parser_store.c           # ResultStore: ストアの確保・記録・解放、公開アクセサ、clopts_result_free、clopts_result_run
-├── parser_resolve.c         # Resolver: 環境変数フォールバック、既定値、必須検査、既定の getenv 取得関数
-└── parser_scan.c            # Scanner: clopts_parse / clopts_parse_with_env、前段、本走査、回復走査、状態決定
+├── parser_model.h    # 新規: 内部の宣言モデル（struct clopts_program / command / option / positional、clopts_parser_kind_t）と不変条件。help-and-messages が読む
+├── parser_internal.h # 書き直し: 結果の構造体、スロット、ref、確保プローブ、各ファイル間の内部関数の宣言
+├── parser_alloc.c    # 新規: 確保の窓口（malloc / calloc / strdup / vec_push / free）と確保プローブ
+├── parser_build.c    # 新規: ビルダー関数の公開実装、即時検査、エラーの記録、凍結、program の解放
+├── parser_decl.c     # 書き直し: 名前の形式の規則、照合範囲での重複・否定形の検出、照合関数（find_command / find_long / find_negation / find_short）
+├── parser_scan.c     # 変更: clopts_parse / clopts_parse_with_env / clopts_program_validate の実装、前段・本走査・回復走査
+├── parser_resolve.c  # 変更: 既定の環境変数取得（借用）、環境変数 → 既定値の解決、必須検査
+├── parser_result.c   # 新規（parser_store.c を置き換え）: 結果ハンドルの確保、番兵、スロットへの記録、全アクセサ、run、free
+└── CMakeLists.txt    # 変更: ソース一覧
 tests/parser/
-├── CMakeLists.txt           # clopts_add_module_tests(parser SOURCES ...)
-├── parser_tests_main.c      # NAOS_MAIN にスイートを並べる
-├── test_fixtures.h          # 架空のプログラム宣言（サブコマンドあり "tool"、なし "filt"）と環境変数のモック取得関数の宣言
-├── test_fixtures.c          # 上記の定義
-├── test_decl_check.c        # スイート decl: 宣言エラー種別ごとに 1 件以上、clopts_decl_validate
-├── test_dispatch.c          # スイート dispatch: サブコマンド選択、グローバルオプション、NO_COMMAND、help / --help / --version の前段
-├── test_long.c              # スイート long: 長いオプション、=、値の消費、不明、--no-<name>
-├── test_short.c             # スイート short: まとめ書き、値の連結、-h、不明な 1 文字
-├── test_values.c            # スイート values: FLAG / COUNT / VALUE / LIST の繰り返し規則、区切り、クランプ
-├── test_positional.c        # スイート positional: 混在、--、-、必須 / 任意 / 可変長、余分な引数
-├── test_resolve.c           # スイート resolve: 環境変数（モック）、既定値、出所、必須、スコープ限定、ENV_FAILED → OUT_OF_MEMORY
-├── test_errors.c            # スイート errors: 構造化エラーの各フィールド、最初のエラー、回復走査、help / version の優先
-└── test_result.c            # スイート result: 記述子ポインタ参照、位置引数、run、解放の冪等性、ゼロ初期化の解放、OOM 後の解放
+├── test_fixtures.h / .c  # 書き直し: 架空の program をビルダーで組み立てる関数、ハンドルをまとめた構造体、環境変数の模擬関数
+├── test_build.c      # 新規: NULL 安全、最初のエラー、文字列の複製、凍結、ハンドルの安定、root
+├── test_oom.c        # 新規: 確保プローブで失敗位置を 1 から順に動かす網羅試験と、生存ブロック 0 の確認
+├── test_decl_check.c # 書き直し: 即時検査の規則表の各行、呼び出し順、検査関数
+├── test_dispatch.c / test_long.c / test_short.c / test_values.c / test_positional.c / test_resolve.c / test_errors.c / test_result.c
+│                     # 変更: 宣言をフィクスチャのハンドルに、参照を新しいアクセサに置き換える。観点は変えない
+├── parser_tests_main.c # 変更: 新しいスイートの登録
+└── CMakeLists.txt    # 変更: ソース一覧
 ```
 
 ### Modified Files
-- `include/clopts/clopts.h` — `#include "clopts/decl.h"` と `#include "clopts/parse.h"` を追加。
-- `src/CMakeLists.txt` — `add_subdirectory(parser)` を追加。
-- `tests/CMakeLists.txt` — `add_subdirectory(parser)` を追加。
+- `src/parser/parser_store.c` — 削除する。内容は `parser_result.c` に移す。
+- `tests/integration/fixtures/consumer/main.c` — 宣言 → 解析 → 参照 → 解放を公開関数だけで行う流れを足す（14.6）。期待と違えば終了コード 1 にする。`consumer_cpp.cpp` は `decltype(&clopts_parse)` で追従するので変えない。
+- `include/clopts/clopts.h` — 変えない（`decl.h` / `parse.h` / `writer.h` を include したまま）。
 
 ## System Flows
+
+### ビルダー呼び出しの共通の前処理
+
+```mermaid
+stateDiagram-v2
+    [*] --> NullCheck
+    NullCheck --> NoOp: ハンドルが NULL
+    NullCheck --> FrozenCheck: 非 NULL
+    FrozenCheck --> NoOp: 凍結済み assert
+    FrozenCheck --> ErrorCheck: 未凍結
+    ErrorCheck --> NoOp: エラー記録済み
+    ErrorCheck --> Rules: 未記録
+    Rules --> Record: 宣言エラー成立
+    Rules --> Alloc: 規則を満たす
+    Alloc --> RecordOOM: 確保失敗
+    Alloc --> Apply: 成功
+    Record --> [*]
+    RecordOOM --> [*]
+    Apply --> [*]
+    NoOp --> [*]
+```
+
+- NoOp では宣言を変えない。ハンドルを返す関数は NULL を返す（2.2、2.3、1.12）。
+- 追加関数で宣言エラーが成立した場合も、確保に成功していれば新しいオブジェクトを宣言に繋ぎ、エラーの該当ハンドルとして記録し、そのハンドルを返す。help-and-messages がその名前を読めるようにするためである。設定関数で宣言エラーが成立した場合は、属性を変えずにエラーだけを記録する。
+- 追加関数は「確保 → 親の vec に繋ぐ → 名前の複製」の順に進める。途中で失敗しても、確保済みのものは親から辿れるので、`clopts_program_free` で漏れなく解放できる（13.7）。
 
 ### 解析の全体の流れ
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DeclCheck
-    DeclCheck --> Done_Decl: 宣言エラー
-    DeclCheck --> Prelude: 妥当
+    [*] --> Entry
+    Entry --> Sentinel: program が NULL
+    Entry --> Freeze: 非 NULL
+    Freeze --> Sentinel: 記録済みのエラーが OOM
+    Freeze --> AllocResult: それ以外
+    AllocResult --> Sentinel: 確保失敗
+    AllocResult --> Done_Decl: 記録済みのエラーが宣言エラー
+    AllocResult --> Prelude: サブコマンドあり構成
+    AllocResult --> Scan: サブコマンドなし構成
     Prelude --> Done_Help: --help または -h または help
     Prelude --> Done_Version: --version
-    Prelude --> Done_NoCommand: トークン終端 サブコマンドあり構成
+    Prelude --> NoCommand: トークン終端
     Prelude --> Recover: 使い方エラー
-    Prelude --> Scan: サブコマンド選択 または サブコマンドなし構成
+    Prelude --> Scan: サブコマンド選択
     Scan --> Done_Help: --help または -h
     Scan --> Done_Version: --version
     Scan --> Recover: 最初の使い方エラー
     Scan --> Resolve: トークン終端
+    NoCommand --> Resolve: グローバルのみ
     Recover --> Done_Help: 完全一致の --help または -h
     Recover --> Done_Version: 完全一致の --version
     Recover --> Done_Usage: 見つからず
     Resolve --> Done_OOM: 取得失敗 または 確保失敗
     Resolve --> Done_Usage: 必須の不足
     Resolve --> Done_OK
-    Done_NoCommand --> Resolve: グローバルのみ解決
+    Resolve --> Done_NoCommand
 ```
 
-- Prelude（前段）は argv の先頭からサブコマンド名が現れるまでを処理する。サブコマンドなし構成では Prelude を経ずに Scan に入る。
-- Scan 中の `--help` / `-h` / `--version` は即座に状態を決める（以降のトークンは見ない）。
-- Recover は最初の使い方エラーのトークン自身から `--` の手前までを見る（9.12）。エラーのトークン自身を含めるのは、`tool help --help` のように `help` コマンドの引数として扱われてエラーになった `--help` も要求として拾うため（9.1）。
-- Resolve は「環境変数 → 既定値 → 必須検査」の順で、選択されたスコープ（グローバル + 選択コマンド、または program）に限って行う。NO_COMMAND ではグローバルのみ（7.8、8.6）。
+- 凍結（`program->frozen = true`）は、エラーの有無にかかわらず最初に行う（1.12）。`clopts_program_validate` も同じ入口を通り、AllocResult の後は DECL_ERROR か OK で終わる。
+- Prelude 以降は初版と同じ規則である（「Scanner」の表）。Recover は保留した使い方エラーのトークン自身から `--` の手前までを見る。
+- Resolve は「環境変数 → 既定値 → 必須検査」の順で、選択されたスコープに限って行う。NO_COMMAND ではグローバルだけ（8.9、9.6）。
 
 ### 利用側の典型的な流れ
 
 ```mermaid
 sequenceDiagram
     participant Main as 利用側 main
-    participant Parser as clopts_parse
-    participant Store as clopts_result
+    participant Lib as CLOpts
     participant Help as help-and-messages
-    Main->>Parser: clopts_parse(program, argc, argv, result)
-    Parser-->>Main: status
+    Main->>Lib: clopts_program_new と add と set
+    Main->>Lib: clopts_parse(program, argc, argv)
+    Lib-->>Main: result
     alt OK
-        Main->>Store: clopts_result_value(result, &opt)
-        Main->>Store: clopts_result_run(result)
+        Main->>Lib: clopts_result_value(result, output)
+        Main->>Lib: clopts_result_run(result)
     else HELP または NO_COMMAND
-        Main->>Help: ヘルプを書く(program, result.command)
+        Main->>Help: ヘルプを書く(program, result)
     else USAGE_ERROR または DECL_ERROR
-        Main->>Help: エラー文面を書く(result.error)
+        Main->>Help: エラー文面を書く(program, result)
     end
-    Main->>Store: clopts_result_free(result)
+    Main->>Lib: clopts_result_free(result)
+    Main->>Lib: clopts_program_free(program)
 ```
 
 ## Requirements Traceability
 
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
-| 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.9 | 宣言型と `static const` 初期化、サブコマンドあり / なし構成 | PublicHeaders | `decl.h` の型 | — |
-| 1.8 | 宣言と argv を書き換えない | Scanner, ResultStore | `const` 修飾、`char *const *argv` | — |
-| 2.1, 2.2, 2.18 | 解析前の宣言検査、単独検査、最初の 1 件 | DeclCheck, Scanner | `clopts_decl_validate`、`clopts_parser_decl_check` | DeclCheck 状態 |
-| 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14, 2.15, 2.16 | 宣言エラーの各規則 | DeclCheck | `clopts_decl_error_t`、宣言検査の規則表 | — |
-| 2.17 | 宣言エラーの構造体 | DeclCheck, PublicHeaders | `clopts_error_t` | — |
-| 3.1, 3.2, 3.3 | 解析関数、7 状態、I/O なし | Scanner, PublicHeaders | `clopts_parse`、`clopts_status_t` | 全体の流れ |
-| 3.4, 3.5 | OK / HELP での結果参照 | ResultStore, Scanner | `clopts_result_t.command`、アクセサ | — |
-| 3.6, 3.8 | NO_COMMAND、`argc == 0` | Scanner, Resolver | 前段の表 | Done_NoCommand |
-| 3.7 | OUT_OF_MEMORY | ResultStore, Resolver, Scanner | 全確保点の失敗伝播 | Done_OOM |
-| 4.1, 4.2, 4.3, 4.4, 4.5, 4.6 | サブコマンド選択とグローバルオプション | Scanner, DeclCheck | 前段の表、照合関数 | Prelude, Scan |
-| 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7 | 長いオプション | Scanner, DeclCheck | 本走査の表、`clopts_parser_find_long` | Scan |
-| 5.8, 5.9, 5.10, 5.11 | 短いオプションとまとめ書き | Scanner, DeclCheck | 短いオプションの手順、`clopts_parser_find_short` | Scan |
-| 5.12, 5.13, 5.14, 5.15 | `--`、`-`、位置引数の混在、余分な引数 | Scanner, ResultStore | 本走査の表、`clopts_parser_store_add_positional` | Scan |
-| 6.1, 6.2, 6.3, 6.4, 6.5 | FLAG と否定 | Scanner, DeclCheck, ResultStore | `clopts_parser_find_negation`、`clopts_parser_store_set_flag` | Scan |
-| 6.6, 6.7 | COUNT とクランプ | ResultStore | `clopts_parser_store_add_count`、`count_max` | — |
-| 6.8, 6.9, 6.10, 6.11, 6.12 | VALUE の後勝ち、LIST の連結と分割、文字列のまま | ResultStore | `clopts_parser_store_set_value`、`clopts_parser_store_append_list` | — |
-| 7.1, 7.2, 7.3, 7.4, 7.5 | 解決順と出所、LIST の分割 | Resolver, ResultStore | `clopts_source_t`、`clopts_parser_resolve` | Resolve |
-| 7.6, 7.7, 7.9 | 取得関数の差し替え、複製、失敗 | Resolver, PublicHeaders | `clopts_getenv_fn`、`clopts_parse_with_env`、`clopts_parser_getenv_default` | Resolve |
-| 7.8 | 参照スコープの限定 | Resolver | `clopts_parser_resolve` の引数 | Resolve |
-| 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7 | 必須検査と位置引数の個数 | Resolver, Scanner | `clopts_parser_check_required`、位置引数の割り当て規則 | Resolve |
-| 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12 | help / version の検出と優先、回復走査 | Scanner | 前段の表、本走査の表、回復走査 | Prelude, Scan, Recover |
-| 10.1, 10.2, 10.6 | エラー種別の列挙と状態による区別 | PublicHeaders | `clopts_usage_error_t`、`clopts_decl_error_t` | — |
-| 10.3, 10.4, 10.5, 10.7 | エラー構造体のフィールド | PublicHeaders, Scanner, DeclCheck | `clopts_error_t` | — |
-| 11.1, 11.2, 11.3 | 記述子ポインタ参照、出所、契約違反の検出 | ResultStore | `clopts_result_flag` ほか、`clopts_parser_store_slot` | — |
-| 11.4 | 選択コマンドと位置引数の参照 | ResultStore | `clopts_result_t.command`、`clopts_result_positional_*` | — |
-| 11.5, 11.6 | ハンドラ呼び出し | ResultStore | `clopts_result_run` | 利用側の流れ |
-| 11.7, 11.8 | 値の指し先と複製の範囲 | ResultStore, Resolver | スロットの `value` / `owned` / `items` | — |
-| 12.1, 12.2, 12.3, 12.4 | 解放の契約 | ResultStore | `clopts_result_free` | — |
-| 12.5, 12.6 | オーバーフロー検査、OOM 後の保持 | ResultStore | `clopts_core_size_mul`、`clopts_core_vec_push` の失敗時不変 | — |
-| 13.1, 13.2, 13.3, 13.4, 13.5, 13.6 | 単体テスト | ParserTests | `tests/parser/` | — |
+| 1.1, 1.2, 1.3, 1.4, 1.5 | 生成・解放・追加 | Build, Model | `clopts_program_new` / `_free` / `_root` / `_add_command`、`clopts_command_add_*` | ビルダー前処理 |
+| 1.6, 1.7, 1.9 | 属性の設定、後勝ち | Build | `clopts_option_set_*`、`clopts_positional_set_*`、`clopts_command_set_*`、`clopts_program_set_version` | ビルダー前処理 |
+| 1.8 | 文字列の複製 | Build, Alloc | `clopts_parser_strdup` | — |
+| 1.10, 1.11 | 追加順の保持、ハンドルの安定 | Model, Build | 子はポインタの vec | — |
+| 1.12 | 解析後の凍結 | Build, Scan | `frozen` フラグ | 解析の入口 |
+| 2.1, 2.2, 2.3, 2.4, 2.7 | 最初のエラー、NULL 安全 | Build | `program->error` | ビルダー前処理 |
+| 2.5, 2.6 | NULL / エラー済みの program の解析 | Scan, Result | 番兵、DECL_ERROR | 解析の入口 |
+| 2.8 | 別 program のハンドル | Build | ビルダー関数は 2 つ以上のハンドルを受けない | — |
+| 3.1, 3.2 | 解析時の宣言エラー、検査関数 | Scan, Result | `clopts_program_validate` | 解析の入口 |
+| 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15, 3.16, 3.17 | 宣言エラーの各規則 | Build, Decl | 即時検査の規則表 | ビルダー前処理 |
+| 3.18, 3.19 | 該当ハンドル、呼び出し順で最初 | Build, Result | `clopts_result_error_*` | ビルダー前処理 |
+| 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.9, 4.10, 4.11 | 解析と状態 | Scan, Result | `clopts_parse*`、`clopts_result_status` / `_command` | 解析の全体 |
+| 4.8 | 結果自体の確保失敗 | Result | 番兵 | 解析の入口 |
+| 5.1, 5.2, 5.3, 5.4, 5.5, 5.6 | サブコマンドとグローバル | Scan, Decl | 前段の表 | Prelude |
+| 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 6.12, 6.13, 6.14, 6.15 | 走査規則 | Scan, Decl | 本走査の表 | Scan |
+| 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 7.10, 7.11, 7.12 | 値の種類と繰り返し | Scan, Result | スロットへの記録関数 | Scan |
+| 8.1, 8.2, 8.3, 8.4, 8.5, 8.9, 8.10 | 解決順、出所 | Resolve | `clopts_parser_resolve` | Resolve |
+| 8.6, 8.7, 8.8 | コールバックと借用 | Resolve | `clopts_getenv_fn`、`clopts_parse_with_env` | Resolve |
+| 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7 | 必須検査 | Resolve | `clopts_parser_check_required` | Resolve |
+| 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10, 10.11, 10.12 | HELP / VERSION と優先度 | Scan | 前段・本走査・回復走査 | Prelude, Scan, Recover |
+| 11.1, 11.2, 11.6 | 列挙と状態の区別 | 公開ヘッダ | `clopts_usage_error_t`、`clopts_decl_error_t` | — |
+| 11.3, 11.4, 11.5, 11.7, 11.8 | エラーのアクセサ | Result | `clopts_result_error_*` | — |
+| 12.1, 12.2, 12.3, 12.4, 12.7 | 値の参照 | Result | `clopts_result_flag` など | — |
+| 12.5, 12.6 | handler | Result | `clopts_result_run` | — |
+| 12.8 | 文字列の寿命 | Result | 寿命の規則（データモデル） | — |
+| 13.1, 13.2, 13.3, 13.4, 13.6 | 結果の解放 | Result | `clopts_result_free` | — |
+| 13.5 | サイズ計算の検査 | Alloc | `clopts_core_size_mul` / `add` | — |
+| 13.7 | ビルダー中の OOM | Build, Alloc | 確保 → 接続 → 複製の順 | ビルダー前処理 |
+| 14.1, 14.2, 14.3, 14.4, 14.5, 14.6 | 公開 API の形 | 公開ヘッダ, Model | `CLOPTS_API`、列挙値の明示、consumer fixture | — |
+| 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8 | 単体テスト | ParserTests, Alloc | 確保プローブ | — |
 
 ## Components and Interfaces
 
-| Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
-|-----------|--------------|--------|--------------|--------------------------|-----------|
-| PublicHeaders | 公開 API | 宣言型、状態、エラー、結果、公開関数の契約 | 1.1〜1.9, 2.17, 3.2, 7.6, 10.1〜10.7 | writer.h (P2) | State |
-| DeclCheck | parser | 宣言検査と宣言の照合（コマンド、長い名前、短い名前、否定形） | 2.1〜2.18, 4.5, 5.7, 6.4 | PublicHeaders (P0) | Service |
-| ResultStore | parser | スロットと位置引数の保持、記述子ポインタ参照、解放、ハンドラ呼び出し | 3.4, 5.15, 6.1〜6.12, 11.1〜11.8, 12.1〜12.6 | CoreVec (P0), CoreSize (P0) | Service, State |
-| Resolver | parser | 環境変数・既定値・必須の解決、既定の取得関数 | 7.1〜7.9, 8.1〜8.7 | ResultStore (P0) | Service |
-| Scanner | parser | 前段・本走査・回復走査・状態決定、`clopts_parse` | 3.1〜3.8, 4.1〜4.6, 5.1〜5.15, 9.1〜9.12, 10.3〜10.4 | DeclCheck (P0), ResultStore (P0), Resolver (P0) | Service |
-| ParserTests | テスト | `tests/parser/` の Naos テスト | 13.1〜13.6 | Naos (P0) | — |
+| Component | Domain | Intent | Req Coverage | Key Dependencies | Contracts |
+|-----------|--------|--------|--------------|------------------|-----------|
+| PublicHeaders | 公開 API | ハンドル・列挙・関数の契約 | 1, 4, 8.6, 11, 12, 13, 14 | export.h（P0） | API |
+| Model | parser | 内部の宣言モデルと不変条件 | 1.10, 1.11, 14.5 | core vec（P0） | State |
+| Alloc | parser | 確保の窓口と確保プローブ | 1.8, 13.5, 13.7, 15.7 | core（P0） | Service |
+| Build | parser | ビルダー、即時検査、エラーの記録、凍結 | 1, 2, 3 | Decl, Alloc（P0） | Service, State |
+| Decl | parser | 名前の規則と照合 | 3.3〜3.9, 5.5, 6.7 | Model（P0） | Service |
+| Scan | parser | 解析の入口と走査 | 2.5, 2.6, 3.1, 4, 5, 6, 7, 10 | Decl, Result, Resolve（P0） | Service |
+| Resolve | parser | 環境変数・既定値・必須 | 8, 9 | Result（P0） | Service |
+| Result | parser | 結果ハンドルとアクセサ | 4.8, 11, 12, 13 | Alloc（P0） | API, State |
+| ParserTests | tests | 架空の宣言による網羅試験 | 15 | 全コンポーネント | — |
 
 ### 公開 API
 
@@ -249,296 +287,495 @@ sequenceDiagram
 
 | Field | Detail |
 |-------|--------|
-| Intent | 利用側と downstream spec が依存する型と関数の契約 |
-| Requirements | 1.1〜1.9, 2.17, 3.2, 7.6, 10.1〜10.7 |
+| Intent | 利用側と downstream spec が依存する契約 |
+| Requirements | 1.1〜1.12, 3.2, 4.1, 4.2, 8.6, 8.7, 11.1〜11.8, 12.1〜12.8, 13.1〜13.3, 14.1〜14.4 |
 
 **Responsibilities & Constraints**
-- `decl.h` は `<stddef.h>`、`<stdbool.h>`、`<limits.h>` だけを include し、他の CLOpts ヘッダに依存しない。`parse.h` は `decl.h` を include する。
-- すべての型は `typedef struct clopts_x { ... } clopts_x_t;` の形。列挙値は `CLOPTS_` 接頭辞。`extern "C"` ガードを持つ。
-- 利用側が `static const` の初期化子で書けるよう、宣言型は POD で、関数ポインタと `void *` 以外は `const char *`、`char`、`bool`、`unsigned`、`size_t`、列挙だけを持つ。
+- 両ヘッダは `clopts/export.h`、`<stdbool.h>`、`<stddef.h>` だけを include する（`parse.h` は `decl.h` も）。`extern "C"` ガードを持つ。
+- 型は不透明型の前方宣言、列挙（全列挙子に値を明示、14.4）、関数ポインタ型だけ（14.1）。引数・戻り値は、ハンドルのポインタ、`const char *`、`char`、`bool`、`unsigned`、`size_t`、`int`、列挙、関数ポインタ、`void *` に限る（14.3）。
+- すべての公開関数に `CLOPTS_API` を付ける（14.2）。
 
-**Contracts**: State [x]
+**Contracts**: API [x]
 
 ```c
 /* include/clopts/decl.h */
-typedef enum clopts_kind
-{
-    CLOPTS_FLAG,   /* 値を取らない。指定で真。negatable なら --no-<name> で偽 */
-    CLOPTS_COUNT,  /* 値を取らない。指定回数を数える。count_max でクランプ */
-    CLOPTS_VALUE,  /* 単一の値。繰り返すと後勝ち */
-    CLOPTS_LIST    /* リスト値。繰り返すと連結。list_delimiter で分割 */
-} clopts_kind_t;
+typedef struct clopts_program clopts_program_t;
+typedef struct clopts_command clopts_command_t;
+typedef struct clopts_option clopts_option_t;
+typedef struct clopts_positional clopts_positional_t;
+typedef struct clopts_result clopts_result_t;
 
-typedef struct clopts_option
-{
-    const char *long_name;      /* 先頭の "--" を含まない。NULL なら短い名前のみ */
-    char short_name;            /* 1 文字。'\0' なら長い名前のみ */
-    clopts_kind_t kind;
-    const char *value_name;     /* VALUE / LIST のヘルプ上の値名。NULL 可（help 側が既定を補う） */
-    const char *help;           /* 説明（英語、1 行）。NULL 可 */
-    const char *default_value;  /* VALUE / LIST のみ。NULL ならなし。LIST は list_delimiter で分割される */
-    const char *env;            /* VALUE / LIST のみ。フォールバック先の環境変数名。NULL ならなし */
-    char list_delimiter;        /* LIST のみ。'\0' なら 1 回の指定を 1 項目とする */
-    unsigned count_max;         /* COUNT のみ。0 なら CLOPTS_COUNT_MAX_DEFAULT */
-    bool required;              /* VALUE / LIST のみ */
-    bool negatable;             /* FLAG のみ。--no-<long_name> を受け付ける */
-} clopts_option_t;
+/* 選択されたスコープの handler。戻り値は clopts_result_run がそのまま返す */
+typedef int (*clopts_handler_fn)(const clopts_result_t *result, void *userdata);
 
-#define CLOPTS_COUNT_MAX_DEFAULT UINT_MAX   /* <limits.h> */
+/* ---- program ---- */
+/* name を複製して program を作る。確保に失敗したら NULL。name が不正でも program は返り、INVALID_NAME が記録される */
+CLOPTS_API clopts_program_t *clopts_program_new(const char *name);
+/* program と、そこから派生したすべてのハンドルを解放する。NULL なら何もしない */
+CLOPTS_API void clopts_program_free(clopts_program_t *program);
+/* バージョン文字列を複製して設定する。NULL で解除（--version を予約しない） */
+CLOPTS_API void clopts_program_set_version(clopts_program_t *program, const char *version);
+/* program 直下のスコープ（グローバルオプション、サブコマンドなし構成の位置引数と handler、program の説明文）。
+ * program が NULL なら NULL。エラーや凍結の有無にかかわらず同じハンドルを返す（ビルダー呼び出しではない） */
+CLOPTS_API clopts_command_t *clopts_program_root(clopts_program_t *program);
+CLOPTS_API clopts_command_t *clopts_program_add_command(clopts_program_t *program, const char *name);
 
-typedef struct clopts_positional
-{
-    const char *name;   /* ヘルプとメッセージ上の名前（例: "FILE"）。山括弧を含まない */
-    const char *help;   /* NULL 可 */
-    bool required;
-    bool variadic;      /* 残りのトークンをすべて受ける。配列の末尾でのみ可 */
-} clopts_positional_t;
+/* ---- command（root を含む） ---- */
+CLOPTS_API void clopts_command_set_summary(clopts_command_t *command, const char *summary);         /* 全体ヘルプの 1 行説明。root では使われない */
+CLOPTS_API void clopts_command_set_description(clopts_command_t *command, const char *description); /* root では program の説明文 */
+CLOPTS_API void clopts_command_set_handler(clopts_command_t *command, clopts_handler_fn handler, void *userdata);
+/* long_name は先頭の "--" を含まない（NULL でなし）。short_name は '\0' でなし */
+CLOPTS_API clopts_option_t *clopts_command_add_flag(clopts_command_t *scope, const char *long_name, char short_name);
+CLOPTS_API clopts_option_t *clopts_command_add_count(clopts_command_t *scope, const char *long_name, char short_name);
+CLOPTS_API clopts_option_t *clopts_command_add_value(clopts_command_t *scope, const char *long_name, char short_name);
+CLOPTS_API clopts_option_t *clopts_command_add_list(clopts_command_t *scope, const char *long_name, char short_name);
+CLOPTS_API clopts_positional_t *clopts_command_add_positional(clopts_command_t *scope, const char *name);
 
-struct clopts_result;
-typedef int (*clopts_handler_fn)(const struct clopts_result *result, void *userdata);
+/* ---- option ---- 文字列は複製、NULL で解除 */
+CLOPTS_API void clopts_option_set_help(clopts_option_t *option, const char *help);
+CLOPTS_API void clopts_option_set_value_name(clopts_option_t *option, const char *value_name);
+CLOPTS_API void clopts_option_set_env(clopts_option_t *option, const char *env);
+CLOPTS_API void clopts_option_set_default(clopts_option_t *option, const char *default_value);
+CLOPTS_API void clopts_option_set_required(clopts_option_t *option, bool required);
+CLOPTS_API void clopts_option_set_negatable(clopts_option_t *option, bool negatable);
+CLOPTS_API void clopts_option_set_delimiter(clopts_option_t *option, char delimiter);   /* '\0' で解除 */
+CLOPTS_API void clopts_option_set_count_max(clopts_option_t *option, unsigned count_max); /* 0 で既定（UINT_MAX） */
 
-typedef struct clopts_command
-{
-    const char *name;
-    const char *summary;                      /* 全体ヘルプの 1 行説明。NULL 可 */
-    const char *description;                  /* サブコマンドヘルプの説明。NULL なら help 側が summary を使う */
-    const clopts_option_t *options;           /* option_count == 0 なら NULL 可 */
-    size_t option_count;
-    const clopts_positional_t *positionals;   /* positional_count == 0 なら NULL 可 */
-    size_t positional_count;
-    clopts_handler_fn handler;                /* NULL 可 */
-    void *userdata;
-} clopts_command_t;
-
-typedef struct clopts_program
-{
-    const char *name;                         /* 必須。空でない */
-    const char *description;                  /* NULL 可 */
-    const char *version;                      /* NULL なら --version を予約しない */
-    const clopts_option_t *options;           /* サブコマンドあり構成ではグローバルオプション、なし構成ではオプション */
-    size_t option_count;
-    const clopts_positional_t *positionals;   /* サブコマンドなし構成のみ解析対象。あり構成では無視 */
-    size_t positional_count;
-    const clopts_command_t *commands;         /* command_count == 0 ならサブコマンドなし構成 */
-    size_t command_count;
-    clopts_handler_fn handler;                /* サブコマンドなし構成のみ。あり構成では無視 */
-    void *userdata;
-} clopts_program_t;
+/* ---- positional ---- */
+CLOPTS_API void clopts_positional_set_help(clopts_positional_t *positional, const char *help);
+CLOPTS_API void clopts_positional_set_required(clopts_positional_t *positional, bool required);
+CLOPTS_API void clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic);
 ```
 
 ```c
 /* include/clopts/parse.h */
 typedef enum clopts_status
 {
-    CLOPTS_OK,
-    CLOPTS_HELP,            /* result->command が NULL なら全体、非 NULL ならそのサブコマンド */
-    CLOPTS_VERSION,
-    CLOPTS_NO_COMMAND,      /* サブコマンドあり構成でサブコマンドが現れなかった。グローバルの値は参照可 */
-    CLOPTS_USAGE_ERROR,     /* result->error.usage が有効 */
-    CLOPTS_DECL_ERROR,      /* result->error.decl が有効。argv は読んでいない */
-    CLOPTS_OUT_OF_MEMORY
+    CLOPTS_OK = 0,
+    CLOPTS_HELP = 1,            /* clopts_result_command が NULL なら全体、非 NULL ならそのサブコマンド */
+    CLOPTS_VERSION = 2,
+    CLOPTS_NO_COMMAND = 3,
+    CLOPTS_USAGE_ERROR = 4,
+    CLOPTS_DECL_ERROR = 5,
+    CLOPTS_OUT_OF_MEMORY = 6
 } clopts_status_t;
 
 typedef enum clopts_usage_error
 {
-    CLOPTS_USAGE_UNKNOWN_COMMAND,     /* token: 不明な名前 */
-    CLOPTS_USAGE_UNKNOWN_OPTION,      /* token, name_len または short_name */
-    CLOPTS_USAGE_MISSING_VALUE,       /* option, token */
-    CLOPTS_USAGE_UNEXPECTED_VALUE,    /* option（予約オプションなら NULL）, token */
-    CLOPTS_USAGE_MISSING_OPTION,      /* option */
-    CLOPTS_USAGE_MISSING_ARGUMENT,    /* positional */
-    CLOPTS_USAGE_UNEXPECTED_ARGUMENT  /* token */
+    CLOPTS_USAGE_NONE = 0,
+    CLOPTS_USAGE_UNKNOWN_COMMAND = 1,     /* token */
+    CLOPTS_USAGE_UNKNOWN_OPTION = 2,      /* token、name_len または short_name */
+    CLOPTS_USAGE_MISSING_VALUE = 3,       /* option、token */
+    CLOPTS_USAGE_UNEXPECTED_VALUE = 4,    /* option（予約オプションなら NULL）、token */
+    CLOPTS_USAGE_MISSING_OPTION = 5,      /* option */
+    CLOPTS_USAGE_MISSING_ARGUMENT = 6,    /* positional */
+    CLOPTS_USAGE_UNEXPECTED_ARGUMENT = 7  /* token */
 } clopts_usage_error_t;
 
 typedef enum clopts_decl_error
 {
-    CLOPTS_DECL_INVALID_NAME,          /* program / command / option の名前や env の形式 (2.7, 2.16) */
-    CLOPTS_DECL_NO_NAME,               /* 長い名前も短い名前もない (2.6) */
-    CLOPTS_DECL_DUPLICATE_COMMAND,     /* (2.4) */
-    CLOPTS_DECL_DUPLICATE_OPTION,      /* 同一スコープまたはグローバルと command の間 (2.3) */
-    CLOPTS_DECL_RESERVED_NAME,         /* help / h / version / help コマンド (2.5) */
-    CLOPTS_DECL_NOT_NEGATABLE,         /* FLAG 以外に negatable (2.8) */
-    CLOPTS_DECL_NEGATION_CONFLICT,     /* 否定可能な x と実名 no-x (2.9) */
-    CLOPTS_DECL_DEFAULT_NOT_ALLOWED,   /* FLAG / COUNT に default_value (2.10) */
-    CLOPTS_DECL_ENV_NOT_ALLOWED,       /* FLAG / COUNT に env (2.11) */
-    CLOPTS_DECL_REQUIRED_WITH_DEFAULT, /* (2.12) */
-    CLOPTS_DECL_REQUIRED_NOT_ALLOWED,  /* FLAG / COUNT に required (2.13) */
-    CLOPTS_DECL_POSITIONAL_ORDER,      /* 任意の後ろに必須 (2.14) */
-    CLOPTS_DECL_VARIADIC_POSITION      /* 可変長が末尾以外、または 2 つ以上 (2.15) */
+    CLOPTS_DECL_NONE = 0,
+    CLOPTS_DECL_INVALID_NAME = 1,
+    CLOPTS_DECL_NO_NAME = 2,
+    CLOPTS_DECL_DUPLICATE_COMMAND = 3,
+    CLOPTS_DECL_DUPLICATE_OPTION = 4,
+    CLOPTS_DECL_RESERVED_NAME = 5,
+    CLOPTS_DECL_NOT_NEGATABLE = 6,
+    CLOPTS_DECL_NEGATION_CONFLICT = 7,
+    CLOPTS_DECL_DEFAULT_NOT_ALLOWED = 8,
+    CLOPTS_DECL_ENV_NOT_ALLOWED = 9,
+    CLOPTS_DECL_REQUIRED_WITH_DEFAULT = 10,
+    CLOPTS_DECL_REQUIRED_NOT_ALLOWED = 11,
+    CLOPTS_DECL_POSITIONAL_ORDER = 12,
+    CLOPTS_DECL_VARIADIC_POSITION = 13,
+    CLOPTS_DECL_ATTRIBUTE_KIND = 14,     /* 区切り文字を LIST 以外に、上限を COUNT 以外に (3.16) */
+    CLOPTS_DECL_MIXED_LAYOUT = 15        /* サブコマンドを持つ program の root に位置引数か handler (3.17) */
 } clopts_decl_error_t;
-
-typedef struct clopts_error
-{
-    clopts_usage_error_t usage;          /* status == CLOPTS_USAGE_ERROR のとき有効 */
-    clopts_decl_error_t decl;            /* status == CLOPTS_DECL_ERROR のとき有効 */
-    const clopts_command_t *command;     /* 該当する command。program 直下 / 選択前なら NULL */
-    const clopts_option_t *option;       /* 該当する option。なければ NULL */
-    const clopts_positional_t *positional; /* 該当する positional。なければ NULL */
-    const char *token;                   /* 使い方エラー: 該当する argv 要素。なければ NULL */
-    int argv_index;                      /* 使い方エラー: token の argv 添字。なければ -1 */
-    size_t name_len;                     /* UNKNOWN_OPTION の長い形: token 内の "--name" の長さ（"=" の手前まで）。他は 0 */
-    char short_name;                     /* まとめ書き中の該当 1 文字。該当なしなら '\0' */
-} clopts_error_t;
 
 typedef enum clopts_source
 {
-    CLOPTS_SOURCE_NONE,      /* 未指定 */
-    CLOPTS_SOURCE_DEFAULT,
-    CLOPTS_SOURCE_ENV,
-    CLOPTS_SOURCE_EXPLICIT
+    CLOPTS_SOURCE_NONE = 0,
+    CLOPTS_SOURCE_DEFAULT = 1,
+    CLOPTS_SOURCE_ENV = 2,
+    CLOPTS_SOURCE_EXPLICIT = 3
 } clopts_source_t;
-
-typedef struct clopts_result
-{
-    clopts_status_t status;
-    const clopts_command_t *command;     /* 選択されたサブコマンド。なし構成 / 未選択なら NULL */
-    clopts_error_t error;                /* USAGE_ERROR / DECL_ERROR で有効 */
-    struct clopts_parser_store *impl;    /* 内部。ゼロ初期化 (NULL) は有効な空状態 */
-} clopts_result_t;
 
 typedef enum clopts_env_status
 {
-    CLOPTS_ENV_FOUND,   /* *out に malloc 系で確保した複製を入れた。ライブラリが free() する */
-    CLOPTS_ENV_UNSET,   /* 未設定。*out は触らない */
-    CLOPTS_ENV_FAILED   /* 取得失敗（メモリ不足、変換失敗）。*out は触らない。解析は OUT_OF_MEMORY */
+    CLOPTS_ENV_FOUND = 0,   /* *value に借用の文字列を入れた */
+    CLOPTS_ENV_UNSET = 1,   /* 未設定。*value は読まない */
+    CLOPTS_ENV_FAILED = 2   /* 取得失敗。解析は OUT_OF_MEMORY */
 } clopts_env_status_t;
 
-typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, char **out);
+/* *value に返す文字列はコールバック側の所有。次にこのコールバックを呼ぶか、解析関数が返るまで有効であればよい。
+ * ライブラリはコールバックから戻った直後に複製し、以後は参照も解放もしない */
+typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, const char **value);
 
-/* 宣言だけを検査する。妥当なら CLOPTS_OK、そうでなければ CLOPTS_DECL_ERROR と *error（NULL 可） */
-clopts_status_t clopts_decl_validate(const clopts_program_t *program, clopts_error_t *error);
+/* argv[0] を読み飛ばして解析する。戻り値は NULL にならない（確保失敗時は OUT_OF_MEMORY の番兵） */
+CLOPTS_API clopts_result_t *clopts_parse(clopts_program_t *program, int argc, char *const *argv);
+/* getenv_fn が NULL なら既定の取得（getenv 相当） */
+CLOPTS_API clopts_result_t *clopts_parse_with_env(clopts_program_t *program, int argc, char *const *argv,
+                                                  clopts_getenv_fn getenv_fn, void *env_ctx);
+/* 宣言だけを検査する。状態は OK / DECL_ERROR / OUT_OF_MEMORY。エラーは同じアクセサで読む */
+CLOPTS_API clopts_result_t *clopts_program_validate(clopts_program_t *program);
 
-/* argv[0] を読み飛ばし argv[1..argc-1] を解析する。既定の取得関数（getenv の複製）を使う */
-clopts_status_t clopts_parse(const clopts_program_t *program, int argc, char *const *argv,
-                             clopts_result_t *result);
-/* getenv_fn が NULL なら既定の取得関数 */
-clopts_status_t clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
-                                      clopts_getenv_fn getenv_fn, void *env_ctx,
-                                      clopts_result_t *result);
+CLOPTS_API clopts_status_t clopts_result_status(const clopts_result_t *result);
+/* OK / NO_COMMAND / USAGE_ERROR: 選択されたサブコマンド。HELP: ヘルプの対象。なし構成・未選択なら NULL */
+CLOPTS_API const clopts_command_t *clopts_result_command(const clopts_result_t *result);
 
-/* 値の参照。option は解析に使った宣言テーブルの要素でなければならない（契約違反は assert） */
-bool clopts_result_flag(const clopts_result_t *result, const clopts_option_t *option);
-unsigned clopts_result_count(const clopts_result_t *result, const clopts_option_t *option);
-const char *clopts_result_value(const clopts_result_t *result, const clopts_option_t *option);
-size_t clopts_result_list_count(const clopts_result_t *result, const clopts_option_t *option);
-const char *clopts_result_list_at(const clopts_result_t *result, const clopts_option_t *option,
-                                  size_t index);
-clopts_source_t clopts_result_source(const clopts_result_t *result, const clopts_option_t *option);
-size_t clopts_result_positional_count(const clopts_result_t *result);
-const char *clopts_result_positional_at(const clopts_result_t *result, size_t index);
+/* エラー（11.3、11.4、11.7）。該当なしは NONE / NULL / -1 / 0 / '\0' */
+CLOPTS_API clopts_usage_error_t clopts_result_usage_error(const clopts_result_t *result);
+CLOPTS_API clopts_decl_error_t clopts_result_decl_error(const clopts_result_t *result);
+CLOPTS_API const clopts_command_t *clopts_result_error_command(const clopts_result_t *result);
+CLOPTS_API const clopts_option_t *clopts_result_error_option(const clopts_result_t *result);
+CLOPTS_API const clopts_positional_t *clopts_result_error_positional(const clopts_result_t *result);
+CLOPTS_API const char *clopts_result_error_token(const clopts_result_t *result);
+CLOPTS_API int clopts_result_error_argv_index(const clopts_result_t *result);
+CLOPTS_API size_t clopts_result_error_name_len(const clopts_result_t *result);  /* UNKNOWN_OPTION の長い形: "=" の手前までの "--name" の長さ */
+CLOPTS_API char clopts_result_error_short_name(const clopts_result_t *result);
 
-/* status == CLOPTS_OK のとき、選択コマンド（なし構成では program）の handler を呼び、その戻り値を返す */
-int clopts_result_run(const clopts_result_t *result);
+/* 値（12.1〜12.3、12.7） */
+CLOPTS_API bool clopts_result_flag(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API unsigned clopts_result_count(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API const char *clopts_result_value(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API size_t clopts_result_list_count(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API const char *clopts_result_list_at(const clopts_result_t *result, const clopts_option_t *option, size_t index);
+CLOPTS_API clopts_source_t clopts_result_source(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API size_t clopts_result_positional_count(const clopts_result_t *result);
+CLOPTS_API const char *clopts_result_positional_at(const clopts_result_t *result, size_t index);
 
-/* 確保した領域を解放し impl = NULL に戻す。ゼロ初期化・解放済みに対しても安全。status / command / error は変えない */
-void clopts_result_free(clopts_result_t *result);
+CLOPTS_API int clopts_result_run(const clopts_result_t *result);
+/* NULL・番兵なら何もしない。program の解放の前後どちらでもよい */
+CLOPTS_API void clopts_result_free(clopts_result_t *result);
 ```
 
-- 事前条件: `clopts_parse*` は `program != NULL`、`result != NULL`、`argc >= 0`、`argv[0..argc-1]` が NUL 終端（`argc == 0` のとき `argv` の要素は読まない）。`result` はゼロ初期化（`clopts_result_t r = {0};`）か前回の解析結果でなければならず、前回の `impl` は解放してから書く。未初期化の `result` は前回の結果と区別できず、解放すると未定義動作になるため受け付けない。
-- 事後条件: 戻り値 `== result->status`。`CLOPTS_OK` では全スロットの解決済み、位置引数の個数が宣言の範囲内。`CLOPTS_USAGE_ERROR` / `CLOPTS_DECL_ERROR` 以外では `error` は初期化済み（ゼロ、`argv_index == -1`）で意味を持たない。`CLOPTS_DECL_ERROR` では argv を読まない。どの状態でも `clopts_result_free` を呼べる。
-- 不変条件: 宣言テーブルと argv は変更されない。`CLOPTS_OK` / `CLOPTS_NO_COMMAND` 以外では値の参照関数を呼ばない（契約違反は `assert`）。
+- **事前条件**:
+  - `argc >= 0`、`argv[0..argc-1]` は NUL 終端。`argc == 0` のときは `argv` の要素を読まない。
+  - アクセサ・`clopts_result_run` は、その結果を作った program を解放する前にだけ呼べる（13.3）。
+  - `clopts_result_list_at` / `clopts_result_positional_at` の `index` は個数未満（契約違反は `assert`）。
+- **事後条件**:
+  - 解析関数は NULL を返さない（4.8）。
+  - 状態が USAGE_ERROR / DECL_ERROR 以外なら、エラーのアクセサは NONE / NULL / -1 / 0 / `'\0'` を返す（11.7）。
+  - 状態が OK / NO_COMMAND 以外なら、値のアクセサは未指定の値（偽、0、NULL、0 個、`CLOPTS_SOURCE_NONE`）を返す（12.7）。NO_COMMAND ではグローバルオプションの値だけが有効。
+- **NULL の扱い**: 結果のアクセサに NULL の `result` を渡すと、番兵と同じ値を返す（状態は OUT_OF_MEMORY）。NULL の `option` を渡すと、未指定の値を返す。どちらも、ビルダーが NULL を返した後の利用側のコードを短くするためで、契約違反とはしない。
+- **契約違反**（`assert`）:
+  - 別の program に属する option を値のアクセサに渡すこと（12.3）。
+  - 状態 OK 以外の結果、検査関数の結果、handler のないスコープで `clopts_result_run` を呼ぶこと（12.6）。
+  - 凍結後のビルダー呼び出し（1.12）。
+  - 範囲外の添字。
 
 **Implementation Notes**
-- Integration: 傘ヘッダに 2 行追加。install は `include/clopts/` ごと行われるため変更不要。
-- Validation: `tests/parser/test_result.c` で `clopts_result_t result = {0};` を直接 `clopts_result_free` し、C++ からの include を `extern "C"` で守る（integration テストは project-foundation が持つ C のみのため、C++ の検証は docs-and-release に委ねる）。
-- Risks: `clopts_option_t` のフィールド順は `static const` の位置指定なし初期化子に影響する。利用者には指示付き初期化子（C99 `.name = ...`）を推奨する（docs-and-release）。
+- Integration: 傘ヘッダは変えない。初版の `clopts_kind_t`、`clopts_error_t`、公開の結果構造体は削除する（種類は内部の `clopts_parser_kind_t` へ移す）。
+- Validation: `test_build.c` と `test_result.c` で NULL・番兵・状態ごとの既定値を確かめる。consumer fixture で、共有版の利用側が公開関数だけで一連の流れを実行できることを確かめる（14.6）。
+- Risks: アクセサの数が多い（公開関数は約 48 個）。abi-compat の公開シンボル一覧の初版を、この節の宣言から作る。
 
 ### parser モジュール
 
-#### DeclCheck（`src/parser/parser_decl.c`）
+#### Model（`src/parser/parser_model.h`）
 
 | Field | Detail |
 |-------|--------|
-| Intent | 宣言の妥当性検査と、走査器・リゾルバが使う宣言の照合 |
-| Requirements | 2.1〜2.18, 4.5, 5.7, 6.4 |
+| Intent | 宣言の唯一の表現。help-and-messages との継ぎ目 |
+| Requirements | 1.4, 1.10, 1.11, 14.5 |
 
-**Responsibilities & Constraints**
-- 検査は宣言テーブルの先頭から順（program → グローバルオプション → 各 command の名前 → その options → その positionals）に行い、最初の違反で止めて `clopts_error_t` を埋める（2.18）。
-- 照合はバイト単位の完全一致で、大文字小文字を区別する（4.5、5.7）。前方一致はしない。
-- 予約名: 長い名前 `help`、短い名前 `h`、コマンド名 `help`、および `program->version != NULL` のときの長い名前 `version`。
+**Contracts**: State [x]
 
-宣言検査の規則（違反時の種別）:
+```c
+/* src/parser/parser_model.h */
+#include "clopts/parse.h"
+#include "core/core_internal.h"
 
-| 規則 | 種別 |
-|---|---|
-| `program->name` が NULL でも空でもない。各 command の `name` が NULL でも空でもなく、`-` で始まらず、空白を含まない | `INVALID_NAME` |
-| option は `long_name != NULL` または `short_name != '\0'` | `NO_NAME` |
-| `long_name` は空でなく、`-` で始まらず、`=` と空白を含まない。`short_name` は `-`、`=`、空白でない。`env` は NULL か空でない | `INVALID_NAME` |
-| 同じスコープ内、およびグローバルと各 command の間で、`long_name` と `short_name` がそれぞれ重複しない | `DUPLICATE_OPTION` |
-| command の `name` が重複しない | `DUPLICATE_COMMAND` |
-| `long_name` が `help` / `version`（version 非 NULL 時）でない、`short_name` が `h` でない、command の `name` が `help` でない | `RESERVED_NAME` |
-| `negatable` は `kind == CLOPTS_FLAG` のときだけ | `NOT_NEGATABLE` |
-| 否定可能な FLAG `x` と同じ照合範囲（同じスコープ、またはグローバルと command）に `long_name == "no-x"` の option がない | `NEGATION_CONFLICT` |
-| `default_value` は VALUE / LIST のみ | `DEFAULT_NOT_ALLOWED` |
-| `env` は VALUE / LIST のみ | `ENV_NOT_ALLOWED` |
-| `required` と `default_value` を同時に持たない | `REQUIRED_WITH_DEFAULT` |
-| `required` は VALUE / LIST のみ | `REQUIRED_NOT_ALLOWED` |
-| positionals で `required == false` の後ろに `required == true` がない | `POSITIONAL_ORDER` |
-| `variadic` は配列の末尾の 1 つだけ | `VARIADIC_POSITION` |
+typedef enum clopts_parser_kind
+{
+    CLOPTS_PARSER_FLAG,
+    CLOPTS_PARSER_COUNT,
+    CLOPTS_PARSER_VALUE,
+    CLOPTS_PARSER_LIST
+} clopts_parser_kind_t;
 
-- サブコマンドあり構成（`command_count > 0`）では `program->positionals` と `program->handler` は検査も解析もしない（1.4）。
-- 同一スコープのオプション同士の重複はグローバルと command の間も含めて検査するが、異なる command 同士の重複は許す。
+struct clopts_option
+{
+    clopts_program_t *program;     /* 所有者。値のアクセサの検査に使う */
+    clopts_command_t *scope;       /* 属するスコープ（root を含む） */
+    size_t index;                  /* scope->options 内の添字 = スロットの添字 */
+    clopts_parser_kind_t kind;
+    char *long_name;               /* NULL 可 */
+    char short_name;               /* '\0' でなし */
+    char *help, *value_name, *default_value, *env;  /* NULL 可。すべて所有する複製 */
+    char delimiter;                /* LIST のみ非 '\0' */
+    unsigned count_max;            /* COUNT のみ非 0。0 は既定（UINT_MAX） */
+    bool required;                 /* VALUE / LIST のみ真 */
+    bool negatable;                /* FLAG のみ真 */
+};
 
-**Dependencies**
-- Inbound: Scanner — 照合と検査（P0）
-- Outbound: PublicHeaders — 型（P0）
+struct clopts_positional
+{
+    clopts_program_t *program;
+    clopts_command_t *scope;
+    size_t index;
+    char *name;                    /* 空でない */
+    char *help;
+    bool required;
+    bool variadic;                 /* scope の末尾の 1 つだけ真 */
+};
+
+struct clopts_command
+{
+    clopts_program_t *program;
+    const char *name;              /* root では program の名前（program と同じブロック）。それ以外は所有する複製 */
+    char *summary, *description;
+    clopts_core_vec_t options;     /* clopts_option_t * の列。追加順 */
+    clopts_core_vec_t positionals; /* clopts_positional_t * の列。追加順 */
+    clopts_handler_fn handler;
+    void *userdata;
+};
+
+struct clopts_program
+{
+    clopts_command_t root;         /* program 直下のスコープ。&program->root が root のハンドル */
+    char *version;                 /* NULL 可 */
+    clopts_core_vec_t commands;    /* clopts_command_t * の列。追加順。空ならサブコマンドなし構成 */
+    bool frozen;
+    struct
+    {
+        clopts_status_t status;    /* OK / DECL_ERROR / OUT_OF_MEMORY */
+        clopts_decl_error_t kind;
+        clopts_command_t *command; /* root なら NULL として報告する */
+        clopts_option_t *option;
+        clopts_positional_t *positional;
+    } error;
+    struct clopts_parser_probe *probe; /* テスト専用。通常は NULL */
+};
+```
+
+- **不変条件**（`error.status == CLOPTS_OK` の program について、Build が保証する）:
+  - 名前と属性は、即時検査の規則表をすべて満たす。
+  - 各ハンドルのアドレスは `clopts_program_free` まで変わらない（1.11）。子は個別に確保し、vec にはポインタだけを持つ。
+  - `index` は vec 内の位置と一致する。
+- **読み出しの規則**: help-and-messages は `const` のポインタで読むだけにし、書き込まない。エラーのある program では不変条件が崩れていることがあるので、名前を読むときは NULL を許す。
+
+#### Alloc（`src/parser/parser_alloc.c`）
+
+| Field | Detail |
+|-------|--------|
+| Intent | parser のすべての確保・解放の窓口。テストで失敗を注入し、生存ブロックを数える |
+| Requirements | 1.8, 13.5, 13.7, 15.7 |
 
 **Contracts**: Service [x]
 
 ```c
 /* src/parser/parser_internal.h */
-
-/* どちらの配列のオプションかを示す */
-typedef struct clopts_parser_ref
+typedef struct clopts_parser_probe
 {
-    const clopts_option_t *option;  /* NULL なら見つからなかった */
-    bool global;                    /* true: program->options、false: command->options */
-    size_t index;                   /* その配列内の添字 */
-    bool negated;                   /* --no-<name> で見つかった */
-} clopts_parser_ref_t;
+    size_t fail_at;   /* 0: 注入しない。n: n 回目以降の確保点をすべて失敗させる */
+    size_t calls;     /* 通過した確保点の数 */
+    long live;        /* 生存している確保ブロックの数（オブジェクト、文字列、バッファを持つ vec を 1 つずつ） */
+} clopts_parser_probe_t;
 
-/* 宣言検査。妥当なら 0、違反なら -1 と *error */
-int clopts_parser_decl_check(const clopts_program_t *program, clopts_error_t *error);
+/* program_new の直後に呼ぶ（それ以前の確保は数えない）。結果ハンドルは解析時のプローブを受け継ぐ */
+void clopts_parser_set_probe(clopts_program_t *program, clopts_parser_probe_t *probe);
 
-const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program,
-                                                   const char *name);
-/* command（NULL 可）の options を先に、次に program->options を探す。name は name_len バイト */
-clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program,
-                                            const clopts_command_t *command,
-                                            const char *name, size_t name_len);
-/* 完全一致がなく name が "no-" で始まるとき、残りを negatable な FLAG として探す */
-clopts_parser_ref_t clopts_parser_find_negation(const clopts_program_t *program,
-                                                const clopts_command_t *command,
-                                                const char *name, size_t name_len);
-clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program,
-                                             const clopts_command_t *command, char c);
+void *clopts_parser_malloc(clopts_parser_probe_t *probe, size_t size);
+void *clopts_parser_calloc(clopts_parser_probe_t *probe, size_t count, size_t size); /* clopts_core_size_mul で検査 */
+char *clopts_parser_strdup(clopts_parser_probe_t *probe, const char *s);             /* NULL なら NULL を返し、確保点にしない */
+char *clopts_parser_strndup(clopts_parser_probe_t *probe, const char *s, size_t len);
+int clopts_parser_vec_push(clopts_parser_probe_t *probe, clopts_core_vec_t *vec, const void *elem);
+void clopts_parser_vec_free(clopts_parser_probe_t *probe, clopts_core_vec_t *vec);
+void clopts_parser_free(clopts_parser_probe_t *probe, void *ptr);
 ```
 
-**Implementation Notes**
-- Validation: `test_decl_check.c` で規則表の各行に 1 件以上、かつ `clopts_decl_validate` が argv なしで同じ結果を返すこと。
-- Risks: 予約名の判定が `version != NULL` に依存するため、「`version` を NULL にしたら `--version` という自前のオプションが許される」ことをテストで固定する。
+- `probe == NULL` のときは、`malloc` / `calloc` / `free` / `clopts_core_vec_push` / `clopts_core_vec_free` を直接呼ぶだけ（tech.md の「`malloc` を直接使う」の範囲）。
+- 確保点は、上の関数の呼び出し 1 回につき 1 つ。`vec_push` は、バッファの再確保が要らない場合も確保点として数える。これは、実際に失敗しうる位置の上位集合で、網羅のためには十分である。
+- `live` の計数: 確保の成功で +1、解放で -1。vec はバッファが NULL から非 NULL になった時点で +1、`vec_free` でバッファが非 NULL なら -1。
+- `clopts_program_new` は、program の構造体と名前の複製を 1 ブロックで確保する。部分的な失敗がないので、プローブの対象外でよい。
+- プローブは内部関数で、共有版では hidden（14.5）。単体テストは、静的版では `clopts` から、共有版では `clopts_testing` から呼べる。
 
-#### ResultStore（`src/parser/parser_store.c`）
+#### Build（`src/parser/parser_build.c`）
 
 | Field | Detail |
 |-------|--------|
-| Intent | スロット（値・出所・所有メモリ）と位置引数の保持、公開アクセサ、解放、ハンドラ呼び出し |
-| Requirements | 3.4, 5.15, 6.1〜6.12, 11.1〜11.8, 12.1〜12.6 |
+| Intent | `decl.h` の全関数の実装。即時検査、エラーの記録、凍結の検査、program の解放 |
+| Requirements | 1.1〜1.12, 2.1〜2.4, 2.7, 2.8, 3.3〜3.19, 13.7 |
 
 **Responsibilities & Constraints**
-- ストアはグローバル用と選択コマンド用の 2 本のスロット配列を持つ。スロットは option と同じ添字。配列は `calloc` で確保し、サイズ計算は `clopts_core_size_mul` で検査する（12.5）。
-- VALUE の `value` は argv または宣言の既定値、または環境変数の複製（スロットが所有）を指す（11.7、11.8）。LIST の項目は常に複製し `char *` の `clopts_core_vec_t` で持つ。位置引数は argv を指す `const char *` の `clopts_core_vec_t`。
-- 記録関数は出所を引数に取り、FLAG は真偽（否定なら偽）、COUNT は `+1` して `count_max`（0 なら `CLOPTS_COUNT_MAX_DEFAULT`）でクランプ、VALUE は置換、LIST は区切りで分割して追加（空の項目も追加）。同じスロットへの記録は出所も上書きする。
-- 記述子ポインタ → スロットの解決は、選択コマンドの `options[i]`、次に `program->options[i]` の要素アドレスとの等値比較で行う。見つからなければ `assert(0)`（11.3）。`NDEBUG` では未指定相当（`false` / `0` / `NULL` / `CLOPTS_SOURCE_NONE`）を返す。
-- 確保失敗時はストアの既存の内容を保ち `-1` を返す（12.6）。`clopts_core_vec_push` の失敗時不変に依存する。
-- `clopts_result_free` は `impl` 配下（環境変数の複製、リスト項目、2 本の vec、スロット配列、ストア本体）を解放し `impl = NULL`。`impl == NULL` なら何もしない（12.1〜12.3）。
-- `clopts_result_run` は `status == CLOPTS_OK` かつ対象の `handler != NULL` を `assert` し、`handler(result, userdata)` の戻り値を返す（11.5、11.6）。
+- 共通の前処理（「ビルダー呼び出しの共通の前処理」の図）を、1 つの内部関数 `begin(program)` にまとめる。この関数は「続行してよいか」を返す。凍結済みのときは `assert(!program->frozen)` で止め、`NDEBUG` では何もしない。
+- 規則は呼び出しの中で、下の表の順に検査する。最初に成立したものを記録して終える（3.19）。成立した時点が呼び出しの順なので、通し番号は要らない。
+- 文字列の引数はすべて `clopts_parser_strdup` で複製する（1.8）。設定し直したときは、古い複製を解放してから入れ替える（1.9）。
+- 2.8: ハンドルを 2 つ以上受け取るビルダー関数は作らない。したがって、ビルダーで別 program のハンドルを混ぜる経路はない。混在の検出は、値のアクセサで行う（12.3）。
 
-**Dependencies**
-- Inbound: Scanner、Resolver — 記録（P0）；利用側 — アクセサ（P0）
-- Outbound: CoreVec、CoreSize — 可変長配列とサイズ検査（P0）；DeclCheck — なし（照合は Scanner が行い `ref` を渡す）
+**即時検査の規則表**（照合範囲 = 追加先のスコープ。root ならすべての command も、command なら root も含む）
+
+| 呼び出し | 規則（上から順に検査） | 種別 | 報告するハンドル |
+|---|---|---|---|
+| `clopts_program_new(name)` | `name` が NULL・空・`-` で始まる・空白を含む | `INVALID_NAME` | なし |
+| `clopts_program_set_version(v)` | `v != NULL` で、照合範囲のどこかに長い名前 `version` がある | `RESERVED_NAME` | 宣言順で最初のその option と、そのスコープ |
+| `clopts_program_add_command(name)` | `name` が NULL・空・`-` で始まる・空白を含む | `INVALID_NAME` | 新しい command |
+| 〃 | `name` が `help` | `RESERVED_NAME` | 新しい command |
+| 〃 | 同名の command がある | `DUPLICATE_COMMAND` | 新しい command |
+| 〃 | root に位置引数か handler がある | `MIXED_LAYOUT` | 新しい command |
+| `clopts_command_set_handler(root, h)` | `h != NULL` で、command が 1 つ以上ある | `MIXED_LAYOUT` | なし |
+| `clopts_command_add_<kind>(scope, l, s)` | `l == NULL` かつ `s == '\0'` | `NO_NAME` | 新しい option |
+| 〃 | `l` が空・`-` で始まる・`=` か空白を含む。または `s` が `-`、`=`、空白 | `INVALID_NAME` | 新しい option |
+| 〃 | `l` が `help`、`l` が `version` で version 設定済み、`s` が `h` | `RESERVED_NAME` | 新しい option |
+| 〃 | 照合範囲に同じ長い名前か短い名前がある | `DUPLICATE_OPTION` | 新しい option |
+| 〃 | `l` が `no-x` で、照合範囲に否定可能な FLAG `x` がある | `NEGATION_CONFLICT` | 新しい option |
+| `clopts_command_add_positional(scope, n)` | `n` が NULL・空 | `INVALID_NAME` | 新しい positional |
+| 〃 | `scope` が root で、command が 1 つ以上ある | `MIXED_LAYOUT` | 新しい positional |
+| 〃 | `scope` の末尾の位置引数が可変長 | `VARIADIC_POSITION` | 新しい positional |
+| `clopts_option_set_env(o, e)` | `e != NULL` で、`o` が FLAG / COUNT | `ENV_NOT_ALLOWED` | `o` |
+| 〃 | `e` が空 | `INVALID_NAME` | `o` |
+| `clopts_option_set_default(o, d)` | `d != NULL` で、`o` が FLAG / COUNT | `DEFAULT_NOT_ALLOWED` | `o` |
+| 〃 | `d != NULL` で、`o` が必須 | `REQUIRED_WITH_DEFAULT` | `o` |
+| `clopts_option_set_required(o, true)` | `o` が FLAG / COUNT | `REQUIRED_NOT_ALLOWED` | `o` |
+| 〃 | `o` に既定値がある | `REQUIRED_WITH_DEFAULT` | `o` |
+| `clopts_option_set_negatable(o, true)` | `o` が FLAG でない | `NOT_NEGATABLE` | `o` |
+| 〃 | `o` に長い名前 `x` があり、照合範囲に長い名前 `no-x` がある | `NEGATION_CONFLICT` | `o` |
+| `clopts_option_set_delimiter(o, c)` | `c != '\0'` で、`o` が LIST でない | `ATTRIBUTE_KIND` | `o` |
+| `clopts_option_set_count_max(o, n)` | `n != 0` で、`o` が COUNT でない | `ATTRIBUTE_KIND` | `o` |
+| `clopts_positional_set_required(p, true)` | `p` より前に任意の位置引数がある | `POSITIONAL_ORDER` | `p` |
+| `clopts_positional_set_required(p, false)` | `p` より後ろに必須の位置引数がある | `POSITIONAL_ORDER` | `p` |
+| `clopts_positional_set_variadic(p, true)` | `p` が `scope` の末尾でない | `VARIADIC_POSITION` | `p` |
+
+- 「報告するハンドル」の command は、そのハンドルのスコープとする。root なら NULL として報告する（3.18）。
+- 照合範囲の重複検査は、異なる command 同士の重複を許す（初版と同じ）。
+- 否定可能でも長い名前のない FLAG は、宣言エラーにしない（`--no-` の形がないので、効果がないだけ）。
+- 解除（NULL、`false`、`'\0'`、`0` の設定）では、規則を検査しない。ただし `set_required(p, false)` だけは、後ろの必須との順序を検査する。
 
 **Contracts**: Service [x] / State [x]
+- 状態の遷移: `error.status` は OK → DECL_ERROR または OUT_OF_MEMORY に一度だけ変わり、戻らない。`frozen` は false → true に一度だけ変わる。
+- `clopts_program_free`: 全 command（root を含む）について、option・positional・文字列・vec を解放し、最後に program のブロックを解放する。結果ハンドルは参照しない（13.3）。
+
+**Implementation Notes**
+- Validation: `test_decl_check.c` で、規則表の各行に 1 件以上のテストを置く。`test_build.c` で前処理と複製を確かめる。
+- Risks: 規則表の行が多い。名前の形式・照合範囲の走査は Decl の関数に寄せ、Build は「どの規則をどの順で呼ぶか」だけを持つ。
+
+#### Decl（`src/parser/parser_decl.c`）
+
+| Field | Detail |
+|-------|--------|
+| Intent | 名前の規則と照合（Build と Scan が共有する） |
+| Requirements | 3.3〜3.9, 5.5, 6.7 |
+
+**Contracts**: Service [x]
+
+```c
+/* src/parser/parser_internal.h */
+typedef struct clopts_parser_ref
+{
+    const clopts_option_t *option;  /* NULL なら見つからない */
+    bool global;                    /* true: root、false: 選択コマンド */
+    size_t index;                   /* そのスコープ内の添字 */
+    bool negated;
+} clopts_parser_ref_t;
+
+bool clopts_parser_valid_command_name(const char *name);        /* program と command に共通 */
+bool clopts_parser_valid_long_name(const char *name);
+bool clopts_parser_valid_short_name(char c);
+/* scope の照合範囲から、長い名前 l（NULL 可）または短い名前 s が一致する option を探す */
+const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *scope, const char *l, char s);
+/* 照合範囲から、長い名前 name（name_len バイト）の option を探す（no-x の衝突検査用） */
+const clopts_option_t *clopts_parser_find_named(const clopts_command_t *scope, const char *name, size_t name_len);
+
+const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program, const char *name);
+clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program, const clopts_command_t *command,
+                                            const char *name, size_t name_len);
+clopts_parser_ref_t clopts_parser_find_negation(const clopts_program_t *program, const clopts_command_t *command,
+                                                const char *name, size_t name_len);
+clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, const clopts_command_t *command, char c);
+```
+
+- 照合はバイト単位の完全一致で、大文字小文字を区別する（5.5、6.7）。`find_*` は、選択コマンド（NULL 可）を先に、次に root を探す。
+- 初版の `clopts_parser_decl_check`（テーブル全体の検査）は削除する。
+
+#### Scan（`src/parser/parser_scan.c`）
+
+| Field | Detail |
+|-------|--------|
+| Intent | 解析・検査関数の入口と走査 |
+| Requirements | 2.5, 2.6, 3.1, 3.2, 4.1〜4.11, 5.1〜5.6, 6.1〜6.15, 7.1〜7.12, 10.1〜10.12, 11.3, 11.4 |
+
+**Responsibilities & Constraints**
+- 入口: 「解析の全体の流れ」の図のとおり。program が NULL か OOM を記録済みなら番兵を返す。結果の確保に失敗した場合も番兵を返す。DECL_ERROR を記録済みなら、結果にエラーを写して返し、argv は読まない（3.1、2.6、11.6）。
+- サブコマンドの有無は `program->commands.count > 0` で判定する。スロットは root の option 数だけ確保し、サブコマンドを選択した時点でその command の分を確保する。
+- `stdout` / `stderr` に書かず、`exit` / `abort` を呼ばない（4.3）。program と argv を書き換えない（4.11）。書き込むのは `frozen` だけ。
+- 走査の状態（位置、選択コマンド、保留エラー、`--` 到達、HELP / VERSION の要求）は、自動変数の `scan_state_t` 1 つにまとめる。
+
+前段（サブコマンドあり構成、`argv[1]` から順に）:
+
+| トークン | 扱い |
+|---|---|
+| なし | `NO_COMMAND`（4.6、4.9） |
+| `--help` / `-h`（まとめ書き内の `h` を含む） | `HELP`、対象は program 全体。以降は見ない（10.1） |
+| `--version`（version あり） | `VERSION`。以降は見ない（10.5） |
+| `--` | 次のトークンから位置引数として扱う。サブコマンドが未選択なので、最初の位置引数は `UNKNOWN_COMMAND`（5.2） |
+| `help` | 次がなければ `HELP`（全体）。次がサブコマンド名ならその command の `HELP`。さらに後ろがあれば `UNEXPECTED_ARGUMENT`（エラーの command はその command）。次がサブコマンド名でなければ `UNKNOWN_COMMAND`（10.2〜10.4） |
+| サブコマンド名 | 選択して本走査へ（5.1） |
+| `-` で始まる（`-` 単体を除く） | グローバルオプションとして、本走査と同じ規則で照合・記録する（5.3）。見つからなければ `UNKNOWN_OPTION` |
+| 上記以外（`-` 単体を含む） | `UNKNOWN_COMMAND`（5.2） |
+
+本走査（選択コマンド、またはサブコマンドなし構成。`--` を見るまで）:
+
+| トークン | 扱い |
+|---|---|
+| `--` | 以降はすべて位置引数（6.12） |
+| `--help` / `--version`（version あり） | `HELP`（選択コマンド）/ `VERSION`。以降は見ない（10.1、10.5） |
+| `--help=<x>` / `--version=<x>` | `UNEXPECTED_VALUE`、option は NULL |
+| `--<name>[=<value>]` | `<name>` は最初の `=` まで。`find_long` で探し、なければ `find_negation`。<br>FLAG: 真（否定なら偽）を EXPLICIT で記録。`=` があれば `UNEXPECTED_VALUE`。<br>COUNT: +1。`=` があれば `UNEXPECTED_VALUE`。<br>VALUE / LIST: `=` があればその後ろ全体、なければ次のトークンをそのまま消費。次がなければ `MISSING_VALUE`。<br>見つからなければ `UNKNOWN_OPTION`（`name_len` は `=` の手前までの長さ）（6.1〜6.7、7.2〜7.5、10.6） |
+| `-` 単体 | 位置引数（6.13） |
+| `-<c1><c2>...` | 1 文字ずつ処理する（下記）（6.8〜6.11） |
+| `-` で始まらない | 位置引数。宣言数を超え、末尾が可変長でなければ `UNEXPECTED_ARGUMENT`（5.6、6.14、6.15） |
+
+短いオプションの各文字 `c`:
+1. `c == 'h'` なら `HELP`（10.1）。
+2. `find_short(c)` で探す。なければ `UNKNOWN_OPTION`、`short_name = c`（6.11）。
+3. FLAG は真を記録、COUNT は +1。次の文字へ進む。
+4. VALUE / LIST は、残りの文字列があればそれを値にする（`=` も含めてそのまま、6.10）。なければ次のトークンを消費し、それもなければ `MISSING_VALUE`（`short_name = c`）。このトークンの処理を終える。
+
+回復走査（10.7）:
+- 範囲は、保留した使い方エラーのトークン自身から `--` の手前まで。エラーより前に `--` に達していれば行わない。
+- その範囲で、`--help` / `-h` / `--version`（version あり）に完全一致するトークンだけを探す。見つかれば `HELP`（選択済みなら選択コマンド）/ `VERSION`、なければ `USAGE_ERROR` を返す。
+- HELP と VERSION が両方あれば、先に現れたほうを返す（10.9）。
+
+値の記録（7.1〜7.12）: FLAG は後勝ち、COUNT は `count_max`（0 なら `UINT_MAX`）でクランプ、VALUE は後勝ち、LIST は指定順に連結する。区切り文字があれば分割し、空の項目も保持する。
+
+**Implementation Notes**
+- Integration: 初版の `parser_scan.c` の表の処理をそのまま残し、`program->options[i]` などの参照を `clopts_core_vec_at` に、`result->error` への書き込みを `parser_result.c` の記録関数に置き換える。
+- Validation: `test_dispatch.c`（前段）、`test_long.c` / `test_short.c` / `test_values.c`（本走査）、`test_errors.c`（回復走査と優先度）。
+
+#### Resolve（`src/parser/parser_resolve.c`）
+
+| Field | Detail |
+|-------|--------|
+| Intent | 環境変数 → 既定値の解決と、必須検査 |
+| Requirements | 8.1〜8.10, 9.1〜9.7 |
+
+**Contracts**: Service [x]
+
+```c
+/* src/parser/parser_internal.h */
+/* 既定の取得。getenv(name) の戻り値をそのまま借用として返す。ctx は使わない */
+clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, const char **value);
+/* argv から値を得ていない VALUE / LIST のスロットを、宣言順に解決する。include_command が偽なら root だけ */
+int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *program,
+                          clopts_getenv_fn getenv_fn, void *env_ctx, bool include_command);
+/* 宣言順（root の option、選択コマンドの option、位置引数）で最初の不足を記録する */
+int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t *program, bool include_command);
+```
+
+- `CLOPTS_ENV_FOUND` を受けたら、次にコールバックを呼ぶ前に `clopts_parser_strdup` で複製する（8.8）。VALUE なら複製をスロットが所有し、LIST なら複製を分割して項目を作る（8.5）。
+- `CLOPTS_ENV_FAILED` または複製の失敗は、-1（OUT_OF_MEMORY）で返す（8.10）。黙って既定値に進まない。
+- 既定値は、モデルの複製を借用する。VALUE はスロットがそのポインタを指す。LIST は項目として複製する。
+- 照会する環境変数は、選択されたスコープ（root と選択コマンド）の option だけ（8.9）。
+- 必須の判定は、出所が EXPLICIT または ENV であること（9.2）。
+
+#### Result（`src/parser/parser_result.c`）
+
+| Field | Detail |
+|-------|--------|
+| Intent | 結果ハンドルの確保・記録・参照・実行・解放 |
+| Requirements | 2.5, 4.2, 4.4, 4.5, 4.8, 11.3〜11.8, 12.1〜12.8, 13.1〜13.6 |
+
+**Contracts**: API [x] / State [x]
 
 ```c
 /* src/parser/parser_internal.h */
@@ -547,136 +784,55 @@ typedef struct clopts_parser_slot
     clopts_source_t source;
     bool flag;
     unsigned count;
-    const char *value;        /* VALUE: argv / 既定値 / owned を指す。なければ NULL */
-    char *owned;              /* 環境変数の複製。スロットが所有。なければ NULL */
-    clopts_core_vec_t items;  /* LIST: char * の配列。各項目を所有 */
+    const char *value;        /* VALUE: argv / モデルの既定値 / owned を指す */
+    char *owned;              /* 環境変数の複製。value == owned */
+    clopts_core_vec_t items;  /* LIST: 所有する char * */
 } clopts_parser_slot_t;
 
-typedef struct clopts_parser_store
+struct clopts_result
 {
-    const clopts_program_t *program;
-    const clopts_command_t *command;      /* 選択コマンド。NULL 可 */
-    clopts_parser_slot_t *global_slots;   /* program->option_count 個 */
-    clopts_parser_slot_t *command_slots;  /* command->option_count 個。command が NULL なら NULL */
-    clopts_core_vec_t positionals;        /* const char * */
-} clopts_parser_store_t;
+    clopts_status_t status;
+    const clopts_program_t *program;   /* 所有者の照合と run に使う。free では参照しない */
+    const clopts_command_t *command;   /* 選択コマンド / ヘルプの対象 */
+    struct
+    {
+        clopts_usage_error_t usage;
+        clopts_decl_error_t decl;
+        const clopts_command_t *command;
+        const clopts_option_t *option;
+        const clopts_positional_t *positional;
+        const char *token;             /* argv の要素 */
+        int argv_index;                /* なしなら -1 */
+        size_t name_len;
+        char short_name;
+    } error;
+    bool parsed;                        /* clopts_parse* の結果（validate では偽） */
+    clopts_parser_slot_t *global_slots; size_t global_count;
+    clopts_parser_slot_t *command_slots; size_t command_count;
+    clopts_core_vec_t positionals;      /* const char *（argv の要素） */
+    clopts_parser_probe_t *probe;
+};
 
-/* 確保して result->impl に設定する。前の impl は解放する。失敗なら -1 */
-int clopts_parser_store_begin(clopts_result_t *result, const clopts_program_t *program);
-/* サブコマンド選択時に command_slots を確保する。失敗なら -1 */
-int clopts_parser_store_select(clopts_result_t *result, const clopts_command_t *command);
-clopts_parser_slot_t *clopts_parser_store_slot(clopts_parser_store_t *store,
-                                               const clopts_parser_ref_t *ref);
-void clopts_parser_store_set_flag(clopts_parser_slot_t *slot, bool value, clopts_source_t source);
-void clopts_parser_store_add_count(clopts_parser_slot_t *slot, unsigned count_max);
-void clopts_parser_store_set_value(clopts_parser_slot_t *slot, const char *value,
-                                   clopts_source_t source);
-/* value を delimiter で分割して追加。delimiter が '\0' なら 1 項目。失敗なら -1 */
-int clopts_parser_store_append_list(clopts_parser_slot_t *slot, const char *value,
-                                    char delimiter, clopts_source_t source);
-/* 環境変数の複製の所有権を slot に移す（VALUE）。既存の owned は解放する */
-void clopts_parser_store_own(clopts_parser_slot_t *slot, char *owned);
-int clopts_parser_store_add_positional(clopts_parser_store_t *store, const char *token);
+/* program から結果を確保する。失敗なら NULL（呼び出し側が番兵に替える） */
+clopts_result_t *clopts_parser_result_new(const clopts_program_t *program);
+clopts_result_t *clopts_parser_result_oom(void);   /* 番兵 */
+int clopts_parser_result_select(clopts_result_t *result, const clopts_command_t *command);
+clopts_parser_slot_t *clopts_parser_result_slot(clopts_result_t *result, const clopts_parser_ref_t *ref);
+void clopts_parser_slot_set_flag(clopts_parser_slot_t *slot, bool value, clopts_source_t source);
+void clopts_parser_slot_add_count(clopts_parser_slot_t *slot, unsigned count_max);
+void clopts_parser_slot_set_value(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *value,
+                                  clopts_source_t source);
+int clopts_parser_slot_append_list(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *value,
+                                   char delimiter, clopts_source_t source);
+void clopts_parser_slot_own(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, char *owned);
+int clopts_parser_result_add_positional(clopts_result_t *result, const char *token);
 ```
 
-**State Management**
-- State model: `impl == NULL`（空）→ `begin` 後（グローバルのスロットあり）→ `select` 後（コマンドのスロットあり）→ `free` で空に戻る。
-- Persistence & consistency: スロットの `source` と値は常に対になって更新される。`owned` が非 NULL のとき `value == owned`。
-- Concurrency strategy: 結果は呼び出し側のスレッドに閉じる。ライブラリはグローバル可変状態を持たない。
-
-**Implementation Notes**
-- Validation: `test_result.c` でアクセサ、`run`、解放の冪等性、ゼロ初期化の解放、`CLOPTS_ENV_FAILED` 経由の OUT_OF_MEMORY 後の解放。`test_values.c` で記録規則。
-- Risks: スロット配列を `calloc` した直後は `items.elem_size == 0` のため、`begin` / `select` で各スロットの `items` を `clopts_core_vec_init(sizeof(char *))` で初期化する。
-
-#### Resolver（`src/parser/parser_resolve.c`）
-
-| Field | Detail |
-|-------|--------|
-| Intent | 走査後の値の解決（環境変数 → 既定値）、必須検査、既定の環境変数取得関数 |
-| Requirements | 7.1〜7.9, 8.1〜8.7 |
-
-**Responsibilities & Constraints**
-- 解決の対象は、ストアにスロットがある範囲（グローバル + 選択コマンド、または program）だけ（7.8）。宣言順（グローバル → コマンド）に、`source == CLOPTS_SOURCE_NONE` の VALUE / LIST のスロットについて、`env` があれば取得関数を呼び、`FOUND` なら VALUE は `own` して `set_value(ENV)`、LIST は分割して `append_list(ENV)` の後に複製を `free`。`UNSET` で `default_value` があれば `set_value(DEFAULT)` / `append_list(DEFAULT)`。`FAILED` または確保失敗なら即座に `-1`（→ OUT_OF_MEMORY）（7.2〜7.5、7.9）。
-- 必須検査は解決の後に宣言順（グローバル → コマンド → 位置引数）で行い、最初の不足を `clopts_error_t` に入れて `MISSING_OPTION` / `MISSING_ARGUMENT` を返す（8.1〜8.3、8.7）。位置引数は「必須の positional の個数 > 記録した位置引数の個数」で不足とし、可変長かつ必須は 1 個以上を要求する（8.4、8.5）。
-- NO_COMMAND では解決と必須検査をグローバルに限る（8.6）。
-- 既定の取得関数 `clopts_parser_getenv_default` は `getenv(name)` の戻り値を即座に `malloc` + コピーし、NULL なら `UNSET`、確保失敗なら `FAILED`。
-
-**Dependencies**
-- Inbound: Scanner — 走査後に呼ぶ（P0）
-- Outbound: ResultStore — 記録（P0）；取得関数 — 差し替え可（P1）
-
-**Contracts**: Service [x]
-
-```c
-/* src/parser/parser_internal.h */
-clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, char **out);
-
-/* 環境変数と既定値を解決する。include_command が false ならグローバルのみ。失敗（取得失敗・確保失敗）なら -1 */
-int clopts_parser_resolve(clopts_result_t *result, clopts_getenv_fn getenv_fn, void *env_ctx,
-                          bool include_command);
-/* 必須オプションと必須位置引数を検査する。不足があれば -1 と result->error */
-int clopts_parser_check_required(clopts_result_t *result, bool include_command);
-```
-
-**Implementation Notes**
-- Validation: `test_resolve.c` はモック取得関数（名前 → 値の表、`FAILED` を返すモード）を使い、実際のプロセス環境に依存しない（13.5）。出所の 4 区分、LIST の既定値と環境変数の分割、環境変数が空文字列のときの `FOUND`、選択されなかったコマンドの `env` を参照しないこと（モックの呼び出し記録で検証）。
-- Risks: `getenv` の戻り値は後続の `getenv` / `putenv` で無効になりうるため、既定の取得関数は複製以外の用途で保持しない。
-
-#### Scanner（`src/parser/parser_scan.c`）
-
-| Field | Detail |
-|-------|--------|
-| Intent | `clopts_parse` / `clopts_parse_with_env` の実装。前段・本走査・回復走査・状態決定 |
-| Requirements | 3.1〜3.8, 4.1〜4.6, 5.1〜5.15, 6.1〜6.5, 9.1〜9.12, 10.3〜10.5, 10.7 |
-
-**Responsibilities & Constraints**
-- 手順: (1) `result->status` 以外を初期化し `clopts_parser_decl_check`。違反なら `DECL_ERROR`（argv を読まない）。(2) `store_begin`。(3) サブコマンドあり構成なら前段、なし構成なら本走査。(4) 使い方エラーが保留されていれば回復走査。(5) HELP / VERSION ならそのまま返す。(6) `resolve` → `check_required`。(7) `OK` または `NO_COMMAND`。
-- `stdout` / `stderr` に書かず、`exit` / `abort` を呼ばない（3.3）。
-- 使い方エラーは保留 1 件だけ。`clopts_error_t` に種別・command・option / positional・token・argv_index・name_len / short_name を入れる（10.3、10.4）。
-
-前段（サブコマンドあり構成、`argv[1]` から順に）:
-
-| トークン | 扱い |
-|---|---|
-| なし | `NO_COMMAND`（3.6、3.8） |
-| `--help` / `-h`（まとめ書き内の `h` を含む） | `HELP`、`command = NULL`。以降は見ない（9.1） |
-| `--version`（version 非 NULL） | `VERSION`。以降は見ない（9.4） |
-| `--` | 次のトークンから位置引数扱いになるが、サブコマンドが未選択なので最初の位置引数は `UNKNOWN_COMMAND`（4.2） |
-| `help` | 次がなければ `HELP`（全体）。次がサブコマンド名ならその command の `HELP`、さらに次があれば `UNEXPECTED_ARGUMENT`（`help <cmd>` で対象を選択済みなので `error.command` はその command）。次がサブコマンド名でなければ `UNKNOWN_COMMAND`（9.2、9.3、9.11） |
-| サブコマンド名 | `store_select` して本走査へ（4.1） |
-| `-` で始まる（`-` 単体を除く） | グローバルオプションとして本走査と同じ規則で照合・記録（4.3）。見つからなければ `UNKNOWN_OPTION` |
-| 上記以外（`-` 単体を含む） | `UNKNOWN_COMMAND`（4.2） |
-
-本走査（選択コマンドまたはサブコマンドなし構成。`--` を見るまで）:
-
-| トークン | 扱い |
-|---|---|
-| `--` | 以降すべて位置引数（5.12） |
-| `--help` / `--version`（version 非 NULL） | `HELP`（選択コマンド）/ `VERSION`。以降は見ない（9.1、9.4） |
-| `--help=<x>` / `--version=<x>` | `UNEXPECTED_VALUE`、`option = NULL` |
-| `--<name>` / `--<name>=<value>` | `<name>` は最初の `=` まで。`find_long` → なければ `find_negation`。FLAG: `set_flag(!negated, EXPLICIT)`、`=` があれば `UNEXPECTED_VALUE`。COUNT: `add_count`、`=` があれば `UNEXPECTED_VALUE`。VALUE / LIST: `=` があればその後ろ全体、なければ次のトークンをそのまま消費、次がなければ `MISSING_VALUE`（5.1〜5.6、6.2〜6.5）。見つからなければ `UNKNOWN_OPTION`（`name_len` = `=` の手前までの長さ） |
-| `-` 単体 | 位置引数（5.13） |
-| `-<c1><c2>...` | 下記の 1 文字ずつの処理（5.8〜5.11） |
-| `-` で始まらない | 位置引数。宣言数を超え、末尾が可変長でなければ `UNEXPECTED_ARGUMENT`（5.14、5.15） |
-
-短いオプションの各文字 `c`:
-1. `c == 'h'` なら `HELP`（9.1）。
-2. `find_short(c)`。なければ `UNKNOWN_OPTION`、`short_name = c`（5.11）。
-3. FLAG: `set_flag(true, EXPLICIT)`。COUNT: `add_count`。次の文字へ。
-4. VALUE / LIST: 残りの文字列があればそれを値（`=` を含めてそのまま、5.10）、なければ次のトークンをそのまま消費、なければ `MISSING_VALUE`（`short_name = c`）。このトークンの処理を終える。
-
-回復走査（9.12）: 保留した使い方エラーのトークン自身から `--` の手前まで（エラーより前に `--` に達していれば行わない）、`--help` / `-h` / `--version`（version 非 NULL）に完全一致するトークンだけを探す。見つかれば `HELP`（選択済みなら選択コマンド）/ `VERSION`、見つからなければ `USAGE_ERROR`。HELP と VERSION が両方あれば先に現れたほう（9.7）。エラー後のトークンは解釈しないので、`--bad -o -h` の `-h` も要求として数え、`tool --bad build --help` は未選択のまま program 全体の `HELP` になる。エラーより前に値として消費されたトークンは数えない。
-
-**Dependencies**
-- Inbound: 利用側 — `clopts_parse*`（P0）
-- Outbound: DeclCheck（P0）、ResultStore（P0）、Resolver（P0）
-
-**Contracts**: Service [x]（公開関数は PublicHeaders に記載）
-
-**Implementation Notes**
-- Integration: 走査の状態（現在位置、選択コマンド、保留エラー、`--` 到達、HELP / VERSION 要求）は `parse` の自動変数である 1 つの構造体 `scan_state_t` にまとめ（ファイルスコープの可変状態は持たない）、表の各行を小関数に分ける。
-- Validation: `test_dispatch.c`（前段）、`test_long.c` / `test_short.c`（本走査）、`test_errors.c`（回復走査、優先度、エラーのフィールド）。
-- Risks: 前段で `--` を見た場合の扱いは要件に明示がないため、表のとおり「次のトークンを `UNKNOWN_COMMAND`」とし、テストで固定する。
+- **番兵**: `static const struct clopts_result` で、`status = CLOPTS_OUT_OF_MEMORY`、エラーは NONE / -1、スロットなし。`(clopts_result_t *)` にキャストして返すが、どの関数も書き込まない。`clopts_result_free` はアドレスで番兵を見分けて何もしない（4.8、13.1）。`const` の静的オブジェクトなので、スレッド間で共有しても安全。
+- **値のアクセサ**: `option->program != result->program` なら `assert`（12.3）。`option->scope` が root なら `global_slots[index]`、選択コマンドなら `command_slots[index]` を返す。それ以外（選択されなかった command）なら、未指定の値を返す。状態が OK / NO_COMMAND でなければ、未指定の値を返す（12.7）。
+- **`clopts_result_run`**: `parsed` かつ状態 OK で、対象のスコープ（選択コマンド、なし構成なら root）に handler があることを `assert` する。そのうえで `handler(result, userdata)` を返す（12.5、12.6）。
+- **`clopts_result_free`**: NULL と番兵は無視する。スロットの owned・items、位置引数の vec、結果自身を、`probe` を通して解放する。program は読まない（13.2、13.3）。
+- 途中で失敗した場合も、確保済みのものは結果に繋がっているので、`free` で漏れなく解放できる（13.6）。
 
 ### テスト
 
@@ -684,67 +840,65 @@ int clopts_parser_check_required(clopts_result_t *result, bool include_command);
 
 | Field | Detail |
 |-------|--------|
-| Intent | 要件 1〜12 の挙動を架空の宣言で検証する Naos テスト |
-| Requirements | 13.1〜13.6 |
+| Intent | 要件 1〜14 の挙動を、架空の宣言で検証する |
+| Requirements | 15.1〜15.8 |
 
 **Responsibilities & Constraints**
-- 架空のプログラム 2 つ: サブコマンドあり `tool 1.2.3`（グローバル `-v/--verbose` COUNT、`--color` negatable FLAG、`--config` VALUE env `TOOL_CONFIG`；サブコマンド `build`（`-o/--output` VALUE required、`-k/--keys` LIST `,`、`-j` COUNT max 8、位置 `SRC` required、`EXTRA` variadic）、`copy`（`SRC` required、`DST` required）、`cat`（`FILE` variadic optional））と、サブコマンドなし `filt`（`-n/--lines` VALUE default "10" env `FILT_LINES`、`FILE` variadic optional、handler あり、version NULL）。実在のツールの宣言は使わない（13.2）。
-- 宣言エラーのテストは、妥当な宣言をコピーして 1 か所だけ壊した `static const` を個別に持つ。
-- 環境変数のモック取得関数は名前 → 値の表と「次の呼び出しで `FAILED` を返す」フラグ、呼び出された名前の記録を持つ。
-- 各テストは argv を配列リテラルで持ち、解析後に内容が変わっていないことを確認する（1.8）。
-- 全状態（7 つ）、全使い方エラー種別（7 つ）、全宣言エラー種別（13 個）を少なくとも 1 件ずつ到達させる（13.3）。
+- `test_fixtures.c` に、架空の program を組み立てる関数を置く。program は初版と同じ 3 つ（`tool 1.2.3`、`filt`、`strict`）で、各関数はハンドルをまとめた構造体（例: `fixture_tool_t { clopts_program_t *program; clopts_command_t *root, *build, *copy, *cat; clopts_option_t *verbose, *color, *config, *output, *keys, *jobs, *tags; clopts_positional_t *build_src, *build_extra, ... }`）を埋める。プローブを受け取る引数を持ち、`clopts_program_new` の直後に `clopts_parser_set_probe` を呼ぶ。
+- 環境変数の模擬関数は、名前 → 値の表、「次の呼び出しで FAILED を返す」フラグ、照会された名前の記録を持つ。値は表の文字列の借用として返し、返した直後に表のバッファを書き換えるモードを持つ。これで、ライブラリが複製していることを確かめる（8.8）。
+- 宣言エラーのテストは、妥当な宣言を途中まで組み立て、1 か所だけ誤った呼び出しを足す。
 
 **Implementation Notes**
-- Validation: `ctest -L parser`。
-- Risks: OUT_OF_MEMORY は `CLOPTS_ENV_FAILED` 経由でのみ到達させる。`malloc` の失敗は注入しない。
+- Validation: `ctest -L parser` を、静的版と共有版の両方のビルドで実行する（15.1）。
+- Risks: 初版のテストは約 270 件ある。宣言の部分をフィクスチャのハンドルに置き換え、検証の部分は関数名の置換に留めて、観点の取りこぼしを防ぐ（15.8）。
 
 ## Data Models
 
 ### Domain Model
-- **宣言（読み取り専用）**: `clopts_program_t` を根とする木。program は options（グローバル / なし構成のオプション）と commands、なし構成では positionals / handler を持つ。command は options、positionals、handler を持つ。宣言の妥当性は DeclCheck の規則表が不変条件。
-- **結果（ライブラリが所有）**: `clopts_result_t`（殻）→ `clopts_parser_store_t` → スロット配列 2 本 + 位置引数の vec。スロットは option と 1:1（同じ添字）。
-- **エラー（値型）**: `clopts_error_t` は宣言と argv を指すポインタと整数だけで、所有するメモリはない。
+- **宣言（ライブラリが所有）**: program を根とする木。program は root（スコープ）と commands を持ち、各スコープは options と positionals を持つ。宣言の妥当性は即時検査の規則表が不変条件で、Build だけが書く。
+- **結果（ライブラリが所有）**: `struct clopts_result` が、スロット配列 2 本と位置引数の vec を持つ。スロットは option と 1:1（同じ添字）。
+- **エラー**: 結果の中の値の組。宣言のハンドルと argv の要素を指すだけで、所有するメモリはない。
 
 ```mermaid
 classDiagram
-    class clopts_program_t {
-        name
+    class clopts_program {
+        root
         version
-        options
-        positionals
         commands
-        handler
+        frozen
+        error
     }
-    class clopts_command_t {
+    class clopts_command {
         name
+        summary
+        description
         options
         positionals
         handler
     }
-    class clopts_option_t {
+    class clopts_option {
+        kind
         long_name
         short_name
-        kind
         default_value
         env
+        index
     }
-    class clopts_positional_t {
+    class clopts_positional {
         name
         required
         variadic
+        index
     }
-    class clopts_result_t {
+    class clopts_result {
         status
         command
         error
-        impl
-    }
-    class clopts_parser_store_t {
         global_slots
         command_slots
         positionals
     }
-    class clopts_parser_slot_t {
+    class clopts_parser_slot {
         source
         flag
         count
@@ -752,57 +906,88 @@ classDiagram
         owned
         items
     }
-    clopts_program_t --> clopts_command_t : commands
-    clopts_program_t --> clopts_option_t : options
-    clopts_program_t --> clopts_positional_t : positionals
-    clopts_command_t --> clopts_option_t : options
-    clopts_command_t --> clopts_positional_t : positionals
-    clopts_result_t --> clopts_parser_store_t : impl
-    clopts_parser_store_t --> clopts_parser_slot_t : slots
-    clopts_parser_slot_t ..> clopts_option_t : same index
+    clopts_program --> clopts_command : root and commands
+    clopts_command --> clopts_option : options
+    clopts_command --> clopts_positional : positionals
+    clopts_result ..> clopts_program : identity only
+    clopts_result --> clopts_parser_slot : slots
+    clopts_parser_slot ..> clopts_option : same index
 ```
 
-### Logical Data Model
-- スロット配列の長さは対応する `option_count`。`calloc(count, sizeof(slot))` のサイズは `clopts_core_size_mul` で検査する。
-- `clopts_parser_slot_t.items` は `char *` の vec で、各項目は `malloc` した NUL 終端文字列。`owned` は VALUE の環境変数の複製。
-- 位置引数の vec は `const char *` で、argv の要素を指す。
-- 寿命: 宣言テーブル、argv、`userdata`、`version` は結果より長く生存しなければならない（利用側の責務、12.4）。
+### Logical Data Model（所有と寿命）
+
+| 文字列・オブジェクト | 所有者 | 有効な期間 |
+|---|---|---|
+| ビルダーに渡した文字列の複製、各ハンドル | program | `clopts_program_free` まで |
+| VALUE の値（明示指定）、位置引数のトークン、エラーのトークン | 利用側の argv（借用） | 結果を解放するまで、かつ利用側が argv を保持している間（11.8、12.8） |
+| VALUE の値（既定値） | program（借用） | 結果を解放するまで、かつ program を解放するまで |
+| VALUE の値（環境変数）、LIST の項目 | 結果 | 結果を解放するまで |
+| 番兵 | ライブラリ（静的） | 常に |
+| `userdata`、argv、コールバックの文字列 | 利用側 | ライブラリは解放しない（13.4） |
+
+- API の説明（`parse.h` のコメントと docs-and-release の API リファレンス）には、「結果から得た文字列は、結果を解放するまで、かつ program と argv を保持している間だけ有効」とまとめて書く。13.3 で、アクセサは program を解放する前にだけ呼べると決めているので、この条件と矛盾しない。
+- サイズ計算: スロット配列は `clopts_parser_calloc`（`clopts_core_size_mul`）、文字列の複製は `clopts_core_size_add(len, 1)` で検査する（13.5）。
 
 ## Error Handling
 
 ### Error Strategy
-- 使い方エラー: `CLOPTS_USAGE_ERROR` と `result->error`（1 件）。表示と終了コードは利用側。
-- 宣言エラー: `CLOPTS_DECL_ERROR` と `result->error`（1 件）。argv を読まない。開発者の不具合として扱う。
-- メモリ不足・取得失敗: `CLOPTS_OUT_OF_MEMORY`。ストアは解放可能な状態を保つ。`error` は初期化済み（ゼロ、`argv_index == -1`）のまま意味を持たない。
-- 契約違反（NULL 渡し、未宣言の記述子、OK 以外での値参照、`handler == NULL` での `run`）: `assert`。戻り値で報告しない（tech.md）。
+- 使い方エラー: `CLOPTS_USAGE_ERROR`。1 件を結果に持つ。表示と終了コードは利用側が決める。
+- 宣言エラー: ビルダーで program に記録する（最初の 1 件）。解析・検査では `CLOPTS_DECL_ERROR` として結果に写す。argv は読まない。
+- メモリ不足: ビルダーなら program に記録し、以降は何もしない。解析中なら `CLOPTS_OUT_OF_MEMORY` の結果（解放可能）。結果自体を確保できなければ番兵。
+- 契約違反: `assert` で止める。戻り値では報告しない（tech.md）。
 
 ### Error Categories and Responses
-| 分類 | 状態 | `error` の内容 | 利用側の対応 |
+
+| 分類 | 状態 | 読める項目 | 利用側の対応 |
 |---|---|---|---|
-| 利用者の入力 | `USAGE_ERROR` | `usage`、`command`、`option` / `positional`、`token`、`argv_index`、`name_len` / `short_name` | help-and-messages で文面化、終了コード決定 |
-| 開発者の宣言 | `DECL_ERROR` | `decl`、`command`、`option` / `positional` | 修正。テストで本番の宣言を `clopts_decl_validate` に通す |
-| 資源 | `OUT_OF_MEMORY` | 初期化済み（意味を持たない） | 終了。`clopts_result_free` は安全 |
+| 利用者の入力 | `USAGE_ERROR` | usage、command、option / positional、token、argv_index、name_len / short_name | help-and-messages で文面にし、終了コードを決める |
+| 開発者の宣言 | `DECL_ERROR` | decl、command、option / positional | 修正する。テストで本番の宣言を `clopts_program_validate` に通す |
+| 資源 | `OUT_OF_MEMORY` | なし | 終了する。`clopts_result_free` と `clopts_program_free` は安全 |
 
 ## Testing Strategy
 
 ### Unit Tests（`tests/parser/`、ラベル `parser`）
-- **decl**: 規則表の 14 行それぞれで `DECL_ERROR` と対応する `decl` 種別、`command` / `option` / `positional` の指し先。妥当な宣言 2 つで `OK`。`clopts_decl_validate` と `clopts_parse` の結果が一致。`version == NULL` のとき `--version` を自前のオプションとして宣言できる（2.1〜2.18）。
-- **dispatch**: `tool build x -o y` が `build` を選択。`tool bulid` が `UNKNOWN_COMMAND`。`tool Build` も不明。`tool -v build x -o y` でグローバル COUNT が 1、`tool build -v x -o y` でも 1（4.1〜4.4）。`tool -o y build` が `UNKNOWN_OPTION`。`tool`、`tool -vv` が `NO_COMMAND` で COUNT 2。`tool --help`、`tool -h`、`tool help`、`tool help copy`、`tool help nope`、`tool help copy x`、`tool --version`、`tool --version build` の状態と `command`（3.6、3.8、9.1〜9.5、9.11）。`filt a b` がなし構成で位置引数 2（4.6）。
-- **long**: `--output y`、`--output -y`（値として消費）、`--output=`（空）、`--output=a=b`、末尾の `--output`（`MISSING_VALUE`）、`--verbose=1`（`UNEXPECTED_VALUE`）、`--out`（不明、前方一致なし）、`--Output`（不明）、`--no-color` で偽・出所 EXPLICIT、`--color --no-color` で偽、`--no-color --color` で真、`--no-output`（不明）、`--no-color=1`（`UNEXPECTED_VALUE`）、`--help=1`（5.1〜5.7、6.1〜6.5）。
-- **short**: `-vvv` で 3、`-vjk4` で `v` と `j` が 1・`k` に `4`（`-j` は COUNT のため `-vj4` は `'4'` の `UNKNOWN_OPTION`）、`-vo file`、`-vofile`、`-o=file` で値 `=file`、`-vx` で `UNKNOWN_OPTION` と `short_name == 'x'`、末尾の `-o`（`MISSING_VALUE`、`short_name == 'o'`）、`-vh` が `HELP`（5.8〜5.11、9.1）。
-- **values**: `-k a,b -k c` で 3 項目、`-k " a , b"` の空白保持、`-k a,,b` で空項目を保持（3 項目）、`-k ,` で 2 つの空項目、区切りなしの LIST で 1 回 1 項目、`--output a --output b` で `b`、`-j` を 9 回で 8（クランプ）、`-v` の既定上限でクランプされないこと（大きな回数でも増える）（6.6〜6.12）。
-- **positional**: `tool build -o y src a b` で `SRC` と `EXTRA` 2 個、`tool build -o y -- -x --y` で位置引数 2、`tool build -o y -` で `-`、`tool copy a` が `MISSING_ARGUMENT`（`DST`）、`tool copy a b c` が `UNEXPECTED_ARGUMENT`（`c`）、`tool cat` が OK で 0 個、`tool build -o y` が `MISSING_ARGUMENT`（`SRC`）（5.12〜5.15、8.3〜8.5）。
-- **resolve**: モックで `TOOL_CONFIG=/etc/t` → `--config` が ENV、`--config x` で EXPLICIT、未設定で NONE（VALUE は NULL）、`filt` の `--lines` が未設定で DEFAULT `10`、環境変数が空文字列で ENV `""`、LIST の既定値と環境変数の分割、`tool build ...` でモックが `build` 以外のコマンドの `env` を照会しないこと、`FAILED` で `OUT_OF_MEMORY`、`required` が環境変数で満たされること、`tool build x` が `MISSING_OPTION`（`--output`）、`tool -vv` の NO_COMMAND で必須のグローバルがあれば `MISSING_OPTION`（7.1〜7.9、8.1、8.2、8.6、8.7）。
-- **errors**: 各使い方エラーの `token` が argv の該当要素を指し `argv_index` が一致、`command` が選択後なら非 NULL、`name_len` が `--out=1` で 5、`tool build --bad --worse x` が `--bad` を示す、`tool build --bad -h` が `HELP`、`tool build x --help`（必須の欠落を含む）が `HELP`、`tool build -o -h x` が `-h` を値として解析、`tool build --bad --version` が `VERSION`、`tool build --version --help` が `VERSION`、`tool build --help --version` が `HELP`、宣言エラーの宣言に `--help` を渡しても `DECL_ERROR`（9.6〜9.10、9.12、10.3〜10.7）。
-- **result**: 記述子ポインタで FLAG / COUNT / VALUE / LIST / 出所を参照、`clopts_result_t.command` と位置引数、`clopts_result_run` が `filt` の handler を呼び `userdata` と戻り値を伝える、`tool build ...` の handler 呼び出し、`clopts_result_free` を 2 回、`clopts_result_t r = {0}` の解放、`FAILED` で `OUT_OF_MEMORY` になった結果の解放、解析後に argv の各要素が変わっていない（1.8、3.4、11.1〜11.8、12.1〜12.4、13.6）。
+- **build**（新規）:
+  - 全ビルダー関数に NULL を渡しても落ちず、ハンドルを返す関数は NULL を返す（2.3）。
+  - 最初のエラー（`INVALID_NAME`）の後で `add_value` が NULL を返し、検査関数の結果が最初のエラーを示す（2.1、2.2、3.19）。
+  - 呼び出しの後で元の文字列を書き換えても、照合と値が変わらない（1.8）。
+  - 同じ属性を 2 回設定すると後の値になる（1.9）。
+  - option を 100 個追加しても、最初のハンドルで値を参照できる（1.11）。
+  - 解析後の `add_flag` が NULL を返し、宣言が変わらない（`NDEBUG` のビルドでだけ実行し、それ以外ではスキップする。CI は Release 構成なので、CI では実行される）（1.12）。
+  - `clopts_program_free(NULL)`（2.7）。
+- **decl**（書き直し）:
+  - 即時検査の規則表の各行で、`clopts_program_validate` が DECL_ERROR、対応する種別、報告するハンドルを返す（3.3〜3.18）。
+  - 同じ誤りで `clopts_parse` も DECL_ERROR を返し、`--help` を含めても変わらない（3.1、10.11）。
+  - 呼び出し順の例: `--version` の option を足した後に version を設定すると `RESERVED_NAME`。逆順でも `RESERVED_NAME`。2 つの誤りがあれば先の呼び出しのもの（3.19）。
+  - version を設定しなければ `--version` を自前で宣言できる（3.5、10.6）。
+  - NULL の program で OUT_OF_MEMORY（2.5）。
+- **dispatch / long / short / values / positional / resolve / errors / result**: 初版の design.md の Testing Strategy の各項目を、そのまま新しい API で検証する（4.x、5.x、6.x、7.x、8.x、9.x、10.x、11.x、12.x）。追加の観点は次のとおり:
+  - resolve: 模擬関数が返した直後にバッファを書き換えても値が変わらない（8.8）。
+  - result: 状態ごとの既定値（11.7、12.7）、別 program の option（`NDEBUG` でない構成で `assert` を確かめる手段がないので、テストでは扱わず、コードレビューで確かめる）、program を先に解放してから結果を解放する（13.3）。
+  - result: 番兵の各アクセサ、`clopts_result_free` を番兵と NULL に（4.8、13.1、13.2）。
+- **oom**（新規）:
+  - 次の 3 つの場面それぞれについて、`fail_at = 1, 2, …` と動かし、失敗が起きなくなるまで回す（15.7）。
+    - フィクスチャ `tool` の組み立て（ビルダー）
+    - `tool build -k a,b -o x src` の解析（結果の確保を含む）
+    - 環境変数と LIST の既定値の解決
+  - 各回で次の 3 つを確かめる。
+    - 状態が OUT_OF_MEMORY か、失敗しなかったときと同じ結果になること。
+    - 結果と program を解放した後に `probe.live == 0` であること。
+    - ビルダーの失敗後は、解析が番兵を返すこと。
 
 ### Integration Tests
-- 本 spec では追加しない。公開ヘッダの取り込み経路（`FetchContent` / `find_package`）の検証は project-foundation の `tests/integration/` が傘ヘッダ経由で行っており、傘ヘッダに追加した `decl.h` / `parse.h` も同じ fixture でコンパイルされる。
+- `integration.subdirectory` / `integration.install_find_package`（project-foundation の既存テスト、静的・共有の両方）: consumer の `main.c` で、`consumer` という program に VALUE の `--name` を宣言し、固定の argv `{"consumer", "--name", "ok"}` を解析する。値が `ok` であることを確かめ、結果と program を解放する。期待と違えば終了コード 1 にする（14.2、14.6）。
+- `integration.internal_hidden`（既存）: 変えない。内部関数のプローブ（`clopts_parser_set_probe`）も hidden であることは、同じ仕組みで保証される（14.5）。
 
 ## Performance & Scalability
-- 宣言検査は O(オプション数²)、照合は O(オプション数)、記述子ポインタの解決は O(オプション数)。想定規模（コマンド 10 個、各 10〜20 オプション）では無視できる。
-- 確保は解析ごとに: ストア 1 回、スロット配列 1〜2 回、位置引数とリスト項目の vec の成長、リスト項目と環境変数値の複製。VALUE の値と位置引数は複製しない。
+- 宣言の追加は、照合範囲の線形走査で O(オプション数)。宣言全体の構築は O(n²) だが、想定規模（コマンド 10 個、各 10〜20 オプション）では無視できる。
+- 解析ごとの確保は次のとおり。VALUE の値と位置引数は複製しない。
+  - 結果 1 回
+  - スロット配列 1〜2 回
+  - 位置引数の vec とリスト項目の vec の成長
+  - リスト項目と環境変数の値の複製
 
 ## Supporting References
-- 走査規則と宣言検査の出発点: `ref/monde/.kiro/specs/cli-args/design.md`（「解析規則」「DeclCheck」の節）。本書の表はそれをグローバルオプション・否定・COUNT・環境変数・位置引数ごとの必須 / 可変長に合わせて書き直したもの。
+- 走査規則・優先度の出発点: 初版の本書（git 履歴、2026-11-08 以前）と `ref/monde/.kiro/specs/cli-args/design.md`。
+- ギャップ分析と設計判断の経緯: `research.md` の「ギャップ分析: ビルダー API と不透明ハンドルへの改訂」と「設計判断（2026-11-08 改訂）」。
 - 内部ユーティリティの契約: `src/core/core_internal.h`。
