@@ -171,8 +171,9 @@ endfunction()
 # are in the section that starts with the "[Ordinal/Name Pointer] Table" line:
 # each row of it starts with "[" (after leading whitespace) and the name is the
 # last word of the row (the columns before it differ between binutils
-# versions). The section ends at the first line that is neither blank nor a
-# row, or at a blank line after its rows. The "[" rows of the other sections
+# versions). Lines before the first row are skipped (binutils 2.44 and later
+# print a "Ordinal   Hint Name" column header there). After the first row,
+# the section ends at the first line that is not a row, or at a blank line. The "[" rows of the other sections
 # (the Export Address Table, for one) are ignored.
 function(_check_symbols_extract_objdump-pe out_var lines)
     set(names "")
@@ -185,15 +186,11 @@ function(_check_symbols_extract_objdump-pe out_var lines)
             set(rows 0)
         elseif(NOT in_table)
             continue()
-        elseif(line STREQUAL "")
-            if(rows GREATER 0)
-                set(in_table FALSE)
-            endif()
         elseif(line MATCHES "^${_check_symbols_open_bracket}")
             string(REGEX MATCH "[^ \t]+$" name "${line}")
             list(APPEND names "${name}")
             math(EXPR rows "${rows} + 1")
-        else()
+        elseif(rows GREATER 0)
             set(in_table FALSE)
         endif()
     endforeach()
@@ -358,9 +355,22 @@ endif()
 cmake_language(CALL _check_symbols_extract_${FORMAT} _exported "${_dump}")
 list(LENGTH _exported _exported_count)
 if(_exported_count EQUAL 0)
-    message(FATAL_ERROR
-        "check_symbols: no symbol names found in the ${FORMAT} output of ${_source}; "
-        "the output does not have the expected format")
+    # Show the start of the output, so that a changed tool format can be read
+    # from the CI log without re-running the tool.
+    list(LENGTH _dump _dump_count)
+    set(_head_count 80)
+    if(_dump_count LESS _head_count)
+        set(_head_count ${_dump_count})
+    endif()
+    set(_head "")
+    if(_head_count GREATER 0)
+        list(SUBLIST _dump 0 ${_head_count} _head)
+    endif()
+    list(JOIN _head "\n" _head)
+    _check_symbols_fail("check_symbols: no symbol names found in the ${FORMAT} output of \
+${_source}; the output does not have the expected format
+first ${_head_count} of ${_dump_count} line(s) of the output:
+${_head}")
 endif()
 list(LENGTH _check_symbols_exclude_${FORMAT} _exclude_count)
 if(_exclude_count GREATER 0)

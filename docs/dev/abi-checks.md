@@ -156,7 +156,7 @@ CTest のテストではなく、`.github/workflows/ci.yml` の独立したジ�
 
 - `export dump tool not found for FORMAT <FORMAT>`: export を読むツールが見つからない。構成時の `CMAKE_NM` / `CMAKE_OBJDUMP`（MSVC では `dumpbin` か `link.exe`）を確かめる。
 - ツールの終了コードと出力が添えられた失敗: ツールが実行に失敗した。
-- `no symbol names found in the <FORMAT> output ...`: ツールの出力から名前が 1 つも取れない。ツールの出力の形式が想定と違う（`dumpbin` は英語の出力の `ordinal hint RVA name` の表と `Summary` に依存する）。
+- `no symbol names found in the <FORMAT> output ...`: ツールの出力から名前が 1 つも取れない。ツールの出力の形式が想定と違う（`dumpbin` は英語の出力の `ordinal hint RVA name` の表と `Summary` に依存する。`objdump-pe` は `[Ordinal/Name Pointer] Table` の節の `[` で始まる行に依存する）。報告にはツールの出力の先頭 80 行が付くので、それを見て `check_symbols.cmake` の取り出し規則を直し、CI のログの出力で `tests/abi/fixtures/exports/` の記録を置き換える。
 
 ### 除外リストに足すときの判断基準
 

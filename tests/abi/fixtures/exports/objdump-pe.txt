@@ -78,19 +78,20 @@ Export Address Table -- Ordinal Base 1
 	[  12] +base[  13] 79f0 Export RVA
 
 [Ordinal/Name Pointer] Table -- Ordinal Base 1
-	[   0] +base[   1] 0000 clopts_argv_free
-	[   1] +base[   2] 0001 clopts_argv_from_wide
-	[   2] +base[   3] 0002 clopts_argv_get
-	[   3] +base[   4] 0003 clopts_command_add_flag
-	[   4] +base[   5] 0004 clopts_env_free
-	[   5] +base[   6] 0005 clopts_env_new
-	[   6] +base[   7] 0006 clopts_option_set_help
-	[   7] +base[   8] 0007 clopts_parse
-	[   8] +base[   9] 0008 clopts_program_free
-	[   9] +base[  10] 0009 clopts_program_new
-	[  10] +base[  11] 000a clopts_result_free
-	[  11] +base[  12] 000b clopts_result_status
-	[  12] +base[  13] 000c clopts_write_help
+	          Ordinal   Hint Name
+	[   0] +base[   1]  0000 clopts_argv_free
+	[   1] +base[   2]  0001 clopts_argv_from_wide
+	[   2] +base[   3]  0002 clopts_argv_get
+	[   3] +base[   4]  0003 clopts_command_add_flag
+	[   4] +base[   5]  0004 clopts_env_free
+	[   5] +base[   6]  0005 clopts_env_new
+	[   6] +base[   7]  0006 clopts_option_set_help
+	[   7] +base[   8]  0007 clopts_parse
+	[   8] +base[   9]  0008 clopts_program_free
+	[   9] +base[  10]  0009 clopts_program_new
+	[  10] +base[  11]  000a clopts_result_free
+	[  11] +base[  12]  000b clopts_result_status
+	[  12] +base[  13]  000c clopts_write_help
 
 The Function Table (interpreted .pdata section contents)
 vma:			BeginAddress	 EndAddress	  UnwindData

@@ -294,7 +294,7 @@ flowchart TB
 | `nm-elf` | `<TOOL> -D --defined-only <LIBRARY>` | `<値> <型> <名前>` の 3 列の行の第 3 列 | `_init`, `_fini`, `_edata`, `_end`, `__bss_start` |
 | `nm-macho` | `<TOOL> -gU <LIBRARY>` | 3 列の行の第 3 列から、先頭の `_` を 1 つ除く | なし |
 | `dumpbin` | `<TOOL> /exports <LIBRARY>`（`link.exe` のときは `/dump /exports`） | `ordinal hint RVA name` の表の行（数字・16 進・16 進・名前）の名前。`=` 以降は捨てる | なし |
-| `objdump-pe` | `<TOOL> -p <LIBRARY>` | `[Ordinal/Name Pointer] Table` の節の、`[` で始まる各行の最後の語 | なし |
+| `objdump-pe` | `<TOOL> -p <LIBRARY>` | `[Ordinal/Name Pointer] Table` の節の、`[` で始まる各行の最後の語（最初の行の前の見出し行は読み飛ばす） | なし |
 
 除外リストは「あれば取り除く」集合で、無くても失敗しない。項目は理由の注釈付きでスクリプトの先頭にまとめる。
 
@@ -316,7 +316,7 @@ flowchart TB
 **Implementation Notes**
 - Integration: 3.4 の「CLOpts のソースに由来しないシンボル」は除外リストで扱う。未知のシンボルが CI で出たら、報告に出た名前を確かめ、ツールチェーン由来なら理由付きで除外リストに足す（CLOpts 由来なら一覧か export を直す）。
 - Validation: 記録したツール出力（`fixtures/exports/`）で、4 形式の取り出し・除外・不足・余分の報告を自己テストする（Testing Strategy を参照）。
-- Risks: `objdump -p` の列の形式は binutils の版で変わるので、「行の最後の語」の規則に限る。
+- Risks: `objdump -p` の列の形式は binutils の版で変わるので、「行の最後の語」の規則に限る。binutils 2.44 以降は節の見出しの直後に `Ordinal   Hint Name` の列見出しを出す（CI の MinGW で判明）。
 
 #### HeaderRulesCheck（`tests/abi/check_header_rules.cmake`）
 
