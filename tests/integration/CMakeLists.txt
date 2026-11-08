@@ -20,6 +20,15 @@
 #                                     that symbol (EXPECT=build_fail). Shared
 #                                     builds only: a static library has no
 #                                     export list, so the link would succeed.
+#   integration.package_selection     tests/cmake/run_package_selection.cmake:
+#                                     builds and installs both forms (static
+#                                     and shared, independent of this tree's
+#                                     form) side by side into one prefix,
+#                                     then configures fixtures/package_select
+#                                     with find_package(CLOpts CONFIG ...) in
+#                                     8 cases and checks the selected form or
+#                                     the reason of the failure. Registered
+#                                     only when CLOPTS_INSTALL is ON.
 
 # Multi-config generators pick the configuration at ctest time; single-config
 # generators use the configuration of this build tree.
@@ -83,6 +92,18 @@ if(CLOPTS_INSTALL)
     _clopts_integration_add_test(install_find_package consumer run_ok install_find_package
         EXTRA_ARGS -DCLOPTS_CONSUMER_MODE=PACKAGE ${_clopts_integration_consumer_args}
             "-DCLOPTS_SHARED_LIBS=${_clopts_integration_shared}")
+
+    add_test(NAME integration.package_selection
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCLOPTS_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+            "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/work/package_selection"
+            "-DGENERATOR=${CMAKE_GENERATOR}"
+            "-DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+            "-DC_COMPILER=${CMAKE_C_COMPILER}"
+            "-DCONFIG=${_clopts_integration_config}"
+            -P "${PROJECT_SOURCE_DIR}/tests/cmake/run_package_selection.cmake"
+    )
+    set_tests_properties(integration.package_selection PROPERTIES LABELS integration)
 endif()
 
 # Only the shared library hides its internal functions.

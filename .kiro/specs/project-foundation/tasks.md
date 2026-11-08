@@ -153,7 +153,7 @@
   - _Boundary: InstallHelper, PackageConfig_
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 12.7, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 15.5_
 
-- [ ] 10. 検証: ビルド構成の自動テストを両方の形式に広げる
+- [x] 10. 検証: ビルド構成の自動テストを両方の形式に広げる
 - [x] 10.1 fixture を動かす共有スクリプトに、構成失敗の期待、失敗理由の照合、DLL などの除外を足す
   - 期待値に「構成が失敗する」を足す。失敗を期待するケースで、子プロセスの出力が指定の正規表現に一致しなければテスト失敗にする
   - 実行するファイルを探すとき、共有ライブラリ（`.dll`、`.so`、版付きの `.so`、`.dylib`）を候補から外す
@@ -180,7 +180,7 @@
   - _Boundary: IntegrationTests_
   - _Requirements: 2.4, 4.10, 5.7, 6.3, 6.4, 6.6, 6.8, 14.2, 14.3, 14.6_
 
-- [ ] 10.4 静的版と共有版を並べて install し、`find_package` の選択を検証するテストを足す
+- [x] 10.4 静的版と共有版を並べて install し、`find_package` の選択を検証するテストを足す
   - 2 つの形式を構成・ビルドして同じ prefix（と静的版だけの prefix）に install し、選択用の fixture を設計の 8 ケースで構成だけ行って、選ばれた形式または失敗とその理由を照合するスクリプトを作る。MSVC では 2 つの `.lib` が並ぶことも確かめる
   - install が有効なときだけ `integration.package_selection` として登録する
   - 完了条件: 静的版と共有版のどちらのビルドツリーからでも `integration.package_selection` が通り、失敗したケースはケース名と子プロセスの出力を表示する
@@ -215,3 +215,4 @@
 - （改訂 9）package config は、形式を指定しない 2 回目の `find_package` では既に読み込まれた形式をそのまま使う（失敗するのは明示のコンポーネントが異なるときだけ）。二重読み込みの判定は `TARGET CLOpts::clopts` の有無なので、兄弟ディレクトリで別々の形式を読み込むと両方成功する（IMPORTED ターゲットはディレクトリスコープ）。`OPTIONAL_COMPONENTS static|shared` も明示の要求として扱う。
 - （改訂 10.1）`run_fixture.cmake` の `FAIL_REGEX` は CMake の `MATCHES` で照合する（`\d` などは使えない）。stdout と stderr をまとめた出力が対象。`FAIL_REGEX` は `build_fail` / `configure_fail` 以外と組み合わせると構成エラーになる。
 - （改訂 10.3）`run_fixture.cmake` は C コンパイラだけを子に渡すので、consumer fixture の C++ は既定の C++ コンパイラ（Clang の構成でも g++）でビルドされる。`consumer_cpp.cpp` は `&clopts_parse` を volatile ポインタに入れて、C++ からの C リンケージ（と Windows の dllimport）を実際にリンクで検査する。
+- （改訂 10.4）`run_package_selection.cmake` の `.lib` 並存の検査（12.6）は、静的版の prefix に `.lib` があるときだけ走る（MSVC 系では常にある。MinGW は `.a` / `.dll.a` なので飛ばし、その旨を表示する）。失敗理由の正規表現の空白は、CMake がメッセージを折り返すため任意の空白に一致させている。
