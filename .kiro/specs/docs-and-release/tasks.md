@@ -41,7 +41,7 @@
   - _Requirements: 8.1_
 
 - [ ] 3. 文書用のプログラム
-- [ ] 3.1 (P) サブコマンドありのサンプル taskbook を作る
+- [x] 3.1 (P) サブコマンドありのサンプル taskbook を作る
   - 設計の TaskbookExample どおりに宣言する。グローバルの `-v/--verbose`（カウント、上限 3）と `--color`（否定できるフラグ）を持ち、`add TITLE`（`--tag` リスト、`--priority` 既定値付き）、`list`（`--all`、`--format` 環境変数 `TASKBOOK_FORMAT` と既定値）、`done ID...` を持つ。各サブコマンドのハンドラを `clopts_result_run` で呼ぶ
   - 「サンプルの共通の規約」に従う。`clopts_argv_get` と `clopts_env_new` / `clopts_parse_with_env` を使い、状態ごとの出力先と終了コード（0 / 2 / 1）を守り、全経路で解放し、`<key>: <value> (<出所>)` の報告をする
   - 1.1 で登録済みの仮のソース `examples/taskbook/taskbook.c` を書き換える（`examples/CMakeLists.txt` は変えない）
@@ -156,3 +156,4 @@
 - 2.2: links モードはフェンスを 0〜3 文字の字下げでしか認識しない。文書（4.x）のコードブロックは行頭（字下げ 3 文字以内）に置くこと。参照形式のリンク `[t]: x` は検査されない。api_coverage は `SYMBOLS=` で一覧を受け取り、不足を `<一覧>:<行>:` で報告する。
 - 2.3: `check_changelog.cmake` の release は `SOURCE_DIR`（`${SOURCE_DIR}/CMakeLists.txt` を読む）と `CHANGELOG`（既定 `${SOURCE_DIR}/CHANGELOG.md`）を受け取り、成功時は標準出力にちょうど `version X.Y.Z` の 1 行だけを出す。「空の節」は空行だけの節を指す（`###` の見出しだけの節は空とみなさない）。フェンスは認識しないので、CHANGELOG のコードブロックに `## ` の行を書かないこと。コメントアウトした `project(clopts VERSION` は数えない。先頭が 0 の版（`v01.2.3`）は拒否する。
 - 2.4: 自己テストは `docs_selftest.<mode>.<case>`（61 件）。期待行はヘルパーが正規表現にエスケープして `(^|\n) *<行>\r?\n` で順に結ぶ。release の成功ケースは `tests/docs/run_release_selftest.cmake` が抜き出した本文を期待値と比べる。
+- 3.1: サンプルの報告の書式は、1 行目 `command: <name>`、続いてそのコマンドの値、最後にグローバル（`verbose`、`color`）。オプションは `key: value (explicit|env|default)`、値を得なかったオプション（出所 NONE）と位置引数には出所を付けない。リストは `", "` で結ぶ。taskbook の版は 1.2.3。空の `TASKBOOK_FORMAT=` は `format:  (env)`（空白 2 つ）になるので文書の例に使わない。
