@@ -228,7 +228,7 @@
   - _Depends: 7.2_
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 7.2, 7.3, 7.4, 7.5, 10.1_
 
-- [ ] 7.4 (P) 値と位置引数のスイートを移植する
+- [x] 7.4 (P) 値と位置引数のスイートを移植する
   - 初版の values / positional スイートのうち、解析関数を経由する全ケースを移植する（内部 API で記録規則を確かめるケースは、6.2 で result スイートに移したものとする）。対象は、LIST の連結・区切り・空の項目、VALUE の後勝ち、COUNT のクランプと既定の上限、`--`、`-` 単体、可変長、必須の位置引数の不足、余分な引数、およびサブコマンドなし構成の節（初版の `nosub`）である。`nosub` もビルダーで組み立てる
   - 完了条件: `ctest -L parser -R "values|positional"` が両形式で通り、解析関数経由の件数が初版の各スイート以上である
   - 7.2 の完了後に、7.3 / 7.5 と互いに並行に進められる
@@ -307,3 +307,4 @@
 - 7.1: フィクスチャは `fixture_tool_t` / `fixture_filt_t` / `fixture_strict_t`（ハンドルの構造体）と `fixture_<x>_init(f, probe)` / `fixture_<x>_free(f)`。初版の添字の enum 定数はなく、ハンドルで参照する。模擬環境変数 `fixture_env_t` は値を自分のバッファから貸す。`clobber` は次の呼び出しの冒頭で全バッファを書き換え、`fixture_env_clobber()` で任意の時点に書き換えられる（8.8 の検証は、解析の後に `fixture_env_clobber()` を呼んで値が変わらないことを見る）。照会した名前は 31 文字までの複製
 - 7.2: 解析関数は `parse()` が `scan_enter` を共有し、番兵でない結果に `parsed = true` を立てる。走査は `scan_run` で、初版の表と論理をそのまま移した。保留エラーは局所の `scan_error_t` に持って `result->error` に写す。初版の dispatch のうち `previous_result_is_reused` と `invalid_declaration_releases_previous_result` は、結果を再利用しない新 API に合わせて「独立した 2 回の解析」「DECL_ERROR を 2 回解析して全解放」に読み替えた。サブコマンド前の command 固有オプション → UNKNOWN_OPTION（5.3）の専用ケースは 7.3〜7.5 で足すこと
 - 7.3: long 45 件（初版 44 + 番兵）、short 28 件（初版 27 + 番兵）。argv は初版と同一で、検証は同等以上。5.3 は `long.command_option_before_the_command_is_unknown`（`tool --output y build`）が担う
+- 7.4: values 35 件（初版の解析関数経由 26 件 + フィクスチャ 2 + 補完 6 + 番兵）、positional 12 件（初版 9 + フィクスチャ 2 + 番兵）。初版 values の内部 API のケースは result スイートが担い、result にない観点（FLAG の繰り返し、空白の保持、argv 変更後の LIST の複製など）は解析関数経由で補った。`nosub` はビルダーで同じ宣言を作る
