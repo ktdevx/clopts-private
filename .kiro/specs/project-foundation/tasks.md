@@ -107,7 +107,7 @@
 
 > 1〜6 は初版の実装（完了済み）。以下は改訂後の requirements.md / design.md に合わせた差分の実装である。初版から変えない部品（CompilerOptions、NaosHelper、CoreVec、CoreSize、GitIgnore、warning / vla の fixture）には触れない。
 
-- [ ] 7. 基盤: 形式の選択と公開シンボルの印
+- [x] 7. 基盤: 形式の選択と公開シンボルの印
 - [x] 7.1 ライブラリ作成ヘルパを新設し、静的版と共有版を選べるようにする
   - 静的に固定していたライブラリの定義をルートから外し、新しいヘルパで作る。形式は新しいオプションで選ぶ。既定値は構成した時点の `BUILD_SHARED_LIBS` で、未定義なら静的。親が通常変数で指定した値が優先される
   - 版から SOVERSION と package の互換規則を計算する小関数を置く。0.x は `0.<minor>` と minor 一致、1.0 以上は major と major 一致。計算結果を呼び出し元に返す
@@ -126,7 +126,7 @@
   - _Boundary: LibraryHelper, ModulesHelper_
   - _Requirements: 1.4, 4.1, 4.2, 4.3, 4.4, 4.10, 4.11_
 
-- [ ] 7.3 (P) 公開シンボルの印の公開ヘッダを作り、解析 API の公開関数に暫定で印を付ける
+- [x] 7.3 (P) 公開シンボルの印の公開ヘッダを作り、解析 API の公開関数に暫定で印を付ける
   - 印は静的版では空、共有版のビルド中は「出す」、共有版の利用側では「取り込む」に切り替わる。判定は静的版の定義、Windows、GCC 4 以上の順で、MinGW で可視性の属性を使わない
   - 解析 API の公開ヘッダには、印のヘッダの include と、13 個の公開関数の宣言の先頭への印だけを足す（型・関数・コメントは変えない。core-parser の作り直しまでの暫定）
   - 完了条件: 共有版の `nm -D --defined-only libclopts.so` に `clopts_` で始まるシンボルがちょうど 13 個（解析 API の公開関数）あり、`clopts_core_` / `clopts_parser_` で始まるものがない。静的版（テスト込み）と共有版（`-DCLOPTS_BUILD_TESTING=OFF`。共有版でテストを有効にするには 7.2 が必要）が `-Werror` で警告なくビルドできる

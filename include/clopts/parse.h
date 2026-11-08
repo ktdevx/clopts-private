@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "clopts/decl.h"
+#include "clopts/export.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -183,7 +184,7 @@ typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, cha
  * when it is valid. Otherwise returns CLOPTS_DECL_ERROR and, when error is not
  * NULL, stores the first violation in *error. program must not be NULL.
  */
-clopts_status_t clopts_decl_validate(const clopts_program_t *program, clopts_error_t *error);
+CLOPTS_API clopts_status_t clopts_decl_validate(const clopts_program_t *program, clopts_error_t *error);
 
 /*
  * Parses argv[1..argc-1] (argv[0] is skipped) against program and stores the
@@ -198,8 +199,8 @@ clopts_status_t clopts_decl_validate(const clopts_program_t *program, clopts_err
  * and both must outlive result. Nothing is written to any stream and exit() is
  * never called.
  */
-clopts_status_t clopts_parse(const clopts_program_t *program, int argc, char *const *argv,
-                             clopts_result_t *result);
+CLOPTS_API clopts_status_t clopts_parse(const clopts_program_t *program, int argc, char *const *argv,
+                                        clopts_result_t *result);
 
 /*
  * Same as clopts_parse() (including the preconditions on program, argc, argv
@@ -207,9 +208,9 @@ clopts_status_t clopts_parse(const clopts_program_t *program, int argc, char *co
  * getenv_fn(env_ctx, ...). A NULL getenv_fn selects the default lookup used by
  * clopts_parse().
  */
-clopts_status_t clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
-                                      clopts_getenv_fn getenv_fn, void *env_ctx,
-                                      clopts_result_t *result);
+CLOPTS_API clopts_status_t clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
+                                                 clopts_getenv_fn getenv_fn, void *env_ctx,
+                                                 clopts_result_t *result);
 
 /*
  * Value accessors. Valid only when result->status is CLOPTS_OK or
@@ -223,22 +224,22 @@ clopts_status_t clopts_parse_with_env(const clopts_program_t *program, int argc,
  */
 
 /* FLAG: true when set. false when not given or negated. */
-bool clopts_result_flag(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API bool clopts_result_flag(const clopts_result_t *result, const clopts_option_t *option);
 /* COUNT: number of occurrences, clamped to the limit. 0 when not given. */
-unsigned clopts_result_count(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API unsigned clopts_result_count(const clopts_result_t *result, const clopts_option_t *option);
 /* VALUE: the value, or NULL when not given. */
-const char *clopts_result_value(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API const char *clopts_result_value(const clopts_result_t *result, const clopts_option_t *option);
 /* LIST: number of items. 0 when not given. */
-size_t clopts_result_list_count(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API size_t clopts_result_list_count(const clopts_result_t *result, const clopts_option_t *option);
 /* LIST: item at index, which must be less than clopts_result_list_count(). */
-const char *clopts_result_list_at(const clopts_result_t *result, const clopts_option_t *option,
-                                  size_t index);
+CLOPTS_API const char *clopts_result_list_at(const clopts_result_t *result, const clopts_option_t *option,
+                                             size_t index);
 /* Where the option's value came from. */
-clopts_source_t clopts_result_source(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API clopts_source_t clopts_result_source(const clopts_result_t *result, const clopts_option_t *option);
 /* Number of positional tokens. */
-size_t clopts_result_positional_count(const clopts_result_t *result);
+CLOPTS_API size_t clopts_result_positional_count(const clopts_result_t *result);
 /* Positional token at index (an argv element), which must be less than the count. */
-const char *clopts_result_positional_at(const clopts_result_t *result, size_t index);
+CLOPTS_API const char *clopts_result_positional_at(const clopts_result_t *result, size_t index);
 
 /*
  * Calls the handler of the selected command (of the program without
@@ -246,7 +247,7 @@ const char *clopts_result_positional_at(const clopts_result_t *result, size_t in
  * value. result->status must be CLOPTS_OK and the handler must not be NULL;
  * otherwise it is a contract violation caught by assert.
  */
-int clopts_result_run(const clopts_result_t *result);
+CLOPTS_API int clopts_result_run(const clopts_result_t *result);
 
 /*
  * Releases the storage owned by result and sets result->impl to NULL. Safe on
@@ -254,7 +255,7 @@ int clopts_result_run(const clopts_result_t *result);
  * including CLOPTS_OUT_OF_MEMORY. status, command and error are not changed.
  * result must not be NULL.
  */
-void clopts_result_free(clopts_result_t *result);
+CLOPTS_API void clopts_result_free(clopts_result_t *result);
 
 #ifdef __cplusplus
 }
