@@ -394,6 +394,144 @@ NAOS_TEST(env_every_fault_point_leaves_no_live_block)
     }
 }
 
+#ifndef _WIN32
+/* ---- outside Windows: clopts_env_lookup reads getenv() ------------------- */
+
+/* Sets name to value in the process environment; ends the test when that fails. */
+#define PLATFORM_ENV_SET(name, value) \
+    do \
+    { \
+        int platform_env_rc_ = setenv((name), (value), 1); \
+        NAOS_CHECK_INT_EQ(platform_env_rc_, 0); \
+        if (platform_env_rc_ != 0) \
+        { \
+            return; \
+        } \
+    } while (0)
+
+NAOS_TEST(env_lookup_finds_a_set_variable_and_borrows_getenvs_pointer)
+{
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_env_new();
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET("CLOPTS_TEST_FOUND", "value \xe3\x83\x86");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_REQUIRE(value);
+    NAOS_CHECK_STR_EQ(value, "value \xe3\x83\x86");
+    /* not copied or converted: the very pointer getenv returns */
+    NAOS_CHECK_PTR_EQ(value, getenv("CLOPTS_TEST_FOUND"));
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+    /* nothing is allocated in the context */
+    NAOS_CHECK_NULL(env->value);
+    NAOS_CHECK_NULL(env->wide);
+    unsetenv("CLOPTS_TEST_FOUND");
+    clopts_env_free(env);
+}
+
+NAOS_TEST(env_lookup_reports_an_unset_variable)
+{
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_env_new();
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET("CLOPTS_TEST_UNSET", "x");
+    NAOS_CHECK_INT_EQ(unsetenv("CLOPTS_TEST_UNSET"), 0);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_UNSET", &value), CLOPTS_ENV_UNSET);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+    clopts_env_free(env);
+}
+
+NAOS_TEST(env_lookup_finds_an_empty_value)
+{
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_env_new();
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET("CLOPTS_TEST_EMPTY", "");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_EMPTY", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_REQUIRE(value);
+    NAOS_CHECK_STR_EQ(value, "");
+    NAOS_CHECK_PTR_EQ(value, getenv("CLOPTS_TEST_EMPTY"));
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    unsetenv("CLOPTS_TEST_EMPTY");
+    clopts_env_free(env);
+}
+
+/* A successful lookup clears a failure recorded earlier in the same context. */
+NAOS_TEST(env_lookup_clears_an_earlier_failure)
+{
+    clopts_platform_probe_t probe = {0, 0, 0};
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_platform_env_new(&probe);
+    PLATFORM_ENV_REQUIRE(env);
+
+    clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_INVALID_UTF16, "CLOPTS_TEST_OLD");
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_UTF16);
+    PLATFORM_ENV_SET("CLOPTS_TEST_FOUND", "v");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_FOUND);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+    /* the recorded name is released, not leaked */
+    NAOS_CHECK_UINT_EQ(probe.live, 1);
+
+    clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, "CLOPTS_TEST_OLD");
+    NAOS_CHECK_INT_EQ(unsetenv("CLOPTS_TEST_FOUND"), 0);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_UNSET);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+    NAOS_CHECK_UINT_EQ(probe.live, 1);
+
+    clopts_env_free(env);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(env_lookup_with_null_ctx_fails)
+{
+    const char *value = NULL;
+
+    PLATFORM_ENV_SET("CLOPTS_TEST_FOUND", "v");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(NULL, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_FAILED);
+    NAOS_CHECK_NULL(value);
+    /* name and value are not read either */
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(NULL, NULL, NULL), CLOPTS_ENV_FAILED);
+    unsetenv("CLOPTS_TEST_FOUND");
+}
+#endif /* !_WIN32 */
+
+/* Preprocessor directives cannot appear inside the macro arguments, so each OS has its own list. */
+#ifndef _WIN32
+NAOS_SUITE(env,
+    NAOS_ADD_TEST(u16_from_units_copies_any_unit_and_terminates),
+    NAOS_ADD_TEST(u16_from_units_accepts_an_empty_sequence),
+    NAOS_ADD_TEST(u16_eq_ascii_does_not_match_non_ascii_units),
+    NAOS_ADD_TEST(env_new_starts_without_failure_and_free_releases_it),
+    NAOS_ADD_TEST(public_env_new_has_no_probe),
+    NAOS_ADD_TEST(env_free_ignores_null),
+    NAOS_ADD_TEST(env_accessors_of_null_read_as_out_of_memory),
+    NAOS_ADD_TEST(env_new_returns_null_when_the_allocation_fails),
+    NAOS_ADD_TEST(env_fail_records_kind_and_a_copy_of_name_and_clear_drops_it),
+    NAOS_ADD_TEST(env_fail_records_out_of_memory_without_name_when_the_copy_fails),
+    NAOS_ADD_TEST(env_reserve_value_grows_and_never_shrinks),
+    NAOS_ADD_TEST(env_reserve_value_keeps_the_old_buffer_when_the_allocation_fails),
+    NAOS_ADD_TEST(env_reserve_wide_grows_and_never_shrinks),
+    NAOS_ADD_TEST(env_reserve_wide_fails_on_size_overflow_and_keeps_the_old_buffer),
+    NAOS_ADD_TEST(env_free_releases_name_and_both_buffers),
+    NAOS_ADD_TEST(env_every_fault_point_leaves_no_live_block),
+    NAOS_ADD_TEST(env_lookup_finds_a_set_variable_and_borrows_getenvs_pointer),
+    NAOS_ADD_TEST(env_lookup_reports_an_unset_variable),
+    NAOS_ADD_TEST(env_lookup_finds_an_empty_value),
+    NAOS_ADD_TEST(env_lookup_clears_an_earlier_failure),
+    NAOS_ADD_TEST(env_lookup_with_null_ctx_fails)
+)
+#else
 NAOS_SUITE(env,
     NAOS_ADD_TEST(u16_from_units_copies_any_unit_and_terminates),
     NAOS_ADD_TEST(u16_from_units_accepts_an_empty_sequence),
@@ -412,3 +550,4 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(env_free_releases_name_and_both_buffers),
     NAOS_ADD_TEST(env_every_fault_point_leaves_no_live_block)
 )
+#endif

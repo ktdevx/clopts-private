@@ -285,6 +285,100 @@ NAOS_TEST(public_free_releases_a_passthrough_handle)
     NAOS_CHECK_STR_EQ(argv[0], "tool");
 }
 
+#ifndef _WIN32
+/* ---- outside Windows: clopts_argv_get passes argv through ---------------- */
+
+NAOS_TEST(argv_get_returns_the_callers_argv_unchanged)
+{
+    char a0[] = "tool";
+    char a1[] = "--name";
+    char a2[] = "";
+    char a3[] = "\xe3\x83\x86\xff";
+    char *argv[5];
+    clopts_argv_t *args;
+    char *const *values;
+    int i;
+
+    argv[0] = a0;
+    argv[1] = a1;
+    argv[2] = a2;
+    argv[3] = a3;
+    argv[4] = NULL;
+    args = clopts_argv_get(4, argv);
+    NAOS_CHECK_NOT_NULL(args);
+    NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 4);
+    values = clopts_argv_values(args);
+    /* neither the array nor the strings are copied or converted */
+    NAOS_CHECK_PTR_EQ(values, argv);
+    if (values == argv)
+    {
+        for (i = 0; i < 4; ++i)
+        {
+            NAOS_CHECK_PTR_EQ(values[i], argv[i]);
+        }
+        NAOS_CHECK_NULL(values[4]);
+    }
+    NAOS_CHECK_STR_EQ(a3, "\xe3\x83\x86\xff");
+    clopts_argv_free(args);
+    NAOS_CHECK_PTR_EQ(argv[0], a0);
+    NAOS_CHECK_STR_EQ(argv[1], "--name");
+}
+
+NAOS_TEST(argv_get_with_argc_zero)
+{
+    char *empty[1] = { NULL };
+    clopts_argv_t *args;
+    char *const *values;
+
+    args = clopts_argv_get(0, empty);
+    NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+    NAOS_CHECK_PTR_EQ(clopts_argv_values(args), empty);
+    clopts_argv_free(args);
+
+    /* argv may be NULL when argc is 0; values is still a NULL-terminated array */
+    args = clopts_argv_get(0, NULL);
+    NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+    values = clopts_argv_values(args);
+    NAOS_CHECK_NOT_NULL(values);
+    if (values != NULL)
+    {
+        NAOS_CHECK_NULL(values[0]);
+    }
+    clopts_argv_free(args);
+}
+#endif /* !_WIN32 */
+
+/* Preprocessor directives cannot appear inside the macro arguments, so each OS has its own list. */
+#ifndef _WIN32
+NAOS_SUITE(argv,
+    NAOS_ADD_TEST(u16_from_ascii_copies_each_byte_and_terminates),
+    NAOS_ADD_TEST(u16_from_ascii_accepts_the_empty_string),
+    NAOS_ADD_TEST(u16_eq_ascii_rejects_prefixes_and_longer_strings),
+    NAOS_ADD_TEST(null_handle_reads_like_the_sentinel),
+    NAOS_ADD_TEST(sentinel_accessors),
+    NAOS_ADD_TEST(free_ignores_null_and_the_sentinel),
+    NAOS_ADD_TEST(failure_handle_invalid_utf16_keeps_the_index),
+    NAOS_ADD_TEST(failure_handle_cmdline_unavailable_has_no_index),
+    NAOS_ADD_TEST(failure_handles_share_the_empty_array),
+    NAOS_ADD_TEST(failure_allocation_failure_returns_the_sentinel),
+    NAOS_ADD_TEST(failure_out_of_memory_is_the_sentinel),
+    NAOS_ADD_TEST(passthrough_borrows_every_pointer),
+    NAOS_ADD_TEST(passthrough_with_argc_zero),
+    NAOS_ADD_TEST(passthrough_allocation_failure_returns_the_sentinel),
+    NAOS_ADD_TEST(public_free_releases_a_passthrough_handle),
+    NAOS_ADD_TEST(argv_get_returns_the_callers_argv_unchanged),
+    NAOS_ADD_TEST(argv_get_with_argc_zero)
+)
+#else
 NAOS_SUITE(argv,
     NAOS_ADD_TEST(u16_from_ascii_copies_each_byte_and_terminates),
     NAOS_ADD_TEST(u16_from_ascii_accepts_the_empty_string),
@@ -302,3 +396,4 @@ NAOS_SUITE(argv,
     NAOS_ADD_TEST(passthrough_allocation_failure_returns_the_sentinel),
     NAOS_ADD_TEST(public_free_releases_a_passthrough_handle)
 )
+#endif

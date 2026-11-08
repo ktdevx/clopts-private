@@ -51,7 +51,7 @@
   - _Requirements: 7.1, 7.7, 7.9, 7.10, 7.11, 7.12_
 
 - [ ] 3. OS 別の実装
-- [ ] 3.1 Windows 以外の argv のパススルーと getenv による環境変数の取得を実装してテストする
+- [x] 3.1 Windows 以外の argv のパススルーと getenv による環境変数の取得を実装してテストする
   - argv の取得は事前条件を assert で確かめ、パススルーのハンドルを返す。文字列と配列を複製せず、変換しない
   - 環境変数の取得は、文脈が NULL なら FAILED を返す。それ以外は失敗の記録を消してから getenv で読み、なければ UNSET、あれば（空文字列を含め）FOUND とそのポインタを返す
   - テスト（スイート argv と env の Windows 以外の部分。`_WIN32` でない条件の中）: 公開関数での取得の要素数とポインタの同一性、状態 OK と添字 -1。テスト用の環境変数を設定・削除して FOUND・UNSET・空の値、成功後に失敗の記録がないこと、NULL の文脈で FAILED
@@ -117,3 +117,4 @@
 - 1.3: `clopts_platform_malloc_array` の桁あふれは parser と同じく 1 回の試行として `calls` に数える（確保せず `live` は変えない）。probe の失敗位置を総当たりするテストはこの数え方を前提にする
 - 2.2: `clopts_platform_argv_failure` に OUT_OF_MEMORY を渡すと確保せずに番兵を返す。それ以外の状態では添字は INVALID_UTF16 のときだけ保持し、ほかは -1。パススルーは `argv[argc] == NULL` を assert で確かめる
 - 2.3: `reserve_value` / `reserve_wide` は伸ばすとき中身を写さない（新しく確保して古い方を解放する）。3.3 で wide バッファに名前と値を続けて置くなら、伸ばした後に名前を変換し直すか、名前と値の合計を一度に確保すること。`clopts_platform_env_fail` は `kind != NONE` と `name != NULL` を assert する
+- 3.1: test_argv.c と test_env.c は `NAOS_SUITE` を `#ifndef _WIN32` / `#else` の 2 つに分けた（マクロ引数に `#ifdef` を置けないため）。3.2 / 3.3 の Windows のテストは `#else` 側の一覧に足す。Windows 以外の確認は Linux（gcc、静的・共有）で行った
