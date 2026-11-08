@@ -52,7 +52,7 @@
   - _Boundary: Resolver, ParserTests_
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7_
 
-- [ ] 3. 走査器: 解析関数と走査規則
+- [x] 3. 走査器: 解析関数と走査規則
 - [x] 3.1 解析関数の骨格を作り、宣言検査・結果ストア・解決・必須検査を接続する（結合タスク）
   - 公開の解析関数 2 つ（既定の取得関数 / 差し替え）。手順: 前回の `impl` を解放 → 宣言検査（違反なら DECL_ERROR、argv を読まない）→ ストア確保 → 走査（前段と本走査の入口は次のタスクで埋める。ここでは「トークンがなければ終端」だけ）→ 保留エラーがあれば返す（回復走査は 3.6）→ HELP / VERSION なら即返却 → 解決 → 必須検査 → OK / NO_COMMAND。`argc == 0` を引数なしとして扱う。失敗は OUT_OF_MEMORY
   - 走査の状態（現在位置、選択コマンド、保留エラー、`--` 到達、HELP / VERSION 要求）を 1 つの構造体にまとめ、以降のタスクが小関数で表の各行を足せる形にする
@@ -95,7 +95,7 @@
   - _Boundary: Scanner, ParserTests_
   - _Requirements: 4.3, 4.4, 5.8, 5.9, 5.10, 5.11, 6.6, 6.7, 6.9, 9.1_
 
-- [ ] 3.6 回復走査とエラー優先度、構造化エラーの各フィールドを完成させる
+- [x] 3.6 回復走査とエラー優先度、構造化エラーの各フィールドを完成させる
   - 保留した最初の使い方エラーのトークンの次から `--` の手前まで、`--help` / `-h` / `--version`（バージョンあり）に完全一致するトークンだけを探し、見つかれば HELP（選択済みならそのコマンド）/ VERSION（先に現れたほう）、見つからなければ保留エラーを返す。宣言エラーは常に優先
   - すべての使い方エラーで、種別・command（選択後は非 NULL）・option / positional・token（argv の要素を指す）・argv 添字・名前の長さ・まとめ書きの該当 1 文字が設計どおりに埋まる
   - テスト（スイート errors に追加）: `--bad --worse` で最初のみ、`--bad -h` が HELP、必須欠落を含む `--help`、値として消費された `-h`、`--bad --version`、HELP と VERSION の先勝ち、宣言エラー + `--help`、7 つの使い方エラー種別それぞれの token / argv_index / name_len / short_name / command / option / positional
@@ -126,3 +126,4 @@
 - 3.3: 本走査は `main_token` が dashdash → `--` → `-x...`（暫定の `main_option`）→ それ以外（`-` 単体を含む、`main_positional`）の順に振り分ける。`scan_stop` は削除済み。`main_option` と `prelude_option` は同じ本体の暫定実装で、3.4 / 3.5 で共通のオプション処理にまとめて両方を置き換え、重複を残さないこと。選択後の `--help` / `-h` / `--version` も現状は UNKNOWN_OPTION になるため 3.4 / 3.5 で直す
 - 3.4: オプションの入口は前段・本走査とも `scan_option` 1 つ（`--…` → `scan_long_option`、`-x…` → 暫定の `scan_short_option`）。3.5 は `scan_short_option` だけを置き換えればよい。値の消費は `scan_option_value`（`=` の後ろ、または次のトークンをそのまま）を共用できる。テストでは値の参照の前に `NAOS_REQUIRE_INT_EQ` で状態を確かめる（状態違いのまま参照するとライブラリの `assert` でプロセスが落ちるため）
 - 3.5: design.md Testing Strategy（short）の「`-vj4` で `j` に `4`」はフィクスチャ（`-j` は上限 8 の COUNT）と矛盾するため、`-vjk4` → `k=["4"]` に読み替え、`-vj4` は `'4'` の UNKNOWN_OPTION として固定した（design.md は未修正）。`h`・不明な文字・VALUE/LIST の後はそのトークンの残りを見ない。`-xh` の `h` は見られない（保留エラーになる）。9.1 との関係は 3.6 の回復走査で扱う
+- 3.6: 回復走査（`scan_recover`）は設計の「エラーのトークンの次から」ではなく保留エラーのトークン自身から探す（コントローラ判断。`tool help --help` / `help copy -h` / `help --version` を 9.1・9.4 どおり HELP / VERSION にするため。`--` 以降は対象外。design.md は未修正）。help コマンドの経路以外ではエラーのトークンが要求トークンと完全一致しないため他の挙動は変わらない。エラー後のトークンは解釈しないので `--bad -o -h` は HELP、`tool --bad build --help` は program 全体の HELP

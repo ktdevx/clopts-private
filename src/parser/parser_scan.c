@@ -7,7 +7,8 @@
  *      declaration (DECL_ERROR without reading argv);
  *   2. allocate the result store;
  *   3. scan: the pre-command phase with subcommands, the main scan without;
- *   4. a pending usage error ends the parse;
+ *   4. a pending usage error ends the parse, unless the recovery scan finds
+ *      a HELP / VERSION request after it;
  *   5. a HELP / VERSION request ends the parse;
  *   6. resolve environment variables / defaults, then check required ones;
  *   7. OK, or NO_COMMAND when the program has subcommands and none was
@@ -550,6 +551,60 @@ static void scan_prelude(scan_state_t *state)
     }
 }
 
+/*
+ * Recovery scan (9.6, 9.7, 9.10, 9.12), run when a usage error is pending:
+ * the scan stopped right after the first usage error, which stays the only
+ * one reported (9.10). The tokens from the one of the pending error up to,
+ * not including, "--" are searched for exact --help / -h / --version (with a
+ * version); the first one found turns the outcome into HELP (of the selected
+ * command, else the whole program) / VERSION (9.6, 9.7). Nothing is looked up
+ * or recorded: any other token, including option values and short groups
+ * containing "h", is skipped.
+ *
+ * The search starts at the pending error's own token, not the next one: in
+ * "help --help", "help -h", "help copy --help" or "help --version" that
+ * token is itself a request "anywhere before --" (9.1, 9.4) and wins over
+ * the unknown command / unexpected argument it caused. The only other error
+ * tokens are options, positionals and command names, which never equal a
+ * request token exactly (the scan handles exact requests itself). When "--"
+ * was reached before the error, every remaining token follows "--" and none
+ * counts ("tool -- --help" stays an unknown command). Tokens consumed as
+ * option values before the error precede it and are never searched; after
+ * the error nothing is interpreted, so an exact token there counts even
+ * where it would have been a value ("--bad -o -h" is HELP), as in 9.12.
+ */
+static void scan_recover(scan_state_t *state)
+{
+    const char *token;
+    int i;
+
+    assert(state->has_pending && (state->pending_error.argv_index >= 0));
+    if (state->dashdash)
+    {
+        return;
+    }
+    for (i = state->pending_error.argv_index; i < state->argc; i++)
+    {
+        token = state->argv[i];
+        if (strcmp(token, "--") == 0)
+        {
+            return;
+        }
+        if (is_help_token(token))
+        {
+            scan_request_help(state);
+            state->has_pending = false;
+            return;
+        }
+        if (is_version_token(state, token))
+        {
+            scan_request_version(state);
+            state->has_pending = false;
+            return;
+        }
+    }
+}
+
 /* Finishes the parse with status, which is also returned. */
 static clopts_status_t finish(clopts_result_t *result, clopts_status_t status)
 {
@@ -569,6 +624,10 @@ static clopts_status_t scan_outcome(scan_state_t *state)
     if (state->out_of_memory)
     {
         return finish(result, CLOPTS_OUT_OF_MEMORY);
+    }
+    if (state->has_pending)
+    {
+        scan_recover(state);
     }
     if (state->has_pending)
     {
