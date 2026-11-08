@@ -1,0 +1,92 @@
+# Builds and tests CLOpts on the five supported toolchains.
+# No release steps here: tag checks and GitHub Releases are not part of CI.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One failing toolchain must not cancel the others.
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-latest
+            shell: bash
+            cc: gcc
+            configure_args: -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+          - name: linux-clang
+            os: ubuntu-latest
+            shell: bash
+            cc: clang
+            configure_args: -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+          - name: macos-appleclang
+            os: macos-latest
+            shell: bash
+            # Default compiler (Apple Clang).
+            cc: ""
+            configure_args: -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+          - name: windows-msvc
+            os: windows-latest
+            shell: bash
+            cc: ""
+            # No -G: CMake picks the newest installed Visual Studio generator
+            # (multi-config), so the build type is chosen at build/test time.
+            configure_args: ""
+            build_args: --config Release
+            ctest_args: -C Release
+          - name: windows-mingw
+            os: windows-latest
+            shell: msys2 {0}
+            cc: gcc
+            configure_args: -G Ninja -DCMAKE_BUILD_TYPE=Release
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSYS2 (UCRT64)
+        if: matrix.name == 'windows-mingw'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+
+      - name: Configure
+        run: cmake -S . -B build -DCLOPTS_WERROR=ON ${{ matrix.configure_args }}
+
+      - name: Build
+        run: cmake --build build ${{ matrix.build_args }}
+
+      - name: Test
+        run: ctest --test-dir build ${{ matrix.ctest_args }} --output-on-failure
+
+      # Per-module label filtering (ctest -L <module>), checked once on Linux GCC.
+      - name: Test (label core)
+        if: matrix.name == 'linux-gcc'
+        run: ctest --test-dir build -L core --output-on-failure
+
+      - name: Test (label toolchain)
+        if: matrix.name == 'linux-gcc'
+        run: ctest --test-dir build -L toolchain --output-on-failure
+
+      - name: Test (label integration)
+        if: matrix.name == 'linux-gcc'
+        run: ctest --test-dir build -L integration --output-on-failure
