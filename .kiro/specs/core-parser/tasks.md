@@ -183,7 +183,7 @@
   - _Boundary: Result_
   - _Requirements: 4.2, 7.12, 11.3, 11.4, 11.5, 11.7, 11.8, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 13.1, 13.3, 13.4, 13.6_
 
-- [ ] 6.3 環境変数・既定値の解決と必須検査を移植し、借用コールバックに合わせる
+- [x] 6.3 環境変数・既定値の解決と必須検査を移植し、借用コールバックに合わせる
   - 既定の取得は、`getenv` の戻り値を借用として返すだけにする。FOUND を受けたら、次にコールバックを呼ぶ前に窓口経由で複製する。VALUE は複製をスロットが所有し、LIST は複製を分割する。FAILED と複製の失敗は OUT_OF_MEMORY として返し、既定値に進まない
   - 照会する環境変数は、選択されたスコープ（root と選択コマンド）の option だけにする。既定値はモデルの複製を借用する。必須の判定は、出所が明示指定か環境変数であること。不足は宣言順の最初の 1 件を記録する
   - テスト（resolve スイートのみ編集。モデルと結果を内部 API で用意して解決を呼ぶ。借用を返す模擬関数は、このスイートのファイル内にローカルに置く）:
@@ -303,3 +303,4 @@
 - 5.3: 入口は `parser_scan.c` の `scan_enter(program, &done)`（NULL → 凍結 → OOM なら番兵 → 結果確保 → 宣言エラーの写し）。7.2 の解析関数はこれを共有する。`clopts_parser_result_new` はスロットを確保しない（6.2 で追加し、`clopts_result_free` も広げる）。NDEBUG 専用テストは非 NDEBUG で `NAOS_SKIP`（Debug の ctest に Skipped が 1 件出る）。追加で名前の複製が失敗すると、オブジェクトは名前 NULL のまま繋がる
 - 6.1: `set_version` の RESERVED_NAME は、照合範囲の順（root、次に command の追加順）で最初の `version` を報告する（モデルに通し番号がないため。design.md の表も改めた）。`set_negatable(o, true)` は一時的な "no-x" を窓口経由で確保して `find_named` を呼ぶので、確保点を 1 つ持つ（失敗なら OOM を記録）。root への `no-x` の追加は command ごとに照会する。規則が成立しても確保に失敗すれば OOM を記録する。`valid_short_name('\0')` は偽
 - 6.2: `clopts_parser_result_select` が `result->command` と command 側のスロットを設定し、1 回だけ呼べる（`assert`）。走査器は select の前に `result->command` を書かないこと。help の対象（`help <cmd>`）は select で選ぶ。command のスロットは状態 OK のときだけ読まれる（NO_COMMAND は root だけ）。`positional_count` は OK / NO_COMMAND 以外で 0。`clopts_parser_result_new` は root に option があると確保点 2 つ
+- 6.3: `clopts_parser_resolve` / `clopts_parser_check_required` は、`result` が番兵でないことと `result->program == program` を assert する。どちらも `result->status` は書かない（走査器が書く）。不足時の `error.command` は、`include_command` が真なら選択コマンド、偽なら NULL。位置引数の検査は、選択コマンドの位置引数、サブコマンドなし構成なら root の位置引数に対して行う
