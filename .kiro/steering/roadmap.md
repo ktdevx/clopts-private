@@ -44,7 +44,7 @@ Monde 版の強みである「`static const` の宣言テーブルを書くだ�
 - **ライセンス**: MIT（`The CLOpts Authors`）。Monde 由来コードの著作権表示は LICENSE に併記しない。Naos は配布物に含まれないため THIRD_PARTY_NOTICES には載せない。
 - **命名**: 公開識別子の接頭辞は `clopts_` / `CLOPTS_`、ヘッダは `clopts/clopts.h`。C++ の別プロジェクト Sirraide/clopts（`clopts.hh`）と同名のため README で区別を一言添える。
 - **コーディングスタイル**: Monde と同じ（Allman スタイル、本体 1 文でも波括弧、複合条件の各比較を括弧で囲む、`//` コメント不使用）。
-- **参照元**: Monde の `src/cli_args/`、`src/foundation/wide.*`、`.kiro/specs/cli-args/{requirements,design,research,tasks}.md`、`tests/cli_args/`、`cmake/Monde*.cmake`、`.github/workflows/ci.yml`。spec 作成時に参照する（このセッションではローカルに `/home/user/ktdevx/monde-private` へ clone 済み。別セッションでは再取得が必要）。
+- **参照元**: Monde の `src/cli_args/`、`src/foundation/wide.*`、`.kiro/specs/cli-args/{requirements,design,research,tasks}.md`、`tests/cli_args/`、`cmake/Monde*.cmake`、`.github/workflows/ci.yml`。spec 作成時に参照する。参照用 submodule として `ref/monde` に置いてある（`update = none` のため既定では取得されない。`git submodule update --init --checkout ref/monde` で取得する）。
 
 ## Boundary Strategy
 

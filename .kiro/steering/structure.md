@@ -45,6 +45,10 @@
 **Location**: `.github/workflows/`  
 **Purpose**: `ci.yml` は main への push と pull request で動く 5 環境のビルドとテスト。`release.yml` は `vX.Y.Z` のタグで動き、タグとバージョンの一致を検査して GitHub Release を作る。リリースの変更で `ci.yml` を変えない。
 
+### 参照用 submodule
+**Location**: `ref/`  
+**Purpose**: spec 作成・実装時に読むだけの外部リポジトリ（現在は Monde を `ref/monde` に置く）。ビルド・テスト・install の対象にせず、CMake から参照しない。`.gitmodules` で `update = none` と `shallow = true` を指定し、`git submodule update --init --recursive`（FetchContent の既定動作を含む）では取得されないようにして、CLOpts を取り込む利用側に影響させない。取得は `git submodule update --init --checkout ref/monde`。
+
 ### 仕様とプロジェクトメモリ
 **Location**: `.kiro/specs/<feature>/`、`.kiro/steering/`  
 **Purpose**: spec 駆動開発の仕様（brief → requirements → design → tasks）と、プロジェクト全体の方針。spec 名は kebab-case（例: `core-parser`、`help-and-messages`）。spec と内部モジュールの対応は roadmap.md に従う（`core-parser` → `parser`、`help-and-messages` → `help`、`platform-argv` → `platform`、`project-foundation` → `core` とビルド構成）。

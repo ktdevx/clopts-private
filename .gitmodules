@@ -1,0 +1,5 @@
+[submodule "ref/monde"]
+	path = ref/monde
+	url = https://github.com/ktdevx/monde-private
+	shallow = true
+	update = none
