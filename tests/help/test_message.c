@@ -12,6 +12,8 @@
 
 #include "test_fixtures.h"
 
+#include "help/help_internal.h"
+
 #include <naos/naos.h>
 
 #include <string.h>
@@ -36,6 +38,7 @@ typedef struct message_run
 {
     clopts_status_t status;       /* status of the result */
     clopts_usage_error_t usage;   /* usage error kind of the result */
+    clopts_decl_error_t decl;     /* declaration error kind of the result */
     clopts_write_status_t write;  /* return value of clopts_write_error */
     help_recorder_t rec;          /* the bytes written */
 } message_run_t;
@@ -51,6 +54,7 @@ static void message_parse_and_write(clopts_program_t *program, int argc, char *c
 
     run->status = clopts_result_status(result);
     run->usage = clopts_result_usage_error(result);
+    run->decl = clopts_result_decl_error(result);
     help_recorder_init(&run->rec);
     run->write = clopts_write_error(program, result, flags, help_recorder_write, &run->rec);
     clopts_result_free(result);
@@ -597,6 +601,374 @@ NAOS_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory)
     help_fixture_tool_free(&f);
 }
 
+/* ---- declaration errors (8.1 to 8.3) ----------------------------------- */
+
+/* Largest value of each kind enum; a new kind must raise them (12.2). */
+#define MESSAGE_USAGE_KIND_MAX 7
+#define MESSAGE_DECL_KIND_MAX 15
+
+/*
+ * Parses an argv of the program name alone against program, whose
+ * declaration error is copied to the result, and writes its error line.
+ */
+static void message_decl_write(clopts_program_t *program, unsigned flags, message_run_t *run)
+{
+    char *argv[] = { "prog", NULL };
+
+    message_parse_and_write(program, MESSAGE_ARGC(argv), argv, flags, run);
+}
+
+/* Root handler that causes MIXED_LAYOUT; never called. */
+static int message_handler(const clopts_result_t *result, void *userdata)
+{
+    (void)result;
+    (void)userdata;
+    return 0;
+}
+
+/* Checks the line written for the declaration error recorded in program, then releases program. */
+#define MESSAGE_CHECK_DECL(program, flags, kind, expected)                           \
+    do                                                                               \
+    {                                                                                \
+        message_run_t run_;                                                          \
+                                                                                     \
+        message_decl_write((program), (flags), &run_);                               \
+        NAOS_REQUIRE_INT_EQ(run_.status, CLOPTS_DECL_ERROR);                         \
+        NAOS_CHECK_INT_EQ(run_.decl, (kind));                                        \
+        NAOS_CHECK_INT_EQ(run_.write, CLOPTS_WRITE_OK);                              \
+        NAOS_CHECK_MEM_EQ(run_.rec.buf, run_.rec.len, (expected), strlen(expected)); \
+        clopts_program_free(program);                                                \
+    } while (0)
+
+NAOS_TEST(decl_invalid_name_of_an_option_in_a_command)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+    clopts_command_t *build;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    build = clopts_program_add_command(program, "build");
+    clopts_command_add_flag(build, "bad name", '\0');
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_INVALID_NAME,
+                       "invalid declaration: invalid name (option '--bad name' in command 'build')\n");
+}
+
+NAOS_TEST(decl_invalid_program_name_omits_the_subject)
+{
+    clopts_program_t *program = clopts_program_new("");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_INVALID_NAME, "invalid declaration: invalid name\n");
+
+    program = clopts_program_new("");
+    NAOS_REQUIRE_NOT_NULL(program);
+    MESSAGE_CHECK_DECL(program, MESSAGE_PREFIX_BOTH, CLOPTS_DECL_INVALID_NAME,
+                       "error: invalid declaration: invalid name\n");
+
+    program = clopts_program_new(NULL);
+    NAOS_REQUIRE_NOT_NULL(program);
+    MESSAGE_CHECK_DECL(program, MESSAGE_PREFIX_BOTH, CLOPTS_DECL_INVALID_NAME,
+                       "error: invalid declaration: invalid name\n");
+}
+
+NAOS_TEST(decl_invalid_command_name_omits_the_subject_and_the_command_prefix)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_program_add_command(program, "");
+    MESSAGE_CHECK_DECL(program, MESSAGE_PREFIX_BOTH, CLOPTS_DECL_INVALID_NAME,
+                       "tool: error: invalid declaration: invalid name\n");
+
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_program_add_command(program, NULL);
+    MESSAGE_CHECK_DECL(program, MESSAGE_PREFIX_BOTH, CLOPTS_DECL_INVALID_NAME,
+                       "tool: error: invalid declaration: invalid name\n");
+}
+
+NAOS_TEST(decl_invalid_empty_option_name_omits_the_subject)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_command_add_flag(clopts_program_root(program), "", '\0');
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_INVALID_NAME, "invalid declaration: invalid name\n");
+}
+
+NAOS_TEST(decl_no_name_omits_the_subject)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_command_add_flag(clopts_program_root(program), NULL, '\0');
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_NO_NAME,
+                       "invalid declaration: option has neither a long nor a short name\n");
+}
+
+NAOS_TEST(decl_no_name_in_a_command_names_the_command)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+    clopts_command_t *build;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    build = clopts_program_add_command(program, "build");
+    clopts_command_add_value(build, NULL, '\0');
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_NO_NAME,
+                       "invalid declaration: option has neither a long nor a short name (command 'build')\n");
+}
+
+NAOS_TEST(decl_duplicate_command)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_program_add_command(program, "build");
+    clopts_program_add_command(program, "build");
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_DUPLICATE_COMMAND,
+                       "invalid declaration: duplicate command name (command 'build')\n");
+}
+
+NAOS_TEST(decl_duplicate_option_in_a_command)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+    clopts_command_t *build;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    build = clopts_program_add_command(program, "build");
+    clopts_command_add_value(build, "out", 'o');
+    clopts_command_add_flag(build, "out", '\0');
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_DUPLICATE_OPTION,
+                       "invalid declaration: duplicate option name (option '--out' in command 'build')\n");
+}
+
+NAOS_TEST(decl_reserved_option_name)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_command_add_flag(clopts_program_root(program), "help", '\0');
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_RESERVED_NAME,
+                       "invalid declaration: reserved name (option '--help')\n");
+}
+
+NAOS_TEST(decl_reserved_command_name)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_program_add_command(program, "help");
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_RESERVED_NAME,
+                       "invalid declaration: reserved name (command 'help')\n");
+}
+
+NAOS_TEST(decl_not_negatable)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_option_set_negatable(clopts_command_add_value(clopts_program_root(program), "level", '\0'), true);
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_NOT_NEGATABLE,
+                       "invalid declaration: only a flag can be negatable (option '--level')\n");
+}
+
+NAOS_TEST(decl_negation_conflict)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+    clopts_command_t *root;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+    clopts_option_set_negatable(clopts_command_add_flag(root, "color", 'c'), true);
+    clopts_command_add_flag(root, "no-color", '\0');
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_NEGATION_CONFLICT,
+                       "invalid declaration: conflicts with the negated form of a flag (option '--no-color')\n");
+}
+
+NAOS_TEST(decl_default_not_allowed_names_a_short_only_option)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_option_set_default(clopts_command_add_count(clopts_program_root(program), NULL, 'v'), "1");
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_DEFAULT_NOT_ALLOWED,
+                       "invalid declaration: a flag or count cannot have a default value (option '-v')\n");
+}
+
+NAOS_TEST(decl_env_not_allowed)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_option_set_env(clopts_command_add_flag(clopts_program_root(program), "quiet", 'q'), "TOOL_QUIET");
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_ENV_NOT_ALLOWED,
+                       "invalid declaration: a flag or count cannot have an environment variable (option '--quiet')\n");
+}
+
+NAOS_TEST(decl_required_with_default)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+    clopts_option_t *out;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    out = clopts_command_add_value(clopts_program_root(program), "out", '\0');
+    clopts_option_set_default(out, "a.out");
+    clopts_option_set_required(out, true);
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_REQUIRED_WITH_DEFAULT,
+                       "invalid declaration: a required option cannot have a default value (option '--out')\n");
+}
+
+NAOS_TEST(decl_required_not_allowed)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_option_set_required(clopts_command_add_flag(clopts_program_root(program), "force", '\0'), true);
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_REQUIRED_NOT_ALLOWED,
+                       "invalid declaration: a flag or count cannot be required (option '--force')\n");
+}
+
+NAOS_TEST(decl_positional_order_in_a_command)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+    clopts_command_t *copy;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    copy = clopts_program_add_command(program, "copy");
+    clopts_command_add_positional(copy, "SRC");
+    clopts_positional_set_required(clopts_command_add_positional(copy, "DST"), true);
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_POSITIONAL_ORDER,
+                       "invalid declaration: a required argument cannot follow an optional one"
+                       " (argument <DST> in command 'copy')\n");
+}
+
+NAOS_TEST(decl_variadic_position)
+{
+    clopts_program_t *program = clopts_program_new("filt");
+    clopts_command_t *root;
+    clopts_positional_t *first;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    root = clopts_program_root(program);
+    first = clopts_command_add_positional(root, "FILE");
+    clopts_command_add_positional(root, "OUT");
+    clopts_positional_set_variadic(first, true);
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_VARIADIC_POSITION,
+                       "invalid declaration: only the last argument can be variadic (argument <FILE>)\n");
+}
+
+NAOS_TEST(decl_attribute_kind)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_option_set_delimiter(clopts_command_add_value(clopts_program_root(program), "mode", 'm'), ',');
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_ATTRIBUTE_KIND,
+                       "invalid declaration: attribute does not apply to this kind of option (option '--mode')\n");
+}
+
+NAOS_TEST(decl_mixed_layout_by_a_root_handler_omits_the_subject)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_program_add_command(program, "build");
+    clopts_command_set_handler(clopts_program_root(program), message_handler, NULL);
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_MIXED_LAYOUT,
+                       "invalid declaration: a program with subcommands cannot have root arguments or a root handler\n");
+}
+
+NAOS_TEST(decl_mixed_layout_by_a_root_positional_or_a_command)
+{
+    clopts_program_t *program = clopts_program_new("tool");
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_program_add_command(program, "build");
+    clopts_command_add_positional(clopts_program_root(program), "FILE");
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_MIXED_LAYOUT,
+                       "invalid declaration: a program with subcommands cannot have root arguments or a root handler"
+                       " (argument <FILE>)\n");
+
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_command_add_positional(clopts_program_root(program), "FILE");
+    clopts_program_add_command(program, "run");
+    MESSAGE_CHECK_DECL(program, 0u, CLOPTS_DECL_MIXED_LAYOUT,
+                       "invalid declaration: a program with subcommands cannot have root arguments or a root handler"
+                       " (command 'run')\n");
+}
+
+NAOS_TEST(decl_error_prefixes)
+{
+    const char *expected[4] = {
+        "invalid declaration: duplicate option name (option '--out' in command 'build')\n",
+        "tool build: invalid declaration: duplicate option name (option '--out' in command 'build')\n",
+        "error: invalid declaration: duplicate option name (option '--out' in command 'build')\n",
+        "tool build: error: invalid declaration: duplicate option name (option '--out' in command 'build')\n",
+    };
+    clopts_program_t *program;
+    clopts_command_t *build;
+    unsigned flags;
+
+    for (flags = 0u; flags < 4u; flags++)
+    {
+        program = clopts_program_new("tool");
+        NAOS_REQUIRE_NOT_NULL(program);
+        build = clopts_program_add_command(program, "build");
+        clopts_command_add_value(build, "out", 'o');
+        clopts_command_add_flag(build, "out", '\0');
+        MESSAGE_CHECK_DECL(program, flags, CLOPTS_DECL_DUPLICATE_OPTION, expected[flags]);
+    }
+
+    /* An error of the root scope: the program name alone. */
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    clopts_command_add_flag(clopts_program_root(program), "help", '\0');
+    MESSAGE_CHECK_DECL(program, MESSAGE_PREFIX_BOTH, CLOPTS_DECL_RESERVED_NAME,
+                       "tool: error: invalid declaration: reserved name (option '--help')\n");
+}
+
+/* ---- coverage of the text tables (12.1, 12.2) -------------------------- */
+
+NAOS_TEST(usage_text_covers_every_kind)
+{
+    const char *texts[MESSAGE_USAGE_KIND_MAX + 1];
+    int i;
+    int j;
+
+    NAOS_CHECK_NULL(clopts_help_usage_text(CLOPTS_USAGE_NONE));
+    NAOS_CHECK_NULL(clopts_help_usage_text((clopts_usage_error_t)(MESSAGE_USAGE_KIND_MAX + 1)));
+    for (i = 1; i <= MESSAGE_USAGE_KIND_MAX; i++)
+    {
+        texts[i] = clopts_help_usage_text((clopts_usage_error_t)i);
+        NAOS_REQUIRE_NOT_NULL(texts[i]);
+        NAOS_CHECK_TRUE(texts[i][0] != '\0');
+        for (j = 1; j < i; j++)
+        {
+            NAOS_CHECK_TRUE(strcmp(texts[i], texts[j]) != 0);
+        }
+    }
+}
+
+NAOS_TEST(decl_reason_covers_every_kind)
+{
+    const char *reasons[MESSAGE_DECL_KIND_MAX + 1];
+    int i;
+    int j;
+
+    NAOS_CHECK_NULL(clopts_help_decl_reason(CLOPTS_DECL_NONE));
+    NAOS_CHECK_NULL(clopts_help_decl_reason((clopts_decl_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
+    for (i = 1; i <= MESSAGE_DECL_KIND_MAX; i++)
+    {
+        reasons[i] = clopts_help_decl_reason((clopts_decl_error_t)i);
+        NAOS_REQUIRE_NOT_NULL(reasons[i]);
+        NAOS_CHECK_TRUE(reasons[i][0] != '\0');
+        for (j = 1; j < i; j++)
+        {
+            NAOS_CHECK_TRUE(strcmp(reasons[i], reasons[j]) != 0);
+        }
+    }
+}
+
 /* ---- the failing callback of the fixtures ------------------------------ */
 
 NAOS_TEST(failer_fails_on_the_nth_call_and_counts_later_calls)
@@ -686,6 +1058,30 @@ NAOS_SUITE(message,
     NAOS_ADD_TEST(prefixes_of_a_program_without_subcommands),
     NAOS_ADD_TEST(undefined_prefix_bits_are_ignored),
     NAOS_ADD_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory),
+    NAOS_ADD_TEST(decl_invalid_name_of_an_option_in_a_command),
+    NAOS_ADD_TEST(decl_invalid_program_name_omits_the_subject),
+    NAOS_ADD_TEST(decl_invalid_command_name_omits_the_subject_and_the_command_prefix),
+    NAOS_ADD_TEST(decl_invalid_empty_option_name_omits_the_subject),
+    NAOS_ADD_TEST(decl_no_name_omits_the_subject),
+    NAOS_ADD_TEST(decl_no_name_in_a_command_names_the_command),
+    NAOS_ADD_TEST(decl_duplicate_command),
+    NAOS_ADD_TEST(decl_duplicate_option_in_a_command),
+    NAOS_ADD_TEST(decl_reserved_option_name),
+    NAOS_ADD_TEST(decl_reserved_command_name),
+    NAOS_ADD_TEST(decl_not_negatable),
+    NAOS_ADD_TEST(decl_negation_conflict),
+    NAOS_ADD_TEST(decl_default_not_allowed_names_a_short_only_option),
+    NAOS_ADD_TEST(decl_env_not_allowed),
+    NAOS_ADD_TEST(decl_required_with_default),
+    NAOS_ADD_TEST(decl_required_not_allowed),
+    NAOS_ADD_TEST(decl_positional_order_in_a_command),
+    NAOS_ADD_TEST(decl_variadic_position),
+    NAOS_ADD_TEST(decl_attribute_kind),
+    NAOS_ADD_TEST(decl_mixed_layout_by_a_root_handler_omits_the_subject),
+    NAOS_ADD_TEST(decl_mixed_layout_by_a_root_positional_or_a_command),
+    NAOS_ADD_TEST(decl_error_prefixes),
+    NAOS_ADD_TEST(usage_text_covers_every_kind),
+    NAOS_ADD_TEST(decl_reason_covers_every_kind),
     NAOS_ADD_TEST(failer_fails_on_the_nth_call_and_counts_later_calls),
     NAOS_ADD_TEST(failer_fails_on_the_first_call),
     NAOS_ADD_TEST(failer_with_zero_never_fails)

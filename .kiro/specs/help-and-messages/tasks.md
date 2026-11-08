@@ -50,7 +50,7 @@
   - 3.2 と同じソースファイルとテストファイルを編集するため、3.2 の後に順に行う
   - _Requirements: 5.3, 5.4, 6.1, 6.2, 6.3, 6.4, 10.6, 11.6, 11.7_
 
-- [ ] 4. エラー文面
+- [x] 4. エラー文面
 - [x] 4.1 (P) 使い方エラーとメモリ不足の 1 行、接頭辞、エラー文面の関数の分岐を実装してテストする
   - 状態で分岐する: 使い方エラーなら種別ごとの文面、メモリ不足（NULL の結果を含む）なら `out of memory`、それ以外なら何も書かずに UNAVAILABLE。宣言エラーの分岐は 4.2 で埋める（ここでは UNAVAILABLE を返す仮の分岐）
   - 使い方エラーの 7 種別の文面と引数の決め方を、設計の表どおりに実装する（利用者が書いた形のオプション名、`=` より前の部分、ASCII 以外の short_name ならトークン全体）。種別 → 文面の内部関数は `default` のない `switch` で書き、範囲外の値には NULL を返す
@@ -62,7 +62,7 @@
   - _Depends: 2.1_
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 7.10, 8.4, 8.5, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10.4, 10.7, 11.7, 12.3_
 
-- [ ] 4.2 宣言エラーの 1 行と、文面表の網羅テストを実装する
+- [x] 4.2 宣言エラーの 1 行と、文面表の網羅テストを実装する
   - 宣言エラーの 15 種別の理由を設計の表どおりに実装する（`default` のない `switch`、範囲外の値は NULL）。対象（option > positional > command の順で、名前を持つもの 1 つ。command 配下なら ` in command '<name>'` を足す）を ` (<subject>)` で続け、対象がなければ省く
   - 4.1 で仮に置いた宣言エラーの分岐を、この文面に置き換える
   - テスト（スイート message に追加）: ビルダー呼び出しで 15 種別を起こして完全一致で比較する。名前のない対象（不正なプログラム名、名前のない option、root の handler による混在）で対象が省かれ、生成が失敗しないこと
@@ -87,3 +87,4 @@
 - 3.2: clopts_write_help はまだ入口で program->error.status を見ない。3.3 で、プログラム名を読む前に検査を入れる（エラーの program では root.name が NULL になりうる）。Usage 行は static の help_write_usage_line を 3.3 で再利用できる。バージョンなし・サブコマンドありの宣言 nover は test_layout.c の中だけにある
 - 3.3: ヘルプ系 4 関数の入口は static の help_program_available（program->error.status == CLOPTS_OK）。メモリ不足も同じ error.status に記録されるので、この 1 つの検査で足りる（メモリ不足の program のテストはない）。validate・凍結は起動しない。msys の sed -i は CRLF を落とすことがあるので、フラグの切り替えには使わない
 - 4.1: clopts_write_error の状態の switch には default がある（default なしの規則は種別 → 文面の関数と引数の switch だけ）。DECL_ERROR は仮に UNAVAILABLE。UNAVAILABLE は出力器の初期化と接頭辞の前に返す。テストは常に UNSET を返す環境変数の取得関数で clopts_parse_with_env を使う。「コマンド名にテキストがない」接頭辞の経路は使い方エラーでは起きないので、4.2 の宣言エラーで確かめるとよい
+- 4.2: -Wswitch の手元確認は GCC / Clang がないため、MSVC で一時的に `#pragma warning(error: 4062)` を付け、case を 1 つ消してビルドが C4062 で失敗することで代えた（確認後に元へ戻した）。MSVC の /W4 では C4062 は既定で無効なので、Windows のローカルビルドは case 漏れを検出しない（網羅テストが実行時に NULL として検出し、GCC / Clang の -Wall -Werror は CI で効く）。command 配下の名前のない option は `(command '<name>')`。宣言エラーの接頭辞も error_command から作る
