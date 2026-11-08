@@ -7,9 +7,13 @@
  * recorded with the slot functions, then clopts_parser_resolve() and
  * clopts_parser_check_required() are called. The environment comes from a
  * local mock that lends strings from its own buffer.
+ *
+ * The last part goes through clopts_parse_with_env() with the shared fixtures
+ * of test_fixtures.c and fixture_env_t (ported from the first-version suite).
  */
 
 #include "parser/parser_internal.h"
+#include "test_fixtures.h"
 
 #include <naos/naos.h>
 
@@ -865,6 +869,624 @@ NAOS_TEST(program_without_subcommands_checks_root_positionals)
     NAOS_CHECK_INT_EQ(probe.live, 0);
 }
 
+/* ==== through clopts_parse_with_env (7.5) ============================== */
+
+/*
+ * The cases below go through the parse function with the shared fixtures of
+ * test_fixtures.c and the borrowing mock environment fixture_env_t. They are
+ * ported from the parse-level cases of the first-version resolve suite (same
+ * argv), plus first-version store-level cases that the internal-API tests
+ * above do not cover, plus the copy-on-borrow check of 8.8. The status is
+ * always checked with NAOS_REQUIRE_INT_EQ before values are read.
+ */
+
+#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
+
+/*
+ * Parses the NULL-terminated argv for program with the mock environment env
+ * and checks that the result is a parse result (not the sentinel).
+ */
+static clopts_result_t *parse_env(clopts_program_t *program, char **argv, fixture_env_t *env)
+{
+    clopts_result_t *result;
+    int argc = 0;
+
+    while (argv[argc] != NULL)
+    {
+        argc++;
+    }
+    result = clopts_parse_with_env(program, argc, argv, fixture_env_getenv, env);
+    NAOS_REQUIRE_NOT_NULL(result);
+    NAOS_CHECK_TRUE(result != clopts_parser_result_oom());
+    return result;
+}
+
+/* Checks the error accessors of a missing-required error besides kind and target. */
+static void check_missing_common(const clopts_result_t *result, const clopts_command_t *command)
+{
+    NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), command);
+    NAOS_CHECK_NULL(clopts_result_error_token(result));
+    NAOS_CHECK_INT_EQ(clopts_result_error_argv_index(result), -1);
+    NAOS_CHECK_UINT_EQ(clopts_result_error_name_len(result), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_error_short_name(result), '\0');
+}
+
+#define TOOL_BEGIN(f)                                                               \
+    do                                                                              \
+    {                                                                               \
+        fixture_tool_init(&(f), NULL);                                              \
+        NAOS_REQUIRE_NOT_NULL((f).program);                                         \
+    } while (0)
+
+/*
+ * Local declarations, assembled with the builder (fictional programs).
+ *
+ *   need    without subcommands: --key VALUE required (env NEED_KEY),
+ *           --items LIST ',' (env NEED_ITEMS), FILES required variadic
+ *   order   global --global VALUE required
+ *           cmd:   --local VALUE required, ARG required
+ */
+typedef struct need_decl
+{
+    clopts_program_t *program;
+    clopts_option_t *key;
+    clopts_option_t *items;
+    clopts_positional_t *files;
+} need_decl_t;
+
+static void need_init(need_decl_t *d)
+{
+    clopts_command_t *root;
+    clopts_result_t *validated;
+
+    d->program = clopts_program_new("need");
+    NAOS_REQUIRE_NOT_NULL(d->program);
+    root = clopts_program_root(d->program);
+    d->key = clopts_command_add_value(root, "key", '\0');
+    clopts_option_set_env(d->key, "NEED_KEY");
+    clopts_option_set_required(d->key, true);
+    d->items = clopts_command_add_list(root, "items", '\0');
+    clopts_option_set_env(d->items, "NEED_ITEMS");
+    clopts_option_set_delimiter(d->items, ',');
+    d->files = clopts_command_add_positional(root, "FILES");
+    clopts_positional_set_required(d->files, true);
+    clopts_positional_set_variadic(d->files, true);
+    validated = clopts_program_validate(d->program);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(validated), CLOPTS_OK);
+    clopts_result_free(validated);
+}
+
+typedef struct order_decl
+{
+    clopts_program_t *program;
+    clopts_option_t *global;
+    clopts_command_t *cmd;
+    clopts_option_t *local;
+    clopts_positional_t *arg;
+} order_decl_t;
+
+static void order_init(order_decl_t *d)
+{
+    clopts_result_t *validated;
+
+    d->program = clopts_program_new("order");
+    NAOS_REQUIRE_NOT_NULL(d->program);
+    d->global = clopts_command_add_value(clopts_program_root(d->program), "global", '\0');
+    clopts_option_set_required(d->global, true);
+    d->cmd = clopts_program_add_command(d->program, "cmd");
+    d->local = clopts_command_add_value(d->cmd, "local", '\0');
+    clopts_option_set_required(d->local, true);
+    d->arg = clopts_command_add_positional(d->cmd, "ARG");
+    clopts_positional_set_required(d->arg, true);
+    validated = clopts_program_validate(d->program);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(validated), CLOPTS_OK);
+    clopts_result_free(validated);
+}
+
+NAOS_TEST(fixture_env_and_defaults_are_as_designed)
+{
+    fixture_tool_t t;
+    fixture_filt_t f;
+    fixture_strict_t s;
+
+    TOOL_BEGIN(t);
+    NAOS_CHECK_STR_EQ(t.config->env, "TOOL_CONFIG");
+    NAOS_CHECK_NULL(t.config->default_value);
+    NAOS_CHECK_STR_EQ(t.tags->env, "TOOL_TAGS");
+    NAOS_CHECK_STR_EQ(t.tags->default_value, "a,b");
+    NAOS_CHECK_NULL(t.output->env);
+    NAOS_CHECK_NULL(t.output->default_value);
+    fixture_tool_free(&t);
+
+    fixture_filt_init(&f, NULL);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_CHECK_STR_EQ(f.lines->env, "FILT_LINES");
+    NAOS_CHECK_STR_EQ(f.lines->default_value, "10");
+    fixture_filt_free(&f);
+
+    fixture_strict_init(&s, NULL);
+    NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_CHECK_NULL(s.token->env);
+    fixture_strict_free(&s);
+}
+
+/* ---- environment and sources (8.1 to 8.4, 8.6, 8.7) ------------------- */
+
+NAOS_TEST(parse_config_from_env_is_env)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_CONFIG", "/etc/t" } };
+    char *argv[] = { "tool", "cat", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.config), CLOPTS_SOURCE_ENV);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, t.config), "/etc/t");
+    NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+NAOS_TEST(parse_config_explicit_wins_over_env)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_CONFIG", "/etc/t" } };
+    char *argv[] = { "tool", "--config", "x", "cat", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.config), CLOPTS_SOURCE_EXPLICIT);
+    /* An explicit value points into argv, and the environment is not looked up. */
+    NAOS_CHECK_PTR_EQ(clopts_result_value(result, t.config), argv[2]);
+    NAOS_CHECK_FALSE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+NAOS_TEST(parse_config_unset_is_none)
+{
+    char *argv[] = { "tool", "cat", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, NULL, 0);
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.config), CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_NULL(clopts_result_value(result, t.config));
+    NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+NAOS_TEST(parse_config_empty_env_is_env)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_CONFIG", "" } };
+    char *argv[] = { "tool", "cat", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.config), CLOPTS_SOURCE_ENV);
+    NAOS_REQUIRE_NOT_NULL(clopts_result_value(result, t.config));
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, t.config), "");
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+NAOS_TEST(parse_list_empty_env_is_one_empty_item)
+{
+    /* Store-level in the first version (list_empty_env_is_one_empty_item). */
+    static const fixture_env_var_t vars[] = { { "TOOL_TAGS", "" } };
+    char *argv[] = { "tool", "cat", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.tags), CLOPTS_SOURCE_ENV);
+    NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, t.tags), 1);
+    NAOS_CHECK_STR_EQ(clopts_result_list_at(result, t.tags, 0), "");
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+NAOS_TEST(parse_filt_default_points_into_the_declaration)
+{
+    char *argv[] = { "filt", NULL };
+    fixture_filt_t f;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    fixture_filt_init(&f, NULL);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    fixture_env_init(&env, NULL, 0);
+    result = parse_env(f.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, f.lines), CLOPTS_SOURCE_DEFAULT);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, f.lines), "10");
+    /* The default is not copied: it points into the declaration model. */
+    NAOS_CHECK_PTR_EQ(clopts_result_value(result, f.lines), f.lines->default_value);
+    NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "FILT_LINES"));
+    clopts_result_free(result);
+    fixture_filt_free(&f);
+}
+
+/* ---- scope of the lookup (8.9, 9.6) ----------------------------------- */
+
+NAOS_TEST(parse_config_from_env_with_no_command)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_CONFIG", "/etc/t" } };
+    char *argv[] = { "tool", "-vv", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    /* NO_COMMAND still resolves the global options. */
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_NO_COMMAND);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.config), CLOPTS_SOURCE_ENV);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, t.config), "/etc/t");
+    NAOS_CHECK_UINT_EQ(clopts_result_count(result, t.verbose), 2);
+    NAOS_CHECK_FALSE(fixture_env_was_queried(&env, "TOOL_TAGS"));
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+NAOS_TEST(parse_build_does_not_query_other_commands_env)
+{
+    static const fixture_env_var_t vars[] = {
+        { "TOOL_CONFIG", "/etc/t" },
+        { "TOOL_TAGS", "x,y" },
+    };
+    char *argv[] = { "tool", "build", "src", "-o", "out", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
+    /* TOOL_TAGS belongs to cat, which was not selected. */
+    NAOS_CHECK_FALSE(fixture_env_was_queried(&env, "TOOL_TAGS"));
+    NAOS_CHECK_UINT_EQ(env.query_count, 1);
+    NAOS_CHECK_UINT_EQ(clopts_result_list_count(result, t.tags), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.tags), CLOPTS_SOURCE_NONE);
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+/* ---- required checks (9.2 to 9.4, 9.6, 9.7) --------------------------- */
+
+NAOS_TEST(parse_required_satisfied_by_env)
+{
+    static const fixture_env_var_t vars[] = { { "NEED_KEY", "k" } };
+    char *argv[] = { "need", "f", NULL };
+    need_decl_t d;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    need_init(&d);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    result = parse_env(d.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, d.key), CLOPTS_SOURCE_ENV);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, d.key), "k");
+    NAOS_CHECK_UINT_EQ(clopts_result_positional_count(result), 1);
+    clopts_result_free(result);
+    clopts_program_free(d.program);
+}
+
+NAOS_TEST(parse_required_missing_when_env_unset)
+{
+    char *argv[] = { "need", "f", NULL };
+    need_decl_t d;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    need_init(&d);
+    fixture_env_init(&env, NULL, 0);
+    result = parse_env(d.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), d.key);
+    NAOS_CHECK_NULL(clopts_result_error_positional(result));
+    check_missing_common(result, NULL);
+    clopts_result_free(result);
+    clopts_program_free(d.program);
+}
+
+NAOS_TEST(parse_required_variadic_needs_one_token)
+{
+    /* Store-level in the first version (required_satisfied_by_env_and_variadic_needs_one). */
+    static const fixture_env_var_t vars[] = { { "NEED_KEY", "k" } };
+    char *argv[] = { "need", NULL };
+    need_decl_t d;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    need_init(&d);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    result = parse_env(d.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_positional(result), d.files);
+    NAOS_CHECK_NULL(clopts_result_error_option(result));
+    check_missing_common(result, NULL);
+    clopts_result_free(result);
+    clopts_program_free(d.program);
+}
+
+NAOS_TEST(parse_build_without_output_is_missing_option)
+{
+    char *argv[] = { "tool", "build", "x", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, NULL, 0);
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), t.output);
+    NAOS_CHECK_NULL(clopts_result_error_positional(result));
+    check_missing_common(result, t.build);
+    NAOS_CHECK_PTR_EQ(clopts_result_command(result), t.build);
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+NAOS_TEST(parse_copy_second_positional_missing)
+{
+    /* Store-level in the first version (required_second_positional_missing). */
+    char *missing[] = { "tool", "copy", "a", NULL };
+    char *given[] = { "tool", "copy", "a", "b", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, NULL, 0);
+    result = parse_env(t.program, missing, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_positional(result), t.copy_dst);
+    NAOS_CHECK_NULL(clopts_result_error_option(result));
+    check_missing_common(result, t.copy);
+    clopts_result_free(result);
+
+    result = parse_env(t.program, given, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(result), 2);
+    NAOS_CHECK_PTR_EQ(clopts_result_positional_at(result, 1), given[3]);
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+NAOS_TEST(parse_required_order_global_command_positional)
+{
+    /* Store-level in the first version (required_order_global_command_positional). */
+    char *none[] = { "order", "cmd", NULL };
+    char *global[] = { "order", "--global", "g", "cmd", NULL };
+    char *local[] = { "order", "--global", "g", "cmd", "--local", "l", NULL };
+    char *all[] = { "order", "--global", "g", "cmd", "--local", "l", "arg", NULL };
+    order_decl_t d;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    order_init(&d);
+    fixture_env_init(&env, NULL, 0);
+
+    result = parse_env(d.program, none, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), d.global);
+    check_missing_common(result, d.cmd);
+    clopts_result_free(result);
+
+    result = parse_env(d.program, global, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), d.local);
+    check_missing_common(result, d.cmd);
+    clopts_result_free(result);
+
+    result = parse_env(d.program, local, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_positional(result), d.arg);
+    NAOS_CHECK_NULL(clopts_result_error_option(result));
+    check_missing_common(result, d.cmd);
+    clopts_result_free(result);
+
+    result = parse_env(d.program, all, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(result, d.local), all[5]);
+    clopts_result_free(result);
+    clopts_program_free(d.program);
+}
+
+NAOS_TEST(parse_no_command_skips_the_command_required_checks)
+{
+    /* Store-level in the first version (required_global_only_skips_command). */
+    char *missing[] = { "order", NULL };
+    char *given[] = { "order", "--global", "g", NULL };
+    order_decl_t d;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    order_init(&d);
+    fixture_env_init(&env, NULL, 0);
+
+    result = parse_env(d.program, missing, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), d.global);
+    check_missing_common(result, NULL);
+    clopts_result_free(result);
+
+    /* --local and ARG of cmd are required, but cmd was not selected. */
+    result = parse_env(d.program, given, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_NO_COMMAND);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(result, d.global), given[2]);
+    NAOS_CHECK_NULL(clopts_result_command(result));
+    clopts_result_free(result);
+    clopts_program_free(d.program);
+}
+
+NAOS_TEST(parse_strict_no_command_with_required_global)
+{
+    char *missing[] = { "strict", NULL };
+    char *given[] = { "strict", "--token", "t", NULL };
+    fixture_strict_t s;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    fixture_strict_init(&s, NULL);
+    NAOS_REQUIRE_NOT_NULL(s.program);
+    fixture_env_init(&env, NULL, 0);
+
+    /* No subcommand: the required global is still checked. */
+    result = parse_env(s.program, missing, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), s.token);
+    check_missing_common(result, NULL);
+    clopts_result_free(result);
+
+    /* A second, independent parse of the same program. */
+    result = parse_env(s.program, given, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_NO_COMMAND);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(result, s.token), given[2]);
+    clopts_result_free(result);
+    fixture_strict_free(&s);
+}
+
+/* ---- lookup failure (8.10) -------------------------------------------- */
+
+NAOS_TEST(parse_env_failed_is_out_of_memory_and_freeable)
+{
+    static const fixture_env_var_t vars[] = { { "TOOL_TAGS", "x" } };
+    char *argv[] = { "tool", "cat", "f", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    env.fail_next = true;
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OUT_OF_MEMORY);
+    /* The lookup stops at the first failure: TOOL_TAGS is not looked up. */
+    NAOS_CHECK_UINT_EQ(env.query_count, 1);
+    NAOS_CHECK_FALSE(fixture_env_was_queried(&env, "TOOL_TAGS"));
+    /* No silent fallback: the values read as unset. */
+    NAOS_CHECK_NULL(clopts_result_value(result, t.config));
+    NAOS_CHECK_UINT_EQ(clopts_result_list_count(result, t.tags), 0);
+    /*
+     * The first version freed the caller's result struct twice. A result is
+     * now a handle released once; NULL and the sentinel are no-ops.
+     */
+    clopts_result_free(result);
+    clopts_result_free(NULL);
+    clopts_result_free(clopts_parser_result_oom());
+    fixture_tool_free(&t);
+}
+
+/* ---- borrowed strings are copied (8.8) -------------------------------- */
+
+NAOS_TEST(parse_env_values_survive_clobber_after_parse)
+{
+    static const fixture_env_var_t tool_vars[] = {
+        { "TOOL_CONFIG", "/etc/t" },
+        { "TOOL_TAGS", "x,y" },
+    };
+    static const fixture_env_var_t filt_vars[] = { { "FILT_LINES", "5" } };
+    char *tool_argv[] = { "tool", "cat", "f", NULL };
+    char *filt_argv[] = { "filt", NULL };
+    fixture_tool_t t;
+    fixture_filt_t f;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, tool_vars, ARRAY_LEN(tool_vars));
+    result = parse_env(t.program, tool_argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    fixture_env_clobber(&env);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.config), CLOPTS_SOURCE_ENV);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, t.config), "/etc/t");
+    NAOS_CHECK_TRUE(clopts_result_value(result, t.config) != env.buffers[0]);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, t.tags), CLOPTS_SOURCE_ENV);
+    NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, t.tags), 2);
+    NAOS_CHECK_STR_EQ(clopts_result_list_at(result, t.tags, 0), "x");
+    NAOS_CHECK_STR_EQ(clopts_result_list_at(result, t.tags, 1), "y");
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+
+    fixture_filt_init(&f, NULL);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    fixture_env_init(&env, filt_vars, ARRAY_LEN(filt_vars));
+    result = parse_env(f.program, filt_argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    fixture_env_clobber(&env);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, f.lines), CLOPTS_SOURCE_ENV);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, f.lines), "5");
+    clopts_result_free(result);
+    fixture_filt_free(&f);
+}
+
+NAOS_TEST(parse_env_value_is_copied_before_the_next_lookup)
+{
+    static const fixture_env_var_t vars[] = {
+        { "TOOL_CONFIG", "/etc/t" },
+        { "TOOL_TAGS", "x,y" },
+    };
+    char *argv[] = { "tool", "cat", NULL };
+    fixture_tool_t t;
+    fixture_env_t env;
+    clopts_result_t *result;
+
+    /* Every lookup overwrites all buffers: TOOL_TAGS destroys the TOOL_CONFIG loan. */
+    TOOL_BEGIN(t);
+    fixture_env_init(&env, vars, ARRAY_LEN(vars));
+    env.clobber = true;
+    result = parse_env(t.program, argv, &env);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_UINT_EQ(env.query_count, 2);
+    NAOS_CHECK_STR_EQ(env.queried[0], "TOOL_CONFIG");
+    NAOS_CHECK_STR_EQ(env.queried[1], "TOOL_TAGS");
+    fixture_env_clobber(&env);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, t.config), "/etc/t");
+    NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, t.tags), 2);
+    NAOS_CHECK_STR_EQ(clopts_result_list_at(result, t.tags, 0), "x");
+    NAOS_CHECK_STR_EQ(clopts_result_list_at(result, t.tags, 1), "y");
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
 NAOS_SUITE(resolve,
     NAOS_ADD_TEST(null_program_does_not_call_getenv),
     NAOS_ADD_TEST(getenv_default_lends_the_getenv_pointer),
@@ -893,5 +1515,25 @@ NAOS_SUITE(resolve,
     NAOS_ADD_TEST(required_variadic_needs_one_token),
     NAOS_ADD_TEST(include_command_false_checks_only_the_root),
     NAOS_ADD_TEST(no_selected_command_checks_only_root_options),
-    NAOS_ADD_TEST(program_without_subcommands_checks_root_positionals)
+    NAOS_ADD_TEST(program_without_subcommands_checks_root_positionals),
+    NAOS_ADD_TEST(fixture_env_and_defaults_are_as_designed),
+    NAOS_ADD_TEST(parse_config_from_env_is_env),
+    NAOS_ADD_TEST(parse_config_explicit_wins_over_env),
+    NAOS_ADD_TEST(parse_config_unset_is_none),
+    NAOS_ADD_TEST(parse_config_empty_env_is_env),
+    NAOS_ADD_TEST(parse_list_empty_env_is_one_empty_item),
+    NAOS_ADD_TEST(parse_filt_default_points_into_the_declaration),
+    NAOS_ADD_TEST(parse_config_from_env_with_no_command),
+    NAOS_ADD_TEST(parse_build_does_not_query_other_commands_env),
+    NAOS_ADD_TEST(parse_required_satisfied_by_env),
+    NAOS_ADD_TEST(parse_required_missing_when_env_unset),
+    NAOS_ADD_TEST(parse_required_variadic_needs_one_token),
+    NAOS_ADD_TEST(parse_build_without_output_is_missing_option),
+    NAOS_ADD_TEST(parse_copy_second_positional_missing),
+    NAOS_ADD_TEST(parse_required_order_global_command_positional),
+    NAOS_ADD_TEST(parse_no_command_skips_the_command_required_checks),
+    NAOS_ADD_TEST(parse_strict_no_command_with_required_global),
+    NAOS_ADD_TEST(parse_env_failed_is_out_of_memory_and_freeable),
+    NAOS_ADD_TEST(parse_env_values_survive_clobber_after_parse),
+    NAOS_ADD_TEST(parse_env_value_is_copied_before_the_next_lookup)
 )

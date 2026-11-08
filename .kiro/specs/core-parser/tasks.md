@@ -236,7 +236,7 @@
   - _Depends: 7.2_
   - _Requirements: 6.12, 6.13, 6.14, 6.15, 7.1, 7.6, 7.7, 7.8, 7.9, 7.10, 7.11, 9.3, 9.4, 9.5_
 
-- [ ] 7.5 (P) エラー・解決・結果のスイートの解析関数経由のケースを移植し、改訂で増えた観点を足す
+- [x] 7.5 (P) エラー・解決・結果のスイートの解析関数経由のケースを移植し、改訂で増えた観点を足す
   - 初版の errors スイートの全ケースを移植する。対象は、トークン・argv 添字・command・`name_len`・`short_name`、回復走査、HELP / VERSION の優先度である
   - 初版の resolve / result スイートの、解析関数を経由するケースを、6.2 / 6.3 の内部 API のテストの後ろに追加する。対象は、環境変数、既定値、必須、NO_COMMAND、handler の実行、出所である
   - 追加の観点:
@@ -308,3 +308,4 @@
 - 7.2: 解析関数は `parse()` が `scan_enter` を共有し、番兵でない結果に `parsed = true` を立てる。走査は `scan_run` で、初版の表と論理をそのまま移した。保留エラーは局所の `scan_error_t` に持って `result->error` に写す。初版の dispatch のうち `previous_result_is_reused` と `invalid_declaration_releases_previous_result` は、結果を再利用しない新 API に合わせて「独立した 2 回の解析」「DECL_ERROR を 2 回解析して全解放」に読み替えた。サブコマンド前の command 固有オプション → UNKNOWN_OPTION（5.3）の専用ケースは 7.3〜7.5 で足すこと
 - 7.3: long 45 件（初版 44 + 番兵）、short 28 件（初版 27 + 番兵）。argv は初版と同一で、検証は同等以上。5.3 は `long.command_option_before_the_command_is_unknown`（`tool --output y build`）が担う
 - 7.4: values 35 件（初版の解析関数経由 26 件 + フィクスチャ 2 + 補完 6 + 番兵）、positional 12 件（初版 9 + フィクスチャ 2 + 番兵）。初版 values の内部 API のケースは result スイートが担い、result にない観点（FLAG の繰り返し、空白の保持、argv 変更後の LIST の複製など）は解析関数経由で補った。`nosub` はビルダーで同じ宣言を作る
+- 7.5: errors 34 件（初版 33 + 番兵）。resolve / result には解析関数経由のケースを 6.2 / 6.3 の後ろに足した（resolve 19 件・初版 12、result 15 件・初版 9）。初版の「結果の再利用・2 回解放・ゼロ初期化の解放」は、新 API の「解放 1 回 + NULL と番兵の解放」「独立した結果」に読み替えた。8.8 は解析の後の `fixture_env_clobber()` で確かめる
