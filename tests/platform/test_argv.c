@@ -13,6 +13,7 @@
 #include <naos/naos.h>
 
 #include <stddef.h>
+#include <stdlib.h>   /* __argc / __argv on Windows */
 #include <string.h>
 
 NAOS_TEST(u16_from_ascii_copies_each_byte_and_terminates)
@@ -355,7 +356,76 @@ NAOS_TEST(argv_get_with_argc_zero)
     }
     clopts_argv_free(args);
 }
-#endif /* !_WIN32 */
+#else /* _WIN32 */
+/* ---- Windows: clopts_argv_get splits the process command line ------------- */
+
+/*
+ * The CRT's __argc / __argv. MinGW-w64 declares them in <stdlib.h> even with
+ * the language extensions off (-std=c99, __STRICT_ANSI__): as macros over
+ * __MINGW_IMP_SYMBOL / __p___argv on msvcrt and over __p___argc /
+ * __p___argv on UCRT. MSVC's UCRT declares the accessor functions but may
+ * hide the __argc / __argv macros when the non-standard names are disabled
+ * (/std:c11 without extensions), so when the macros are missing they are
+ * defined here over the accessors, which every CRT that lacks the macros
+ * exports. The probe of suite crt reuses this workaround.
+ */
+
+#ifndef __argc
+int *__cdecl __p___argc(void);
+#define __argc (*__p___argc())
+#endif
+#ifndef __argv
+char ***__cdecl __p___argv(void);
+#define __argv (*__p___argv())
+#endif
+
+/* Checks that args has the CRT's __argc elements, each equal to the CRT's __argv string. */
+static void platform_argv_check_matches_crt(const clopts_argv_t *args)
+{
+    char *const *values;
+    int i;
+
+    NAOS_REQUIRE_TRUE(args != clopts_platform_argv_sentinel());
+    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+    NAOS_REQUIRE_INT_EQ(clopts_argv_count(args), __argc);
+    values = clopts_argv_values(args);
+    NAOS_REQUIRE_NOT_NULL(values);
+    for (i = 0; i < __argc; ++i)
+    {
+        NAOS_REQUIRE_NOT_NULL(values[i]);
+        NAOS_CHECK_STR_EQ(values[i], __argv[i]);
+    }
+    NAOS_CHECK_NULL(values[__argc]);
+}
+
+/* CTest starts the test executable with ASCII arguments only (9.3). */
+NAOS_TEST(argv_get_matches_the_crt_argv)
+{
+    clopts_argv_t *args;
+
+    NAOS_REQUIRE_TRUE(__argc >= 1);
+    args = clopts_argv_get(0, NULL);
+    platform_argv_check_matches_crt(args);
+    clopts_argv_free(args);
+}
+
+/* The argc / argv given to clopts_argv_get are not read on Windows. */
+NAOS_TEST(argv_get_ignores_the_given_argv)
+{
+    char a0[] = "not-the-program";
+    char *argv[2];
+    clopts_argv_t *args;
+
+    argv[0] = a0;
+    argv[1] = NULL;
+    args = clopts_argv_get(1, argv);
+    platform_argv_check_matches_crt(args);
+    NAOS_CHECK_TRUE(clopts_argv_values(args) != argv);
+    clopts_argv_free(args);
+    NAOS_CHECK_STR_EQ(a0, "not-the-program");
+}
+#endif /* _WIN32 */
 
 /* Preprocessor directives cannot appear inside the macro arguments, so each OS has its own list. */
 #ifndef _WIN32
@@ -394,6 +464,8 @@ NAOS_SUITE(argv,
     NAOS_ADD_TEST(passthrough_borrows_every_pointer),
     NAOS_ADD_TEST(passthrough_with_argc_zero),
     NAOS_ADD_TEST(passthrough_allocation_failure_returns_the_sentinel),
-    NAOS_ADD_TEST(public_free_releases_a_passthrough_handle)
+    NAOS_ADD_TEST(public_free_releases_a_passthrough_handle),
+    NAOS_ADD_TEST(argv_get_matches_the_crt_argv),
+    NAOS_ADD_TEST(argv_get_ignores_the_given_argv)
 )
 #endif

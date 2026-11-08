@@ -60,7 +60,7 @@
   - _Depends: 2.2, 2.3_
   - _Requirements: 1.1, 1.6, 4.1, 4.2, 7.4, 7.5, 7.6, 7.7, 9.5_
 
-- [ ] 3.2 Windows の argv の取得（コマンドライン文字列からの分割と UTF-8 変換）と wargv からの変換を実装してテストする
+- [x] 3.2 Windows の argv の取得（コマンドライン文字列からの分割と UTF-8 変換）と wargv からの変換を実装してテストする
   - UTF-16 の文字列の列を UTF-8 に変換して 1 ブロックのハンドルにする内部関数を作る。長さ 0 の要素は変換関数を呼ばない。添字の小さい順に検査し、最初の不正な UTF-16 の要素の添字で失敗のハンドルを返す。不正な UTF-16 を置換しない。サイズ計算は core の桁あふれ検査を通す
   - コマンドライン文字列から、分割（数える → 作業バッファの確保 → 埋める）→ 変換 → 作業バッファの解放を行う内部関数を作る。文字列が NULL ならコマンドライン取得失敗のハンドルを返す。要素数が int に収まらなければメモリ不足とする
   - 公開の取得関数は、渡された argc / argv を読まず、プロセスのコマンドライン文字列でこの内部関数を呼ぶ。wargv 変換関数は変換の内部関数を呼ぶ
@@ -118,3 +118,4 @@
 - 2.2: `clopts_platform_argv_failure` に OUT_OF_MEMORY を渡すと確保せずに番兵を返す。それ以外の状態では添字は INVALID_UTF16 のときだけ保持し、ほかは -1。パススルーは `argv[argc] == NULL` を assert で確かめる
 - 2.3: `reserve_value` / `reserve_wide` は伸ばすとき中身を写さない（新しく確保して古い方を解放する）。3.3 で wide バッファに名前と値を続けて置くなら、伸ばした後に名前を変換し直すか、名前と値の合計を一度に確保すること。`clopts_platform_env_fail` は `kind != NONE` と `name != NULL` を assert する
 - 3.1: test_argv.c と test_env.c は `NAOS_SUITE` を `#ifndef _WIN32` / `#else` の 2 つに分けた（マクロ引数に `#ifdef` を置けないため）。3.2 / 3.3 の Windows のテストは `#else` 側の一覧に足す。Windows 以外の確認は Linux（gcc、静的・共有）で行った
+- 3.2: MSVC は手元にないため、Windows の確認は MinGW-w64（msvcrt）+ wine の静的・共有で行い、MSVC は CI に委ねた。wine の `__argv` と分割結果の食い違いは見つからなかった。test_argv.c の `#ifndef __argc` の回避（`__p___argc` / `__p___argv` を宣言してマクロを定義）は MinGW では働かない。MSVC で働くと dllimport なしの再宣言で C4273（/WX でエラー）になりうるので、CI で失敗したら `__MINGW32__` に限るなどで直す。4.2 の probe も同じ回避を使う
