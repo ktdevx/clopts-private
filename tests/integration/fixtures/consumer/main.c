@@ -9,7 +9,9 @@
  *     (or /W4 /WX) leaking into this target, the build would fail.
  *
  * consumer_parse_check() runs declaration -> parse -> lookup -> release with
- * public functions only.
+ * public functions only. consumer_help_check() calls the five text writers
+ * of clopts/help.h through the umbrella header (in a shared build, each call
+ * must resolve against an exported symbol).
  */
 #include <clopts/clopts.h>
 
@@ -69,6 +71,52 @@ static int consumer_parse_check(void)
     return failed;
 }
 
+/* Write callback that discards the bytes; ctx is unused. */
+static int consumer_discard(void *ctx, const char *data, size_t len)
+{
+    (void)ctx;
+    (void)data;
+    (void)len;
+    return 0;
+}
+
+/* Returns 1 when status is one of the three values of clopts_write_status_t. */
+static int consumer_write_status_valid(clopts_write_status_t status)
+{
+    return (status == CLOPTS_WRITE_OK) || (status == CLOPTS_WRITE_FAILED) || (status == CLOPTS_WRITE_UNAVAILABLE);
+}
+
+/*
+ * Calls each of the five text writers once on the program "consumer" and
+ * checks that it returns a clopts_write_status_t value. The text itself is
+ * not checked here. Returns 0 on success, non-zero on any mismatch.
+ */
+static int consumer_help_check(void)
+{
+    clopts_program_t *program;
+    clopts_result_t *result;
+    int failed = 0;
+
+    program = clopts_program_new("consumer");
+    if (program == NULL)
+    {
+        return 1;
+    }
+    result = clopts_program_validate(program);
+    if (!consumer_write_status_valid(clopts_write_help(program, NULL, consumer_discard, NULL)) ||
+        !consumer_write_status_valid(clopts_write_usage(program, NULL, consumer_discard, NULL)) ||
+        !consumer_write_status_valid(clopts_write_version(program, consumer_discard, NULL)) ||
+        !consumer_write_status_valid(clopts_write_usage_hint(program, NULL, consumer_discard, NULL)) ||
+        !consumer_write_status_valid(clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR,
+                                                        consumer_discard, NULL)))
+    {
+        failed = 1;
+    }
+    clopts_result_free(result);
+    clopts_program_free(program);
+    return failed;
+}
+
 int main(int argc, char **argv)
 {
     static const char line[] = "clopts consumer: ok\n";
@@ -82,6 +130,10 @@ int main(int argc, char **argv)
         return 1;
     }
     if (consumer_parse_check() != 0)
+    {
+        return 1;
+    }
+    if (consumer_help_check() != 0)
     {
         return 1;
     }

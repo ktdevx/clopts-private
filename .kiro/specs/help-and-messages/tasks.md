@@ -1,7 +1,7 @@
 # Implementation Plan
 
 - [ ] 1. 基盤: 公開契約、モジュールとテストの骨格
-- [ ] 1.1 文面生成の公開ヘッダと help モジュールの骨格を用意し、ライブラリに登録する
+- [x] 1.1 文面生成の公開ヘッダと help モジュールの骨格を用意し、ライブラリに登録する
   - 公開ヘッダに、文面生成の 5 関数、戻り値の 3 値の列挙、接頭辞の 2 つのビットフラグを設計どおりに宣言する。全関数に export の印を付け、`extern "C"` とヘッダガードで囲み、構造体の定義を置かない。傘ヘッダから include する
   - `src/help/` を作り、モジュール追加ヘルパで `clopts` ターゲットに登録する（`src/CMakeLists.txt` で parser の後に追加）。内部ヘッダに、出力器・幅・文面表の内部関数を設計どおり宣言する。include してよいのは公開ヘッダ、宣言モデルの内部ヘッダ、core の内部ヘッダだけとする
   - 3 つのソースファイル（出力器、レイアウト、メッセージ）を作る。中身は、宣言済みの外部リンケージの関数のスタブだけにする（公開 5 関数は何も書かずに UNAVAILABLE を返し、未使用の引数は `(void)` で捨てる）。`<stdio.h>` と `<stdlib.h>` を include しない
@@ -78,3 +78,6 @@
   - 完了条件: 両ビルド形式で `ctest --output-on-failure` が全件通る
   - _Depends: 3.3, 4.2_
   - _Requirements: 10.4, 10.5, 10.6, 11.3, 11.4, 11.5, 11.8, 12.5_
+
+## Implementation Notes
+- 1.1: 公開 5 関数の呼び出し確認は tests/integration/fixtures/consumer/main.c の consumer_help_check()（戻り値が 3 値のどれかであることだけを見る）。位置引数の表記は help_layout.c の static 関数で、内部ヘッダには宣言しない。ローカルは MSVC のみ（build / build-shared、--config Debug）
