@@ -376,6 +376,11 @@ flowchart TB
   - 警告は CLOpts の C の設定に対応させる: GCC / Clang / AppleClang は `-Wall -Wextra -Wpedantic -Werror`、MSVC は `/W4 /WX /utf-8 /Zc:preprocessor /Zc:__cplusplus /EHsc`（5.4）。
   - `add_subdirectory(${CLOPTS_SOURCE_DIR} clopts)` で CLOpts を取り込み（`CLOPTS_BUILD_TESTING=OFF` は `run_fixture.cmake` が渡す）、リンク検査の実行ファイル `abi_link_check` を作る。その翻訳単位 `link_check.cpp` は構成時に一覧から生成し、`#include "clopts/clopts.h"` の後、一覧の全シンボルのアドレスを `reinterpret_cast<void (*)(void)>(&<name>)` の配列に入れ、`main` で配列の要素数を返す。OS の注記 `windows` の付いた名前は `#ifdef _WIN32` / `#endif` で囲んで生成する。`CLOpts::clopts` にリンクする（5.3）。関数が C++ のリンケージで宣言されていると、修飾された名前が解決できずリンクで失敗する。一覧にあってヘッダにない名前はコンパイルで失敗する。
 - 実行はしない（`build_ok`）。Windows の共有版でも DLL を実行ファイルの横に置く必要がない。
+- 実装で決めた点（2026-11-08 追記。理由は tasks.md の Implementation Notes 2.4）:
+  - CLOpts は C と CXX のどちらでも `add_subdirectory(${CLOPTS_SOURCE_DIR} clopts EXCLUDE_FROM_ALL)` で取り込む。ヘッダごとの検査のオブジェクトライブラリは `CLOpts::clopts` にリンクせず、`$<TARGET_PROPERTY:clopts,INTERFACE_INCLUDE_DIRECTORIES>` と `INTERFACE_COMPILE_DEFINITIONS` を受け取る（利用側と同じく、静的版では `CLOPTS_STATIC` が付き、共有版では付かない）。リンクすると CLOpts 本体のソースが先にコンパイルされて失敗し、`check_<header>` の名前が出力に出ないため。
+  - CXX では `add_dependencies(clopts abi_header_check)` で、ヘッダの検査を CLOpts 本体より先にコンパイルする。
+  - 翻訳単位は、ヘッダが include する `clopts/` のヘッダの数の少ない順（同じなら名前順）に並べ、壊れたヘッダ自身の `check_<header>` が傘ヘッダより先に失敗するようにする。
+  - `extern "C"` が欠けたときの失敗は、`check_<header>.cpp` ではなく `abi_link_check` の修飾名の未定義参照として出る。
 
 **Dependencies**
 - Inbound: AbiTestRegistration (P0)
