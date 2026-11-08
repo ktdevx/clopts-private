@@ -9,7 +9,7 @@
   - 完了条件: 静的ビルドと共有ビルドの両方が `CLOPTS_WERROR=ON` で警告なく通る。傘ヘッダだけを include した C と C++ のファイルがコンパイルできる。既存の `ctest` がすべて通る
   - _Requirements: 1.5, 3.3, 4.3, 6.6, 8.3, 8.4, 8.6_
 
-- [ ] 1.2 platform のテスト骨格と、符号単位の配列を作る補助を用意する
+- [x] 1.2 platform のテスト骨格と、符号単位の配列を作る補助を用意する
   - `tests/platform/` を作り、テスト登録ヘルパで登録する（`tests/CMakeLists.txt` で help の後に追加）。全 OS のスイート（split、argv、env、oom）と Windows だけのスイート（convert、crt）のファイルを作り、エントリファイルでの宣言と登録をここで一度に済ませる（Windows だけのスイートは `_WIN32` の条件の中）。以降のタスクは、自分のスイートのファイルだけを編集する
   - スイート env のファイルは、Windows 以外で `setenv` / `unsetenv` が C99（言語拡張オフ、`-Werror`）でも宣言されるよう、ファイルの先頭（すべての include の前）に `_POSIX_C_SOURCE 200112L` を定義しておく
   - 補助: ASCII 文字列または符号単位の列から、内部の 16 bit 型の NUL 終端配列を作る関数と、分割結果を期待する文字列の列と比べる関数
@@ -113,3 +113,4 @@
 ## Implementation Notes
 - 検証環境: Linux（gcc、静的・共有）と、MinGW-w64（Ubuntu の msvcrt 系）+ wine 9 によるクロスビルド。MSVC は手元にない。wine 上の ctest は遅いので `-L platform -j8` に絞る。クロスビルドでは integration が以前から失敗する（入れ子の configure がクロスに対応しない）
 - 1.1: 番兵 `platform_argv_oom` は platform_argv.c で実装済み（static const を非 const で返す）。分割のスタブは `*argc = 0` を返すが、2.1 で契約（`*argc >= 1`）を満たすこと
+- 1.2: 補助は tests/platform/test_util.{h,c}。呼び出し側が持つ固定長バッファ `platform_test_u16_t`（容量 `PLATFORM_TEST_U16_CAP` = 1024 単位）に `platform_test_u16_from_ascii` / `_from_units` で作る。容量超過は NDEBUG でも `abort`。1023 単位を超える入力（3.3 の数 KB の値など）は自前で確保すること。分割の比較は `platform_test_split_mismatch`（一致で -1）。convert / crt のファイルは CMake の `if(WIN32)` でだけビルドし、エントリは `#ifdef _WIN32` / `#else` で NAOS_MAIN を 2 つ持つ
