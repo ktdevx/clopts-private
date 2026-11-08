@@ -180,9 +180,229 @@ endfunction()
 
 # ---- MODE=compare ----------------------------------------------------------
 
+# Prints the status line "abi-compare: <state>: <reason>", then <details>
+# (if any) and fails. Nothing else is printed before the status line, so it is
+# the first line of the output.
+function(_run_abidiff_fail state reason details)
+    message("abi-compare: ${state}: ${reason}")
+    if(NOT "${details}" STREQUAL "")
+        message("${details}")
+    endif()
+    message(FATAL_ERROR " abi-compare: ${state}: ${reason}")
+endfunction()
+
+# Runs a command and stores its exit status and combined output.
+function(_run_abidiff_run out_result out_output)
+    execute_process(
+        COMMAND ${ARGN}
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE output
+    )
+    set(${out_result} "${result}" PARENT_SCOPE)
+    set(${out_output} "${output}" PARENT_SCOPE)
+endfunction()
+
+# _run_abidiff_build(<side> <source_dir> <work_dir> <out_prefix>)
+#
+# Configures, builds and installs <source_dir> as a shared library with debug
+# information into <work_dir>/<side>-prefix (requirement 6.4). Both sides use
+# the same generator (GENERATOR) and C compiler (C_COMPILER, else env CC).
+# Fails with the output of the failing step (requirement 6.8).
+function(_run_abidiff_build side source_dir work_dir out_prefix)
+    set(build_dir "${work_dir}/${side}-build")
+    set(prefix_dir "${work_dir}/${side}-prefix")
+
+    set(configure_args
+        -S "${source_dir}" -B "${build_dir}"
+        -DCLOPTS_BUILD_SHARED=ON
+        -DCLOPTS_BUILD_TESTING=OFF
+        -DCLOPTS_INSTALL=ON
+        -DCMAKE_BUILD_TYPE=Debug
+        "-DCMAKE_INSTALL_PREFIX=${prefix_dir}")
+    if(NOT "${GENERATOR}" STREQUAL "")
+        list(APPEND configure_args -G "${GENERATOR}")
+    endif()
+    set(compiler "${C_COMPILER}")
+    if("${compiler}" STREQUAL "")
+        set(compiler "$ENV{CC}")
+    endif()
+    if(NOT "${compiler}" STREQUAL "")
+        list(APPEND configure_args "-DCMAKE_C_COMPILER=${compiler}")
+    endif()
+
+    _run_abidiff_run(result output "${CMAKE_COMMAND}" ${configure_args})
+    if(NOT result EQUAL 0)
+        _run_abidiff_fail("tool error"
+            "configuring the ${side} sources failed (exit status ${result})" "${output}")
+    endif()
+    _run_abidiff_run(result output
+        "${CMAKE_COMMAND}" --build "${build_dir}" --config Debug --parallel)
+    if(NOT result EQUAL 0)
+        _run_abidiff_fail("tool error"
+            "building the ${side} sources failed (exit status ${result})" "${output}")
+    endif()
+    _run_abidiff_run(result output
+        "${CMAKE_COMMAND}" --install "${build_dir}" --config Debug)
+    if(NOT result EQUAL 0)
+        _run_abidiff_fail("tool error"
+            "installing the ${side} build failed (exit status ${result})" "${output}")
+    endif()
+    set(${out_prefix} "${prefix_dir}" PARENT_SCOPE)
+endfunction()
+
+# _run_abidiff_find_library(<side> <prefix> <out_var>)
+#
+# Sets <out_var> to the one real (non-symlink) libclopts.so.* under
+# <prefix>/lib*/. Fails when there is none or more than one.
+function(_run_abidiff_find_library side prefix out_var)
+    file(GLOB candidates LIST_DIRECTORIES false "${prefix}/lib*/libclopts.so.*")
+    set(found "")
+    foreach(candidate IN LISTS candidates)
+        if(NOT IS_SYMLINK "${candidate}")
+            list(APPEND found "${candidate}")
+        endif()
+    endforeach()
+    list(LENGTH found found_count)
+    if(NOT found_count EQUAL 1)
+        string(REPLACE ";" "\n " found_text "${found}")
+        _run_abidiff_fail("tool error"
+            "expected exactly one non-symlink libclopts.so.* under ${prefix}/lib*/ for the ${side} build, found ${found_count}"
+            " ${found_text}")
+    endif()
+    set(${out_var} "${found}" PARENT_SCOPE)
+endfunction()
+
 function(_run_abidiff_compare)
-    message(FATAL_ERROR
-        "abi-compare: tool error: MODE=compare is not implemented yet")
+    foreach(var IN ITEMS SOURCE_DIR WORK_DIR)
+        if("${${var}}" STREQUAL "")
+            _run_abidiff_fail("tool error"
+                "required variable ${var} is not set (see tests/abi/run_abidiff.cmake)" "")
+        endif()
+    endforeach()
+    get_filename_component(source_dir "${SOURCE_DIR}" ABSOLUTE)
+    get_filename_component(work_dir "${WORK_DIR}" ABSOLUTE)
+
+    # WORK_DIR is removed below; never let that touch the repository.
+    file(RELATIVE_PATH source_from_work "${work_dir}" "${source_dir}")
+    file(RELATIVE_PATH work_from_source "${source_dir}" "${work_dir}")
+    if(NOT source_from_work MATCHES "^\\.\\.(/|$)" OR work_from_source STREQUAL "")
+        _run_abidiff_fail("tool error"
+            "WORK_DIR '${work_dir}' must not contain or be SOURCE_DIR '${source_dir}'" "")
+    endif()
+
+    file(REMOVE_RECURSE "${work_dir}")
+    file(MAKE_DIRECTORY "${work_dir}")
+
+    # 1. The current version from project(clopts VERSION x.y.z ...).
+    set(lists_file "${source_dir}/CMakeLists.txt")
+    if(NOT EXISTS "${lists_file}")
+        _run_abidiff_fail("tool error"
+            "cannot read the version: ${lists_file} does not exist" "")
+    endif()
+    file(READ "${lists_file}" lists_text)
+    if(NOT lists_text MATCHES
+            "project[ \t\r\n]*\\([ \t\r\n]*clopts[ \t\r\n]+VERSION[ \t\r\n]+([0-9]+)\\.([0-9]+)\\.([0-9]+)[ \t\r\n)]")
+        _run_abidiff_fail("tool error"
+            "cannot read the version from project(clopts VERSION x.y.z ...) in ${lists_file}" "")
+    endif()
+    set(current_major "${CMAKE_MATCH_1}")
+    set(current_version "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
+
+    # 2. Nothing to compare against before 1.0.0 (requirement 6.3).
+    if(current_major EQUAL 0)
+        message("abi-compare: skipped: version ${current_version} is before 1.0.0")
+        return()
+    endif()
+
+    # 3. The baseline tag (requirements 6.2, 6.3).
+    find_program(_run_abidiff_git git)
+    if(NOT _run_abidiff_git)
+        _run_abidiff_fail("tool error" "git was not found" "")
+    endif()
+    execute_process(
+        COMMAND "${_run_abidiff_git}" -C "${source_dir}" tag --list "v*"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE tag_output
+        ERROR_VARIABLE tag_error
+    )
+    if(NOT result EQUAL 0)
+        _run_abidiff_fail("tool error"
+            "git tag --list failed in ${source_dir} (exit status ${result})"
+            "${tag_output}${tag_error}")
+    endif()
+    # One tag per line. A line with ";" would split into several list
+    # elements, so drop it (no such name can be a release tag anyway).
+    string(REGEX REPLACE "[^\n]*;[^\n]*" "" tag_output "${tag_output}")
+    string(REGEX REPLACE "[\r\n]+" ";" tags "${tag_output}")
+    select_baseline("${current_version}" "${tags}" baseline_tag)
+    if("${baseline_tag}" STREQUAL "")
+        message("abi-compare: skipped: no release tag with SOVERSION ${current_major}")
+        return()
+    endif()
+
+    # abidiff is required from here on (requirement 6.8); check it before
+    # spending time on the builds.
+    find_program(_run_abidiff_abidiff abidiff)
+    if(NOT _run_abidiff_abidiff)
+        _run_abidiff_fail("tool error"
+            "abidiff was not found (install libabigail, e.g. the abigail-tools package)" "")
+    endif()
+
+    # 4. Export the baseline sources without touching the work tree or tags.
+    set(archive "${work_dir}/baseline.tar")
+    set(baseline_src "${work_dir}/baseline-src")
+    _run_abidiff_run(result output
+        "${_run_abidiff_git}" -C "${source_dir}" archive --format=tar
+        "--output=${archive}" "refs/tags/${baseline_tag}")
+    if(NOT result EQUAL 0)
+        _run_abidiff_fail("tool error"
+            "git archive of ${baseline_tag} failed (exit status ${result})" "${output}")
+    endif()
+    file(MAKE_DIRECTORY "${baseline_src}")
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E tar xf "${archive}"
+        WORKING_DIRECTORY "${baseline_src}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE output
+    )
+    if(NOT result EQUAL 0)
+        _run_abidiff_fail("tool error"
+            "extracting ${archive} failed (exit status ${result})" "${output}")
+    endif()
+
+    # 5. Build and install both sides the same way (requirement 6.4).
+    _run_abidiff_build(baseline "${baseline_src}" "${work_dir}" baseline_prefix)
+    _run_abidiff_build(current "${source_dir}" "${work_dir}" current_prefix)
+
+    # 6. The real shared library of each side.
+    _run_abidiff_find_library(baseline "${baseline_prefix}" baseline_lib)
+    _run_abidiff_find_library(current "${current_prefix}" current_lib)
+
+    # 7. Compare with the public headers as the API scope (requirement 6.5).
+    _run_abidiff_run(code report
+        "${_run_abidiff_abidiff}"
+        --headers-dir1 "${baseline_prefix}/include"
+        --headers-dir2 "${current_prefix}/include"
+        --drop-private-types
+        "${baseline_lib}" "${current_lib}")
+
+    # 8. Classify and always show the report (requirements 6.6-6.8).
+    classify_exit_code("${code}" verdict)
+    set(report_text
+        "---- abidiff ${baseline_tag} (${baseline_lib}) -> current ${current_version} (${current_lib}): exit status ${code} ----\n${report}---- end of abidiff output ----")
+    if(verdict STREQUAL "compatible")
+        message("abi-compare: compatible: no incompatible ABI change from ${baseline_tag} to ${current_version} (abidiff exit status ${code})")
+        message("${report_text}")
+    elseif(verdict STREQUAL "incompatible")
+        _run_abidiff_fail("incompatible"
+            "incompatible ABI change from ${baseline_tag} to ${current_version} (abidiff exit status ${code})"
+            "${report_text}")
+    else()
+        _run_abidiff_fail("tool error"
+            "abidiff failed (exit status ${code})" "${report_text}")
+    endif()
 endfunction()
 
 # ---- Entry point ------------------------------------------------------------

@@ -54,7 +54,7 @@
   - _Boundary: AbiCompareScript_
   - _Requirements: 6.2, 6.3, 6.6, 6.7, 6.8_
 
-- [ ] 2.6 abidiff 比較スクリプトの比較の経路を実装する
+- [x] 2.6 abidiff 比較スクリプトの比較の経路を実装する
   - `MODE=compare`: `project(clopts VERSION ...)` から版を読み（読めなければ失敗）、1.0.0 未満または基準がなければ `abi-compare: skipped: <理由>` を出して成功する
   - 基準のタグを `git archive` と `cmake -E tar` で `<WORK_DIR>/baseline-src` に取り出し、基準と現在のそれぞれを共有・テストなし・install あり・`CMAKE_BUILD_TYPE=Debug`・同じ生成器と C コンパイラで構成・ビルド・install する。失敗したらその出力を添えて失敗する。`<WORK_DIR>` は毎回作り直し、リポジトリの状態を変えない
   - install 先の `lib*/` からシンボリックリンクでない `libclopts.so.*` の実体を 1 つ見つけ（0 個か複数なら失敗）、`abidiff --headers-dir1 --headers-dir2 --drop-private-types` を実行する。`abidiff` がなければ失敗する。結果を `classify_exit_code` で判定し、最初の行に状態を出し、abidiff の出力を常に表示する
@@ -122,3 +122,4 @@
 - 2.3: `check_header_rules.cmake` は `static` でない本体付きの関数定義も本体の閉じで文を終え、`CLOPTS_API` なしとして報告する。波括弧の不整合も違反として報告する。扱わない構文はスクリプト先頭の注釈にあり、4.2 で `docs/dev/abi-checks.md` に写す
 - 2.4: 子プロジェクトは CLOpts を `EXCLUDE_FROM_ALL` で取り込み、ヘッダごとの検査は `$<TARGET_PROPERTY:clopts,INTERFACE_*>` で include と `CLOPTS_STATIC` を受け取る（リンクすると CLOpts 本体が先に失敗して `check_<header>` が出ないため）。CXX では `add_dependencies(clopts abi_header_check)` でヘッダ検査を先にコンパイルする。`extern "C"` の欠落は `abi_link_check` の未定義参照（修飾名）で報告される。MSVC / AppleClang / MinGW は CI で確かめる
 - 2.5: `MODE` を省くと compare（設計どおり）。終了コードの判定は設計の表の順に評価するので、8 と未知のビットが同時に立つ 24 は incompatible になる（どちらでもジョブは失敗する）。`select_baseline` はタグを CMake のリストで受け取るので、2.6 で `git tag --list` の行を分けて渡す
+- 2.6: `MODE=compare` は `SOURCE_DIR` と `WORK_DIR` を必須にする（3.2 の CI でも `-DSOURCE_DIR=$GITHUB_WORKSPACE` を渡す）。`WORK_DIR` が `SOURCE_DIR` を含むか同じなら拒む（設計外の防御）。基準と現在のビルドは最上位なので `CLOPTS_WERROR` が ON になり、新しい gcc で古いタグが警告を出すと tool error になる（4.2 の文書に注意として書く）。手元の clone で compatible（0 と 4）、incompatible（12）、tool error、no tag の skipped を確認済み
