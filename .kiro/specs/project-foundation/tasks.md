@@ -169,7 +169,7 @@
   - _Boundary: ToolchainTests_
   - _Requirements: 2.1, 2.2, 2.9, 4.9, 6.1, 6.2, 12.2, 12.3, 12.4, 12.5, 12.6, 15.1, 15.2, 15.3, 15.4_
 
-- [ ] 10.3 (P) integration の利用側テストを両方の形式と C++ に広げ、内部関数が見えないことのテストを足す
+- [x] 10.3 (P) integration の利用側テストを両方の形式と C++ に広げ、内部関数が見えないことのテストを足す
   - ビルドツリーの形式を利用側 fixture に渡し、`CLOpts::clopts` の型が期待と一致することを構成時に確かめる。install 経路では、ビルドツリーの形式を選ぶよう指定して `find_package` する
   - 利用側 fixture の `main.c` は 8 で新しい既製のコールバックに移した状態から始める
   - 利用側 fixture で C++ を有効にし、公開の傘ヘッダを include して既製のコールバックを使う C++ の翻訳単位を足す
@@ -214,3 +214,4 @@
 - MSVC の `/W4 /WX` では `(char)0xFF` のような定数の切り捨てキャストが C4310 でエラーになる。バイト値は `'\xFF'` のような文字リテラルで書く。CI の 5 環境（windows-latest は Visual Studio 18 2026）で全 31 テストが通ることを確認済み。
 - （改訂 9）package config は、形式を指定しない 2 回目の `find_package` では既に読み込まれた形式をそのまま使う（失敗するのは明示のコンポーネントが異なるときだけ）。二重読み込みの判定は `TARGET CLOpts::clopts` の有無なので、兄弟ディレクトリで別々の形式を読み込むと両方成功する（IMPORTED ターゲットはディレクトリスコープ）。`OPTIONAL_COMPONENTS static|shared` も明示の要求として扱う。
 - （改訂 10.1）`run_fixture.cmake` の `FAIL_REGEX` は CMake の `MATCHES` で照合する（`\d` などは使えない）。stdout と stderr をまとめた出力が対象。`FAIL_REGEX` は `build_fail` / `configure_fail` 以外と組み合わせると構成エラーになる。
+- （改訂 10.3）`run_fixture.cmake` は C コンパイラだけを子に渡すので、consumer fixture の C++ は既定の C++ コンパイラ（Clang の構成でも g++）でビルドされる。`consumer_cpp.cpp` は `&clopts_parse` を volatile ポインタに入れて、C++ からの C リンケージ（と Windows の dllimport）を実際にリンクで検査する。
