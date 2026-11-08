@@ -81,7 +81,7 @@ Monde 版の強みである「宣言を 1 か所に書けば、解析とヘル�
 ## Specs (dependency order)
 - [x] project-foundation -- CMake 骨格（ターゲット単位の警告と C99、`PROJECT_IS_TOP_LEVEL` ガード、install/export と package config、`CLOpts::clopts` エイリアス）、Naos の固定取り込み、CI マトリクス、内部ユーティリティ（可変長配列、書き込みコールバック型と `FILE*` ライタ）。Dependencies: none（共有ライブラリ化の改訂は Existing Spec Updates を参照）
 - [x] core-parser -- ビルダー API と不透明ハンドルによる宣言、走査器、結果ハンドル（初版の静的宣言テーブルから作り直し済み。Existing Spec Updates を参照）。Dependencies: project-foundation
-- [ ] help-and-messages -- 書き込みコールバックへのヘルプ・使い方・バージョン・エラー文面の生成、桁揃え、`FILE*` 便宜手段。program / command / result のハンドルを受け取り、内部の宣言モデルを読む。Dependencies: core-parser（更新後）
+- [x] help-and-messages -- 書き込みコールバックへのヘルプ・使い方・バージョン・エラー文面の生成、桁揃え、`FILE*` 便宜手段。program / command / result のハンドルを受け取り、内部の宣言モデルを読む。Dependencies: core-parser（更新後）
 - [ ] platform-argv -- Windows での UTF-8 argv の取得（`GetCommandLineW` を現行 MSVC CRT の規則で自前分割し、UTF-16 から UTF-8 へ変換）、`wmain` 利用者向けの `wargv` 変換、環境変数の UTF-8 取得（core-parser の環境変数コールバックとして差し込める）。取得した argv はライブラリが所有し、解放する。Dependencies: project-foundation（更新後）, core-parser（更新後）
 - [ ] abi-compat -- ABI 互換の方針（SOVERSION の規則、互換を保つ変更と壊す変更）、公開シンボル一覧と全 OS の共有ビルドでの照合、公開ヘッダに構造体の定義がないことの検査、Linux での abidiff（直近のリリースタグを CI で作り直して比べる。1.0.0 以降に有効）。Dependencies: project-foundation（更新後）, core-parser（更新後）
 - [ ] docs-and-release -- README、API リファレンス、ABI 方針と静的／共有の使い分けの文書、サンプルプログラム、FetchContent と find_package の両経路・両形式での利用テスト、リリース手順（ABI 検査の基準の扱いを含む）。Dependencies: core-parser, help-and-messages, platform-argv, abi-compat
