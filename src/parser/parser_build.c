@@ -2,10 +2,14 @@
  * Builder: the public functions of clopts/decl.h, the immediate checks, the
  * recording of the first error, freezing and the release of a program.
  *
- * Implemented: the common prologue of every builder call, the program block,
- * the adders, the setters, the recording of OUT_OF_MEMORY and the release.
- * Task 6.1 adds the immediate checks (the rule table of the design) to each
- * builder function.
+ * Every builder function runs the common prologue, then the rows of the
+ * immediate check table of the design that belong to it, in table order. The
+ * first rule that holds is recorded as the declaration error of the program
+ * (the root is reported as NULL). An adder still links the new object and
+ * returns it; a setter leaves the attribute unchanged. Resetting an attribute
+ * (NULL, false, '\0' or 0) is not checked, except that making a positional
+ * optional is checked against the required positionals after it. Name rules
+ * and lookup ranges live in parser_decl.c.
  */
 
 #include "parser/parser_internal.h"
@@ -43,17 +47,37 @@ static void build_record_oom(clopts_program_t *program)
 }
 
 /*
- * Replaces the owned copy *field with a copy of value (NULL resets it). On
- * allocation failure records OUT_OF_MEMORY and keeps the old copy.
+ * Records a declaration error as the first error of program. command is the
+ * scope of the offending handle; the root is stored as NULL.
  */
-static void build_set_string(clopts_program_t *program, char **field, const char *value)
+static void build_record_decl(clopts_program_t *program, clopts_decl_error_t kind, const clopts_command_t *command,
+                              const clopts_option_t *option, const clopts_positional_t *positional)
 {
-    char *copy;
-
-    if (!build_begin(program))
+    if (program->error.status != CLOPTS_OK)
     {
         return;
     }
+    program->error.status = CLOPTS_DECL_ERROR;
+    program->error.kind = kind;
+    program->error.command = (command == &program->root) ? NULL : (clopts_command_t *)command;
+    program->error.option = (clopts_option_t *)option;
+    program->error.positional = (clopts_positional_t *)positional;
+}
+
+/* True for the kinds that take no value (FLAG / COUNT). */
+static bool build_takes_no_value(clopts_parser_kind_t kind)
+{
+    return ((kind == CLOPTS_PARSER_FLAG) || (kind == CLOPTS_PARSER_COUNT));
+}
+
+/*
+ * Replaces the owned copy *field with a copy of value (NULL resets it),
+ * without the prologue. On allocation failure records OUT_OF_MEMORY and keeps
+ * the old copy.
+ */
+static void build_replace_string(clopts_program_t *program, char **field, const char *value)
+{
+    char *copy;
 
     copy = clopts_parser_strdup(program->probe, value);
     if ((value != NULL) && (copy == NULL))
@@ -63,6 +87,16 @@ static void build_set_string(clopts_program_t *program, char **field, const char
     }
     clopts_parser_free(program->probe, *field);
     *field = copy;
+}
+
+/* Replaces the owned copy *field with a copy of value after the prologue. */
+static void build_set_string(clopts_program_t *program, char **field, const char *value)
+{
+    if (!build_begin(program))
+    {
+        return;
+    }
+    build_replace_string(program, field, value);
 }
 
 /* Sets the empty state of a scope's member vecs. */
@@ -110,6 +144,63 @@ static void build_free_scope(clopts_parser_probe_t *probe, clopts_command_t *sco
 }
 
 /*
+ * True when the lookup range of scope has a negatable FLAG whose long name is
+ * the name_len bytes at name. For the root, each command is asked with its
+ * own range (the command and the root): a name is unique within such a
+ * range, while different commands may share one.
+ */
+static bool build_has_negatable(const clopts_command_t *scope, const char *name, size_t name_len)
+{
+    const clopts_program_t *program = scope->program;
+    const clopts_option_t *found;
+    size_t i;
+
+    if ((scope != &program->root) || (program->commands.len == 0))
+    {
+        found = clopts_parser_find_named(scope, name, name_len);
+        return ((found != NULL) && (found->kind == CLOPTS_PARSER_FLAG) && found->negatable);
+    }
+    for (i = 0; i < program->commands.len; i++)
+    {
+        const clopts_command_t *command = *(clopts_command_t *const *)clopts_core_vec_at(&program->commands, i);
+
+        found = clopts_parser_find_named(command, name, name_len);
+        if ((found != NULL) && (found->kind == CLOPTS_PARSER_FLAG) && found->negatable)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Rows of clopts_command_add_<kind>(scope, l, s), in table order. */
+static clopts_decl_error_t build_check_option(const clopts_command_t *scope, const char *l, char s)
+{
+    if ((l == NULL) && (s == '\0'))
+    {
+        return CLOPTS_DECL_NO_NAME;
+    }
+    if (((l != NULL) && (!clopts_parser_valid_long_name(l))) || ((s != '\0') && (!clopts_parser_valid_short_name(s))))
+    {
+        return CLOPTS_DECL_INVALID_NAME;
+    }
+    if (((l != NULL) && (strcmp(l, "help") == 0))
+        || ((l != NULL) && (scope->program->version != NULL) && (strcmp(l, "version") == 0)) || (s == 'h'))
+    {
+        return CLOPTS_DECL_RESERVED_NAME;
+    }
+    if (clopts_parser_find_conflict(scope, l, s) != NULL)
+    {
+        return CLOPTS_DECL_DUPLICATE_OPTION;
+    }
+    if ((l != NULL) && (strncmp(l, "no-", 3) == 0) && build_has_negatable(scope, l + 3, strlen(l) - 3))
+    {
+        return CLOPTS_DECL_NEGATION_CONFLICT;
+    }
+    return CLOPTS_DECL_NONE;
+}
+
+/*
  * Adds an option of kind to scope: allocates it, links it to scope->options
  * and then copies the long name, so that everything allocated stays
  * reachable from the program on failure.
@@ -119,6 +210,7 @@ static clopts_option_t *build_add_option(clopts_command_t *scope, clopts_parser_
 {
     clopts_program_t *program;
     clopts_option_t *option;
+    clopts_decl_error_t error;
 
     if (scope == NULL)
     {
@@ -129,6 +221,8 @@ static clopts_option_t *build_add_option(clopts_command_t *scope, clopts_parser_
     {
         return NULL;
     }
+    /* Checked before linking, so that the new option does not match itself. */
+    error = build_check_option(scope, long_name, short_name);
 
     option = (clopts_option_t *)clopts_parser_calloc(program->probe, 1, sizeof(*option));
     if (option == NULL)
@@ -163,6 +257,10 @@ static clopts_option_t *build_add_option(clopts_command_t *scope, clopts_parser_
     {
         build_record_oom(program);
         return NULL;
+    }
+    if (error != CLOPTS_DECL_NONE)
+    {
+        build_record_decl(program, error, scope, option, NULL);
     }
     return option;
 }
@@ -230,6 +328,10 @@ clopts_program_t *clopts_program_new(const char *name)
     program->error.option = NULL;
     program->error.positional = NULL;
     program->probe = NULL;
+    if (!clopts_parser_valid_command_name(name))
+    {
+        build_record_decl(program, CLOPTS_DECL_INVALID_NAME, NULL, NULL, NULL);
+    }
     return program;
 }
 
@@ -261,11 +363,22 @@ void clopts_program_free(clopts_program_t *program)
 
 void clopts_program_set_version(clopts_program_t *program, const char *version)
 {
-    if (program == NULL)
+    const clopts_option_t *taken;
+
+    if (!build_begin(program))
     {
         return;
     }
-    build_set_string(program, &program->version, version);
+    if (version != NULL)
+    {
+        taken = clopts_parser_find_conflict(&program->root, "version", '\0');
+        if (taken != NULL)
+        {
+            build_record_decl(program, CLOPTS_DECL_RESERVED_NAME, taken->scope, taken, NULL);
+            return;
+        }
+    }
+    build_replace_string(program, &program->version, version);
 }
 
 clopts_command_t *clopts_program_root(clopts_program_t *program)
@@ -277,15 +390,39 @@ clopts_command_t *clopts_program_root(clopts_program_t *program)
     return &program->root;
 }
 
+/* Rows of clopts_program_add_command(name), in table order. */
+static clopts_decl_error_t build_check_command(const clopts_program_t *program, const char *name)
+{
+    if (!clopts_parser_valid_command_name(name))
+    {
+        return CLOPTS_DECL_INVALID_NAME;
+    }
+    if (strcmp(name, "help") == 0)
+    {
+        return CLOPTS_DECL_RESERVED_NAME;
+    }
+    if (clopts_parser_find_command(program, name) != NULL)
+    {
+        return CLOPTS_DECL_DUPLICATE_COMMAND;
+    }
+    if ((program->root.positionals.len > 0) || (program->root.handler != NULL))
+    {
+        return CLOPTS_DECL_MIXED_LAYOUT;
+    }
+    return CLOPTS_DECL_NONE;
+}
+
 clopts_command_t *clopts_program_add_command(clopts_program_t *program, const char *name)
 {
     clopts_command_t *command;
     char *name_copy;
+    clopts_decl_error_t error;
 
     if (!build_begin(program))
     {
         return NULL;
     }
+    error = build_check_command(program, name);
 
     command = (clopts_command_t *)clopts_parser_calloc(program->probe, 1, sizeof(*command));
     if (command == NULL)
@@ -310,6 +447,10 @@ clopts_command_t *clopts_program_add_command(clopts_program_t *program, const ch
         return NULL;
     }
     command->name = name_copy;
+    if (error != CLOPTS_DECL_NONE)
+    {
+        build_record_decl(program, error, command, NULL, NULL);
+    }
     return command;
 }
 
@@ -339,6 +480,11 @@ void clopts_command_set_handler(clopts_command_t *command, clopts_handler_fn han
     {
         return;
     }
+    if ((handler != NULL) && (command == &command->program->root) && (command->program->commands.len > 0))
+    {
+        build_record_decl(command->program, CLOPTS_DECL_MIXED_LAYOUT, NULL, NULL, NULL);
+        return;
+    }
     command->handler = handler;
     command->userdata = userdata;
 }
@@ -363,10 +509,37 @@ clopts_option_t *clopts_command_add_list(clopts_command_t *scope, const char *lo
     return build_add_option(scope, CLOPTS_PARSER_LIST, long_name, short_name);
 }
 
+/* Returns positional index of scope. */
+static clopts_positional_t *build_positional_at(const clopts_command_t *scope, size_t index)
+{
+    return *(clopts_positional_t **)clopts_core_vec_at(&scope->positionals, index);
+}
+
+/* Rows of clopts_command_add_positional(scope, n), in table order. */
+static clopts_decl_error_t build_check_positional(const clopts_command_t *scope, const char *name)
+{
+    const clopts_program_t *program = scope->program;
+
+    if ((name == NULL) || (name[0] == '\0'))
+    {
+        return CLOPTS_DECL_INVALID_NAME;
+    }
+    if ((scope == &program->root) && (program->commands.len > 0))
+    {
+        return CLOPTS_DECL_MIXED_LAYOUT;
+    }
+    if ((scope->positionals.len > 0) && build_positional_at(scope, scope->positionals.len - 1)->variadic)
+    {
+        return CLOPTS_DECL_VARIADIC_POSITION;
+    }
+    return CLOPTS_DECL_NONE;
+}
+
 clopts_positional_t *clopts_command_add_positional(clopts_command_t *scope, const char *name)
 {
     clopts_program_t *program;
     clopts_positional_t *positional;
+    clopts_decl_error_t error;
 
     if (scope == NULL)
     {
@@ -377,6 +550,7 @@ clopts_positional_t *clopts_command_add_positional(clopts_command_t *scope, cons
     {
         return NULL;
     }
+    error = build_check_positional(scope, name);
 
     positional = (clopts_positional_t *)clopts_parser_calloc(program->probe, 1, sizeof(*positional));
     if (positional == NULL)
@@ -405,6 +579,10 @@ clopts_positional_t *clopts_command_add_positional(clopts_command_t *scope, cons
         build_record_oom(program);
         return NULL;
     }
+    if (error != CLOPTS_DECL_NONE)
+    {
+        build_record_decl(program, error, scope, NULL, positional);
+    }
     return positional;
 }
 
@@ -428,22 +606,48 @@ void clopts_option_set_value_name(clopts_option_t *option, const char *value_nam
     build_set_string(option->program, &option->value_name, value_name);
 }
 
+/* Records kind at option (reported with its scope). */
+static void build_reject_option(clopts_option_t *option, clopts_decl_error_t kind)
+{
+    build_record_decl(option->program, kind, option->scope, option, NULL);
+}
+
 void clopts_option_set_env(clopts_option_t *option, const char *env)
 {
-    if (option == NULL)
+    if (!build_begin_option(option))
     {
         return;
     }
-    build_set_string(option->program, &option->env, env);
+    if ((env != NULL) && build_takes_no_value(option->kind))
+    {
+        build_reject_option(option, CLOPTS_DECL_ENV_NOT_ALLOWED);
+        return;
+    }
+    if ((env != NULL) && (env[0] == '\0'))
+    {
+        build_reject_option(option, CLOPTS_DECL_INVALID_NAME);
+        return;
+    }
+    build_replace_string(option->program, &option->env, env);
 }
 
 void clopts_option_set_default(clopts_option_t *option, const char *default_value)
 {
-    if (option == NULL)
+    if (!build_begin_option(option))
     {
         return;
     }
-    build_set_string(option->program, &option->default_value, default_value);
+    if ((default_value != NULL) && build_takes_no_value(option->kind))
+    {
+        build_reject_option(option, CLOPTS_DECL_DEFAULT_NOT_ALLOWED);
+        return;
+    }
+    if ((default_value != NULL) && option->required)
+    {
+        build_reject_option(option, CLOPTS_DECL_REQUIRED_WITH_DEFAULT);
+        return;
+    }
+    build_replace_string(option->program, &option->default_value, default_value);
 }
 
 void clopts_option_set_required(clopts_option_t *option, bool required)
@@ -452,14 +656,75 @@ void clopts_option_set_required(clopts_option_t *option, bool required)
     {
         return;
     }
+    if (required && build_takes_no_value(option->kind))
+    {
+        build_reject_option(option, CLOPTS_DECL_REQUIRED_NOT_ALLOWED);
+        return;
+    }
+    if (required && (option->default_value != NULL))
+    {
+        build_reject_option(option, CLOPTS_DECL_REQUIRED_WITH_DEFAULT);
+        return;
+    }
     option->required = required;
+}
+
+/*
+ * True when the lookup range of option's scope has an option whose long name
+ * is "no-" followed by option's long name. Returns -1 (and records
+ * OUT_OF_MEMORY) when the name cannot be built.
+ */
+static int build_has_negation_name(clopts_option_t *option)
+{
+    clopts_program_t *program = option->program;
+    size_t len = strlen(option->long_name);
+    size_t size;
+    char *name;
+    int found;
+
+    if (clopts_core_size_add(len, 4, &size) != 0)
+    {
+        build_record_oom(program);
+        return -1;
+    }
+    name = (char *)clopts_parser_malloc(program->probe, size);
+    if (name == NULL)
+    {
+        build_record_oom(program);
+        return -1;
+    }
+    memcpy(name, "no-", 3);
+    memcpy(name + 3, option->long_name, len + 1);
+    found = (clopts_parser_find_named(option->scope, name, len + 3) != NULL) ? 1 : 0;
+    clopts_parser_free(program->probe, name);
+    return found;
 }
 
 void clopts_option_set_negatable(clopts_option_t *option, bool negatable)
 {
+    int conflict = 0;
+
     if (!build_begin_option(option))
     {
         return;
+    }
+    if (negatable && (option->kind != CLOPTS_PARSER_FLAG))
+    {
+        build_reject_option(option, CLOPTS_DECL_NOT_NEGATABLE);
+        return;
+    }
+    if (negatable && (option->long_name != NULL))
+    {
+        conflict = build_has_negation_name(option);
+        if (conflict < 0)
+        {
+            return;
+        }
+        if (conflict > 0)
+        {
+            build_reject_option(option, CLOPTS_DECL_NEGATION_CONFLICT);
+            return;
+        }
     }
     option->negatable = negatable;
 }
@@ -470,6 +735,11 @@ void clopts_option_set_delimiter(clopts_option_t *option, char delimiter)
     {
         return;
     }
+    if ((delimiter != '\0') && (option->kind != CLOPTS_PARSER_LIST))
+    {
+        build_reject_option(option, CLOPTS_DECL_ATTRIBUTE_KIND);
+        return;
+    }
     option->delimiter = delimiter;
 }
 
@@ -477,6 +747,11 @@ void clopts_option_set_count_max(clopts_option_t *option, unsigned count_max)
 {
     if (!build_begin_option(option))
     {
+        return;
+    }
+    if ((count_max != 0) && (option->kind != CLOPTS_PARSER_COUNT))
+    {
+        build_reject_option(option, CLOPTS_DECL_ATTRIBUTE_KIND);
         return;
     }
     option->count_max = count_max;
@@ -493,10 +768,51 @@ void clopts_positional_set_help(clopts_positional_t *positional, const char *hel
     build_set_string(positional->program, &positional->help, help);
 }
 
+/* Records kind at positional (reported with its scope). */
+static void build_reject_positional(clopts_positional_t *positional, clopts_decl_error_t kind)
+{
+    build_record_decl(positional->program, kind, positional->scope, NULL, positional);
+}
+
+/*
+ * True when the order of required positionals breaks if positional becomes
+ * required (an optional one before it) or optional (a required one after it).
+ */
+static bool build_breaks_order(const clopts_positional_t *positional, bool required)
+{
+    const clopts_command_t *scope = positional->scope;
+    size_t i;
+
+    if (required)
+    {
+        for (i = 0; i < positional->index; i++)
+        {
+            if (!build_positional_at(scope, i)->required)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    for (i = positional->index + 1; i < scope->positionals.len; i++)
+    {
+        if (build_positional_at(scope, i)->required)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void clopts_positional_set_required(clopts_positional_t *positional, bool required)
 {
     if (!build_begin_positional(positional))
     {
+        return;
+    }
+    if (build_breaks_order(positional, required))
+    {
+        build_reject_positional(positional, CLOPTS_DECL_POSITIONAL_ORDER);
         return;
     }
     positional->required = required;
@@ -506,6 +822,11 @@ void clopts_positional_set_variadic(clopts_positional_t *positional, bool variad
 {
     if (!build_begin_positional(positional))
     {
+        return;
+    }
+    if (variadic && ((positional->index + 1) != positional->scope->positionals.len))
+    {
+        build_reject_positional(positional, CLOPTS_DECL_VARIADIC_POSITION);
         return;
     }
     positional->variadic = variadic;

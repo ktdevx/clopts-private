@@ -608,7 +608,7 @@ void clopts_parser_free(clopts_parser_probe_t *probe, void *ptr);
 | 呼び出し | 規則（上から順に検査） | 種別 | 報告するハンドル |
 |---|---|---|---|
 | `clopts_program_new(name)` | `name` が NULL・空・`-` で始まる・空白を含む | `INVALID_NAME` | なし |
-| `clopts_program_set_version(v)` | `v != NULL` で、照合範囲のどこかに長い名前 `version` がある | `RESERVED_NAME` | 宣言順で最初のその option と、そのスコープ |
+| `clopts_program_set_version(v)` | `v != NULL` で、照合範囲のどこかに長い名前 `version` がある | `RESERVED_NAME` | 照合範囲の順（root、次に command の追加順）で最初のその option と、そのスコープ |
 | `clopts_program_add_command(name)` | `name` が NULL・空・`-` で始まる・空白を含む | `INVALID_NAME` | 新しい command |
 | 〃 | `name` が `help` | `RESERVED_NAME` | 新しい command |
 | 〃 | 同名の command がある | `DUPLICATE_COMMAND` | 新しい command |
