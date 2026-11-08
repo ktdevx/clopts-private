@@ -23,6 +23,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>   /* SetEnvironmentVariableW */
+#endif
+
 NAOS_TEST(u16_from_units_copies_any_unit_and_terminates)
 {
     /* a lone high surrogate, a pair, an embedded 0 and the largest unit */
@@ -504,7 +509,327 @@ NAOS_TEST(env_lookup_with_null_ctx_fails)
     NAOS_CHECK_INT_EQ(clopts_env_lookup(NULL, NULL, NULL), CLOPTS_ENV_FAILED);
     unsetenv("CLOPTS_TEST_FOUND");
 }
-#endif /* !_WIN32 */
+#else /* _WIN32 */
+/* ---- Windows: clopts_env_lookup reads the UTF-16 environment ------------- */
+
+/* Sets name to value (NULL deletes it) in the process environment; ends the test when that fails. */
+#define PLATFORM_ENV_SET_W(name, value) \
+    do \
+    { \
+        BOOL platform_env_ok_ = SetEnvironmentVariableW((name), (value)); \
+        NAOS_CHECK_TRUE(platform_env_ok_ != 0); \
+        if (platform_env_ok_ == 0) \
+        { \
+            return; \
+        } \
+    } while (0)
+
+NAOS_TEST(env_lookup_finds_a_set_variable_in_the_context_buffer)
+{
+    clopts_platform_probe_t probe = {0, 0, 0};
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_platform_env_new(&probe);
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_FOUND", L"value");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_REQUIRE(value);
+    NAOS_CHECK_STR_EQ(value, "value");
+    /* converted into the context's value buffer */
+    NAOS_CHECK_PTR_EQ(value, env->value);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+    SetEnvironmentVariableW(L"CLOPTS_TEST_FOUND", NULL);
+    clopts_env_free(env);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(env_lookup_reports_an_unset_variable)
+{
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_env_new();
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_UNSET", L"x");
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_UNSET", NULL);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_UNSET", &value), CLOPTS_ENV_UNSET);
+    NAOS_CHECK_NULL(value);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+    clopts_env_free(env);
+}
+
+NAOS_TEST(env_lookup_finds_an_empty_value)
+{
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_env_new();
+    PLATFORM_ENV_REQUIRE(env);
+    /* first a non-empty value, so that the buffer holds stale bytes */
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_EMPTY", L"stale");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_EMPTY", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_EMPTY", L"");
+    value = NULL;
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_EMPTY", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_REQUIRE(value);
+    NAOS_CHECK_STR_EQ(value, "");
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+    SetEnvironmentVariableW(L"CLOPTS_TEST_EMPTY", NULL);
+    clopts_env_free(env);
+}
+
+NAOS_TEST(env_lookup_converts_a_japanese_value_to_utf8)
+{
+    /* "日本語" and U+1F600 (a surrogate pair) */
+    static const wchar_t wide[] = {0x65E5, 0x672C, 0x8A9E, 0xD83D, 0xDE00, 0};
+    static const char utf8[] = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e\xf0\x9f\x98\x80";
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_env_new();
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_JA", wide);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_JA", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_REQUIRE(value);
+    NAOS_CHECK_UINT_EQ(strlen(value), sizeof(utf8) - 1);
+    NAOS_CHECK_INT_EQ(memcmp(value, utf8, sizeof(utf8)), 0);
+    SetEnvironmentVariableW(L"CLOPTS_TEST_JA", NULL);
+    clopts_env_free(env);
+}
+
+/* A non-ASCII UTF-8 name is converted to UTF-16 before the lookup. */
+NAOS_TEST(env_lookup_converts_a_non_ascii_name)
+{
+    static const wchar_t wname[] = {L'C', L'L', L'O', L'P', L'T', L'S', L'_', L'T', L'E', L'S', L'T', L'_',
+                                    0x540D, 0};
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_env_new();
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET_W(wname, L"named");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_\xe5\x90\x8d", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_REQUIRE(value);
+    NAOS_CHECK_STR_EQ(value, "named");
+    SetEnvironmentVariableW(wname, NULL);
+    clopts_env_free(env);
+}
+
+/*
+ * A value of several thousand code units, read after a short one in the
+ * same context, does not fit the buffers sized by the first lookup: they
+ * grow and the read is retried, with the name converted again.
+ */
+NAOS_TEST(env_lookup_grows_the_buffers_for_a_long_value)
+{
+    enum { LONG_UNITS = 6000 };
+    clopts_platform_probe_t probe = {0, 0, 0};
+    clopts_env_t *env;
+    const char *value = NULL;
+    wchar_t *wide;
+    size_t wide_cap;
+    size_t i;
+    size_t mismatch;
+
+    env = clopts_platform_env_new(&probe);
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_LONG", L"short");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_LONG", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_REQUIRE(value);
+    NAOS_CHECK_STR_EQ(value, "short");
+    wide_cap = env->wide_cap;
+    NAOS_CHECK_UINT_LT(wide_cap, (size_t)LONG_UNITS);
+
+    /* the even units are ASCII, the odd ones U+3042 (3 UTF-8 bytes) */
+    wide = (wchar_t *)malloc((LONG_UNITS + 1) * sizeof(wchar_t));
+    PLATFORM_ENV_REQUIRE(wide);
+    for (i = 0; i < LONG_UNITS; ++i)
+    {
+        wide[i] = ((i % 2) == 0) ? (wchar_t)(L'a' + (i / 2) % 26) : (wchar_t)0x3042;
+    }
+    wide[LONG_UNITS] = 0;
+    if (SetEnvironmentVariableW(L"CLOPTS_TEST_LONG", wide) == 0)
+    {
+        NAOS_CHECK_TRUE(0);
+        free(wide);
+        clopts_env_free(env);
+        return;
+    }
+    free(wide);
+
+    value = NULL;
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_LONG", &value), CLOPTS_ENV_FOUND);
+    PLATFORM_ENV_REQUIRE(value);
+    NAOS_CHECK_UINT_GT(env->wide_cap, wide_cap);
+    NAOS_CHECK_UINT_EQ(strlen(value), (LONG_UNITS / 2) * 4);
+    mismatch = (size_t)-1;
+    for (i = 0; (i < LONG_UNITS / 2) && (mismatch == (size_t)-1); ++i)
+    {
+        const char *p = value + i * 4;
+
+        if ((p[0] != (char)('a' + i % 26)) || (memcmp(p + 1, "\xe3\x81\x82", 3) != 0))
+        {
+            mismatch = i;
+        }
+    }
+    NAOS_CHECK_UINT_EQ(mismatch, (size_t)-1);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+
+    /* a short value again reuses the grown buffers */
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_LONG", L"x");
+    probe.calls = 0;
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_LONG", &value), CLOPTS_ENV_FOUND);
+    NAOS_CHECK_STR_EQ(value, "x");
+    NAOS_CHECK_UINT_EQ(probe.calls, 0);
+
+    SetEnvironmentVariableW(L"CLOPTS_TEST_LONG", NULL);
+    clopts_env_free(env);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(env_lookup_reports_invalid_utf16_with_the_name)
+{
+    /* a lone low surrogate, then a lone high surrogate at the end */
+    static const wchar_t bad_low[] = {L'a', 0xDC00, L'b', 0};
+    static const wchar_t bad_high[] = {L'a', 0xD800, 0};
+    clopts_platform_probe_t probe = {0, 0, 0};
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_platform_env_new(&probe);
+    PLATFORM_ENV_REQUIRE(env);
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_BAD", bad_low);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_BAD", &value), CLOPTS_ENV_FAILED);
+    NAOS_CHECK_NULL(value);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_UTF16);
+    PLATFORM_ENV_REQUIRE(clopts_env_error_name(env));
+    NAOS_CHECK_STR_EQ(clopts_env_error_name(env), "CLOPTS_TEST_BAD");
+
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_BAD", bad_high);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_BAD", &value), CLOPTS_ENV_FAILED);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_UTF16);
+    PLATFORM_ENV_REQUIRE(clopts_env_error_name(env));
+    NAOS_CHECK_STR_EQ(clopts_env_error_name(env), "CLOPTS_TEST_BAD");
+
+    SetEnvironmentVariableW(L"CLOPTS_TEST_BAD", NULL);
+    clopts_env_free(env);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(env_lookup_reports_an_invalid_utf8_name)
+{
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_env_new();
+    PLATFORM_ENV_REQUIRE(env);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "\xff", &value), CLOPTS_ENV_FAILED);
+    NAOS_CHECK_NULL(value);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_NAME);
+    PLATFORM_ENV_REQUIRE(clopts_env_error_name(env));
+    NAOS_CHECK_STR_EQ(clopts_env_error_name(env), "\xff");
+    /* a truncated sequence after valid bytes too */
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_\xe3\x81", &value), CLOPTS_ENV_FAILED);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_NAME);
+    PLATFORM_ENV_REQUIRE(clopts_env_error_name(env));
+    NAOS_CHECK_STR_EQ(clopts_env_error_name(env), "CLOPTS_TEST_\xe3\x81");
+    clopts_env_free(env);
+}
+
+/* A successful lookup clears a failure recorded by an earlier lookup in the same context. */
+NAOS_TEST(env_lookup_clears_an_earlier_failure)
+{
+    static const wchar_t bad[] = {0xDFFF, 0};
+    clopts_platform_probe_t probe = {0, 0, 0};
+    clopts_env_t *env;
+    const char *value = NULL;
+
+    env = clopts_platform_env_new(&probe);
+    PLATFORM_ENV_REQUIRE(env);
+
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_BAD", bad);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_BAD", &value), CLOPTS_ENV_FAILED);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_UTF16);
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_FOUND", L"v");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_FOUND);
+    NAOS_CHECK_STR_EQ(value, "v");
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "\xff", &value), CLOPTS_ENV_FAILED);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_NAME);
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_FOUND", NULL);
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_UNSET);
+    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+    NAOS_CHECK_NULL(clopts_env_error_name(env));
+
+    SetEnvironmentVariableW(L"CLOPTS_TEST_BAD", NULL);
+    clopts_env_free(env);
+    NAOS_CHECK_UINT_EQ(probe.live, 0);
+}
+
+NAOS_TEST(env_lookup_with_null_ctx_fails)
+{
+    const char *value = NULL;
+
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_FOUND", L"v");
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(NULL, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_FAILED);
+    NAOS_CHECK_NULL(value);
+    /* name and value are not read either */
+    NAOS_CHECK_INT_EQ(clopts_env_lookup(NULL, NULL, NULL), CLOPTS_ENV_FAILED);
+    SetEnvironmentVariableW(L"CLOPTS_TEST_FOUND", NULL);
+}
+
+/*
+ * Sanity check of the allocation failures (the exhaustive sweep is task
+ * 4.1): every failing allocation of a lookup that has to grow both buffers
+ * gives FAILED with OUT_OF_MEMORY and leaks nothing.
+ */
+NAOS_TEST(env_lookup_reports_out_of_memory_when_an_allocation_fails)
+{
+    clopts_platform_probe_t probe = {0, 0, 0};
+    clopts_env_t *env;
+    const char *value;
+    size_t fail_at;
+    size_t base;
+    clopts_env_status_t status;
+
+    PLATFORM_ENV_SET_W(L"CLOPTS_TEST_FOUND", L"\x3042\x3044\x3046");
+    status = CLOPTS_ENV_FAILED;
+    for (fail_at = 1; (fail_at <= 16) && (status == CLOPTS_ENV_FAILED); ++fail_at)
+    {
+        probe.fail_at = 0;
+        env = clopts_platform_env_new(&probe);
+        PLATFORM_ENV_REQUIRE(env);
+        base = probe.live;
+        probe.fail_at = probe.calls + fail_at;
+        value = NULL;
+        status = clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value);
+        if (status == CLOPTS_ENV_FAILED)
+        {
+            NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_OUT_OF_MEMORY);
+            NAOS_CHECK_NULL(value);
+        }
+        else
+        {
+            NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
+            NAOS_CHECK_STR_EQ(value, "\xe3\x81\x82\xe3\x81\x84\xe3\x81\x86");
+        }
+        NAOS_CHECK_UINT_GE(probe.live, base);
+        probe.fail_at = 0;
+        clopts_env_free(env);
+        NAOS_CHECK_UINT_EQ(probe.live, 0);
+    }
+    /* the lookup succeeded within the bound, after at least one failing point */
+    NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
+    NAOS_CHECK_UINT_GT(fail_at, 2);
+    SetEnvironmentVariableW(L"CLOPTS_TEST_FOUND", NULL);
+}
+#endif /* _WIN32 */
 
 /* Preprocessor directives cannot appear inside the macro arguments, so each OS has its own list. */
 #ifndef _WIN32
@@ -548,6 +873,17 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(env_reserve_wide_grows_and_never_shrinks),
     NAOS_ADD_TEST(env_reserve_wide_fails_on_size_overflow_and_keeps_the_old_buffer),
     NAOS_ADD_TEST(env_free_releases_name_and_both_buffers),
-    NAOS_ADD_TEST(env_every_fault_point_leaves_no_live_block)
+    NAOS_ADD_TEST(env_every_fault_point_leaves_no_live_block),
+    NAOS_ADD_TEST(env_lookup_finds_a_set_variable_in_the_context_buffer),
+    NAOS_ADD_TEST(env_lookup_reports_an_unset_variable),
+    NAOS_ADD_TEST(env_lookup_finds_an_empty_value),
+    NAOS_ADD_TEST(env_lookup_converts_a_japanese_value_to_utf8),
+    NAOS_ADD_TEST(env_lookup_converts_a_non_ascii_name),
+    NAOS_ADD_TEST(env_lookup_grows_the_buffers_for_a_long_value),
+    NAOS_ADD_TEST(env_lookup_reports_invalid_utf16_with_the_name),
+    NAOS_ADD_TEST(env_lookup_reports_an_invalid_utf8_name),
+    NAOS_ADD_TEST(env_lookup_clears_an_earlier_failure),
+    NAOS_ADD_TEST(env_lookup_with_null_ctx_fails),
+    NAOS_ADD_TEST(env_lookup_reports_out_of_memory_when_an_allocation_fails)
 )
 #endif

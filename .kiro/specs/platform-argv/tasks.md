@@ -70,7 +70,7 @@
   - _Depends: 2.1, 2.2_
   - _Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 3.4, 3.5, 3.6, 6.2, 6.4, 8.2, 9.3, 9.4_
 
-- [ ] 3.3 Windows の環境変数の UTF-8 での取得を実装してテストする
+- [x] 3.3 Windows の環境変数の UTF-8 での取得を実装してテストする
   - 文脈が NULL なら FAILED。失敗の記録を消し、名前を UTF-8 から UTF-16 にする（不正なら不正な名前を記録して FAILED）。値を読み、なければ UNSET、空なら空文字列で FOUND。バッファが足りなければ伸ばして、収まるまで読み直す。値を UTF-8 に変換し（不正な UTF-16 なら記録して FAILED）、文脈のバッファに置いて FOUND を返す。どの確保が失敗してもメモリ不足を記録して FAILED
   - テスト（スイート env の Windows の部分。`_WIN32` の条件の中）: テスト用の環境変数を設定・削除して、FOUND・UNSET・空の値、日本語の値の UTF-8 バイト列、同じ文脈での以前の取得より長い値（数 KB 以上。バッファの拡張と読み直しの経路を通す）、単独のサロゲートを含む値で不正な UTF-16 と変数名が記録されること、`"\xff"` の名前で不正な名前、成功後に記録が消えること、NULL の文脈で FAILED
   - 完了条件: Windows（MSVC）で `ctest -L platform -R env` が静的ビルドと共有ビルドで通る
@@ -119,3 +119,4 @@
 - 2.3: `reserve_value` / `reserve_wide` は伸ばすとき中身を写さない（新しく確保して古い方を解放する）。3.3 で wide バッファに名前と値を続けて置くなら、伸ばした後に名前を変換し直すか、名前と値の合計を一度に確保すること。`clopts_platform_env_fail` は `kind != NONE` と `name != NULL` を assert する
 - 3.1: test_argv.c と test_env.c は `NAOS_SUITE` を `#ifndef _WIN32` / `#else` の 2 つに分けた（マクロ引数に `#ifdef` を置けないため）。3.2 / 3.3 の Windows のテストは `#else` 側の一覧に足す。Windows 以外の確認は Linux（gcc、静的・共有）で行った
 - 3.2: MSVC は手元にないため、Windows の確認は MinGW-w64（msvcrt）+ wine の静的・共有で行い、MSVC は CI に委ねた。wine の `__argv` と分割結果の食い違いは見つからなかった。test_argv.c の `#ifndef __argc` の回避（`__p___argc` / `__p___argv` を宣言してマクロを定義）は MinGW では働かない。MSVC で働くと dllimport なしの再宣言で C4273（/WX でエラー）になりうるので、CI で失敗したら `__MINGW32__` に限るなどで直す。4.2 の probe も同じ回避を使う
+- 3.3: wide バッファは「名前の UTF-16 + 値」で、`reserve_wide` のたびに名前を変換し直す。`GetEnvironmentVariableW` が not-found 以外のエラーで 0 を返したときは OUT_OF_MEMORY として記録する。wine 9 の空の値・未設定の挙動は Windows の文書どおりだった。リトライ中の確保失敗の経路は 4.1 の総当たりで通すこと
