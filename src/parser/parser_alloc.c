@@ -1,8 +1,9 @@
 /*
  * Allocation gateway and allocation probe.
  *
- * This is the only file of the parser that reads the fields of
- * clopts_core_vec_t (to tell when a vec gets or loses its buffer).
+ * This is the only file of the parser that reads the buffer of a
+ * clopts_core_vec_t (data / cap, to tell when a vec gets or loses its
+ * buffer). Other files read only its element count (len).
  */
 
 #include "parser/parser_internal.h"

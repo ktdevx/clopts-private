@@ -1,6 +1,6 @@
 # Project Structure
 
-> 2026-11-08 同期。project-foundation と core-parser は初版の方式（`static const` の宣言テーブル、静的ライブラリのみ）で実装済みだが、2026-11-08 の改訂（roadmap.md の Approach Decision）で、共有ライブラリへの対応と、ビルダー API + 不透明ハンドルへの作り直しが決まった。本ファイルは改訂後の目指す姿を正とする。既存のコードとの差は、roadmap.md の「Existing Spec Updates」で解消する。
+> 2026-11-08 同期。2026-11-08 の改訂（roadmap.md の Approach Decision）で、共有ライブラリへの対応と、ビルダー API + 不透明ハンドルへの作り直しが決まり、project-foundation と core-parser はその方式で実装し直した（roadmap.md の「Existing Spec Updates」）。本ファイルは改訂後の姿を正とする。
 
 ## Organization Philosophy
 
@@ -82,7 +82,7 @@
 
 ## Code Organization Principles
 
-- **依存は一方向**: core ← parser ← help、core ← platform。`help` は、`parser` が用意する読み取り専用の宣言モデル（`parser_internal.h` などの内部ヘッダ）と結果のアクセサに依存するが、走査器の実装には依存しない。`platform` は `parser` を知らず、`parser` は環境変数の取得関数を差し替え口として受け取る。
+- **依存は一方向**: core ← parser ← help、core ← platform。`help` は、`parser` が用意する読み取り専用の宣言モデル（内部ヘッダ `src/parser/parser_model.h`。`parser_internal.h` は include しない）と結果のアクセサに依存するが、走査器の実装には依存しない。`platform` は `parser` を知らず、`parser` は環境変数の取得関数を差し替え口として受け取る。
 - **公開ヘッダに置くのは契約だけ**: 不透明ハンドル型、状態とエラー種別の列挙、コールバックの関数ポインタ型、公開関数。構造体の中身（宣言モデル、結果ストア、エラー、可変長配列）は公開ヘッダに出さない。
 - **I/O は境界の外**: ライブラリは stdout / stderr に書かず `exit` しない。文面は書き込みコールバックへ、エラーは構造体で返し、表示と終了コードの決定は利用側が行う。ライブラリ本体は `stdio` に依存しない。`FILE*` 用のコールバックは公開ヘッダの `static inline` で提供する。
 - **宣言はライブラリが所有する**: ビルダーに渡された文字列は複製して宣言モデルに持つ。argv は書き換えない。宣言の解放は `clopts_program_free` で行う。

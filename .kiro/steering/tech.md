@@ -1,6 +1,6 @@
 # Technology Stack
 
-> 2026-11-08 同期。project-foundation と core-parser は初版の方式（`static const` の宣言テーブル、静的ライブラリのみ）で実装済みだが、2026-11-08 の改訂（roadmap.md の Approach Decision）で、共有ライブラリへの対応と、ビルダー API + 不透明ハンドルへの作り直しが決まった。本ファイルは改訂後の目指す姿を正とする。既存のコードとの差は、roadmap.md の「Existing Spec Updates」で解消する。ここに書いた規約は、Monde の規約を踏襲したうえで、「他のプロジェクトに取り込まれるライブラリ」と「ABI を保つ共有ライブラリ」として必要な差分を加えたものである。
+> 2026-11-08 同期。2026-11-08 の改訂（roadmap.md の Approach Decision）で、共有ライブラリへの対応と、ビルダー API + 不透明ハンドルへの作り直しが決まり、project-foundation と core-parser はその方式で実装し直した（roadmap.md の「Existing Spec Updates」）。本ファイルは改訂後の姿を正とする。ここに書いた規約は、Monde の規約を踏襲したうえで、「他のプロジェクトに取り込まれるライブラリ」と「ABI を保つ共有ライブラリ」として必要な差分を加えたものである。
 
 ## Architecture
 
