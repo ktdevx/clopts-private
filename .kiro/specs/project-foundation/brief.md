@@ -45,3 +45,14 @@ Monde の `cmake/MondeCompilerOptions.cmake` / `MondeTargets.cmake` / `MondeNaos
 - GCC / Clang: `-Wall -Wextra -Wpedantic -Werror -Werror=vla`、拡張機能オフ。MinGW では `__USE_MINGW_ANSI_STDIO=1`。MSVC: `/std:c11`（C99 として使う）、`/W4 /WX /utf-8 /Zc:preprocessor`、`_CRT_SECURE_NO_WARNINGS` を PRIVATE 定義
 - Naos の `naos_add_executable` は `Naos::naos` を PRIVATE リンクするだけで C 規格を設定しないため、テスト実行ファイルにも CLOpts 側のコンパイラオプションを当てる
 - コーディングスタイルは Monde と同じ（Allman、波括弧省略なし、複合条件の括弧、`//` 不使用）
+
+## 改訂（2026-11-08: 共有ライブラリ化と ABI 互換）
+実装済みの本 spec を大きく変えることを前提に、共有ライブラリを範囲に入れる。roadmap.md の「Existing Spec Updates」と「Constraints」を正とする。要点:
+- `add_library(clopts STATIC)` の固定をやめ、`option(CLOPTS_BUILD_SHARED ... ${BUILD_SHARED_LIBS})` で型を明示的に選ぶ。`BUILD_SHARED_LIBS` は設定しない。
+- 公開ヘッダ `clopts/export.h` と `CLOPTS_API`。判定の順は `CLOPTS_STATIC` → `_WIN32 || __CYGWIN__` → `__GNUC__ >= 4`。`C_VISIBILITY_PRESET hidden`。
+- 静的版: `POSITION_INDEPENDENT_CODE ON`、INTERFACE の `CLOPTS_STATIC`、MSVC では出力名を別にする（import library との衝突を避ける）。
+- 共有版: VERSION / SOVERSION（0.x は `0.<minor>`、1.0.0 から `1`）、Windows のテストでの DLL の配置（`$<TARGET_RUNTIME_DLLS>`）。
+- install: `CLOptsStaticTargets` / `CLOptsSharedTargets` を並べて置き、`CLOptsConfig.cmake` が `COMPONENTS static|shared` → `CLOPTS_SHARED_LIBS` → `BUILD_SHARED_LIBS` → 入っている方の順で 1 つだけ選ぶ。両方を求められたら失敗させ、求められた形式がなければ `CLOpts_FOUND=FALSE` にして理由を示す。
+- 書き込みコールバック: `clopts_writer_t` の値渡しと `clopts_writer_file(FILE*)` をやめ、`(clopts_write_fn, void *ctx)` を引数で渡す形にする。`FILE*` 用のコールバックは公開ヘッダの `static inline` で提供し、`FILE*` が DLL の境界を越えないようにする。
+- CI と統合テスト: 各 OS で静的・共有の両方をビルドし、install → `find_package` の利用テストも両方の形式で行う。
+- Non-Goals から「共有ライブラリとしてのビルド。`clopts` は常に STATIC」を外す。
