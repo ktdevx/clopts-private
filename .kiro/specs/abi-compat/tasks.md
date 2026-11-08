@@ -109,7 +109,7 @@
   - _Depends: 3.1_
   - _Requirements: 3.5, 3.6, 4.2, 4.4_
 
-- [ ] 5.2 CI の全環境で ABI の検査が通ることを確かめる
+- [x] 5.2 CI の全環境で ABI の検査が通ることを確かめる
   - 変更を push し、CI の 10 ジョブすべてで `ctest` が通ること、共有の 5 ジョブのログに `abi.exports` の成功が、静的の 5 ジョブのログに `abi.exports` がないこと、`abi-compare` ジョブが skipped の行を出して成功することを確かめる。いずれかの環境で除外リストに足すべきツールチェーン由来のシンボルが出たら、理由付きで足して再実行する。本物の出力を取り出し規則が読めない（名前が 0 個、列の取り違え）ときは、`check_symbols.cmake` の取り出し規則を直し、CI のログから採取した出力で該当する記録ファイルを置き換えて再実行する。取り出し規則か除外リストを変えたときは、`docs/dev/abi-checks.md` の該当する記述も合わせて直す
   - 完了条件: CI の全ジョブ（10 + `abi-compare`）が成功している
   - _Depends: 3.1, 3.2_
@@ -128,3 +128,4 @@
 - 4.1: MinGW の DLL は CMake の既定（`Windows-GNU.cmake`）で `libclopts.dll` / `libclopts.dll.a` になるので、文書に両方を書き、design.md も合わせた。macOS の前方互換の失敗は chained fixups では起動時にもなりうるため、時点を言わず `Symbol not found` として書いた
 - 5.1: 共有ビルドの複製で確かめた: (a) 内部関数 `clopts_core_size_mul` に `CLOPTS_API`（内部ヘッダは `clopts/export.h` を含まないので、include も足さないとまずコンパイルが失敗する）→ `abi.exports` が extra。(b) 一覧から `clopts_result_status` を消す → extra（当初の記述「不足」は誤りで、design と tasks を直した）。一覧に無い名前を足す → missing と `abi.headers_cxx` の失敗。(c) `decl.h` に構造体定義 → `abi.header_rules` が `decl.h:45`。(d) `parse.h:160` の `CLOPTS_API` を外す → `abi.header_rules`、`abi.exports`（missing）、`abi.headers_cxx`。戻した後、静的 626 / 共有 628 がすべて通る。レビューはコード差分がないため親で inline に行い、(b) を再現して確かめた
 - 5.2（CI 1 回目）: windows-mingw-shared の `abi.exports` が「名前 0 個」で失敗した。binutils 2.44 以降の `objdump -p` は `[Ordinal/Name Pointer] Table` の直後に `Ordinal   Hint Name` の列見出しを出し、行の hint の前の空白が 2 つになる（binutils 2.45 の `bfd/peXXigen.c` で確認）。取り出しは最初の行の前の行を読み飛ばすよう直し、記録した出力も新しい形にした。名前が 0 個のときはツールの出力の先頭 80 行を報告に含める。他の 10 ジョブ（macOS と MSVC の共有の `abi.exports`、`abi-compare` の skipped を含む）は 1 回目で成功
+- 5.2（CI 2 回目、2252dc6）: 11 ジョブすべて成功。共有のジョブで `abi.exports` が成功（MinGW を含む）、`abi-compare` は `abi-compare: skipped: version 0.1.0 is before 1.0.0` を出して成功
