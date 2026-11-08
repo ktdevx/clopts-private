@@ -70,8 +70,8 @@
   - 完了条件: `ctest -L help -R message` が通る。仮に種別の `case` を 1 つ消すと、GCC / Clang のビルドが `-Wswitch` で失敗することを手元で確認する（確認後は元に戻す）
   - _Requirements: 8.1, 8.2, 8.3, 12.1, 12.2, 12.3_
 
-- [ ] 5. 統合と検証
-- [ ] 5.1 公開関数を通した書き込み失敗・FILE* 出力・決定性の横断テストを追加し、両ビルド形式で全体を検証する（結合タスク）
+- [x] 5. 統合と検証
+- [x] 5.1 公開関数を通した書き込み失敗・FILE* 出力・決定性の横断テストを追加し、両ビルド形式で全体を検証する（結合タスク）
   - スイート out に追加: 失敗用のコールバックで、ヘルプとエラー文面の公開関数が FAILED を返し、失敗後にコールバックが呼ばれないこと。成功時に OK を返すこと。`clopts_file_write` と一時ファイルで全体ヘルプを書き、読み戻したバイト列が記録用のコールバックの結果と一致すること
   - スイート layout に追加: フィクスチャから作れるすべての文面（各ヘルプ、Usage 行、バージョン行、案内）について、どの行も末尾が空白でないこと、`\r` を含まないこと、空行が連続しないこと、LF で終わること
   - 静的ビルドと共有ビルドのそれぞれで、`ctest` 全体（toolchain・integration・parser・core・help）が通ることを確認する
@@ -88,3 +88,4 @@
 - 3.3: ヘルプ系 4 関数の入口は static の help_program_available（program->error.status == CLOPTS_OK）。メモリ不足も同じ error.status に記録されるので、この 1 つの検査で足りる（メモリ不足の program のテストはない）。validate・凍結は起動しない。msys の sed -i は CRLF を落とすことがあるので、フラグの切り替えには使わない
 - 4.1: clopts_write_error の状態の switch には default がある（default なしの規則は種別 → 文面の関数と引数の switch だけ）。DECL_ERROR は仮に UNAVAILABLE。UNAVAILABLE は出力器の初期化と接頭辞の前に返す。テストは常に UNSET を返す環境変数の取得関数で clopts_parse_with_env を使う。「コマンド名にテキストがない」接頭辞の経路は使い方エラーでは起きないので、4.2 の宣言エラーで確かめるとよい
 - 4.2: -Wswitch の手元確認は GCC / Clang がないため、MSVC で一時的に `#pragma warning(error: 4062)` を付け、case を 1 つ消してビルドが C4062 で失敗することで代えた（確認後に元へ戻した）。MSVC の /W4 では C4062 は既定で無効なので、Windows のローカルビルドは case 漏れを検出しない（網羅テストが実行時に NULL として検出し、GCC / Clang の -Wall -Werror は CI で効く）。command 配下の名前のない option は `(command '<name>')`。宣言エラーの接頭辞も error_command から作る
+- 5.1: 書き込み失敗は、記録用のコールバックで呼び出し回数 N を数え、k = 1..N のすべての位置で失敗させて確かめる（out_check_case）。FILE* の確認は tmpfile()（"wb+" なので Windows でも LF は変換されない）。テキストモードのストリームは対象外。形の検査（layout_shape_problem）はヘルプ・Usage・バージョン・案内が対象で、エラー文面は 4.x の完全一致のテストが担う。MSVC の Debug / Release × 静的 / 共有の 4 構成で全件通過

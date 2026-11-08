@@ -624,6 +624,184 @@ NAOS_TEST(generation_is_repeatable_and_keeps_the_declaration)
     help_fixture_tool_free(&f);
 }
 
+/* ---- shape of every text ----------------------------------------------- */
+
+/*
+ * NULL when the len bytes at buf are a well-formed text (10.4, 10.5): not
+ * empty, every line ended by LF, no CR, no line ending with a space or a
+ * tab, no blank line at the start or the end, no two blank lines in a row.
+ * Otherwise a description of the first problem.
+ */
+static const char *layout_shape_problem(const char *buf, size_t len)
+{
+    size_t i;
+
+    if (len == 0)
+    {
+        return "empty";
+    }
+    if (buf[len - 1] != '\n')
+    {
+        return "does not end with LF";
+    }
+    if (buf[0] == '\n')
+    {
+        return "starts with a blank line";
+    }
+    if ((len >= 2) && (buf[len - 2] == '\n'))
+    {
+        return "ends with a blank line";
+    }
+    for (i = 0; i < len; i++)
+    {
+        if (buf[i] == '\r')
+        {
+            return "contains CR";
+        }
+        if (buf[i] != '\n')
+        {
+            continue;
+        }
+        if ((i > 0) && ((buf[i - 1] == ' ') || (buf[i - 1] == '\t')))
+        {
+            return "a line ends with a space";
+        }
+        if ((i >= 2) && (buf[i - 1] == '\n') && (buf[i - 2] == '\n'))
+        {
+            return "two blank lines in a row";
+        }
+    }
+    return NULL;
+}
+
+#define SHAPE_OF(lit) layout_shape_problem((lit), sizeof(lit) - 1)
+
+NAOS_TEST(shape_check_rejects_each_malformed_text)
+{
+    NAOS_CHECK_NULL(SHAPE_OF("a\n"));
+    NAOS_CHECK_NULL(SHAPE_OF("a\n\nb\n  c  d\n"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF(""));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("a"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("a\nb"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("a\r\n"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("a\rb\n"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("a \n"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("a\nb\t\nc\n"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF(" \n"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("\na\n"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("a\n\n"));
+    NAOS_CHECK_NOT_NULL(SHAPE_OF("a\n\n\nb\n"));
+}
+
+/* The text in rec, written by a call that returned status, is well formed. */
+static void layout_check_shape(const help_recorder_t *rec, clopts_write_status_t status)
+{
+    const char *problem;
+
+    NAOS_CHECK_INT_EQ(status, CLOPTS_WRITE_OK);
+    NAOS_CHECK_FALSE(rec->overflow);
+    problem = layout_shape_problem(rec->buf, rec->len);
+    if (problem != NULL)
+    {
+        NAOS_NOTE("%s in:\n%s", problem, rec->buf);
+    }
+    NAOS_CHECK_NULL(problem);
+}
+
+/*
+ * The help, the Usage line and the usage hint of command (NULL: the program)
+ * of program are well formed, and so is its version line when has_version;
+ * without a version it is UNAVAILABLE and empty.
+ */
+static void layout_check_texts(const clopts_program_t *program, const clopts_command_t *command, bool has_version)
+{
+    static help_recorder_t rec;
+    clopts_write_status_t status;
+
+    help_recorder_init(&rec);
+    NAOS_TRACE_PUSH("help");
+    layout_check_shape(&rec, clopts_write_help(program, command, help_recorder_write, &rec));
+    NAOS_TRACE_POP();
+
+    help_recorder_init(&rec);
+    NAOS_TRACE_PUSH("usage");
+    layout_check_shape(&rec, clopts_write_usage(program, command, help_recorder_write, &rec));
+    NAOS_TRACE_POP();
+
+    help_recorder_init(&rec);
+    NAOS_TRACE_PUSH("usage hint");
+    layout_check_shape(&rec, clopts_write_usage_hint(program, command, help_recorder_write, &rec));
+    NAOS_TRACE_POP();
+
+    help_recorder_init(&rec);
+    NAOS_TRACE_PUSH("version");
+    status = clopts_write_version(program, help_recorder_write, &rec);
+    if (has_version)
+    {
+        layout_check_shape(&rec, status);
+    }
+    else
+    {
+        NAOS_CHECK_INT_EQ(status, CLOPTS_WRITE_UNAVAILABLE);
+        NAOS_CHECK_UINT_EQ(rec.len, 0);
+    }
+    NAOS_TRACE_POP();
+}
+
+NAOS_TEST(every_text_of_the_fixtures_is_well_formed)
+{
+    help_fixture_tool_t tool;
+    help_fixture_filt_t filt;
+    help_fixture_bare_t bare;
+    help_fixture_wide_t wide;
+    layout_nover_t nover;
+    size_t i;
+
+    help_fixture_tool_init(&tool);
+    help_fixture_filt_init(&filt);
+    help_fixture_bare_init(&bare);
+    help_fixture_wide_init(&wide);
+    layout_nover_init(&nover);
+    NAOS_REQUIRE_NOT_NULL(tool.program);
+    NAOS_REQUIRE_NOT_NULL(filt.program);
+    NAOS_REQUIRE_NOT_NULL(bare.program);
+    NAOS_REQUIRE_NOT_NULL(wide.program);
+    NAOS_REQUIRE_NOT_NULL(nover.program);
+    {
+        const struct
+        {
+            const char *name;
+            const clopts_program_t *program;
+            const clopts_command_t *command;
+            bool has_version;
+        } texts[] = {
+            { "tool", tool.program, NULL, true },
+            { "tool (root)", tool.program, tool.root, true },
+            { "tool build", tool.program, tool.build, true },
+            { "tool copy", tool.program, tool.copy, true },
+            { "filt", filt.program, NULL, false },
+            { "filt (root)", filt.program, filt.root, false },
+            { "bare", bare.program, NULL, true },
+            { "bare run", bare.program, bare.run, true },
+            { "wide", wide.program, NULL, false },
+            { "nover", nover.program, NULL, false },
+            { "nover init", nover.program, nover.init, false },
+        };
+
+        for (i = 0; i < sizeof(texts) / sizeof(texts[0]); i++)
+        {
+            NAOS_TRACE_PUSH("%s", texts[i].name);
+            layout_check_texts(texts[i].program, texts[i].command, texts[i].has_version);
+            NAOS_TRACE_POP();
+        }
+    }
+    clopts_program_free(nover.program);
+    help_fixture_wide_free(&wide);
+    help_fixture_bare_free(&bare);
+    help_fixture_filt_free(&filt);
+    help_fixture_tool_free(&tool);
+}
+
 NAOS_SUITE(layout,
     NAOS_ADD_TEST(fixture_tool_validates_ok),
     NAOS_ADD_TEST(fixture_filt_validates_ok),
@@ -650,5 +828,7 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(error_program_with_an_invalid_name_is_unavailable),
     NAOS_ADD_TEST(error_program_without_a_name_is_unavailable),
     NAOS_ADD_TEST(error_program_with_a_later_error_is_unavailable),
-    NAOS_ADD_TEST(generation_is_repeatable_and_keeps_the_declaration)
+    NAOS_ADD_TEST(generation_is_repeatable_and_keeps_the_declaration),
+    NAOS_ADD_TEST(shape_check_rejects_each_malformed_text),
+    NAOS_ADD_TEST(every_text_of_the_fixtures_is_well_formed)
 )

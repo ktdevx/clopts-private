@@ -12,6 +12,7 @@
 
 #include <naos/naos.h>
 
+#include <stdio.h>
 #include <string.h>
 
 NAOS_TEST(recorder_concatenates_bytes_and_counts_calls)
@@ -353,6 +354,230 @@ NAOS_TEST(init_starts_over)
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, "z", (size_t)1);
 }
 
+/* ---- public functions: write failure ----------------------------------- */
+
+/* Public write function exercised by an out_case_t. */
+typedef enum out_kind
+{
+    OUT_HELP,
+    OUT_USAGE,
+    OUT_VERSION,
+    OUT_HINT,
+    OUT_ERROR
+} out_kind_t;
+
+/* One call of a public write function, with everything but the callback. */
+typedef struct out_case
+{
+    const char *name;                 /* shown when a check fails */
+    out_kind_t kind;
+    const clopts_program_t *program;
+    const clopts_command_t *command;  /* OUT_HELP / OUT_USAGE / OUT_HINT */
+    const clopts_result_t *result;    /* OUT_ERROR (NULL: out of memory) */
+    unsigned flags;                   /* OUT_ERROR */
+} out_case_t;
+
+static clopts_write_status_t out_case_run(const out_case_t *c, clopts_write_fn fn, void *ctx)
+{
+    switch (c->kind)
+    {
+    case OUT_HELP:
+        return clopts_write_help(c->program, c->command, fn, ctx);
+    case OUT_USAGE:
+        return clopts_write_usage(c->program, c->command, fn, ctx);
+    case OUT_VERSION:
+        return clopts_write_version(c->program, fn, ctx);
+    case OUT_HINT:
+        return clopts_write_usage_hint(c->program, c->command, fn, ctx);
+    case OUT_ERROR:
+        return clopts_write_error(c->program, c->result, c->flags, fn, ctx);
+    }
+    return CLOPTS_WRITE_UNAVAILABLE;
+}
+
+/*
+ * c succeeds with a callback that never fails, and for every k from 1 to the
+ * number of calls it makes, a callback failing on its k-th call makes it
+ * return FAILED after exactly k calls, with the bytes accepted before the
+ * failure being a prefix of the full text.
+ */
+static void out_check_case(const out_case_t *c)
+{
+    static help_recorder_t rec;
+    static help_failer_t failer;
+    size_t k;
+
+    help_recorder_init(&rec);
+    NAOS_REQUIRE_INT_EQ(out_case_run(c, help_recorder_write, &rec), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_FALSE(rec.overflow);
+    NAOS_REQUIRE_TRUE(rec.calls > 0);
+
+    help_failer_init(&failer, 0);
+    NAOS_CHECK_INT_EQ(out_case_run(c, help_failer_write, &failer), CLOPTS_WRITE_OK);
+    NAOS_CHECK_UINT_EQ(failer.calls, rec.calls);
+    NAOS_CHECK_MEM_EQ(failer.written.buf, failer.written.len, rec.buf, rec.len);
+
+    for (k = 1; k <= rec.calls; k++)
+    {
+        NAOS_TRACE_PUSH("fail at call %u", (unsigned)k);
+        help_failer_init(&failer, k);
+        NAOS_CHECK_INT_EQ(out_case_run(c, help_failer_write, &failer), CLOPTS_WRITE_FAILED);
+        NAOS_CHECK_TRUE(failer.failed);
+        NAOS_CHECK_UINT_EQ(failer.calls, k);
+        NAOS_CHECK_UINT_EQ(failer.calls_after_failure, 0);
+        NAOS_REQUIRE_TRUE(failer.written.len < rec.len);
+        NAOS_CHECK_MEM_EQ(failer.written.buf, failer.written.len, rec.buf, failer.written.len);
+        NAOS_TRACE_POP();
+    }
+}
+
+/* Environment lookup that finds no variable. */
+static clopts_env_status_t out_env_unset(void *ctx, const char *name, const char **value)
+{
+    (void)ctx;
+    (void)name;
+    (void)value;
+    return CLOPTS_ENV_UNSET;
+}
+
+NAOS_TEST(public_help_functions_stop_after_a_write_failure)
+{
+    help_fixture_tool_t tool;
+    help_fixture_filt_t filt;
+    help_fixture_bare_t bare;
+    help_fixture_wide_t wide;
+    size_t i;
+
+    help_fixture_tool_init(&tool);
+    help_fixture_filt_init(&filt);
+    help_fixture_bare_init(&bare);
+    help_fixture_wide_init(&wide);
+    NAOS_REQUIRE_NOT_NULL(tool.program);
+    NAOS_REQUIRE_NOT_NULL(filt.program);
+    NAOS_REQUIRE_NOT_NULL(bare.program);
+    NAOS_REQUIRE_NOT_NULL(wide.program);
+    {
+        const out_case_t cases[] = {
+            { "help tool", OUT_HELP, tool.program, NULL, NULL, 0u },
+            { "help tool build", OUT_HELP, tool.program, tool.build, NULL, 0u },
+            { "help tool copy", OUT_HELP, tool.program, tool.copy, NULL, 0u },
+            { "help filt", OUT_HELP, filt.program, NULL, NULL, 0u },
+            { "help bare", OUT_HELP, bare.program, NULL, NULL, 0u },
+            { "help bare run", OUT_HELP, bare.program, bare.run, NULL, 0u },
+            { "help wide", OUT_HELP, wide.program, NULL, NULL, 0u },
+            { "usage tool", OUT_USAGE, tool.program, NULL, NULL, 0u },
+            { "usage tool build", OUT_USAGE, tool.program, tool.build, NULL, 0u },
+            { "usage filt", OUT_USAGE, filt.program, NULL, NULL, 0u },
+            { "version tool", OUT_VERSION, tool.program, NULL, NULL, 0u },
+            { "version bare", OUT_VERSION, bare.program, NULL, NULL, 0u },
+            { "hint tool", OUT_HINT, tool.program, NULL, NULL, 0u },
+            { "hint tool build", OUT_HINT, tool.program, tool.build, NULL, 0u },
+        };
+
+        for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+        {
+            NAOS_TRACE_PUSH("case %s", cases[i].name);
+            out_check_case(&cases[i]);
+            NAOS_TRACE_POP();
+        }
+    }
+    help_fixture_wide_free(&wide);
+    help_fixture_bare_free(&bare);
+    help_fixture_filt_free(&filt);
+    help_fixture_tool_free(&tool);
+}
+
+NAOS_TEST(write_error_stops_after_a_write_failure)
+{
+    char *argv[] = { "tool", "build", "--bad=1", NULL };
+    help_fixture_tool_t tool;
+    clopts_program_t *broken;
+    clopts_result_t *usage_result;
+    clopts_result_t *decl_result;
+    size_t i;
+
+    help_fixture_tool_init(&tool);
+    NAOS_REQUIRE_NOT_NULL(tool.program);
+    usage_result = clopts_parse_with_env(tool.program, 3, argv, out_env_unset, NULL);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(usage_result), CLOPTS_USAGE_ERROR);
+
+    broken = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(broken);
+    (void)clopts_command_add_flag(clopts_program_root(broken), "bad name", '\0');
+    decl_result = clopts_program_validate(broken);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(decl_result), CLOPTS_DECL_ERROR);
+    {
+        const unsigned both = CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR;
+        const out_case_t cases[] = {
+            { "usage error", OUT_ERROR, tool.program, NULL, usage_result, 0u },
+            { "usage error with prefixes", OUT_ERROR, tool.program, NULL, usage_result, both },
+            { "declaration error", OUT_ERROR, broken, NULL, decl_result, 0u },
+            { "declaration error with prefixes", OUT_ERROR, broken, NULL, decl_result, both },
+            { "out of memory", OUT_ERROR, tool.program, NULL, NULL, 0u },
+            { "out of memory with prefixes", OUT_ERROR, tool.program, NULL, NULL, both },
+        };
+
+        for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+        {
+            NAOS_TRACE_PUSH("case %s", cases[i].name);
+            out_check_case(&cases[i]);
+            NAOS_TRACE_POP();
+        }
+    }
+    clopts_result_free(decl_result);
+    clopts_program_free(broken);
+    clopts_result_free(usage_result);
+    help_fixture_tool_free(&tool);
+}
+
+/* ---- public functions: FILE* output ------------------------------------ */
+
+/*
+ * The help of program written with clopts_file_write to a temporary file
+ * reads back as the same bytes as through the recorder. tmpfile() opens the
+ * file in binary update mode ("wb+"), so no newline translation happens on
+ * any platform.
+ */
+static void out_check_file_help(const clopts_program_t *program)
+{
+    static help_recorder_t rec;
+    static char back[HELP_RECORDER_SIZE + 1];
+    FILE *fp;
+    size_t n;
+
+    help_recorder_init(&rec);
+    NAOS_REQUIRE_INT_EQ(clopts_write_help(program, NULL, help_recorder_write, &rec), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_FALSE(rec.overflow);
+
+    fp = tmpfile();
+    NAOS_REQUIRE_NOT_NULL(fp);
+    NAOS_CHECK_INT_EQ(clopts_write_help(program, NULL, clopts_file_write, fp), CLOPTS_WRITE_OK);
+    NAOS_CHECK_INT_EQ(fflush(fp), 0);
+    rewind(fp);
+    n = fread(back, 1, sizeof(back), fp);
+    NAOS_CHECK_INT_EQ(ferror(fp), 0);
+    fclose(fp);
+
+    NAOS_CHECK_MEM_EQ(back, n, rec.buf, rec.len);
+}
+
+NAOS_TEST(file_write_outputs_the_same_bytes_as_the_recorder)
+{
+    help_fixture_tool_t tool;
+    help_fixture_wide_t wide;
+
+    help_fixture_tool_init(&tool);
+    NAOS_REQUIRE_NOT_NULL(tool.program);
+    out_check_file_help(tool.program);
+    help_fixture_tool_free(&tool);
+
+    /* non-ASCII names and bytes that are not valid UTF-8 pass through as is */
+    help_fixture_wide_init(&wide);
+    NAOS_REQUIRE_NOT_NULL(wide.program);
+    out_check_file_help(wide.program);
+    help_fixture_wide_free(&wide);
+}
+
 NAOS_SUITE(out,
     NAOS_ADD_TEST(recorder_concatenates_bytes_and_counts_calls),
     NAOS_ADD_TEST(recorder_rejects_a_write_that_does_not_fit),
@@ -373,5 +598,8 @@ NAOS_SUITE(out,
     NAOS_ADD_TEST(write_mode_with_a_callback_that_never_fails_is_ok),
     NAOS_ADD_TEST(measure_mode_adds_widths_without_writing),
     NAOS_ADD_TEST(measure_mode_does_not_call_the_callback),
-    NAOS_ADD_TEST(init_starts_over)
+    NAOS_ADD_TEST(init_starts_over),
+    NAOS_ADD_TEST(public_help_functions_stop_after_a_write_failure),
+    NAOS_ADD_TEST(write_error_stops_after_a_write_failure),
+    NAOS_ADD_TEST(file_write_outputs_the_same_bytes_as_the_recorder)
 )
