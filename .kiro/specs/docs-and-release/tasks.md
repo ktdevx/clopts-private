@@ -59,7 +59,7 @@
   - _Depends: 1.1_
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.8_
 
-- [ ] 3.3 (P) README の最小サンプル hello を作り、テストのビルドに加える
+- [x] 3.3 (P) README の最小サンプル hello を作り、テストのビルドに加える
   - 設計の ReadmeMinimal どおりに、オプション 1 つと位置引数 1 つを持つ `hello 1.0.0` を、README にそのまま載せられる短さで書く。中身は、宣言、`clopts_parse`、状態による分岐、値の参照、ヘルプとエラーの出力、解放
   - 1.1 で登録済みの仮のソース `tests/docs/readme_minimal.c` を書き換える（`tests/docs/CMakeLists.txt` は変えない）
   - 完了条件: テストを有効にした構成で、静的・共有の両形式で警告なくビルドできる。`hello --help` が終了コード 0 で、未知のオプションが終了コード 2 で、それぞれの出力先に出す
@@ -158,3 +158,4 @@
 - 2.4: 自己テストは `docs_selftest.<mode>.<case>`（61 件）。期待行はヘルパーが正規表現にエスケープして `(^|\n) *<行>\r?\n` で順に結ぶ。release の成功ケースは `tests/docs/run_release_selftest.cmake` が抜き出した本文を期待値と比べる。
 - 3.1: サンプルの報告の書式は、1 行目 `command: <name>`、続いてそのコマンドの値、最後にグローバル（`verbose`、`color`）。オプションは `key: value (explicit|env|default)`、値を得なかったオプション（出所 NONE）と位置引数には出所を付けない。リストは `", "` で結ぶ。taskbook の版は 1.2.3。空の `TASKBOOK_FORMAT=` は `format:  (env)`（空白 2 つ）になるので文書の例に使わない。
 - 3.2: textcount（0.4.0）の報告は `files:` から始まり、宣言順に続く。`-q` に上限はなく、`--total` に既定値はない。3.5 の上限の例と 3.7 の `help <cmd>` は taskbook（`-vvvv`）で示す。3.8 の数値でない値の例には、数値らしい引数を持つ taskbook（`done abc` など）を使う。
+- 3.3: 共通の規約は README の最小サンプルにも適用される（例外は環境変数の行だけ）。hello も `clopts_argv_get` を使い、到達しない NO_COMMAND の分岐（終了コード 2）を持つ。ヘルプと使い方の案内には `clopts_result_command` / `clopts_result_error_command` を渡す。ファイルは 78 行で、README には 1 バイトも変えずに載せる。
