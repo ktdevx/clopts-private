@@ -1,7 +1,7 @@
 # Implementation Plan
 
 - [ ] 1. 基盤: 公開シンボル一覧と検査ディレクトリの骨格
-- [ ] 1.1 公開シンボル一覧を作り、`tests/abi/` をテストツリーに登録する
+- [x] 1.1 公開シンボル一覧を作り、`tests/abi/` をテストツリーに登録する
   - リポジトリ直下の `abi/clopts.symbols` を作り、現在の公開ヘッダにある `CLOPTS_API` 付きの全関数を、ヘッダごとの `# clopts/<header>.h` の注釈でまとめ、ヘッダの宣言順に 1 行 1 名で並べる。`static inline` の `clopts_file_write` は載せない。ファイルの先頭に、形式（1 行 1 名、空行と `#` の注釈を無視）と更新の手順の要約を注釈で書く
   - `tests/abi/CMakeLists.txt` を、ラベル `abi` のテストをここで登録する旨の注釈だけを持つ骨格として作り、`tests/CMakeLists.txt` の末尾に `add_subdirectory(abi)` を足す。この時点ではテストを登録しない
   - 完了条件: 一覧の名前の集合が、`include/clopts/*.h` の `CLOPTS_API` 付きの宣言から抜き出した名前の集合と一致する（grep などで突き合わせた結果を示す）。静的ビルドと共有ビルドの構成・ビルドが `CLOPTS_WERROR=ON` で通り、既存の `ctest` がすべて通る
@@ -9,19 +9,21 @@
 
 - [ ] 2. 検査スクリプトと子プロジェクト
 - [ ] 2.1 (P) シンボル照合スクリプトの一覧の検査と集合の比較・報告を、`nm-elf` の形式で実装する
-  - 一覧を読み、空行と注釈の行を無視し、重複と規則（`clopts_` で始まる小文字・数字・`_`）に合わない名前を、一覧のパスと行番号付きですべて集めてから失敗する。`LIBRARY` も `DUMP_FILE` もなければ、ここで成功して終わる
+  - 一覧を読み、空行と注釈の行を無視し、重複と規則（`clopts_` で始まる小文字・数字・`_`）に合わない名前と未知の OS の注記（設計の SymbolList の「OS の注記」）を、一覧のパスと行番号付きですべて集めてから失敗する。`LIBRARY` も `DUMP_FILE` もなければ、ここで成功して終わる
   - `DUMP_FILE` を読み、`nm-elf` の規則で名前を取り出し、除外リスト（`_init`、`_fini`、`_edata`、`_end`、`__bss_start`。理由の注釈付き）を取り除く。取り出した名前が 0 個なら、出力の形式が想定と違うものとして失敗する
   - 一覧と比べ、不足と余分を名前順ですべて報告し、一覧の場所と「一覧を更新するか export をやめるか」の案内と `docs/dev/abi-checks.md` への参照を添えて失敗する。一致すれば照合した名前の数を表示して成功する
-  - 記録した出力 `tests/abi/fixtures/exports/nm-elf.txt`（Linux の `nm -D --defined-only` の実際の出力の形。除外リストの名前を含む）と、それに対応する `expected.symbols` を用意する
+  - `nm-elf` は Windows でないので、注記 `windows` の付いた名前を期待する集合から外す
+  - 記録した出力 `tests/abi/fixtures/exports/nm-elf.txt`（Linux の `nm -D --defined-only` の実際の出力の形。除外リストの名前を含む）と、それに対応する `expected.symbols`（注記 `windows` の付いた名前を 1 つ含む）を用意する
   - 完了条件: `cmake -DSYMBOLS_FILE=... -DFORMAT=nm-elf -DDUMP_FILE=... -P check_symbols.cmake` が、`expected.symbols` で成功し、1 つ欠けて 1 つ余分な一覧で両方の名前と案内を出して失敗し、重複と規則外の名前を含む一覧で行番号付きの報告を出して失敗する。実際の `abi/clopts.symbols` を一覧だけの検査にかけると成功する
   - _Boundary: SymbolCheck_
   - _Depends: 1.1_
   - _Requirements: 2.3, 2.4, 3.4, 3.5, 3.6, 3.7, 3.9_
 
 - [ ] 2.2 シンボル照合スクリプトに残りの 3 形式とツールの実行を加える
+  - `dumpbin` と `objdump-pe` では注記 `windows` の付いた名前も期待する集合に入れる
   - `nm-macho`（先頭の `_` を 1 つ除く）、`dumpbin`（`ordinal hint RVA name` の表の行から名前を取り、`=` 以降を捨てる）、`objdump-pe`（`[Ordinal/Name Pointer] Table` の節の `[` で始まる行の最後の語）の取り出し規則を加える
   - `LIBRARY` があれば、`DUMP_FILE` の代わりに `TOOL` を設計の表どおりの引数で実行する（`TOOL` が `link.exe` なら `/dump /exports`）。`TOOL` が空か存在しなければ `export dump tool not found for FORMAT <FORMAT>`、ツールが非 0 で終われば終了コードと出力を添えて失敗する
-  - 3 形式の記録した出力（`nm-macho.txt`、`dumpbin.txt`、`objdump-pe.txt`）を、各ツールの文書にある出力の形に従って手で作り（Linux の開発機では採取できないため）、`expected.symbols` と同じ名前の集合になるよう用意する
+  - 3 形式の記録した出力（`nm-macho.txt`、`dumpbin.txt`、`objdump-pe.txt`）を、各ツールの文書にある出力の形に従って手で作り（Linux の開発機では採取できないため）、`expected.symbols` と同じ名前の集合（Windows の 2 形式は注記 `windows` の名前を含み、`nm-macho` は含まない）になるよう用意する
   - 完了条件: 4 形式すべての記録した出力が `expected.symbols` で成功する。Linux の共有ビルドの `libclopts.so` に `LIBRARY` と `TOOL=nm` を渡すと実際の `abi/clopts.symbols` で成功し、`TOOL` を空にすると、ツールが見つからない旨で失敗する
   - _Depends: 2.1_
   - _Requirements: 3.3, 3.4, 3.8, 3.9_
@@ -38,7 +40,7 @@
 - [ ] 2.4 (P) 公開ヘッダの C99 / C++ コンパイル検査の子プロジェクトを実装する
   - 構成時に `${CLOPTS_SOURCE_DIR}/include/clopts/*.h` を列挙し、ヘッダごとに `check_<header>.c` または `check_<header>.cpp`（その 1 つのヘッダの include と、空の翻訳単位を避ける `typedef` 1 つ）をビルドツリーに生成する
   - `HEADER_CHECK_LANG=C`: C だけのプロジェクトで、生成した `.c` のオブジェクトライブラリに CLOpts の `clopts_apply_compiler_options` を適用する（`CLOPTS_WERROR=ON`）
-  - `HEADER_CHECK_LANG=CXX`: C と C++ のプロジェクトで、生成した `.cpp` を C++11（拡張なし）と設計の警告設定（GCC / Clang は `-Wall -Wextra -Wpedantic -Werror`、MSVC は `/W4 /WX /utf-8 /Zc:preprocessor /Zc:__cplusplus /EHsc`）でコンパイルする。CLOpts を `add_subdirectory` で取り込み、一覧の全シンボルのアドレスを取る `link_check.cpp` を一覧から生成して `CLOpts::clopts` にリンクする実行ファイルを作る
+  - `HEADER_CHECK_LANG=CXX`: C と C++ のプロジェクトで、生成した `.cpp` を C++11（拡張なし）と設計の警告設定（GCC / Clang は `-Wall -Wextra -Wpedantic -Werror`、MSVC は `/W4 /WX /utf-8 /Zc:preprocessor /Zc:__cplusplus /EHsc`）でコンパイルする。CLOpts を `add_subdirectory` で取り込み、一覧の全シンボルのアドレスを取る `link_check.cpp` を一覧から生成して（注記 `windows` の名前は `#ifdef _WIN32` で囲む）`CLOpts::clopts` にリンクする実行ファイルを作る
   - 完了条件: `tests/cmake/run_fixture.cmake` を `EXPECT=build_ok` で直接呼び、C と C++ の両方が Linux の静的・共有の両形式で成功する。一時的に公開ヘッダの 1 つで `extern "C"` を外す（または C99 で通らない記述を入れる）と、該当する `check_<header>` を含む出力で失敗することを確かめ、変更を戻す
   - _Boundary: HeaderCompileFixture_
   - _Depends: 1.1_
@@ -112,3 +114,6 @@
   - 完了条件: CI の全ジョブ（10 + `abi-compare`）が成功している
   - _Depends: 3.1, 3.2_
   - _Requirements: 3.2, 3.3, 5.5, 6.1, 6.3_
+
+## Implementation Notes
+- 1.1: `clopts_argv_from_wide` は `platform.h` の `#ifdef _WIN32` の中だけで宣言されるため、設計の SymbolList に OS の注記（`<name> windows`）を追記した（ユーザー承認済み）。注記付きの名前は `dumpbin` / `objdump-pe` の照合でだけ要求し、`link_check.cpp` では `#ifdef _WIN32` で囲む。Linux の `libclopts.so` の export は注記なしの 64 個
