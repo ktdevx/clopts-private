@@ -41,7 +41,7 @@
   - _Boundary: PlatformArgv_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.6, 4.1, 4.2, 5.1, 5.2, 5.3, 5.5, 5.6, 6.1, 6.2, 6.3, 6.5_
 
-- [ ] 2.3 (P) 環境変数の文脈（作成・解放、失敗の記録、バッファ）を実装してテストする
+- [x] 2.3 (P) 環境変数の文脈（作成・解放、失敗の記録、バッファ）を実装してテストする
   - 作成は確保できなければ NULL を返す。解放は NULL を無視し、記録した変数名とバッファをすべて解放する
   - 失敗の記録を消す関数と、種別と変数名の複製を記録する関数（複製できなければメモリ不足を記録し、変数名は NULL）を作る。失敗の種別と変数名のアクセサは、NULL の文脈ではメモリ不足と NULL を返す
   - UTF-8 の値のバッファと UTF-16 の作業バッファを、伸ばすだけの関数で確保する（桁あふれと確保失敗で -1）
@@ -116,3 +116,4 @@
 - 1.2: 補助は tests/platform/test_util.{h,c}。呼び出し側が持つ固定長バッファ `platform_test_u16_t`（容量 `PLATFORM_TEST_U16_CAP` = 1024 単位）に `platform_test_u16_from_ascii` / `_from_units` で作る。容量超過は NDEBUG でも `abort`。1023 単位を超える入力（3.3 の数 KB の値など）は自前で確保すること。分割の比較は `platform_test_split_mismatch`（一致で -1）。convert / crt のファイルは CMake の `if(WIN32)` でだけビルドし、エントリは `#ifdef _WIN32` / `#else` で NAOS_MAIN を 2 つ持つ
 - 1.3: `clopts_platform_malloc_array` の桁あふれは parser と同じく 1 回の試行として `calls` に数える（確保せず `live` は変えない）。probe の失敗位置を総当たりするテストはこの数え方を前提にする
 - 2.2: `clopts_platform_argv_failure` に OUT_OF_MEMORY を渡すと確保せずに番兵を返す。それ以外の状態では添字は INVALID_UTF16 のときだけ保持し、ほかは -1。パススルーは `argv[argc] == NULL` を assert で確かめる
+- 2.3: `reserve_value` / `reserve_wide` は伸ばすとき中身を写さない（新しく確保して古い方を解放する）。3.3 で wide バッファに名前と値を続けて置くなら、伸ばした後に名前を変換し直すか、名前と値の合計を一度に確保すること。`clopts_platform_env_fail` は `kind != NONE` と `name != NULL` を assert する
