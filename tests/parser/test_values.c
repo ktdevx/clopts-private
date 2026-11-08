@@ -3,7 +3,8 @@
  * delimiters and the count limit.
  *
  * The first cases record through the internal result store API directly; the
- * cases named parse_* go through argv with clopts_parse_with_env.
+ * cases named parse_* go through argv with clopts_parse_with_env. The cases
+ * named nosub_* cover requirement 13.4 for a program without subcommands.
  */
 
 #include "test_fixtures.h"
@@ -746,6 +747,408 @@ NAOS_TEST(parse_cat_tags_explicit_is_split_and_wins)
     clopts_result_free(&result);
 }
 
+/* ---- 13.4: サブコマンドなし構成 ---------------------------------------- */
+
+/*
+ * Requirement 13.4 for a program without subcommands. fixture_filt covers
+ * long / short / "=" / positional mix / default / env / HELP; the fictional
+ * program nosub below covers the rest: "--", "-" alone, --no-x, the count
+ * limit, list concatenation and splitting, required checks, VERSION and the
+ * HELP / VERSION order.
+ *
+ *   nosub 0.9    without subcommands, no handler
+ *     --color negatable FLAG, -v/--verbose COUNT max 3, -k/--keys LIST ',',
+ *     -o/--output VALUE required, -m/--mode VALUE (default "fast",
+ *     env NOSUB_MODE), SRC required, REST variadic
+ */
+
+enum
+{
+    NOSUB_OPT_COLOR,
+    NOSUB_OPT_VERBOSE,
+    NOSUB_OPT_KEYS,
+    NOSUB_OPT_OUTPUT,
+    NOSUB_OPT_MODE,
+    NOSUB_OPT_COUNT
+};
+
+enum
+{
+    NOSUB_POS_SRC,
+    NOSUB_POS_REST,
+    NOSUB_POS_COUNT
+};
+
+static const clopts_option_t nosub_options[NOSUB_OPT_COUNT] = {
+    [NOSUB_OPT_COLOR] = { .long_name = "color", .kind = CLOPTS_FLAG, .negatable = true },
+    [NOSUB_OPT_VERBOSE] = { .long_name = "verbose", .short_name = 'v', .kind = CLOPTS_COUNT,
+                            .count_max = 3 },
+    [NOSUB_OPT_KEYS] = { .long_name = "keys", .short_name = 'k', .kind = CLOPTS_LIST,
+                         .list_delimiter = ',' },
+    [NOSUB_OPT_OUTPUT] = { .long_name = "output", .short_name = 'o', .kind = CLOPTS_VALUE,
+                           .required = true },
+    [NOSUB_OPT_MODE] = { .long_name = "mode", .short_name = 'm', .kind = CLOPTS_VALUE,
+                         .default_value = "fast", .env = "NOSUB_MODE" },
+};
+
+static const clopts_positional_t nosub_positionals[NOSUB_POS_COUNT] = {
+    [NOSUB_POS_SRC] = { .name = "SRC", .required = true },
+    [NOSUB_POS_REST] = { .name = "REST", .variadic = true },
+};
+
+static const clopts_program_t nosub = {
+    .name = "nosub",
+    .version = "0.9",
+    .options = nosub_options,
+    .option_count = NOSUB_OPT_COUNT,
+    .positionals = nosub_positionals,
+    .positional_count = NOSUB_POS_COUNT,
+};
+
+#define NOSUB_COLOR (&nosub_options[NOSUB_OPT_COLOR])
+#define NOSUB_VERBOSE (&nosub_options[NOSUB_OPT_VERBOSE])
+#define NOSUB_KEYS (&nosub_options[NOSUB_OPT_KEYS])
+#define NOSUB_OUTPUT (&nosub_options[NOSUB_OPT_OUTPUT])
+#define NOSUB_MODE (&nosub_options[NOSUB_OPT_MODE])
+
+/* Maximum number of argv elements parse_nosub handles. */
+#define NOSUB_MAX_ARGV 16
+
+/*
+ * Parses the NULL-terminated argv for nosub with the mock environment vars
+ * and checks that the status is stored in result and that neither the argv
+ * array nor the strings it points to changed.
+ */
+static clopts_status_t parse_nosub(char **argv, const fixture_env_var_t *vars, size_t var_count,
+                                   clopts_result_t *result)
+{
+    char *saved[NOSUB_MAX_ARGV];
+    char text[NOSUB_MAX_ARGV][32];
+    fixture_env_t env;
+    clopts_status_t status;
+    int argc = 0;
+    int i;
+
+    while (argv[argc] != NULL)
+    {
+        NAOS_REQUIRE_TRUE(argc + 1 < NOSUB_MAX_ARGV);
+        NAOS_REQUIRE_TRUE(strlen(argv[argc]) < sizeof(text[0]));
+        saved[argc] = argv[argc];
+        strcpy(text[argc], argv[argc]);
+        argc++;
+    }
+    fixture_env_init(&env, vars, var_count);
+    status = clopts_parse_with_env(&nosub, argc, argv, fixture_env_getenv, &env, result);
+    NAOS_CHECK_INT_EQ(result->status, status);
+    for (i = 0; i < argc; i++)
+    {
+        NAOS_CHECK_PTR_EQ(argv[i], saved[i]);
+        NAOS_CHECK_STR_EQ(argv[i], text[i]);
+    }
+    NAOS_CHECK_NULL(argv[argc]);
+    return status;
+}
+
+/* Checks the positionals of result against expected[0..count-1] (by pointer). */
+static void check_positionals(const clopts_result_t *result, char *const *expected, size_t count)
+{
+    size_t i;
+
+    NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(result), count);
+    for (i = 0; i < count; i++)
+    {
+        NAOS_CHECK_PTR_EQ(clopts_result_positional_at(result, i), expected[i]);
+    }
+}
+
+/* Checks a usage error of nosub: kind, no command, option / positional, index. */
+static void check_nosub_usage(const clopts_result_t *result, char **argv,
+                              clopts_usage_error_t usage, const clopts_option_t *option,
+                              const clopts_positional_t *positional, int index)
+{
+    NAOS_REQUIRE_INT_EQ(result->status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(result->error.usage, usage);
+    NAOS_CHECK_NULL(result->error.command);
+    NAOS_CHECK_PTR_EQ(result->error.option, option);
+    NAOS_CHECK_PTR_EQ(result->error.positional, positional);
+    NAOS_CHECK_INT_EQ(result->error.argv_index, index);
+    if (index < 0)
+    {
+        NAOS_CHECK_NULL(result->error.token);
+    }
+    else
+    {
+        NAOS_CHECK_PTR_EQ(result->error.token, argv[index]);
+    }
+}
+
+NAOS_TEST(nosub_declaration_is_valid)
+{
+    clopts_error_t error;
+
+    memset(&error, 0, sizeof(error));
+    NAOS_CHECK_INT_EQ(clopts_decl_validate(&nosub, &error), CLOPTS_OK);
+    NAOS_CHECK_UINT_EQ(nosub.command_count, 0);
+    NAOS_REQUIRE_NOT_NULL(nosub.version);
+    NAOS_CHECK_UINT_EQ(NOSUB_VERBOSE->count_max, 3);
+    NAOS_CHECK_INT_EQ(NOSUB_KEYS->list_delimiter, ',');
+    NAOS_CHECK_TRUE(NOSUB_OUTPUT->required);
+    NAOS_CHECK_TRUE(NOSUB_COLOR->negatable);
+}
+
+NAOS_TEST(nosub_dashdash_makes_the_rest_positional)
+{
+    char *argv[] = { "nosub", "-o", "out", "--", "-v", "--color", "-", "--version", "-h", NULL };
+    char *expected[] = { argv[4], argv[5], argv[6], argv[7], argv[8] };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv, NULL, 0, &result), CLOPTS_OK);
+    NAOS_CHECK_NULL(result.command);
+    check_positionals(&result, expected, ARRAY_LEN(expected));
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, NOSUB_VERBOSE), 0);
+    NAOS_CHECK_FALSE(clopts_result_flag(&result, NOSUB_COLOR));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_COLOR), CLOPTS_SOURCE_NONE);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_lone_dash_is_positional)
+{
+    char *argv[] = { "nosub", "-", "-o", "out", "-", NULL };
+    char *expected[] = { argv[1], argv[4] };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv, NULL, 0, &result), CLOPTS_OK);
+    check_positionals(&result, expected, ARRAY_LEN(expected));
+    NAOS_CHECK_PTR_EQ(clopts_result_value(&result, NOSUB_OUTPUT), argv[3]);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_negation_last_occurrence_wins)
+{
+    char *argv_off[] = { "nosub", "--color", "-o", "out", "--no-color", "src", NULL };
+    char *argv_on[] = { "nosub", "--no-color", "src", "--color", "-o", "out", NULL };
+    char *argv_only_off[] = { "nosub", "--no-color", "-o", "out", "src", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv_off, NULL, 0, &result), CLOPTS_OK);
+    NAOS_CHECK_FALSE(clopts_result_flag(&result, NOSUB_COLOR));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_COLOR), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv_on, NULL, 0, &result), CLOPTS_OK);
+    NAOS_CHECK_TRUE(clopts_result_flag(&result, NOSUB_COLOR));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_COLOR), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv_only_off, NULL, 0, &result), CLOPTS_OK);
+    NAOS_CHECK_FALSE(clopts_result_flag(&result, NOSUB_COLOR));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_COLOR), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_negation_errors)
+{
+    char *argv_value[] = { "nosub", "-o", "out", "src", "--no-color=x", NULL };
+    char *argv_not_negatable[] = { "nosub", "-o", "out", "--no-verbose", "src", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_value, NULL, 0, &result), CLOPTS_USAGE_ERROR);
+    check_nosub_usage(&result, argv_value, CLOPTS_USAGE_UNEXPECTED_VALUE, NOSUB_COLOR, NULL, 4);
+    clopts_result_free(&result);
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_not_negatable, NULL, 0, &result), CLOPTS_USAGE_ERROR);
+    check_nosub_usage(&result, argv_not_negatable, CLOPTS_USAGE_UNKNOWN_OPTION, NULL, NULL, 3);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_count_is_clamped_to_count_max)
+{
+    char *argv[] = { "nosub", "-vv", "src", "-v", "--verbose", "-vvo", "out", "--verbose", NULL };
+    char *argv_two[] = { "nosub", "-v", "-o", "out", "src", "--verbose", NULL };
+    clopts_result_t result = { 0 };
+
+    /* 2 + 1 + 1 + 2 + 1 = 7 occurrences, clamped to 3. */
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv, NULL, 0, &result), CLOPTS_OK);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, NOSUB_VERBOSE), 3);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_VERBOSE), CLOPTS_SOURCE_EXPLICIT);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(&result, NOSUB_OUTPUT), argv[6]);
+    clopts_result_free(&result);
+
+    /* Below the limit the occurrences are counted as they are. */
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv_two, NULL, 0, &result), CLOPTS_OK);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, NOSUB_VERBOSE), 2);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_list_is_concatenated_and_split)
+{
+    static const char *const expected[] = { "a", "", "b", "", "", "c", "d", "" };
+    char *argv[] = { "nosub", "-k", "a,,b", "--keys=,", "src", "-kc", "--keys", "d", "-o", "out",
+                     "--keys=", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv, NULL, 0, &result), CLOPTS_OK);
+    check_items(&result, NOSUB_KEYS, expected, ARRAY_LEN(expected));
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_KEYS), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_unset_options_are_empty_and_default_applies)
+{
+    char *argv[] = { "nosub", "-o", "out", "src", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv, NULL, 0, &result), CLOPTS_OK);
+    NAOS_CHECK_UINT_EQ(clopts_result_list_count(&result, NOSUB_KEYS), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_KEYS), CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(&result, NOSUB_VERBOSE), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_VERBOSE), CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(&result, NOSUB_MODE), NOSUB_MODE->default_value);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_MODE), CLOPTS_SOURCE_DEFAULT);
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_OUTPUT), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_env_fallback_and_source)
+{
+    static const fixture_env_var_t vars[] = { { "NOSUB_MODE", "slow" } };
+    static const fixture_env_var_t empty[] = { { "NOSUB_MODE", "" } };
+    char *argv[] = { "nosub", "-o", "out", "src", NULL };
+    char *argv_explicit[] = { "nosub", "-o", "out", "src", "--mode=eager", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv, vars, ARRAY_LEN(vars), &result), CLOPTS_OK);
+    NAOS_CHECK_STR_EQ(clopts_result_value(&result, NOSUB_MODE), "slow");
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_MODE), CLOPTS_SOURCE_ENV);
+    clopts_result_free(&result);
+
+    /* An empty variable is still set and wins over the default. */
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv, empty, ARRAY_LEN(empty), &result), CLOPTS_OK);
+    NAOS_CHECK_STR_EQ(clopts_result_value(&result, NOSUB_MODE), "");
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_MODE), CLOPTS_SOURCE_ENV);
+    clopts_result_free(&result);
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv_explicit, vars, ARRAY_LEN(vars), &result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(&result, NOSUB_MODE), argv_explicit[4] + 7);
+    NAOS_CHECK_STR_EQ(clopts_result_value(&result, NOSUB_MODE), "eager");
+    NAOS_CHECK_INT_EQ(clopts_result_source(&result, NOSUB_MODE), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_missing_required_option)
+{
+    char *argv[] = { "nosub", "src", "-v", NULL };
+    char *argv_none[] = { "nosub", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv, NULL, 0, &result), CLOPTS_USAGE_ERROR);
+    check_nosub_usage(&result, argv, CLOPTS_USAGE_MISSING_OPTION, NOSUB_OUTPUT, NULL, -1);
+    clopts_result_free(&result);
+
+    /* Options are checked before positionals: the option is reported first. */
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_none, NULL, 0, &result), CLOPTS_USAGE_ERROR);
+    check_nosub_usage(&result, argv_none, CLOPTS_USAGE_MISSING_OPTION, NOSUB_OUTPUT, NULL, -1);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_missing_required_positional)
+{
+    char *argv[] = { "nosub", "-o", "out", "-k", "a", NULL };
+    char *argv_src_only[] = { "nosub", "-o", "out", "src", NULL };
+    char *expected[] = { argv_src_only[3] };
+    clopts_result_t result = { 0 };
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv, NULL, 0, &result), CLOPTS_USAGE_ERROR);
+    check_nosub_usage(&result, argv, CLOPTS_USAGE_MISSING_ARGUMENT, NULL,
+                      &nosub_positionals[NOSUB_POS_SRC], -1);
+    clopts_result_free(&result);
+
+    /* The optional variadic REST accepts zero tokens. */
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv_src_only, NULL, 0, &result), CLOPTS_OK);
+    check_positionals(&result, expected, ARRAY_LEN(expected));
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_version_is_reported)
+{
+    char *argv[] = { "nosub", "--version", NULL };
+    char *argv_late[] = { "nosub", "-o", "out", "src", "--version", NULL };
+    clopts_result_t result = { 0 };
+
+    /* Required option and positional are missing, but VERSION skips the check. */
+    NAOS_CHECK_INT_EQ(parse_nosub(argv, NULL, 0, &result), CLOPTS_VERSION);
+    NAOS_CHECK_NULL(result.command);
+    clopts_result_free(&result);
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_late, NULL, 0, &result), CLOPTS_VERSION);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_version_wins_over_an_earlier_usage_error)
+{
+    char *argv_unknown[] = { "nosub", "--bogus", "-o", "out", "src", "--version", NULL };
+    char *argv_value[] = { "nosub", "--color=yes", "--version", NULL };
+    char *argv_group[] = { "nosub", "-vx", "--version", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_unknown, NULL, 0, &result), CLOPTS_VERSION);
+    clopts_result_free(&result);
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_value, NULL, 0, &result), CLOPTS_VERSION);
+    clopts_result_free(&result);
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_group, NULL, 0, &result), CLOPTS_VERSION);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_version_consumed_as_value_or_after_dashdash_is_not_a_request)
+{
+    char *argv_value[] = { "nosub", "-o", "--version", "src", NULL };
+    char *argv_dashdash[] = { "nosub", "-o", "out", "--", "--version", NULL };
+    char *argv_error[] = { "nosub", "--bogus", "--", "--version", NULL };
+    char *expected[] = { argv_dashdash[4] };
+    clopts_result_t result = { 0 };
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv_value, NULL, 0, &result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(&result, NOSUB_OUTPUT), argv_value[2]);
+    clopts_result_free(&result);
+
+    NAOS_REQUIRE_INT_EQ(parse_nosub(argv_dashdash, NULL, 0, &result), CLOPTS_OK);
+    check_positionals(&result, expected, ARRAY_LEN(expected));
+    clopts_result_free(&result);
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_error, NULL, 0, &result), CLOPTS_USAGE_ERROR);
+    check_nosub_usage(&result, argv_error, CLOPTS_USAGE_UNKNOWN_OPTION, NULL, NULL, 1);
+    clopts_result_free(&result);
+}
+
+NAOS_TEST(nosub_first_of_help_and_version_wins)
+{
+    char *argv_help_first[] = { "nosub", "--help", "--version", NULL };
+    char *argv_version_first[] = { "nosub", "--version", "-h", NULL };
+    char *argv_group_help[] = { "nosub", "-vh", "--version", NULL };
+    char *argv_error_version[] = { "nosub", "--bogus", "--version", "--help", NULL };
+    char *argv_error_help[] = { "nosub", "--bogus", "-h", "--version", NULL };
+    clopts_result_t result = { 0 };
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_help_first, NULL, 0, &result), CLOPTS_HELP);
+    NAOS_CHECK_NULL(result.command);
+    clopts_result_free(&result);
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_version_first, NULL, 0, &result), CLOPTS_VERSION);
+    clopts_result_free(&result);
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_group_help, NULL, 0, &result), CLOPTS_HELP);
+    NAOS_CHECK_NULL(result.command);
+    clopts_result_free(&result);
+
+    /* After a usage error the recovery scan also keeps the argv order. */
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_error_version, NULL, 0, &result), CLOPTS_VERSION);
+    clopts_result_free(&result);
+
+    NAOS_CHECK_INT_EQ(parse_nosub(argv_error_help, NULL, 0, &result), CLOPTS_HELP);
+    NAOS_CHECK_NULL(result.command);
+    clopts_result_free(&result);
+}
+
 NAOS_SUITE(values,
     NAOS_ADD_TEST(fixture_list_delimiters_are_as_designed),
     NAOS_ADD_TEST(fixture_count_limits_are_as_designed),
@@ -781,5 +1184,20 @@ NAOS_SUITE(values,
     NAOS_ADD_TEST(parse_negation_then_flag_is_true),
     NAOS_ADD_TEST(parse_cat_tags_default_is_split),
     NAOS_ADD_TEST(parse_cat_tags_env_is_split),
-    NAOS_ADD_TEST(parse_cat_tags_explicit_is_split_and_wins)
+    NAOS_ADD_TEST(parse_cat_tags_explicit_is_split_and_wins),
+    NAOS_ADD_TEST(nosub_declaration_is_valid),
+    NAOS_ADD_TEST(nosub_dashdash_makes_the_rest_positional),
+    NAOS_ADD_TEST(nosub_lone_dash_is_positional),
+    NAOS_ADD_TEST(nosub_negation_last_occurrence_wins),
+    NAOS_ADD_TEST(nosub_negation_errors),
+    NAOS_ADD_TEST(nosub_count_is_clamped_to_count_max),
+    NAOS_ADD_TEST(nosub_list_is_concatenated_and_split),
+    NAOS_ADD_TEST(nosub_unset_options_are_empty_and_default_applies),
+    NAOS_ADD_TEST(nosub_env_fallback_and_source),
+    NAOS_ADD_TEST(nosub_missing_required_option),
+    NAOS_ADD_TEST(nosub_missing_required_positional),
+    NAOS_ADD_TEST(nosub_version_is_reported),
+    NAOS_ADD_TEST(nosub_version_wins_over_an_earlier_usage_error),
+    NAOS_ADD_TEST(nosub_version_consumed_as_value_or_after_dashdash_is_not_a_request),
+    NAOS_ADD_TEST(nosub_first_of_help_and_version_wins)
 )
