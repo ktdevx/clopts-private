@@ -87,7 +87,7 @@
   - _Requirements: 6.4, 6.5, 6.6, 6.7_
 
 - [ ] 4. 文書
-- [ ] 4.1 (P) ABI 方針の文書 `docs/abi.md` を書く
+- [x] 4.1 (P) ABI 方針の文書 `docs/abi.md` を書く
   - 設計の AbiPolicyDocs の `docs/abi.md` の項目（保証の範囲、版と SOVERSION、Windows の DLL 名、macOS の互換版と現在版と前方互換を保証しないときの挙動、互換を保つ変更、互換を壊す変更、壊すときの手順）を日本語で書く。識別子・コマンド・ファイル名は英語のまま。`docs/dev/` へはリンクしない
   - 書いた SOVERSION の規則と macOS の版が、`cmake/CloptsLibrary.cmake` の実装と一致することを確かめる
   - 完了条件: `docs/abi.md` があり、要件 1.1〜1.8 の各項目に対応する節がある（節と要件の対応を示す）
@@ -125,3 +125,4 @@
 - 2.6: `MODE=compare` は `SOURCE_DIR` と `WORK_DIR` を必須にする（3.2 の CI でも `-DSOURCE_DIR=$GITHUB_WORKSPACE` を渡す）。`WORK_DIR` が `SOURCE_DIR` を含むか同じなら拒む（設計外の防御）。基準と現在のビルドは最上位なので `CLOPTS_WERROR` が ON になり、新しい gcc で古いタグが警告を出すと tool error になる（4.2 の文書に注意として書く）。手元の clone で compatible（0 と 4）、incompatible（12）、tool error、no tag の skipped を確認済み
 - 3.1: 期待する失敗のテストは `PASS_REGULAR_EXPRESSION` で終了コードを見ないので、正規表現は報告の全体（件数、名前、行、案内）を要求する。スクリプトの文言や fixture を変えたら正規表現も直すこと。C++ の無い構成は `-DCMAKE_CXX_COMPILER=CMAKE_CXX_COMPILER-NOTFOUND` で確かめた（`abi.headers_cxx` が Not Run (Disabled)、ctest は 0 で終わる）。件数は静的 626、共有 628
 - 3.3: abidiff 2.4.0、gcc 13.3.0 で、仮の `v1.0.0` を付けた複製で確かめた: 変更なし → compatible（abidiff 0）、関数の追加 → compatible（4）、関数の削除 → incompatible（12、`1 Removed function` に名前が出る）。手順と出力の作業メモはセッションのスクラッチ `abi-compare-manual-check.md`（4.2 で文書に写す）。レビューはコード差分がないため親で inline に行い、2.6 のレビュアーの独立した再現と照合した
+- 4.1: MinGW の DLL は CMake の既定（`Windows-GNU.cmake`）で `libclopts.dll` / `libclopts.dll.a` になるので、文書に両方を書き、design.md も合わせた。macOS の前方互換の失敗は chained fixups では起動時にもなりうるため、時点を言わず `Symbol not found` として書いた
