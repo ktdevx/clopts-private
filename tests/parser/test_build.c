@@ -701,7 +701,12 @@ static size_t fail_each_point(oom_call_t *call)
             call->unchanged(call);
         }
     }
-    NAOS_FAIL("the call never succeeded");
+    /*
+     * The call never succeeded. Reported with a check that fails here (n is 20)
+     * rather than NAOS_FAIL, which does not return and would make the return
+     * unreachable (MSVC C4702).
+     */
+    NAOS_CHECK_TRUE(n < 20);
     return n;
 }
 
