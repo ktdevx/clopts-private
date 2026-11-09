@@ -10,14 +10,14 @@
 #include "clopts/parse.h"
 #include "clopts/program.h"
 #include "core/core_internal.h"
-#include "parser/parser_command.h"
+#include "parser/command_internal.h"
 #include "parser/parser_option.h"
 #include "parser/parser_positional.h"
 
 /*
  * Internal declaration model: the only representation of a declaration, built
  * by the builder functions (parser_option.c, parser_positional.c,
- * parser_command.c and parser_program.c). This header holds the program;
+ * command.c and parser_program.c). This header holds the program;
  * commands, options and positionals have their own headers. Everything
  * outside the parser module (help-and-messages included) reads it through the
  * public read functions only.

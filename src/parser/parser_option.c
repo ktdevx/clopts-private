@@ -5,7 +5,7 @@
  * Option (clopts/option.h): creation, release and attributes. Everything
  * here depends on the option alone: nothing reads or writes a command or a
  * program. The checks against the other options of the same command are
- * made when the option is attached (parser_command.c).
+ * made when the option is attached (command.c).
  *
  * Every function checks its arguments and the rules that belong to it, in a
  * fixed order, and returns the first rule that fails, changing nothing.

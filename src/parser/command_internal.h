@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_PARSER_COMMAND_H
-#define CLOPTS_PARSER_COMMAND_H
+#ifndef CLOPTS_PARSER_COMMAND_INTERNAL_H
+#define CLOPTS_PARSER_COMMAND_INTERNAL_H
 
 #include "clopts/command.h"
 #include "core/core_internal.h"
@@ -13,7 +13,7 @@
 
 /*
  * Internal representation of a command, the root included
- * (parser_command.c). A command does not point to the program it is
+ * (command.c). A command does not point to the program it is
  * attached to. Attached, it is owned by that program and read-only.
  */
 
@@ -30,4 +30,4 @@ struct clopts_command
 /* Releases command with its options, positionals and texts, attached or not. */
 void clopts_parser_command_release(clopts_command_t *command);
 
-#endif /* CLOPTS_PARSER_COMMAND_H */
+#endif /* CLOPTS_PARSER_COMMAND_INTERNAL_H */

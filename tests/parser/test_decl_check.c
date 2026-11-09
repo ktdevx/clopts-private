@@ -17,7 +17,7 @@
  * made by the attach functions and look at that command only; checks between
  * commands (command names, the layout of the root) are made by
  * clopts_program_create(). The order of the checks within one call is that of
- * parser_program.c and parser_command.c.
+ * parser_program.c and command.c.
  *
  * Names are not checked between the root and a command: there are no
  * reserved names, and a name of a command shadows the same name of the root.

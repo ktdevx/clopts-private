@@ -10,7 +10,7 @@
 
 /*
  * Internal contracts of the parser module, shared by the builder
- * (parser_program.c, parser_command.c, parser_option.c,
+ * (parser_program.c, command.c, parser_option.c,
  * parser_positional.c), the name rules and lookups (parser_decl.c), the scanner
  * (parser_scan.c), the resolver (parser_resolve.c) and the result handle
  * (parser_result.c). None of these symbols is exported from the shared

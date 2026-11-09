@@ -4,7 +4,7 @@
  *
  * Positional (clopts/positional.h): creation, release and attributes.
  * Nothing here reads or writes a command or a program; the order of the
- * positionals is checked when one is attached (parser_command.c).
+ * positionals is checked when one is attached (command.c).
  */
 
 #include "clopts/positional.h"
