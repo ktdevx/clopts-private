@@ -186,7 +186,7 @@ NAOS_TEST(fixture_short_names_are_as_designed)
     NAOS_CHECK_INT_EQ(t.output->short_name, 'o');
     NAOS_CHECK_INT_EQ(t.keys->short_name, 'k');
     NAOS_CHECK_INT_EQ(t.jobs->short_name, 'j');
-    NAOS_CHECK_INT_EQ(t.jobs->kind, CLOPTS_PARSER_COUNT);
+    NAOS_CHECK_INT_EQ(t.jobs->kind, CLOPTS_OPTION_COUNT);
     NAOS_CHECK_UINT_EQ(t.jobs->count_max, 8);
 
     NAOS_CHECK_INT_EQ(t.tags->short_name, '\0');

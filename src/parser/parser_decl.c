@@ -168,7 +168,7 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
     {
         const clopts_option_t *option = decl_option_at(scope, index);
 
-        if ((option->kind == CLOPTS_PARSER_FLAG) && option->negatable)
+        if ((option->kind == CLOPTS_OPTION_FLAG) && option->negatable)
         {
             ref.option = option;
             ref.global = global;

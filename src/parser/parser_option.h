@@ -13,18 +13,10 @@
  * command and read-only.
  */
 
-/* Kind of an option: the public kind. */
-typedef clopts_option_kind_t clopts_parser_kind_t;
-
-#define CLOPTS_PARSER_FLAG CLOPTS_OPTION_FLAG
-#define CLOPTS_PARSER_COUNT CLOPTS_OPTION_COUNT
-#define CLOPTS_PARSER_VALUE CLOPTS_OPTION_VALUE
-#define CLOPTS_PARSER_LIST CLOPTS_OPTION_LIST
-
 struct clopts_option
 {
     bool attached;              /* attached to a command: owned by it and read-only */
-    clopts_parser_kind_t kind;
+    clopts_option_kind_t kind;
     char *long_name;            /* may be NULL */
     char short_name;            /* '\0' for none */
     char *help;                 /* may be NULL; owned copy */

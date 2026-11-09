@@ -205,7 +205,7 @@ static scan_error_t *scan_option_value(scan_state_t *state, const clopts_parser_
         value = scan_token(state);
         state->pos++;
     }
-    if (ref->option->kind == CLOPTS_PARSER_VALUE)
+    if (ref->option->kind == CLOPTS_OPTION_VALUE)
     {
         clopts_parser_slot_set_value(slot, value, CLOPTS_SOURCE_EXPLICIT);
     }
@@ -247,8 +247,8 @@ static void scan_long_option(scan_state_t *state)
 
     switch (ref.option->kind)
     {
-    case CLOPTS_PARSER_FLAG:
-    case CLOPTS_PARSER_COUNT:
+    case CLOPTS_OPTION_FLAG:
+    case CLOPTS_OPTION_COUNT:
         if (value != NULL)
         {
             error = scan_fail(state, CLOPTS_USAGE_UNEXPECTED_VALUE, index);
@@ -257,7 +257,7 @@ static void scan_long_option(scan_state_t *state)
                 error->option = ref.option;
             }
         }
-        else if (ref.option->kind == CLOPTS_PARSER_FLAG)
+        else if (ref.option->kind == CLOPTS_OPTION_FLAG)
         {
             scan_flag(state, &ref);
         }
@@ -266,8 +266,8 @@ static void scan_long_option(scan_state_t *state)
             clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), ref.option->count_max);
         }
         break;
-    case CLOPTS_PARSER_VALUE:
-    case CLOPTS_PARSER_LIST:
+    case CLOPTS_OPTION_VALUE:
+    case CLOPTS_OPTION_LIST:
         (void)scan_option_value(state, &ref, value, index);
         break;
     }
@@ -304,18 +304,18 @@ static void scan_short_option(scan_state_t *state)
         }
         switch (ref.option->kind)
         {
-        case CLOPTS_PARSER_FLAG:
+        case CLOPTS_OPTION_FLAG:
             scan_flag(state, &ref);
             if (state->terminal != NULL)
             {
                 return;
             }
             break;
-        case CLOPTS_PARSER_COUNT:
+        case CLOPTS_OPTION_COUNT:
             clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), ref.option->count_max);
             break;
-        case CLOPTS_PARSER_VALUE:
-        case CLOPTS_PARSER_LIST:
+        case CLOPTS_OPTION_VALUE:
+        case CLOPTS_OPTION_LIST:
             error = scan_option_value(state, &ref, (chars[i + 1] != '\0') ? (chars + i + 1) : NULL, index);
             if (error != NULL)
             {
@@ -514,7 +514,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
         }
         *ref = clopts_parser_find_short(state->program, state->command, token[1]);
     }
-    if ((ref->option == NULL) || (ref->option->kind != CLOPTS_PARSER_FLAG) || !ref->option->terminal)
+    if ((ref->option == NULL) || (ref->option->kind != CLOPTS_OPTION_FLAG) || !ref->option->terminal)
     {
         return NULL;
     }

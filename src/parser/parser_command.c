@@ -131,7 +131,7 @@ static bool command_has_negatable(const clopts_command_t *command, const char *n
 {
     const clopts_option_t *found = clopts_parser_find_named(command, name, name_len);
 
-    return ((found != NULL) && (found->kind == CLOPTS_PARSER_FLAG) && found->negatable);
+    return ((found != NULL) && (found->kind == CLOPTS_OPTION_FLAG) && found->negatable);
 }
 
 /*

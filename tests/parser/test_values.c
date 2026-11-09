@@ -138,9 +138,9 @@ NAOS_TEST(fixture_list_delimiters_are_as_designed)
     fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_INT_EQ(f.keys->kind, CLOPTS_PARSER_LIST);
+    NAOS_CHECK_INT_EQ(f.keys->kind, CLOPTS_OPTION_LIST);
     NAOS_CHECK_INT_EQ(f.keys->delimiter, ',');
-    NAOS_CHECK_INT_EQ(f.tags->kind, CLOPTS_PARSER_LIST);
+    NAOS_CHECK_INT_EQ(f.tags->kind, CLOPTS_OPTION_LIST);
     NAOS_CHECK_INT_EQ(f.tags->delimiter, ',');
     fixture_tool_free(&f);
 }
@@ -152,10 +152,10 @@ NAOS_TEST(fixture_count_limits_are_as_designed)
     fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_INT_EQ(f.jobs->kind, CLOPTS_PARSER_COUNT);
+    NAOS_CHECK_INT_EQ(f.jobs->kind, CLOPTS_OPTION_COUNT);
     NAOS_CHECK_UINT_EQ(f.jobs->count_max, 8);
     /* 0 selects the library default (UINT_MAX). */
-    NAOS_CHECK_INT_EQ(f.verbose->kind, CLOPTS_PARSER_COUNT);
+    NAOS_CHECK_INT_EQ(f.verbose->kind, CLOPTS_OPTION_COUNT);
     NAOS_CHECK_UINT_EQ(f.verbose->count_max, 0);
     fixture_tool_free(&f);
 }

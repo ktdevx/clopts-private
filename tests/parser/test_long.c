@@ -203,16 +203,16 @@ NAOS_TEST(fixture_long_names_and_kinds_are_as_designed)
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_STR_EQ(t.verbose->long_name, "verbose");
-    NAOS_CHECK_INT_EQ(t.verbose->kind, CLOPTS_PARSER_COUNT);
+    NAOS_CHECK_INT_EQ(t.verbose->kind, CLOPTS_OPTION_COUNT);
     NAOS_CHECK_STR_EQ(t.color->long_name, "color");
-    NAOS_CHECK_INT_EQ(t.color->kind, CLOPTS_PARSER_FLAG);
+    NAOS_CHECK_INT_EQ(t.color->kind, CLOPTS_OPTION_FLAG);
     NAOS_CHECK_STR_EQ(t.config->long_name, "config");
-    NAOS_CHECK_INT_EQ(t.config->kind, CLOPTS_PARSER_VALUE);
+    NAOS_CHECK_INT_EQ(t.config->kind, CLOPTS_OPTION_VALUE);
 
     NAOS_CHECK_STR_EQ(t.output->long_name, "output");
-    NAOS_CHECK_INT_EQ(t.output->kind, CLOPTS_PARSER_VALUE);
+    NAOS_CHECK_INT_EQ(t.output->kind, CLOPTS_OPTION_VALUE);
     NAOS_CHECK_STR_EQ(t.keys->long_name, "keys");
-    NAOS_CHECK_INT_EQ(t.keys->kind, CLOPTS_PARSER_LIST);
+    NAOS_CHECK_INT_EQ(t.keys->kind, CLOPTS_OPTION_LIST);
     NAOS_CHECK_NULL(t.jobs->long_name);
 
     NAOS_CHECK_STR_EQ(t.tags->long_name, "tags");

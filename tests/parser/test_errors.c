@@ -200,7 +200,7 @@ NAOS_TEST(fixture_required_options_are_as_designed)
 
     STRICT_BEGIN(s);
     NAOS_CHECK_TRUE(s.token->required);
-    NAOS_CHECK_INT_EQ(s.token->kind, CLOPTS_PARSER_VALUE);
+    NAOS_CHECK_INT_EQ(s.token->kind, CLOPTS_OPTION_VALUE);
     fixture_strict_free(&s);
 }
 

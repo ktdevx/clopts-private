@@ -430,10 +430,10 @@ NAOS_TEST(attach_links_objects_in_order)
     NAOS_CHECK_TRUE(flag->attached);
     NAOS_CHECK_TRUE(list->attached);
 
-    NAOS_CHECK_INT_EQ(flag->kind, CLOPTS_PARSER_FLAG);
-    NAOS_CHECK_INT_EQ(count->kind, CLOPTS_PARSER_COUNT);
-    NAOS_CHECK_INT_EQ(value->kind, CLOPTS_PARSER_VALUE);
-    NAOS_CHECK_INT_EQ(list->kind, CLOPTS_PARSER_LIST);
+    NAOS_CHECK_INT_EQ(flag->kind, CLOPTS_OPTION_FLAG);
+    NAOS_CHECK_INT_EQ(count->kind, CLOPTS_OPTION_COUNT);
+    NAOS_CHECK_INT_EQ(value->kind, CLOPTS_OPTION_VALUE);
+    NAOS_CHECK_INT_EQ(list->kind, CLOPTS_OPTION_LIST);
     NAOS_REQUIRE_NOT_NULL(flag->long_name);
     NAOS_CHECK_STR_EQ(flag->long_name, "force");
     NAOS_CHECK_INT_EQ(flag->short_name, 'f');
@@ -1456,7 +1456,7 @@ NAOS_TEST(hundred_options_keep_the_first_handle)
     NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
     NAOS_CHECK_PTR_EQ(option_at(root, 0), first);
     NAOS_CHECK_TRUE(first->attached);
-    NAOS_CHECK_INT_EQ(first->kind, CLOPTS_PARSER_VALUE);
+    NAOS_CHECK_INT_EQ(first->kind, CLOPTS_OPTION_VALUE);
     NAOS_CHECK_STR_EQ(first->long_name, "o0");
     NAOS_CHECK_INT_EQ(first->short_name, 'a');
     NAOS_CHECK_STR_EQ(first->help, "first help");
@@ -1955,7 +1955,7 @@ typedef struct expected_option
 {
     const clopts_command_t *scope;
     size_t index;
-    clopts_parser_kind_t kind;
+    clopts_option_kind_t kind;
     const char *long_name;
     char short_name;
     const char *help;
@@ -2070,15 +2070,15 @@ NAOS_TEST(fixture_tool_declaration)
     NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
 
     {
-        const expected_option_t verbose = {root, 0, CLOPTS_PARSER_COUNT, "verbose", 'v', "Increase verbosity.",
+        const expected_option_t verbose = {root, 0, CLOPTS_OPTION_COUNT, "verbose", 'v', "Increase verbosity.",
                                            NULL, NULL, NULL, '\0', 0, false, false, false};
-        const expected_option_t color = {root, 1, CLOPTS_PARSER_FLAG, "color", '\0', "Colorize the output.",
+        const expected_option_t color = {root, 1, CLOPTS_OPTION_FLAG, "color", '\0', "Colorize the output.",
                                          NULL, NULL, NULL, '\0', 0, false, true, false};
-        const expected_option_t config = {root, 2, CLOPTS_PARSER_VALUE, "config", '\0', "Configuration file.",
+        const expected_option_t config = {root, 2, CLOPTS_OPTION_VALUE, "config", '\0', "Configuration file.",
                                           "PATH", NULL, "TOOL_CONFIG", '\0', 0, false, false, false};
-        const expected_option_t help = {root, 3, CLOPTS_PARSER_FLAG, "help", 'h', "Show this help",
+        const expected_option_t help = {root, 3, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
                                         NULL, NULL, NULL, '\0', 0, false, false, true};
-        const expected_option_t version = {root, 4, CLOPTS_PARSER_FLAG, "version", '\0', "Show version information",
+        const expected_option_t version = {root, 4, CLOPTS_OPTION_FLAG, "version", '\0', "Show version information",
                                            NULL, NULL, NULL, '\0', 0, false, false, true};
 
         check_option(f.verbose, &verbose);
@@ -2097,11 +2097,11 @@ NAOS_TEST(fixture_tool_declaration)
     NAOS_CHECK_UINT_EQ(f.build->options.len, 3);
     NAOS_CHECK_UINT_EQ(f.build->positionals.len, 2);
     {
-        const expected_option_t output = {f.build, 0, CLOPTS_PARSER_VALUE, "output", 'o', "Output file.",
+        const expected_option_t output = {f.build, 0, CLOPTS_OPTION_VALUE, "output", 'o', "Output file.",
                                           "FILE", NULL, NULL, '\0', 0, true, false, false};
-        const expected_option_t keys = {f.build, 1, CLOPTS_PARSER_LIST, "keys", 'k', "Keys to build.",
+        const expected_option_t keys = {f.build, 1, CLOPTS_OPTION_LIST, "keys", 'k', "Keys to build.",
                                         "KEY", NULL, NULL, ',', 0, false, false, false};
-        const expected_option_t jobs = {f.build, 2, CLOPTS_PARSER_COUNT, NULL, 'j', "Add a parallel job.",
+        const expected_option_t jobs = {f.build, 2, CLOPTS_OPTION_COUNT, NULL, 'j', "Add a parallel job.",
                                         NULL, NULL, NULL, '\0', 8, false, false, false};
 
         check_option(f.output, &output);
@@ -2119,7 +2119,7 @@ NAOS_TEST(fixture_tool_declaration)
     NAOS_CHECK_UINT_EQ(f.cat->options.len, 1);
     NAOS_CHECK_UINT_EQ(f.cat->positionals.len, 1);
     {
-        const expected_option_t tags = {f.cat, 0, CLOPTS_PARSER_LIST, "tags", '\0', "Tags to show.",
+        const expected_option_t tags = {f.cat, 0, CLOPTS_OPTION_LIST, "tags", '\0', "Tags to show.",
                                         "TAG", "a,b", "TOOL_TAGS", ',', 0, false, false, false};
 
         check_option(f.tags, &tags);
@@ -2151,9 +2151,9 @@ NAOS_TEST(fixture_filt_declaration)
     NAOS_CHECK_UINT_EQ(root->options.len, 2);
     NAOS_CHECK_UINT_EQ(root->positionals.len, 1);
     {
-        const expected_option_t lines = {root, 0, CLOPTS_PARSER_VALUE, "lines", 'n', "Number of lines.",
+        const expected_option_t lines = {root, 0, CLOPTS_OPTION_VALUE, "lines", 'n', "Number of lines.",
                                          "N", "10", "FILT_LINES", '\0', 0, false, false, false};
-        const expected_option_t help = {root, 1, CLOPTS_PARSER_FLAG, "help", 'h', "Show this help",
+        const expected_option_t help = {root, 1, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
                                         NULL, NULL, NULL, '\0', 0, false, false, true};
 
         check_option(f.lines, &lines);
@@ -2180,9 +2180,9 @@ NAOS_TEST(fixture_strict_declaration)
     NAOS_CHECK_UINT_EQ(root->options.len, 2);
     NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
     {
-        const expected_option_t token = {root, 0, CLOPTS_PARSER_VALUE, "token", '\0', "Access token.",
+        const expected_option_t token = {root, 0, CLOPTS_OPTION_VALUE, "token", '\0', "Access token.",
                                          "TOKEN", NULL, NULL, '\0', 0, true, false, false};
-        const expected_option_t help = {root, 1, CLOPTS_PARSER_FLAG, "help", 'h', "Show this help",
+        const expected_option_t help = {root, 1, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
                                         NULL, NULL, NULL, '\0', 0, false, false, true};
 
         check_option(f.token, &token);

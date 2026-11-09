@@ -40,7 +40,7 @@ clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, co
 static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *option,
                         clopts_getenv_fn getenv_fn, void *env_ctx)
 {
-    if ((option->kind != CLOPTS_PARSER_VALUE) && (option->kind != CLOPTS_PARSER_LIST))
+    if ((option->kind != CLOPTS_OPTION_VALUE) && (option->kind != CLOPTS_OPTION_LIST))
     {
         return 0;
     }
@@ -73,7 +73,7 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
             {
                 return -1;
             }
-            if (option->kind == CLOPTS_PARSER_VALUE)
+            if (option->kind == CLOPTS_OPTION_VALUE)
             {
                 clopts_parser_slot_own(slot, copy);
                 clopts_parser_slot_set_value(slot, copy, CLOPTS_SOURCE_ENV);
@@ -92,7 +92,7 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
 
     if (option->default_value != NULL)
     {
-        if (option->kind == CLOPTS_PARSER_VALUE)
+        if (option->kind == CLOPTS_OPTION_VALUE)
         {
             /* Borrows the model's copy, which outlives the result's use of it. */
             clopts_parser_slot_set_value(slot, option->default_value, CLOPTS_SOURCE_DEFAULT);

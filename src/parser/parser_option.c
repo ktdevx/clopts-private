@@ -15,9 +15,9 @@
 #include <assert.h>
 
 /* True for the kinds that take no value (FLAG / COUNT). */
-static bool option_takes_no_value(clopts_parser_kind_t kind)
+static bool option_takes_no_value(clopts_option_kind_t kind)
 {
-    return ((kind == CLOPTS_PARSER_FLAG) || (kind == CLOPTS_PARSER_COUNT));
+    return ((kind == CLOPTS_OPTION_FLAG) || (kind == CLOPTS_OPTION_COUNT));
 }
 
 void clopts_parser_option_release(clopts_option_t *option)
@@ -212,7 +212,7 @@ clopts_decl_error_t clopts_option_set_negatable(clopts_option_t *option, bool ne
     {
         return error;
     }
-    if (negatable && (option->kind != CLOPTS_PARSER_FLAG))
+    if (negatable && (option->kind != CLOPTS_OPTION_FLAG))
     {
         return CLOPTS_DECL_NOT_NEGATABLE;
     }
@@ -228,7 +228,7 @@ clopts_decl_error_t clopts_option_set_delimiter(clopts_option_t *option, char de
     {
         return error;
     }
-    if ((delimiter != '\0') && (option->kind != CLOPTS_PARSER_LIST))
+    if ((delimiter != '\0') && (option->kind != CLOPTS_OPTION_LIST))
     {
         return CLOPTS_DECL_ATTRIBUTE_KIND;
     }
@@ -244,7 +244,7 @@ clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *option, unsigne
     {
         return error;
     }
-    if ((count_max != 0) && (option->kind != CLOPTS_PARSER_COUNT))
+    if ((count_max != 0) && (option->kind != CLOPTS_OPTION_COUNT))
     {
         return CLOPTS_DECL_ATTRIBUTE_KIND;
     }
@@ -260,7 +260,7 @@ clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool ter
     {
         return error;
     }
-    if (terminal && (option->kind != CLOPTS_PARSER_FLAG))
+    if (terminal && (option->kind != CLOPTS_OPTION_FLAG))
     {
         return CLOPTS_DECL_ATTRIBUTE_KIND;
     }

@@ -103,7 +103,7 @@ NAOS_TEST(option_new_valid_names)
     EXPECT_OK(clopts_option_new(CLOPTS_OPTION_LIST, "no-", '4', &option));
     NAOS_REQUIRE_NOT_NULL(option);
     NAOS_CHECK_FALSE(option->attached);
-    NAOS_CHECK_INT_EQ(option->kind, CLOPTS_PARSER_LIST);
+    NAOS_CHECK_INT_EQ(option->kind, CLOPTS_OPTION_LIST);
     NAOS_CHECK_STR_EQ(option->long_name, "no-");
     NAOS_CHECK_INT_EQ(option->short_name, '4');
     clopts_option_free(option);
