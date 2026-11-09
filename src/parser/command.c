@@ -32,7 +32,9 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
+
     *out = NULL;
+
     if (!clopts_parser_valid_command_name(name))
     {
         return CLOPTS_DECL_INVALID_NAME;
@@ -43,18 +45,22 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
+
     command->name = clopts_core_strdup(name);
     if (command->name == NULL)
     {
         clopts_core_free(command);
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
+
     command->attached = false;
     command->summary = NULL;
     command->description = NULL;
     clopts_core_vec_init(&command->options, sizeof(clopts_option_t *));
     clopts_core_vec_init(&command->positionals, sizeof(clopts_positional_t *));
+
     *out = command;
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -86,11 +92,13 @@ void clopts_command_destroy(clopts_command_t *command)
     {
         return;
     }
+
     assert(!command->attached && "a command handed to a program is owned by it");
     if (command->attached)
     {
         return;
     }
+
     clopts_parser_command_release(command);
 }
 
@@ -101,6 +109,7 @@ static clopts_decl_error_t command_check_call(const clopts_command_t *command)
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
+
     return command->attached ? CLOPTS_DECL_ALREADY_ATTACHED : CLOPTS_DECL_NONE;
 }
 
@@ -112,6 +121,7 @@ clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const 
     {
         return error;
     }
+
     return (clopts_core_replace_string(&command->summary, summary) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
@@ -123,6 +133,7 @@ clopts_decl_error_t clopts_command_set_description(clopts_command_t *command, co
     {
         return error;
     }
+
     return (clopts_core_replace_string(&command->description, description) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
@@ -152,15 +163,18 @@ static int command_has_negation_name(const clopts_command_t *command, const char
     {
         return -1;
     }
+
     name = (char *)clopts_core_malloc(size);
     if (name == NULL)
     {
         return -1;
     }
+
     memcpy(name, "no-", 3);
     memcpy(name + 3, long_name, len + 1);
     found = (clopts_parser_find_named(command, name, len + 3) != NULL) ? 1 : 0;
     clopts_core_free(name);
+
     return found;
 }
 
@@ -174,10 +188,12 @@ static clopts_decl_error_t command_check_attach_option(const clopts_command_t *c
     {
         return CLOPTS_DECL_DUPLICATE_OPTION;
     }
+
     if ((l != NULL) && (strncmp(l, "no-", 3) == 0) && command_has_negatable(command, l + 3, strlen(l) - 3))
     {
         return CLOPTS_DECL_NEGATION_CONFLICT;
     }
+
     if (option->negatable && (l != NULL))
     {
         conflict = command_has_negation_name(command, l);
@@ -185,11 +201,12 @@ static clopts_decl_error_t command_check_attach_option(const clopts_command_t *c
         {
             return CLOPTS_DECL_OUT_OF_MEMORY;
         }
-        if (conflict > 0)
+        else if (conflict > 0)
         {
             return CLOPTS_DECL_NEGATION_CONFLICT;
         }
     }
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -202,22 +219,28 @@ clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
+
     if (command->attached || option->attached)
     {
         return CLOPTS_DECL_ALREADY_ATTACHED;
     }
+
     error = command_check_attach_option(command, option);
     if (error != CLOPTS_DECL_NONE)
     {
         return error;
     }
+
     index = command->options.len;
+
     if (clopts_core_vec_push(&command->options, &option) != 0)
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
+
     option->attached = true;
     option->index = index;
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -231,16 +254,19 @@ static clopts_decl_error_t command_check_attach_positional(const clopts_command_
     {
         return CLOPTS_DECL_NONE;
     }
+
     last = *(clopts_positional_t *const *)clopts_core_vec_at(&command->positionals, command->positionals.len - 1);
     if (last->variadic)
     {
         return CLOPTS_DECL_VARIADIC_POSITION;
     }
+
     /* The attached ones are in order, so checking the last one is enough. */
     if (positional->required && !last->required)
     {
         return CLOPTS_DECL_POSITIONAL_ORDER;
     }
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -252,20 +278,25 @@ clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clo
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
+
     if (command->attached || positional->attached)
     {
         return CLOPTS_DECL_ALREADY_ATTACHED;
     }
+
     error = command_check_attach_positional(command, positional);
     if (error != CLOPTS_DECL_NONE)
     {
         return error;
     }
+
     if (clopts_core_vec_push(&command->positionals, &positional) != 0)
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
+
     positional->attached = true;
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -300,6 +331,7 @@ const clopts_option_t *clopts_command_option_at(const clopts_command_t *command,
     {
         return NULL;
     }
+
     return *(const clopts_option_t *const *)clopts_core_vec_at(&command->options, index);
 }
 
@@ -317,5 +349,6 @@ const clopts_positional_t *clopts_command_positional_at(const clopts_command_t *
     {
         return NULL;
     }
+
     return *(const clopts_positional_t *const *)clopts_core_vec_at(&command->positionals, index);
 }
