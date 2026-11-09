@@ -45,11 +45,11 @@
 - 名前は `^clopts_[a-z0-9_]+$` に合うこと。重複してはいけない。
 - 名前は OS によらず同じに書く（macOS の先頭の `_` は付けない）。
 - 載せるのは `CLOPTS_API` の付いた関数だけ。公開ヘッダの `static inline` の関数（`clopts_file_write`）は export されないので載せない。
-- 特定の OS でだけ宣言・export される関数は、名前の後に空白で区切って OS の注記を 1 つ書く。受け付ける注記は `windows` だけである。現在は `include/clopts/platform.h` の `#ifdef _WIN32` の中で宣言される `clopts_argv_from_wide` が該当する。
+- 特定の OS でだけ宣言・export される関数は、名前の後に空白で区切って OS の注記を 1 つ書く。受け付ける注記は `windows` だけである。現在は `include/clopts/platform.h` の `#ifdef _WIN32` の中で宣言される `clopts_argv_create_from_wide` が該当する。
 
   ```text
   # clopts/platform.h
-  clopts_argv_from_wide windows
+  clopts_argv_create_from_wide windows
   ```
 
   注記 `windows` の付いた名前は、Windows の照合（`FORMAT` が `dumpbin` / `objdump-pe`）でだけ export を要求し、Linux と macOS（`nm-elf` / `nm-macho`）では一覧に無いものとして扱う。C++ のリンク検査（`abi.headers_cxx`）では、その名前の参照を `#ifdef _WIN32` で囲んで生成する。`windows` 以外の語や、3 語以上の行は形式の誤りになる。Windows 専用の公開関数を足すときは、この注記を付ける。
@@ -62,7 +62,7 @@ clopts_program_destroy
 ...
 
 # clopts/platform.h
-clopts_argv_from_wide windows
+clopts_argv_create_from_wide windows
 ```
 
 ## 検査の一覧

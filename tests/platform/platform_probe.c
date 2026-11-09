@@ -2,12 +2,12 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * platform_probe (Windows only): compares clopts_argv_get() with the CRT's
+ * platform_probe (Windows only): compares clopts_argv_create() with the CRT's
  * __argc / __argv of this process. Suite crt starts it with raw command
  * lines.
  *
  * Exit code: 0 when the element counts and every string match, 1 on a
- * mismatch, 2 when clopts_argv_get() fails. The first difference is
+ * mismatch, 2 when clopts_argv_create() fails. The first difference is
  * written to stderr.
  */
 
@@ -40,14 +40,14 @@ static int platform_probe_compare(const clopts_argv_t *args)
     int count;
     int i;
 
-    if (clopts_argv_status(args) != CLOPTS_ARGV_OK)
+    if (clopts_argv_get_status(args) != CLOPTS_ARGV_OK)
     {
-        fprintf(stderr, "platform_probe: clopts_argv_get failed (status %d)\n",
-                (int)clopts_argv_status(args));
+        fprintf(stderr, "platform_probe: clopts_argv_create failed (status %d)\n",
+                (int)clopts_argv_get_status(args));
         return 2;
     }
-    count = clopts_argv_count(args);
-    values = clopts_argv_values(args);
+    count = clopts_argv_get_count(args);
+    values = clopts_argv_get_values(args);
     if (count != __argc)
     {
         fprintf(stderr, "platform_probe: count %d, CRT __argc %d\n", count, __argc);
@@ -76,8 +76,8 @@ int main(void)
     clopts_argv_t *args;
     int result;
 
-    args = clopts_argv_get(0, NULL);
+    args = clopts_argv_create(0, NULL);
     result = platform_probe_compare(args);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     return result;
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite convert (Windows only; built only on Windows): clopts_argv_from_wide,
+ * Suite convert (Windows only; built only on Windows): clopts_argv_create_from_wide,
  * conversion from a command line, non-ASCII elements and the index of the
  * first invalid UTF-16 element. The allocations are counted with the test
  * allocator (tests/support/test_alloc.h).
@@ -56,10 +56,10 @@ static void convert_check_ok(const clopts_argv_t *args, const char *const *expec
         ++count;
     }
     NAOS_REQUIRE_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    NAOS_REQUIRE_INT_EQ(clopts_argv_count(args), count);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    NAOS_REQUIRE_INT_EQ(clopts_argv_get_count(args), count);
+    values = clopts_argv_get_values(args);
     NAOS_REQUIRE_NOT_NULL(values);
     for (i = 0; i < count; ++i)
     {
@@ -76,15 +76,15 @@ static void convert_check_invalid(const clopts_argv_t *args, int index)
     char *const *values;
 
     NAOS_REQUIRE_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_INVALID_UTF16);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), index);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_INVALID_UTF16);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), index);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+    values = clopts_argv_get_values(args);
     NAOS_REQUIRE_NOT_NULL(values);
     NAOS_CHECK_NULL(values[0]);
 }
 
-/* ---- clopts_argv_from_wide / clopts_platform_argv_convert ---------------- */
+/* ---- clopts_argv_create_from_wide / clopts_platform_argv_convert ---------------- */
 
 NAOS_TEST(from_wide_converts_japanese_to_utf8)
 {
@@ -101,9 +101,9 @@ NAOS_TEST(from_wide_converts_japanese_to_utf8)
     wargv[2] = platform_test_u16_from_units(&a2, emoji, CONVERT_COUNT(emoji));
     wargv[3] = NULL;
     test_alloc_begin(0);
-    args = clopts_argv_from_wide(3, wargv);
+    args = clopts_argv_create_from_wide(3, wargv);
     convert_check_ok(args, expected);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
     /* wargv is not written */
     NAOS_CHECK_INT_EQ(wcscmp(wargv[1], L"\u30c6\u30b9\u30c8.txt"), 0);
@@ -123,9 +123,9 @@ NAOS_TEST(from_wide_keeps_empty_elements)
     wargv[2] = e2;
     wargv[3] = NULL;
     test_alloc_begin(0);
-    args = clopts_argv_from_wide(3, wargv);
+    args = clopts_argv_create_from_wide(3, wargv);
     convert_check_ok(args, expected);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -136,9 +136,9 @@ NAOS_TEST(from_wide_with_argc_zero)
     clopts_argv_t *args;
 
     test_alloc_begin(0);
-    args = clopts_argv_from_wide(0, wargv);
+    args = clopts_argv_create_from_wide(0, wargv);
     convert_check_ok(args, expected);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -158,7 +158,7 @@ NAOS_TEST(convert_allocates_one_block)
     convert_check_ok(args, expected);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -180,7 +180,7 @@ static void convert_check_single_invalid(const uint16_t *units, size_t count)
     args = clopts_platform_argv_convert(2, wargs);
     convert_check_invalid(args, 1);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -222,15 +222,15 @@ NAOS_TEST(smallest_invalid_index_is_reported)
     wargv[4] = platform_test_u16_from_ascii(&a[4], "");
     wargv[5] = NULL;
     test_alloc_begin(0);
-    args = clopts_argv_from_wide(5, wargv);
+    args = clopts_argv_create_from_wide(5, wargv);
     convert_check_invalid(args, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
 
     /* Only the later one invalid: its index. */
     wargv[1] = platform_test_u16_from_ascii(&a[1], "ok");
-    args = clopts_argv_from_wide(5, wargv);
+    args = clopts_argv_create_from_wide(5, wargv);
     convert_check_invalid(args, 3);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -244,9 +244,9 @@ NAOS_TEST(invalid_argv0_reports_index_zero)
     wargv[0] = platform_test_u16_from_units(&a0, high, CONVERT_COUNT(high));
     wargv[1] = NULL;
     test_alloc_begin(0);
-    args = clopts_argv_from_wide(1, wargv);
+    args = clopts_argv_create_from_wide(1, wargv);
     convert_check_invalid(args, 0);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -271,7 +271,7 @@ NAOS_TEST(from_cmdline_splits_and_converts_non_ascii)
     /* the work block, then the handle block; the work block is released: only the handle stays */
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 2);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -285,7 +285,7 @@ NAOS_TEST(from_cmdline_follows_the_crt_rules)
     test_alloc_begin(0);
     args = clopts_platform_argv_from_cmdline(cmdline.units);
     convert_check_ok(args, expected);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -305,7 +305,7 @@ NAOS_TEST(from_cmdline_reports_the_invalid_element)
     /* the work block, then the failure handle; the handle stays, the work block is released */
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 2);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -317,7 +317,7 @@ NAOS_TEST(from_cmdline_empty_gives_one_empty_element)
     test_alloc_begin(0);
     args = clopts_platform_argv_from_cmdline(L"");
     convert_check_ok(args, expected);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -329,16 +329,16 @@ NAOS_TEST(from_cmdline_null_is_cmdline_unavailable)
     test_alloc_begin(0);
     args = clopts_platform_argv_from_cmdline(NULL);
     NAOS_REQUIRE_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_CMDLINE_UNAVAILABLE);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_CMDLINE_UNAVAILABLE);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+    values = clopts_argv_get_values(args);
     NAOS_REQUIRE_NOT_NULL(values);
     NAOS_CHECK_NULL(values[0]);
     /* only the failure handle is allocated */
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 

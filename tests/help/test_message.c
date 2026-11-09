@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite message: the texts of every usage error kind, the out-of-memory
- * line, the prefixes, the texts of clopts_error_message() and the
+ * line, the prefixes, the texts of clopts_error_get_message() and the
  * coverage of the text tables.
  *
  * The usage errors are caused by parsing real argv against the fictional
@@ -56,11 +56,11 @@ static void message_parse_and_write(clopts_program_t *program, int argc, char *c
 {
     clopts_result_t *result = clopts_parse_with_env(program, argc, argv, message_env_unset, NULL);
 
-    run->status = clopts_result_status(result);
-    run->usage = clopts_result_usage_error(result);
+    run->status = clopts_result_get_status(result);
+    run->usage = clopts_result_get_usage_error(result);
     help_recorder_init(&run->rec);
     run->write = clopts_write_error(program, result, flags, help_recorder_write, &run->rec);
-    clopts_result_free(result);
+    clopts_result_destroy(result);
 }
 
 /* ---- usage errors (7.1 to 7.9) ----------------------------------------- */
@@ -617,7 +617,7 @@ NAOS_TEST(decl_error_message_of_every_kind)
     NAOS_CHECK_UINT_EQ(sizeof(cases) / sizeof(cases[0]), MESSAGE_DECL_KIND_MAX);
     for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
-        const char *text = clopts_error_message(cases[i].kind);
+        const char *text = clopts_error_get_message(cases[i].kind);
 
         NAOS_TRACE_PUSH("kind %d", (int)cases[i].kind);
         NAOS_REQUIRE_NOT_NULL(text);
@@ -639,7 +639,7 @@ NAOS_TEST(decl_error_message_of_a_builder_error)
     second = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "out", '\0');
     NAOS_CHECK_NULL(second);
     NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_ERROR_DUPLICATE_OPTION);
-    NAOS_CHECK_STR_EQ(clopts_error_message(test_decl_last), "duplicate option name");
+    NAOS_CHECK_STR_EQ(clopts_error_get_message(test_decl_last), "duplicate option name");
     test_decl_discard(program);
 }
 
@@ -653,7 +653,7 @@ NAOS_TEST(decl_error_message_of_a_mixed_layout)
     NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "FILE"));
     NAOS_REQUIRE_INT_EQ(clopts_command_create("run", &command), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_ERROR_MIXED_LAYOUT);
-    NAOS_CHECK_STR_EQ(clopts_error_message(CLOPTS_ERROR_MIXED_LAYOUT),
+    NAOS_CHECK_STR_EQ(clopts_error_get_message(CLOPTS_ERROR_MIXED_LAYOUT),
                       "a program cannot have both arguments and subcommands");
     /* The failed call left the command with the caller. */
     clopts_command_destroy(command);
@@ -688,11 +688,11 @@ NAOS_TEST(decl_error_message_covers_every_kind)
     int i;
     int j;
 
-    NAOS_CHECK_NULL(clopts_error_message(CLOPTS_ERROR_NONE));
-    NAOS_CHECK_NULL(clopts_error_message((clopts_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
+    NAOS_CHECK_NULL(clopts_error_get_message(CLOPTS_ERROR_NONE));
+    NAOS_CHECK_NULL(clopts_error_get_message((clopts_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
     for (i = 1; i <= MESSAGE_DECL_KIND_MAX; i++)
     {
-        texts[i] = clopts_error_message((clopts_error_t)i);
+        texts[i] = clopts_error_get_message((clopts_error_t)i);
         NAOS_REQUIRE_NOT_NULL(texts[i]);
         NAOS_CHECK_TRUE(texts[i][0] != '\0');
         for (j = 1; j < i; j++)

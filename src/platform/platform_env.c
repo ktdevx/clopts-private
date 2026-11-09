@@ -18,7 +18,7 @@ static void platform_env_drop_name(clopts_env_t *env)
     env->error_name = NULL;
 }
 
-clopts_env_t *clopts_env_new(void)
+clopts_env_t *clopts_env_create(void)
 {
     clopts_env_t *env;
 
@@ -110,7 +110,7 @@ int clopts_platform_env_reserve_wide(clopts_env_t *env, size_t units)
     return 0;
 }
 
-void clopts_env_free(clopts_env_t *env)
+void clopts_env_destroy(clopts_env_t *env)
 {
     if (env == NULL)
     {
@@ -122,12 +122,12 @@ void clopts_env_free(clopts_env_t *env)
     clopts_core_free(env);
 }
 
-clopts_env_error_t clopts_env_error(const clopts_env_t *env)
+clopts_env_error_t clopts_env_get_error(const clopts_env_t *env)
 {
     return (env == NULL) ? CLOPTS_ENV_ERROR_OUT_OF_MEMORY : env->error;
 }
 
-const char *clopts_env_error_name(const clopts_env_t *env)
+const char *clopts_env_get_error_name(const clopts_env_t *env)
 {
     return (env == NULL) ? NULL : env->error_name;
 }

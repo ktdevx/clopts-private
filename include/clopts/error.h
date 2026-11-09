@@ -16,7 +16,7 @@ extern "C" {
  * The list of errors: X(name, message). The enumerators are
  * CLOPTS_ERROR_<name>, numbered from 0 in the order of the list, so new errors
  * go at the end (the values are stable). message is the static English
- * description returned by clopts_error_message() (NULL for CLOPTS_ERROR_NONE).
+ * description returned by clopts_error_get_message() (NULL for CLOPTS_ERROR_NONE).
  */
 #define CLOPTS_ERROR_LIST(X)                                                                                           \
     X(NONE, NULL)                                                                                                      \
@@ -51,7 +51,7 @@ typedef enum clopts_error
  * option name"), for the messages of the program that declares the options.
  * NULL for CLOPTS_ERROR_NONE and for values outside clopts_error_t.
  */
-CLOPTS_API const char *clopts_error_message(clopts_error_t error);
+CLOPTS_API const char *clopts_error_get_message(clopts_error_t error);
 
 #ifdef __cplusplus
 }

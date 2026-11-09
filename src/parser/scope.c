@@ -4,7 +4,7 @@
  *
  * Scope: the options and positionals of the program or of a command, in
  * order of attachment, with the checks of an attach against the other
- * options and positionals of the same scope. The program (parser_program.c)
+ * options and positionals of the same scope. The program (program.c)
  * and every command (command.c) embed one; nothing else reads a scope but
  * through the functions here.
  *
@@ -64,7 +64,8 @@ static bool scope_has_negatable(const clopts_scope_t *scope, const char *name, s
 {
     const clopts_option_t *found = clopts_parser_find_named(scope, name, name_len);
 
-    return ((found != NULL) && (clopts_option_kind_of(found) == CLOPTS_OPTION_FLAG) && clopts_option_negatable(found));
+    return ((found != NULL) && (clopts_option_get_kind(found) == CLOPTS_OPTION_FLAG) &&
+            clopts_option_is_negatable(found));
 }
 
 /* True when scope has an option whose long name is "no-" followed by long_name. */
@@ -74,7 +75,7 @@ static bool scope_has_negation_name(const clopts_scope_t *scope, const char *lon
 
     for (i = 0; i < scope->options.len; i++)
     {
-        const char *name = clopts_option_long_name(scope_option(scope, i));
+        const char *name = clopts_option_get_long_name(scope_option(scope, i));
 
         if ((name != NULL) && (strncmp(name, "no-", 3) == 0) && (strcmp(name + 3, long_name) == 0))
         {
@@ -88,9 +89,9 @@ static bool scope_has_negation_name(const clopts_scope_t *scope, const char *lon
 /* Checks of clopts_scope_add_option(scope, option) against scope, in order. */
 static clopts_error_t scope_check_option(const clopts_scope_t *scope, const clopts_option_t *option)
 {
-    const char *l = clopts_option_long_name(option);
+    const char *l = clopts_option_get_long_name(option);
 
-    if (clopts_parser_find_conflict(scope, l, clopts_option_short_name(option)) != NULL)
+    if (clopts_parser_find_conflict(scope, l, clopts_option_get_short_name(option)) != NULL)
     {
         return CLOPTS_ERROR_DUPLICATE_OPTION;
     }
@@ -100,7 +101,7 @@ static clopts_error_t scope_check_option(const clopts_scope_t *scope, const clop
         return CLOPTS_ERROR_NEGATION_CONFLICT;
     }
 
-    if (clopts_option_negatable(option) && (l != NULL) && scope_has_negation_name(scope, l))
+    if (clopts_option_is_negatable(option) && (l != NULL) && scope_has_negation_name(scope, l))
     {
         return CLOPTS_ERROR_NEGATION_CONFLICT;
     }
@@ -134,13 +135,13 @@ static clopts_error_t scope_check_positional(const clopts_scope_t *scope, const 
     }
 
     last = scope_positional(scope, scope->positionals.len - 1);
-    if (clopts_positional_variadic(last))
+    if (clopts_positional_is_variadic(last))
     {
         return CLOPTS_ERROR_VARIADIC_POSITION;
     }
 
     /* The attached ones are in order, so checking the last one is enough. */
-    if (clopts_positional_required(positional) && !clopts_positional_required(last))
+    if (clopts_positional_is_required(positional) && !clopts_positional_is_required(last))
     {
         return CLOPTS_ERROR_POSITIONAL_ORDER;
     }

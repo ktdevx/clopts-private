@@ -86,23 +86,23 @@ CLOPTS_API clopts_error_t clopts_option_set_terminal(clopts_option_t *option, bo
 /* ---- read functions: a NULL option is a contract violation (assert) ---- */
 
 /* The kind. */
-CLOPTS_API clopts_option_kind_t clopts_option_kind_of(const clopts_option_t *option);
+CLOPTS_API clopts_option_kind_t clopts_option_get_kind(const clopts_option_t *option);
 /* Without the leading "--"; NULL for none. */
-CLOPTS_API const char *clopts_option_long_name(const clopts_option_t *option);
+CLOPTS_API const char *clopts_option_get_long_name(const clopts_option_t *option);
 /* '\0' for none. */
-CLOPTS_API char clopts_option_short_name(const clopts_option_t *option);
+CLOPTS_API char clopts_option_get_short_name(const clopts_option_t *option);
 /* The string attributes; NULL when not set. */
-CLOPTS_API const char *clopts_option_help(const clopts_option_t *option);
-CLOPTS_API const char *clopts_option_value_name(const clopts_option_t *option);
-CLOPTS_API const char *clopts_option_env(const clopts_option_t *option);
-CLOPTS_API const char *clopts_option_default(const clopts_option_t *option);
+CLOPTS_API const char *clopts_option_get_help(const clopts_option_t *option);
+CLOPTS_API const char *clopts_option_get_value_name(const clopts_option_t *option);
+CLOPTS_API const char *clopts_option_get_env(const clopts_option_t *option);
+CLOPTS_API const char *clopts_option_get_default(const clopts_option_t *option);
 /* '\0' when not set. */
-CLOPTS_API char clopts_option_delimiter(const clopts_option_t *option);
+CLOPTS_API char clopts_option_get_delimiter(const clopts_option_t *option);
 /* 0 when not set (the default, UINT_MAX). */
-CLOPTS_API unsigned clopts_option_count_max(const clopts_option_t *option);
-CLOPTS_API bool clopts_option_required(const clopts_option_t *option);
-CLOPTS_API bool clopts_option_negatable(const clopts_option_t *option);
-CLOPTS_API bool clopts_option_terminal(const clopts_option_t *option);
+CLOPTS_API unsigned clopts_option_get_count_max(const clopts_option_t *option);
+CLOPTS_API bool clopts_option_is_required(const clopts_option_t *option);
+CLOPTS_API bool clopts_option_is_negatable(const clopts_option_t *option);
+CLOPTS_API bool clopts_option_is_terminal(const clopts_option_t *option);
 
 #ifdef __cplusplus
 }

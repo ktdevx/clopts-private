@@ -93,25 +93,25 @@ void clopts_positional_set_variadic(clopts_positional_t *positional, bool variad
 
 /* ---- read functions ---- */
 
-const char *clopts_positional_name(const clopts_positional_t *positional)
+const char *clopts_positional_get_name(const clopts_positional_t *positional)
 {
     assert(positional != NULL);
     return positional->name;
 }
 
-const char *clopts_positional_help(const clopts_positional_t *positional)
+const char *clopts_positional_get_help(const clopts_positional_t *positional)
 {
     assert(positional != NULL);
     return positional->help;
 }
 
-bool clopts_positional_required(const clopts_positional_t *positional)
+bool clopts_positional_is_required(const clopts_positional_t *positional)
 {
     assert(positional != NULL);
     return positional->required;
 }
 
-bool clopts_positional_variadic(const clopts_positional_t *positional)
+bool clopts_positional_is_variadic(const clopts_positional_t *positional)
 {
     assert(positional != NULL);
     return positional->variadic;

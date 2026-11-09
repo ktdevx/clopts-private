@@ -17,7 +17,7 @@ endif()
 
 clopts_add_module_tests(platform SOURCES ${clopts_platform_test_sources})
 
-# platform_probe (Windows only): compares clopts_argv_get with the CRT's
+# platform_probe (Windows only): compares clopts_argv_create with the CRT's
 # __argc / __argv; suite crt starts it with raw command lines. It links the
 # same target as the unit tests (a static library in both builds, so no DLL
 # has to be found at run time).

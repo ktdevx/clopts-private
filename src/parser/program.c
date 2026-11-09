@@ -124,7 +124,7 @@ clopts_error_t clopts_program_add_command(clopts_program_t *program, clopts_comm
     assert(program != NULL);
     assert(command != NULL);
 
-    if (clopts_program_find_command(program, clopts_command_name(command)) != NULL)
+    if (clopts_program_find_command(program, clopts_command_get_name(command)) != NULL)
     {
         return CLOPTS_ERROR_DUPLICATE_COMMAND;
     }
@@ -144,52 +144,52 @@ const clopts_scope_t *clopts_program_scope(const clopts_program_t *program)
 
 /* ---- read functions: a NULL program is a contract violation ---- */
 
-const char *clopts_program_name(const clopts_program_t *program)
+const char *clopts_program_get_name(const clopts_program_t *program)
 {
     assert(program != NULL);
     return program->name;
 }
 
-const char *clopts_program_description(const clopts_program_t *program)
+const char *clopts_program_get_description(const clopts_program_t *program)
 {
     assert(program != NULL);
     return program->description;
 }
 
-size_t clopts_program_option_count(const clopts_program_t *program)
+size_t clopts_program_get_option_count(const clopts_program_t *program)
 {
     assert(program != NULL);
     return clopts_scope_option_count(&program->scope);
 }
 
-const clopts_option_t *clopts_program_option_at(const clopts_program_t *program, size_t index)
+const clopts_option_t *clopts_program_get_option_at(const clopts_program_t *program, size_t index)
 {
     assert(program != NULL);
     return clopts_scope_option_at(&program->scope, index);
 }
 
-size_t clopts_program_positional_count(const clopts_program_t *program)
+size_t clopts_program_get_positional_count(const clopts_program_t *program)
 {
     assert(program != NULL);
     return clopts_scope_positional_count(&program->scope);
 }
 
-const clopts_positional_t *clopts_program_positional_at(const clopts_program_t *program, size_t index)
+const clopts_positional_t *clopts_program_get_positional_at(const clopts_program_t *program, size_t index)
 {
     assert(program != NULL);
     return clopts_scope_positional_at(&program->scope, index);
 }
 
-size_t clopts_program_command_count(const clopts_program_t *program)
+size_t clopts_program_get_command_count(const clopts_program_t *program)
 {
     assert(program != NULL);
     return program->commands.len;
 }
 
-const clopts_command_t *clopts_program_command_at(const clopts_program_t *program, size_t index)
+const clopts_command_t *clopts_program_get_command_at(const clopts_program_t *program, size_t index)
 {
     assert(program != NULL);
-    assert((index < program->commands.len) && "index must be less than clopts_program_command_count()");
+    assert((index < program->commands.len) && "index must be less than clopts_program_get_command_count()");
     if (index >= program->commands.len)
     {
         return NULL;
@@ -204,7 +204,7 @@ const clopts_command_t *clopts_program_find_command(const clopts_program_t *prog
     assert((program != NULL) && (name != NULL));
     for (i = 0; i < program->commands.len; i++)
     {
-        if (strcmp(clopts_command_name(program_command(program, i)), name) == 0)
+        if (strcmp(clopts_command_get_name(program_command(program, i)), name) == 0)
         {
             return program_command(program, i);
         }

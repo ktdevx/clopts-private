@@ -269,73 +269,73 @@ clopts_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal
 
 /* ---- read functions: a NULL option is a contract violation ---- */
 
-clopts_option_kind_t clopts_option_kind_of(const clopts_option_t *option)
+clopts_option_kind_t clopts_option_get_kind(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->kind;
 }
 
-const char *clopts_option_long_name(const clopts_option_t *option)
+const char *clopts_option_get_long_name(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->long_name;
 }
 
-char clopts_option_short_name(const clopts_option_t *option)
+char clopts_option_get_short_name(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->short_name;
 }
 
-const char *clopts_option_help(const clopts_option_t *option)
+const char *clopts_option_get_help(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->help;
 }
 
-const char *clopts_option_value_name(const clopts_option_t *option)
+const char *clopts_option_get_value_name(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->value_name;
 }
 
-const char *clopts_option_env(const clopts_option_t *option)
+const char *clopts_option_get_env(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->env;
 }
 
-const char *clopts_option_default(const clopts_option_t *option)
+const char *clopts_option_get_default(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->default_value;
 }
 
-char clopts_option_delimiter(const clopts_option_t *option)
+char clopts_option_get_delimiter(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->delimiter;
 }
 
-unsigned clopts_option_count_max(const clopts_option_t *option)
+unsigned clopts_option_get_count_max(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->count_max;
 }
 
-bool clopts_option_required(const clopts_option_t *option)
+bool clopts_option_is_required(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->required;
 }
 
-bool clopts_option_negatable(const clopts_option_t *option)
+bool clopts_option_is_negatable(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->negatable;
 }
 
-bool clopts_option_terminal(const clopts_option_t *option)
+bool clopts_option_is_terminal(const clopts_option_t *option)
 {
     assert(option != NULL);
     return option->terminal;

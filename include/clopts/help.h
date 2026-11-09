@@ -83,7 +83,7 @@ CLOPTS_API clopts_write_status_t clopts_write_error(const clopts_program_t *prog
 /*
  * Creates an unattached subcommand "help" ("Show help for a command") with
  * one optional positional COMMAND into *out, to be added with
- * clopts_program_add_command() like the other subcommands. clopts_help_target()
+ * clopts_program_add_command() like the other subcommands. clopts_help_find_target()
  * reads a result that selected it.
  */
 CLOPTS_API clopts_error_t clopts_help_command_create(clopts_command_t **out);
@@ -95,7 +95,7 @@ CLOPTS_API clopts_error_t clopts_help_command_create(clopts_command_t **out);
  * name; returns false and sets *target to NULL when no subcommand has that
  * name, or when the status is not OK.
  */
-CLOPTS_API bool clopts_help_target(const clopts_program_t *program, const clopts_result_t *result,
+CLOPTS_API bool clopts_help_find_target(const clopts_program_t *program, const clopts_result_t *result,
                                    const clopts_command_t **target);
 
 #ifdef __cplusplus

@@ -9,7 +9,7 @@
 
 #include <stddef.h>
 
-const char *clopts_error_message(clopts_error_t error)
+const char *clopts_error_get_message(clopts_error_t error)
 {
     switch (error)
     {

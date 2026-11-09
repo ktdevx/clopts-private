@@ -10,7 +10,7 @@
  *
  * A command does not know its program: every check made here reads the
  * command alone. The checks between commands are made when a command is
- * added to the program (parser_program.c).
+ * added to the program (program.c).
  *
  * Every builder function checks its arguments and the declaration rules that
  * belong to it, in a fixed order, and returns the first rule that fails.
@@ -123,43 +123,43 @@ const clopts_scope_t *clopts_command_scope(const clopts_command_t *command)
 
 /* ---- read functions: a NULL command is a contract violation ---- */
 
-const char *clopts_command_name(const clopts_command_t *command)
+const char *clopts_command_get_name(const clopts_command_t *command)
 {
     assert(command != NULL);
     return command->name;
 }
 
-const char *clopts_command_summary(const clopts_command_t *command)
+const char *clopts_command_get_summary(const clopts_command_t *command)
 {
     assert(command != NULL);
     return command->summary;
 }
 
-const char *clopts_command_description(const clopts_command_t *command)
+const char *clopts_command_get_description(const clopts_command_t *command)
 {
     assert(command != NULL);
     return command->description;
 }
 
-size_t clopts_command_option_count(const clopts_command_t *command)
+size_t clopts_command_get_option_count(const clopts_command_t *command)
 {
     assert(command != NULL);
     return clopts_scope_option_count(&command->scope);
 }
 
-const clopts_option_t *clopts_command_option_at(const clopts_command_t *command, size_t index)
+const clopts_option_t *clopts_command_get_option_at(const clopts_command_t *command, size_t index)
 {
     assert(command != NULL);
     return clopts_scope_option_at(&command->scope, index);
 }
 
-size_t clopts_command_positional_count(const clopts_command_t *command)
+size_t clopts_command_get_positional_count(const clopts_command_t *command)
 {
     assert(command != NULL);
     return clopts_scope_positional_count(&command->scope);
 }
 
-const clopts_positional_t *clopts_command_positional_at(const clopts_command_t *command, size_t index)
+const clopts_positional_t *clopts_command_get_positional_at(const clopts_command_t *command, size_t index)
 {
     assert(command != NULL);
     return clopts_scope_positional_at(&command->scope, index);
