@@ -363,7 +363,8 @@ const clopts_command_t *clopts_result_command(const clopts_result_t *result)
 
 const clopts_option_t *clopts_result_terminal(const clopts_result_t *result)
 {
-    return result_or_sentinel(result)->terminal;
+    result = result_or_sentinel(result);
+    return (result->status == CLOPTS_TERMINATED) ? result->terminal : NULL;
 }
 
 clopts_usage_error_t clopts_result_usage_error(const clopts_result_t *result)
