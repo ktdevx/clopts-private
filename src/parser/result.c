@@ -328,6 +328,73 @@ void clopts_parser_result_finish(clopts_result_t *result, clopts_status_t status
     result->status = status;
 }
 
+/* ---- internal readers ---- */
+
+/* Returns the slot of slots that records option, or NULL. */
+static clopts_parser_slot_t *slot_of(clopts_parser_slot_t *slots, size_t count, const clopts_option_t *option)
+{
+    size_t i;
+
+    for (i = 0; i < count; i++)
+    {
+        if (slots[i].option == option)
+        {
+            return &slots[i];
+        }
+    }
+    return NULL;
+}
+
+clopts_parser_slot_t *clopts_parser_result_get_slots(clopts_result_t *result, bool global, size_t *count)
+{
+    assert(result != NULL);
+    assert(count != NULL);
+
+    if (global)
+    {
+        *count = result->global_count;
+        return result->global_slots;
+    }
+    *count = result->command_count;
+    return result->command_slots;
+}
+
+clopts_parser_slot_t *clopts_parser_result_find_slot(clopts_result_t *result, const clopts_option_t *option)
+{
+    clopts_parser_slot_t *slot;
+
+    assert(result != NULL);
+    assert(option != NULL);
+
+    slot = slot_of(result->global_slots, result->global_count, option);
+    if (slot == NULL)
+    {
+        slot = slot_of(result->command_slots, result->command_count, option);
+    }
+    return slot;
+}
+
+size_t clopts_parser_result_get_positional_count(const clopts_result_t *result)
+{
+    assert(result != NULL);
+
+    return result->positionals.len;
+}
+
+const clopts_parser_error_t *clopts_parser_result_get_error(const clopts_result_t *result)
+{
+    assert(result != NULL);
+
+    return &result->error;
+}
+
+const clopts_option_t *clopts_parser_result_get_terminal(const clopts_result_t *result)
+{
+    assert(result != NULL);
+
+    return result->terminal;
+}
+
 /* ---- public accessors ---- */
 
 /* Returns result, or the sentinel when result is NULL. */
@@ -349,45 +416,26 @@ static bool result_has_values(const clopts_result_t *result)
             || (result->status == CLOPTS_NO_COMMAND));
 }
 
-/* Returns the slot of slots that records option, or NULL. */
-static const clopts_parser_slot_t *slot_of(const clopts_parser_slot_t *slots, size_t count,
-                                           const clopts_option_t *option)
-{
-    size_t i;
-
-    for (i = 0; i < count; i++)
-    {
-        if (slots[i].option == option)
-        {
-            return &slots[i];
-        }
-    }
-    return NULL;
-}
-
 /*
  * Returns the slot of option in result, or NULL when the accessors must
  * return the unset value: a NULL result (read as the sentinel), the
  * sentinel, a NULL option, a status other than OK / TERMINATED /
  * NO_COMMAND, or an option that is attached neither to the program nor to the
  * selected command (an option of another command or program, or an
- * unattached one). The option is found by its address.
+ * unattached one). With NO_COMMAND only the global options have values.
  */
 static const clopts_parser_slot_t *find_slot(const clopts_result_t *result, const clopts_option_t *option)
 {
-    const clopts_parser_slot_t *slot;
-
     result = result_or_sentinel(result);
     if ((result == &parser_result_sentinel) || (option == NULL) || (!result_has_values(result)))
     {
         return NULL;
     }
-    slot = slot_of(result->global_slots, result->global_count, option);
-    if ((slot == NULL) && (result->status != CLOPTS_NO_COMMAND))
+    if (result->status == CLOPTS_NO_COMMAND)
     {
-        slot = slot_of(result->command_slots, result->command_count, option);
+        return slot_of(result->global_slots, result->global_count, option);
     }
-    return slot;
+    return clopts_parser_result_find_slot((clopts_result_t *)result, option);
 }
 
 clopts_status_t clopts_result_get_status(const clopts_result_t *result)

@@ -133,6 +133,10 @@ static int resolve_scope(clopts_parser_slot_t *slots, size_t slot_count,
 int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *program,
                           clopts_getenv_fn getenv_fn, void *env_ctx, bool include_command)
 {
+    const clopts_command_t *command;
+    clopts_parser_slot_t *slots;
+    size_t slot_count;
+
     assert(result != NULL);
     assert(result != clopts_parser_result_oom());
     assert(program != NULL);
@@ -142,15 +146,16 @@ int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *progr
         getenv_fn = clopts_parser_getenv_default;
     }
 
-    if (resolve_scope(result->global_slots, result->global_count, clopts_program_scope(program),
-                      getenv_fn, env_ctx) != 0)
+    slots = clopts_parser_result_get_slots(result, true, &slot_count);
+    if (resolve_scope(slots, slot_count, clopts_program_scope(program), getenv_fn, env_ctx) != 0)
     {
         return -1;
     }
-    if (include_command && (result->command != NULL))
+    command = clopts_result_get_command(result);
+    if (include_command && (command != NULL))
     {
-        if (resolve_scope(result->command_slots, result->command_count, clopts_command_scope(result->command),
-                          getenv_fn, env_ctx) != 0)
+        slots = clopts_parser_result_get_slots(result, false, &slot_count);
+        if (resolve_scope(slots, slot_count, clopts_command_scope(command), getenv_fn, env_ctx) != 0)
         {
             return -1;
         }

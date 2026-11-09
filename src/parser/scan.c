@@ -31,7 +31,7 @@ typedef struct scan_state
     clopts_result_t *result;
     /* Index of the next argv element to look at; argc means the end. */
     int pos;
-    /* Selected command (kept equal to result->command), or NULL. */
+    /* Selected command (kept equal to the command of the result), or NULL. */
     const clopts_command_t *command;
     /* A usage error is pending in pending_error (only the first one is kept). */
     bool has_pending;
@@ -121,7 +121,7 @@ static clopts_parser_error_t *scan_fail(scan_state_t *state, clopts_usage_error_
 
 /*
  * Selects command with clopts_parser_result_select() (called once per
- * parse): allocates its slots and sets result->command, which
+ * parse): allocates its slots and sets the command of the result, which
  * state->command follows. An allocation failure ends the scan with
  * OUT_OF_MEMORY.
  */
@@ -329,7 +329,7 @@ static void main_positional(scan_state_t *state)
 {
     const clopts_scope_t *scope = (state->command != NULL) ? scan_selected(state) : scan_global(state);
     const size_t declared = clopts_scope_positional_count(scope);
-    const size_t taken = state->result->positionals.len;
+    const size_t taken = clopts_parser_result_get_positional_count(state->result);
     const clopts_positional_t *last;
 
     if (taken >= declared)

@@ -245,6 +245,31 @@ void clopts_parser_result_set_terminal(clopts_result_t *result, const clopts_opt
 void clopts_parser_result_finish(clopts_result_t *result, clopts_status_t status);
 
 /*
+ * Readers of a result. Unlike the public accessors (clopts/parse.h), they do
+ * not look at the status, so the parse can read what it has recorded so far.
+ * They accept the sentinel.
+ */
+
+/*
+ * Returns the slots of the global options (global true) or of the selected
+ * command (NULL without one) and sets *count to their number. The slot of an
+ * option has the index of the option in its scope.
+ */
+clopts_parser_slot_t *clopts_parser_result_get_slots(clopts_result_t *result, bool global, size_t *count);
+
+/* Returns the slot of option (a global option or one of the selected command), found by its address, or NULL. */
+clopts_parser_slot_t *clopts_parser_result_find_slot(clopts_result_t *result, const clopts_option_t *option);
+
+/* Returns the number of positionals recorded so far. */
+size_t clopts_parser_result_get_positional_count(const clopts_result_t *result);
+
+/* Returns the usage error of result (usage NONE when none was recorded). */
+const clopts_parser_error_t *clopts_parser_result_get_error(const clopts_result_t *result);
+
+/* Returns the terminal option of result, or NULL. */
+const clopts_option_t *clopts_parser_result_get_terminal(const clopts_result_t *result);
+
+/*
  * Scanner (scan.c).
  */
 

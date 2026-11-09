@@ -62,6 +62,8 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
     const clopts_command_t *command;
     const clopts_scope_t *positional_scope;
     const clopts_option_t *missing;
+    const clopts_parser_slot_t *slots;
+    size_t slot_count;
     size_t recorded;
     size_t i;
 
@@ -69,9 +71,10 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
     assert(result != clopts_parser_result_oom());
     assert(program != NULL);
 
-    command = include_command ? result->command : NULL;
+    command = include_command ? clopts_result_get_command(result) : NULL;
 
-    missing = first_missing_option(result->global_slots, result->global_count, clopts_program_scope(program));
+    slots = clopts_parser_result_get_slots(result, true, &slot_count);
+    missing = first_missing_option(slots, slot_count, clopts_program_scope(program));
     if (missing != NULL)
     {
         set_missing(result, command, missing, NULL);
@@ -84,7 +87,8 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
 
     if (command != NULL)
     {
-        missing = first_missing_option(result->command_slots, result->command_count, clopts_command_scope(command));
+        slots = clopts_parser_result_get_slots(result, false, &slot_count);
+        missing = first_missing_option(slots, slot_count, clopts_command_scope(command));
         if (missing != NULL)
         {
             set_missing(result, command, missing, NULL);
@@ -107,7 +111,7 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
      * ones, so the i-th positional got a token exactly when i < recorded. A
      * required variadic positional therefore needs at least one token.
      */
-    recorded = result->positionals.len;
+    recorded = clopts_parser_result_get_positional_count(result);
     for (i = 0; i < clopts_scope_positional_count(positional_scope); i++)
     {
         const clopts_positional_t *positional = clopts_scope_positional_at(positional_scope, i);
