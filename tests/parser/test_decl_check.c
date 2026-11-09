@@ -420,38 +420,38 @@ static clopts_result_t *parse_tokens(const clopts_program_t *program, const char
 
 NAOS_TEST(valid_command_name_rules)
 {
-    NAOS_CHECK_TRUE(clopts_parser_valid_command_name("build"));
-    NAOS_CHECK_TRUE(clopts_parser_valid_command_name("a-b"));
-    NAOS_CHECK_TRUE(clopts_parser_valid_command_name("help"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name(NULL));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name(""));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name("-b"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name("a b"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name("a\tb"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name("ab\n"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_command_name("build"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_command_name("a-b"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_command_name("help"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name(NULL));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name(""));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name("-b"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name("a b"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name("a\tb"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name("ab\n"));
 }
 
 NAOS_TEST(valid_long_name_rules)
 {
-    NAOS_CHECK_TRUE(clopts_parser_valid_long_name("output"));
-    NAOS_CHECK_TRUE(clopts_parser_valid_long_name("no-color"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name(NULL));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name(""));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name("-o"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name("a=b"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name("a b"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name("a\rb"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_long_name("output"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_long_name("no-color"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name(NULL));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name(""));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name("-o"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name("a=b"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name("a b"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name("a\rb"));
 }
 
 NAOS_TEST(valid_short_name_rules)
 {
-    NAOS_CHECK_TRUE(clopts_parser_valid_short_name('o'));
-    NAOS_CHECK_TRUE(clopts_parser_valid_short_name('4'));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name('\0'));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name('-'));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name('='));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name(' '));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name('\t'));
+    NAOS_CHECK_TRUE(clopts_decl_valid_short_name('o'));
+    NAOS_CHECK_TRUE(clopts_decl_valid_short_name('4'));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name('\0'));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name('-'));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name('='));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name(' '));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name('\t'));
 }
 
 /* ---- clopts_command_create -------------------------------------------------- */
@@ -1554,28 +1554,28 @@ NAOS_TEST(find_conflict_and_named_search_one_command)
     const clopts_scope_t *build = clopts_command_scope(f.build);
     const clopts_scope_t *copy = clopts_command_scope(f.copy);
 
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(build, "output", '\0'), f.build_output);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(build, NULL, 'c'), f.build_cache);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(build, "release", 'o'), f.build_output);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(global, "quiet", 'x'), f.quiet);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(global, NULL, 'v'), f.verbose);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(build, "output", '\0'), f.build_output);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(build, NULL, 'c'), f.build_cache);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(build, "release", 'o'), f.build_output);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(global, "quiet", 'x'), f.quiet);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(global, NULL, 'v'), f.verbose);
 
     /* neither the program from a command nor the commands from the program */
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(build, NULL, 'v'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(copy, "verbose", '\0'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(global, "cache", '\0'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(global, NULL, 'o'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(copy, "cache", 'c'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(build, "Output", 'O'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(build, NULL, '\0'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(build, NULL, 'v'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(copy, "verbose", '\0'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(global, "cache", '\0'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(global, NULL, 'o'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(copy, "cache", 'c'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(build, "Output", 'O'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(build, NULL, '\0'));
 
     /* find_named compares exactly name_len bytes */
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_named(global, "color", 5), f.color);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_named(build, "cachexyz", 5), f.build_cache);
-    NAOS_CHECK_NULL(clopts_parser_find_named(build, "color", 5));
-    NAOS_CHECK_NULL(clopts_parser_find_named(global, "cache", 5));
-    NAOS_CHECK_NULL(clopts_parser_find_named(build, "colo", 4));
-    NAOS_CHECK_NULL(clopts_parser_find_named(build, "", 0));
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_named(global, "color", 5), f.color);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_named(build, "cachexyz", 5), f.build_cache);
+    NAOS_CHECK_NULL(clopts_decl_find_named(build, "color", 5));
+    NAOS_CHECK_NULL(clopts_decl_find_named(global, "cache", 5));
+    NAOS_CHECK_NULL(clopts_decl_find_named(build, "colo", 4));
+    NAOS_CHECK_NULL(clopts_decl_find_named(build, "", 0));
     clopts_program_destroy(f.program);
 }
 

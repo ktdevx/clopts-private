@@ -14,7 +14,7 @@
  * handle as they were.
  */
 
-#include "parser/parser_internal.h"
+#include "decl/decl_internal.h"
 
 #include <assert.h>
 #include <string.h>
@@ -62,7 +62,7 @@ void clopts_scope_release(clopts_scope_t *scope)
  */
 static bool scope_has_negatable(const clopts_scope_t *scope, const char *name, size_t name_len)
 {
-    const clopts_option_t *found = clopts_parser_find_named(scope, name, name_len);
+    const clopts_option_t *found = clopts_decl_find_named(scope, name, name_len);
 
     return ((found != NULL) && (clopts_option_get_kind(found) == CLOPTS_OPTION_FLAG) &&
             clopts_option_is_negatable(found));
@@ -91,7 +91,7 @@ static clopts_error_t scope_check_option(const clopts_scope_t *scope, const clop
 {
     const char *l = clopts_option_get_long_name(option);
 
-    if (clopts_parser_find_conflict(scope, l, clopts_option_get_short_name(option)) != NULL)
+    if (clopts_decl_find_conflict(scope, l, clopts_option_get_short_name(option)) != NULL)
     {
         return CLOPTS_ERROR_DUPLICATE_OPTION;
     }

@@ -16,11 +16,11 @@
  * belong to it, in a fixed order, and returns the first rule that fails.
  * Nothing is changed before every check has passed and every allocation has
  * succeeded, so a failing call leaves every handle as it was. Name rules and
- * lookups live in names.c.
+ * comparisons live in names.c.
  */
 
 #include "clopts/command.h"
-#include "parser/parser_internal.h"
+#include "decl/decl_internal.h"
 
 #include <assert.h>
 
@@ -46,7 +46,7 @@ clopts_error_t clopts_command_create(const char *name, clopts_command_t **out)
 
     *out = NULL;
 
-    if (!clopts_parser_valid_command_name(name))
+    if (!clopts_decl_valid_command_name(name))
     {
         return CLOPTS_ERROR_INVALID_NAME;
     }

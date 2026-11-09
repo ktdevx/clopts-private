@@ -15,7 +15,7 @@
  */
 
 #include "clopts/option.h"
-#include "parser/parser_internal.h"
+#include "decl/decl_internal.h"
 
 #include <assert.h>
 
@@ -68,7 +68,7 @@ static clopts_error_t option_check_create(clopts_option_kind_t kind, const char 
         return CLOPTS_ERROR_NO_NAME;
     }
 
-    if (((l != NULL) && (!clopts_parser_valid_long_name(l))) || ((s != '\0') && (!clopts_parser_valid_short_name(s))))
+    if (((l != NULL) && (!clopts_decl_valid_long_name(l))) || ((s != '\0') && (!clopts_decl_valid_short_name(s))))
     {
         return CLOPTS_ERROR_INVALID_NAME;
     }

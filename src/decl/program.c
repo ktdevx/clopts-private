@@ -16,7 +16,7 @@
  */
 
 #include "clopts/program.h"
-#include "parser/parser_internal.h"
+#include "decl/decl_internal.h"
 
 #include <assert.h>
 #include <string.h>
@@ -48,7 +48,7 @@ clopts_error_t clopts_program_create(const char *name, clopts_program_t **out)
     assert(out != NULL);
     *out = NULL;
 
-    if (!clopts_parser_valid_command_name(name))
+    if (!clopts_decl_valid_command_name(name))
     {
         return CLOPTS_ERROR_INVALID_NAME;
     }

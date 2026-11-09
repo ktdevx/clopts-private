@@ -8,7 +8,7 @@
  */
 
 #include "clopts/positional.h"
-#include "parser/parser_internal.h"
+#include "decl/decl_internal.h"
 
 #include <assert.h>
 #include <stdbool.h>
