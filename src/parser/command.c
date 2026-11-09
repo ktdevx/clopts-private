@@ -112,13 +112,15 @@ void clopts_command_destroy(clopts_command_t *command)
 clopts_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
 {
     assert(command != NULL);
-    return (clopts_core_replace_string(&command->summary, summary) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&command->summary, summary) == 0) ? CLOPTS_ERROR_NONE
+                                                                         : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
 clopts_error_t clopts_command_set_description(clopts_command_t *command, const char *description)
 {
     assert(command != NULL);
-    return (clopts_core_replace_string(&command->description, description) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&command->description, description) == 0) ? CLOPTS_ERROR_NONE
+                                                                                 : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
 /* Capacity of the first allocation of an attach array, in elements. */
@@ -176,41 +178,28 @@ static bool command_has_negatable(const clopts_command_t *command, const char *n
     return ((found != NULL) && (clopts_option_kind_of(found) == CLOPTS_OPTION_FLAG) && clopts_option_negatable(found));
 }
 
-/*
- * True when command has an option whose long name is "no-" followed by
- * long_name. Returns -1 when the name cannot be built.
- */
-static int command_has_negation_name(const clopts_command_t *command, const char *long_name)
+/* True when command has an option whose long name is "no-" followed by long_name. */
+static bool command_has_negation_name(const clopts_command_t *command, const char *long_name)
 {
-    size_t len = strlen(long_name);
-    size_t size;
-    char *name;
-    int found;
+    size_t i;
 
-    if (clopts_core_size_add(len, 4, &size) != 0)
+    for (i = 0; i < command->option_count; i++)
     {
-        return -1;
+        const char *name = clopts_option_long_name(command->options[i]);
+
+        if ((name != NULL) && (strncmp(name, "no-", 3) == 0) && (strcmp(name + 3, long_name) == 0))
+        {
+            return true;
+        }
     }
 
-    name = (char *)clopts_core_malloc(size);
-    if (name == NULL)
-    {
-        return -1;
-    }
-
-    memcpy(name, "no-", 3);
-    memcpy(name + 3, long_name, len + 1);
-    found = (clopts_parser_find_named(command, name, len + 3) != NULL) ? 1 : 0;
-    clopts_core_free(name);
-
-    return found;
+    return false;
 }
 
 /* Checks of clopts_command_add_option(command, option) against command, in order. */
 static clopts_error_t command_check_attach_option(const clopts_command_t *command, const clopts_option_t *option)
 {
     const char *l = clopts_option_long_name(option);
-    int conflict;
 
     if (clopts_parser_find_conflict(command, l, clopts_option_short_name(option)) != NULL)
     {
@@ -222,17 +211,9 @@ static clopts_error_t command_check_attach_option(const clopts_command_t *comman
         return CLOPTS_ERROR_NEGATION_CONFLICT;
     }
 
-    if (clopts_option_negatable(option) && (l != NULL))
+    if (clopts_option_negatable(option) && (l != NULL) && command_has_negation_name(command, l))
     {
-        conflict = command_has_negation_name(command, l);
-        if (conflict < 0)
-        {
-            return CLOPTS_ERROR_OUT_OF_MEMORY;
-        }
-        else if (conflict > 0)
-        {
-            return CLOPTS_ERROR_NEGATION_CONFLICT;
-        }
+        return CLOPTS_ERROR_NEGATION_CONFLICT;
     }
 
     return CLOPTS_ERROR_NONE;
@@ -318,34 +299,37 @@ clopts_error_t clopts_command_add_positional(clopts_command_t *command, clopts_p
     return CLOPTS_ERROR_NONE;
 }
 
-/* ---- read functions ---- */
+/* ---- read functions: a NULL command is a contract violation ---- */
 
 const char *clopts_command_name(const clopts_command_t *command)
 {
-    return (command != NULL) ? command->name : NULL;
+    assert(command != NULL);
+    return command->name;
 }
 
 const char *clopts_command_summary(const clopts_command_t *command)
 {
-    return (command != NULL) ? command->summary : NULL;
+    assert(command != NULL);
+    return command->summary;
 }
 
 const char *clopts_command_description(const clopts_command_t *command)
 {
-    return (command != NULL) ? command->description : NULL;
+    assert(command != NULL);
+    return command->description;
 }
 
 size_t clopts_command_option_count(const clopts_command_t *command)
 {
-    return (command != NULL) ? command->option_count : 0u;
+    assert(command != NULL);
+    return command->option_count;
 }
 
 const clopts_option_t *clopts_command_option_at(const clopts_command_t *command, size_t index)
 {
-    size_t count = clopts_command_option_count(command);
-
-    assert((index < count) && "index must be less than clopts_command_option_count()");
-    if (index >= count)
+    assert(command != NULL);
+    assert((index < command->option_count) && "index must be less than clopts_command_option_count()");
+    if (index >= command->option_count)
     {
         return NULL;
     }
@@ -355,15 +339,15 @@ const clopts_option_t *clopts_command_option_at(const clopts_command_t *command,
 
 size_t clopts_command_positional_count(const clopts_command_t *command)
 {
-    return (command != NULL) ? command->positional_count : 0u;
+    assert(command != NULL);
+    return command->positional_count;
 }
 
 const clopts_positional_t *clopts_command_positional_at(const clopts_command_t *command, size_t index)
 {
-    size_t count = clopts_command_positional_count(command);
-
-    assert((index < count) && "index must be less than clopts_command_positional_count()");
-    if (index >= count)
+    assert(command != NULL);
+    assert((index < command->positional_count) && "index must be less than clopts_command_positional_count()");
+    if (index >= command->positional_count)
     {
         return NULL;
     }

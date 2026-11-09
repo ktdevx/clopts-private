@@ -64,7 +64,7 @@ CLOPTS_API clopts_error_t clopts_command_add_option(clopts_command_t *command,
 CLOPTS_API clopts_error_t clopts_command_add_positional(clopts_command_t *command,
                                                              clopts_positional_t *positional);
 
-/* ---- read functions ---- */
+/* ---- read functions: a NULL command is a contract violation (assert) ---- */
 
 CLOPTS_API const char *clopts_command_name(const clopts_command_t *command);
 /* NULL when not set. */

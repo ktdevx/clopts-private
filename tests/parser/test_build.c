@@ -702,13 +702,6 @@ NAOS_TEST(command_read_functions)
     }
     NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 0), build);
     clopts_program_destroy(program);
-
-    /* NULL */
-    NAOS_CHECK_NULL(clopts_command_name(NULL));
-    NAOS_CHECK_NULL(clopts_command_summary(NULL));
-    NAOS_CHECK_NULL(clopts_command_description(NULL));
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(NULL), 0);
-    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(NULL), 0);
 }
 
 /*
