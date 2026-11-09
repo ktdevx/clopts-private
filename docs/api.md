@@ -269,7 +269,7 @@ root は `clopts_program_create` の最初の引数に渡すコマンドで、�
 
 root にするコマンドに渡したオプションはグローバルオプションに、サブコマンドに渡したオプションはそのコマンドのオプションになる。コマンドに渡す関数が検査するのは、そのコマンドの中の関係だけである。root とサブコマンドの間で名前が重なってもよく、そのときはサブコマンドの名前が root の名前を隠す（「[名前の規則](#名前の規則)」）。
 
-読み取りの関数（`clopts_command_name` などの、`clopts_command_`・`clopts_program_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のハンドルは空（NULL、0、false、`'\0'`）として読まれる。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/help.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
+読み取りの関数（`clopts_command_name` などの、`clopts_command_`・`clopts_program_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のハンドルは空（NULL、0、false、`'\0'`）として読まれる（オプションを除く。「[オプションの属性](#オプションの属性)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/help.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
 
 ### オプション
 
@@ -305,11 +305,11 @@ root にするコマンドに渡したオプションはグローバルオプシ
 
 文字列の属性は複製され、もう一度設定すると前の複製が置き換わる（最後の呼び出しが有効）。NULL、false、`'\0'`、0 を渡すと属性を元に戻す（元に戻す呼び出しは検査されない）。対象でない種類のオプションに環境変数・既定値・必須・否定・区切り文字・回数の上限・終端を設定すると、宣言エラーが返り、属性は変わらない（「[宣言エラーの種類](#宣言エラーの種類)」を参照）。値の名前は検査されず、FLAG と COUNT では使われない。
 
-属性は、次の読み取りの関数で読める。NULL のオプションは空として読まれる。
+属性は、次の読み取りの関数で読める。NULL のオプションを渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
 
 | 関数 | 戻り値 |
 |------|--------|
-| `clopts_option_kind_of`（`option`） | 種類。NULL なら `CLOPTS_OPTION_FLAG` |
+| `clopts_option_kind_of`（`option`） | 種類 |
 | `clopts_option_long_name`（`option`）、`clopts_option_short_name`（`option`） | 長い名前（先頭の `--` を除く。なければ NULL）と短い名前（なければ `'\0'`） |
 | `clopts_option_help`、`clopts_option_value_name`、`clopts_option_env`、`clopts_option_default`（`option`） | 文字列の属性。設定していなければ NULL |
 | `clopts_option_delimiter`（`option`） | 区切り文字。設定していなければ `'\0'` |

@@ -975,8 +975,7 @@ NAOS_TEST(command_read_functions)
 
 /*
  * The read functions of an option give back every attribute, before and
- * after the attach. Attributes not set read as NULL, '\0', 0 or false; a
- * NULL option reads the same (and as a FLAG).
+ * after the attach. Attributes not set read as NULL, '\0', 0 or false.
  */
 NAOS_TEST(option_read_functions)
 {
@@ -1055,20 +1054,6 @@ NAOS_TEST(option_read_functions)
     }
     NAOS_CHECK_PTR_EQ(clopts_command_option_at(clopts_program_root(program), 3), flag);
     clopts_program_destroy(program);
-
-    /* NULL */
-    NAOS_CHECK_INT_EQ(clopts_option_kind_of(NULL), CLOPTS_OPTION_FLAG);
-    NAOS_CHECK_NULL(clopts_option_long_name(NULL));
-    NAOS_CHECK_INT_EQ(clopts_option_short_name(NULL), '\0');
-    NAOS_CHECK_NULL(clopts_option_help(NULL));
-    NAOS_CHECK_NULL(clopts_option_value_name(NULL));
-    NAOS_CHECK_NULL(clopts_option_env(NULL));
-    NAOS_CHECK_NULL(clopts_option_default(NULL));
-    NAOS_CHECK_INT_EQ(clopts_option_delimiter(NULL), '\0');
-    NAOS_CHECK_UINT_EQ(clopts_option_count_max(NULL), 0);
-    NAOS_CHECK_FALSE(clopts_option_required(NULL));
-    NAOS_CHECK_FALSE(clopts_option_negatable(NULL));
-    NAOS_CHECK_FALSE(clopts_option_terminal(NULL));
 }
 
 /* The read functions of a positional, before and after the attach; a NULL positional reads as empty. */

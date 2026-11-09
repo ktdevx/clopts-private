@@ -15,6 +15,8 @@
 #include "clopts/option.h"
 #include "parser/parser_internal.h"
 
+#include <assert.h>
+
 /* True for the kinds that take no value (FLAG / COUNT). */
 static bool option_takes_no_value(clopts_option_kind_t kind)
 {
@@ -293,64 +295,76 @@ clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool ter
     return CLOPTS_DECL_NONE;
 }
 
-/* ---- read functions ---- */
+/* ---- read functions: a NULL option is a contract violation ---- */
 
 clopts_option_kind_t clopts_option_kind_of(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->kind : CLOPTS_OPTION_FLAG;
+    assert(option != NULL);
+    return option->kind;
 }
 
 const char *clopts_option_long_name(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->long_name : NULL;
+    assert(option != NULL);
+    return option->long_name;
 }
 
 char clopts_option_short_name(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->short_name : '\0';
+    assert(option != NULL);
+    return option->short_name;
 }
 
 const char *clopts_option_help(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->help : NULL;
+    assert(option != NULL);
+    return option->help;
 }
 
 const char *clopts_option_value_name(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->value_name : NULL;
+    assert(option != NULL);
+    return option->value_name;
 }
 
 const char *clopts_option_env(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->env : NULL;
+    assert(option != NULL);
+    return option->env;
 }
 
 const char *clopts_option_default(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->default_value : NULL;
+    assert(option != NULL);
+    return option->default_value;
 }
 
 char clopts_option_delimiter(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->delimiter : '\0';
+    assert(option != NULL);
+    return option->delimiter;
 }
 
 unsigned clopts_option_count_max(const clopts_option_t *option)
 {
-    return (option != NULL) ? option->count_max : 0u;
+    assert(option != NULL);
+    return option->count_max;
 }
 
 bool clopts_option_required(const clopts_option_t *option)
 {
-    return (option != NULL) && option->required;
+    assert(option != NULL);
+    return option->required;
 }
 
 bool clopts_option_negatable(const clopts_option_t *option)
 {
-    return (option != NULL) && option->negatable;
+    assert(option != NULL);
+    return option->negatable;
 }
 
 bool clopts_option_terminal(const clopts_option_t *option)
 {
-    return (option != NULL) && option->terminal;
+    assert(option != NULL);
+    return option->terminal;
 }

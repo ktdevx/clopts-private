@@ -329,7 +329,6 @@ NAOS_TEST(terminal_on_non_flag)
 NAOS_TEST(terminal_null_option)
 {
     NAOS_CHECK_INT_EQ(clopts_option_set_terminal(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_FALSE(clopts_option_terminal(NULL));
 }
 
 /* ---- delimiter and count maximum ------------------------------------- */

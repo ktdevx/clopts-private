@@ -82,9 +82,9 @@ CLOPTS_API clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *opti
  */
 CLOPTS_API clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal);
 
-/* ---- read functions ---- */
+/* ---- read functions: a NULL option is a contract violation (assert) ---- */
 
-/* The kind; CLOPTS_OPTION_FLAG for NULL. */
+/* The kind. */
 CLOPTS_API clopts_option_kind_t clopts_option_kind_of(const clopts_option_t *option);
 /* Without the leading "--"; NULL for none. */
 CLOPTS_API const char *clopts_option_long_name(const clopts_option_t *option);
