@@ -43,7 +43,12 @@ clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, co
 static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *option,
                         clopts_getenv_fn getenv_fn, void *env_ctx)
 {
-    if ((option->kind != CLOPTS_OPTION_VALUE) && (option->kind != CLOPTS_OPTION_LIST))
+    clopts_option_kind_t kind = clopts_option_kind_of(option);
+    const char *env = clopts_option_env(option);
+    const char *default_value = clopts_option_default(option);
+    char delimiter = clopts_option_delimiter(option);
+
+    if ((kind != CLOPTS_OPTION_VALUE) && (kind != CLOPTS_OPTION_LIST))
     {
         return 0;
     }
@@ -52,10 +57,10 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
         return 0;
     }
 
-    if (option->env != NULL)
+    if (env != NULL)
     {
         const char *borrowed = NULL;
-        clopts_env_status_t status = getenv_fn(env_ctx, option->env, &borrowed);
+        clopts_env_status_t status = getenv_fn(env_ctx, env, &borrowed);
 
         if (status == CLOPTS_ENV_FAILED)
         {
@@ -76,7 +81,7 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
             {
                 return -1;
             }
-            if (option->kind == CLOPTS_OPTION_VALUE)
+            if (kind == CLOPTS_OPTION_VALUE)
             {
                 clopts_parser_slot_own(slot, copy);
                 clopts_parser_slot_set_value(slot, copy, CLOPTS_SOURCE_ENV);
@@ -84,7 +89,7 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
             }
             else
             {
-                int rc = clopts_parser_slot_append_list(slot, copy, option->delimiter, CLOPTS_SOURCE_ENV);
+                int rc = clopts_parser_slot_append_list(slot, copy, delimiter, CLOPTS_SOURCE_ENV);
 
                 /* The items are copies of their own; the whole string is no longer needed. */
                 clopts_core_free(copy);
@@ -93,16 +98,15 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
         }
     }
 
-    if (option->default_value != NULL)
+    if (default_value != NULL)
     {
-        if (option->kind == CLOPTS_OPTION_VALUE)
+        if (kind == CLOPTS_OPTION_VALUE)
         {
             /* Borrows the model's copy, which outlives the result's use of it. */
-            clopts_parser_slot_set_value(slot, option->default_value, CLOPTS_SOURCE_DEFAULT);
+            clopts_parser_slot_set_value(slot, default_value, CLOPTS_SOURCE_DEFAULT);
             return 0;
         }
-        return clopts_parser_slot_append_list(slot, option->default_value, option->delimiter,
-                                              CLOPTS_SOURCE_DEFAULT);
+        return clopts_parser_slot_append_list(slot, default_value, delimiter, CLOPTS_SOURCE_DEFAULT);
     }
     return 0;
 }
@@ -188,7 +192,7 @@ static const clopts_option_t *first_missing_option(const clopts_parser_slot_t *s
     {
         const clopts_option_t *option = *(clopts_option_t *const *)clopts_core_vec_at(&scope->options, i);
 
-        if (option->required && !slot_given(&slots[i]))
+        if (clopts_option_required(option) && !slot_given(&slots[i]))
         {
             return option;
         }

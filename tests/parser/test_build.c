@@ -39,7 +39,8 @@
  */
 static clopts_program_t sentinel_program;
 static clopts_command_t sentinel_command;
-static clopts_option_t sentinel_option;
+static char sentinel_option_storage;
+#define SENTINEL_OPTION ((clopts_option_t *)&sentinel_option_storage)
 static clopts_positional_t sentinel_positional;
 
 /* Returns option index of scope (an element of scope->options). */
@@ -232,31 +233,31 @@ NAOS_TEST(new_option_and_positional_start_reset_and_unattached)
     for (i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++)
     {
         NAOS_NOTE("kind=%d", (int)kinds[i]);
-        option = &sentinel_option;
+        option = SENTINEL_OPTION;
         EXPECT_OK(clopts_option_create(kinds[i], long_name, 'o', &option));
         NAOS_REQUIRE_NOT_NULL(option);
-        NAOS_REQUIRE_TRUE(option != &sentinel_option);
-        NAOS_CHECK_INT_EQ(option->kind, kinds[i]);
-        NAOS_CHECK_STR_EQ(option->long_name, "output");
-        NAOS_CHECK_TRUE(option->long_name != long_name);
-        NAOS_CHECK_INT_EQ(option->short_name, 'o');
-        NAOS_CHECK_NULL(option->help);
-        NAOS_CHECK_NULL(option->value_name);
-        NAOS_CHECK_NULL(option->default_value);
-        NAOS_CHECK_NULL(option->env);
-        NAOS_CHECK_INT_EQ(option->delimiter, '\0');
-        NAOS_CHECK_UINT_EQ(option->count_max, 0);
-        NAOS_CHECK_FALSE(option->required);
-        NAOS_CHECK_FALSE(option->negatable);
-        NAOS_CHECK_FALSE(option->terminal);
+        NAOS_REQUIRE_TRUE(option != SENTINEL_OPTION);
+        NAOS_CHECK_INT_EQ(clopts_option_kind_of(option), kinds[i]);
+        NAOS_CHECK_STR_EQ(clopts_option_long_name(option), "output");
+        NAOS_CHECK_TRUE(clopts_option_long_name(option) != long_name);
+        NAOS_CHECK_INT_EQ(clopts_option_short_name(option), 'o');
+        NAOS_CHECK_NULL(clopts_option_help(option));
+        NAOS_CHECK_NULL(clopts_option_value_name(option));
+        NAOS_CHECK_NULL(clopts_option_default(option));
+        NAOS_CHECK_NULL(clopts_option_env(option));
+        NAOS_CHECK_INT_EQ(clopts_option_delimiter(option), '\0');
+        NAOS_CHECK_UINT_EQ(clopts_option_count_max(option), 0);
+        NAOS_CHECK_FALSE(clopts_option_required(option));
+        NAOS_CHECK_FALSE(clopts_option_negatable(option));
+        NAOS_CHECK_FALSE(clopts_option_terminal(option));
         clopts_option_destroy(option);
     }
 
     option = make(CLOPTS_OPTION_VALUE, NULL, 'o');
-    NAOS_CHECK_NULL(option->long_name);
+    NAOS_CHECK_NULL(clopts_option_long_name(option));
     clopts_option_destroy(option);
     option = make(CLOPTS_OPTION_FLAG, "force", '\0');
-    NAOS_CHECK_INT_EQ(option->short_name, '\0');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(option), '\0');
     clopts_option_destroy(option);
 
     positional = &sentinel_positional;
@@ -364,16 +365,16 @@ NAOS_TEST(attach_links_objects_in_order)
     NAOS_CHECK_PTR_EQ(option_at(root, 2), value);
     NAOS_CHECK_PTR_EQ(option_at(root, 3), list);
 
-    NAOS_CHECK_INT_EQ(flag->kind, CLOPTS_OPTION_FLAG);
-    NAOS_CHECK_INT_EQ(count->kind, CLOPTS_OPTION_COUNT);
-    NAOS_CHECK_INT_EQ(value->kind, CLOPTS_OPTION_VALUE);
-    NAOS_CHECK_INT_EQ(list->kind, CLOPTS_OPTION_LIST);
-    NAOS_REQUIRE_NOT_NULL(flag->long_name);
-    NAOS_CHECK_STR_EQ(flag->long_name, "force");
-    NAOS_CHECK_INT_EQ(flag->short_name, 'f');
-    NAOS_CHECK_NULL(value->long_name);
-    NAOS_CHECK_INT_EQ(value->short_name, 'o');
-    NAOS_CHECK_INT_EQ(list->short_name, '\0');
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(flag), CLOPTS_OPTION_FLAG);
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(count), CLOPTS_OPTION_COUNT);
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(value), CLOPTS_OPTION_VALUE);
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(list), CLOPTS_OPTION_LIST);
+    NAOS_REQUIRE_NOT_NULL(clopts_option_long_name(flag));
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(flag), "force");
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(flag), 'f');
+    NAOS_CHECK_NULL(clopts_option_long_name(value));
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(value), 'o');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(list), '\0');
 
     /* commands in the order given to clopts_program_create() */
     NAOS_REQUIRE_UINT_EQ(program->command_count, 2);
@@ -867,9 +868,9 @@ NAOS_TEST(set_terminal_is_for_flags)
         NAOS_NOTE("kind=%d", (int)others[i]);
         option = make(others[i], "other", 'o');
         NAOS_CHECK_INT_EQ(clopts_option_set_terminal(option, true), CLOPTS_DECL_ATTRIBUTE_KIND);
-        NAOS_CHECK_FALSE(option->terminal);
+        NAOS_CHECK_FALSE(clopts_option_terminal(option));
         EXPECT_OK(clopts_option_set_terminal(option, false));
-        NAOS_CHECK_FALSE(option->terminal);
+        NAOS_CHECK_FALSE(clopts_option_terminal(option));
         if (i == 0)
         {
             NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, option));
@@ -882,11 +883,11 @@ NAOS_TEST(set_terminal_is_for_flags)
 
     flag = make(CLOPTS_OPTION_FLAG, "help", 'h');
     EXPECT_OK(clopts_option_set_terminal(flag, true));
-    NAOS_CHECK_TRUE(flag->terminal);
+    NAOS_CHECK_TRUE(clopts_option_terminal(flag));
     EXPECT_OK(clopts_option_set_terminal(flag, true));
     NAOS_CHECK_TRUE(clopts_option_terminal(flag));
     EXPECT_OK(clopts_option_set_terminal(flag, false));
-    NAOS_CHECK_FALSE(flag->terminal);
+    NAOS_CHECK_FALSE(clopts_option_terminal(flag));
     EXPECT_OK(clopts_option_set_terminal(flag, true));
 
     NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, flag));
@@ -950,7 +951,7 @@ NAOS_TEST(strings_are_copied)
 
     NAOS_CHECK_STR_EQ(root->name, "tool");
     NAOS_CHECK_STR_EQ(build->name, "build");
-    NAOS_CHECK_STR_EQ(output->long_name, "output");
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(output), "output");
     NAOS_CHECK_STR_EQ(src->name, "src");
     NAOS_REQUIRE_NOT_NULL(build->summary);
     NAOS_CHECK_STR_EQ(build->summary, "Builds.");
@@ -958,14 +959,14 @@ NAOS_TEST(strings_are_copied)
     NAOS_CHECK_STR_EQ(build->description, "Builds the tree.");
     NAOS_REQUIRE_NOT_NULL(root->description);
     NAOS_CHECK_STR_EQ(root->description, "Program text.");
-    NAOS_REQUIRE_NOT_NULL(output->help);
-    NAOS_CHECK_STR_EQ(output->help, "Output file.");
-    NAOS_REQUIRE_NOT_NULL(output->value_name);
-    NAOS_CHECK_STR_EQ(output->value_name, "FILE");
-    NAOS_REQUIRE_NOT_NULL(output->env);
-    NAOS_CHECK_STR_EQ(output->env, "TOOL_OUTPUT");
-    NAOS_REQUIRE_NOT_NULL(output->default_value);
-    NAOS_CHECK_STR_EQ(output->default_value, "a.out");
+    NAOS_REQUIRE_NOT_NULL(clopts_option_help(output));
+    NAOS_CHECK_STR_EQ(clopts_option_help(output), "Output file.");
+    NAOS_REQUIRE_NOT_NULL(clopts_option_value_name(output));
+    NAOS_CHECK_STR_EQ(clopts_option_value_name(output), "FILE");
+    NAOS_REQUIRE_NOT_NULL(clopts_option_env(output));
+    NAOS_CHECK_STR_EQ(clopts_option_env(output), "TOOL_OUTPUT");
+    NAOS_REQUIRE_NOT_NULL(clopts_option_default(output));
+    NAOS_CHECK_STR_EQ(clopts_option_default(output), "a.out");
     NAOS_REQUIRE_NOT_NULL(src->help);
     NAOS_CHECK_STR_EQ(src->help, "Source.");
 
@@ -989,8 +990,8 @@ NAOS_TEST(string_set_from_its_own_copy)
 
     output = make(CLOPTS_OPTION_VALUE, "output", 'o');
     EXPECT_OK(clopts_option_set_help(output, "Output file."));
-    EXPECT_OK(clopts_option_set_help(output, output->help));
-    NAOS_CHECK_STR_EQ(output->help, "Output file.");
+    EXPECT_OK(clopts_option_set_help(output, clopts_option_help(output)));
+    NAOS_CHECK_STR_EQ(clopts_option_help(output), "Output file.");
     clopts_option_destroy(output);
 }
 
@@ -1041,15 +1042,15 @@ NAOS_TEST(setting_again_keeps_the_last_value)
 
     NAOS_CHECK_STR_EQ(build->summary, "second");
     NAOS_CHECK_STR_EQ(build->description, "second");
-    NAOS_CHECK_STR_EQ(value->help, "second");
-    NAOS_CHECK_STR_EQ(value->value_name, "B");
-    NAOS_CHECK_STR_EQ(value->env, "ENV_B");
-    NAOS_CHECK_STR_EQ(value->default_value, "y");
-    NAOS_CHECK_INT_EQ(list->delimiter, ':');
-    NAOS_CHECK_UINT_EQ(count->count_max, 8);
-    NAOS_CHECK_TRUE(flag->negatable);
-    NAOS_CHECK_TRUE(flag->terminal);
-    NAOS_CHECK_TRUE(list->required);
+    NAOS_CHECK_STR_EQ(clopts_option_help(value), "second");
+    NAOS_CHECK_STR_EQ(clopts_option_value_name(value), "B");
+    NAOS_CHECK_STR_EQ(clopts_option_env(value), "ENV_B");
+    NAOS_CHECK_STR_EQ(clopts_option_default(value), "y");
+    NAOS_CHECK_INT_EQ(clopts_option_delimiter(list), ':');
+    NAOS_CHECK_UINT_EQ(clopts_option_count_max(count), 8);
+    NAOS_CHECK_TRUE(clopts_option_negatable(flag));
+    NAOS_CHECK_TRUE(clopts_option_terminal(flag));
+    NAOS_CHECK_TRUE(clopts_option_required(list));
     NAOS_CHECK_STR_EQ(src->help, "second");
     NAOS_CHECK_TRUE(src->required);
     NAOS_CHECK_TRUE(src->variadic);
@@ -1072,15 +1073,15 @@ NAOS_TEST(setting_again_keeps_the_last_value)
 
     NAOS_CHECK_NULL(build->summary);
     NAOS_CHECK_NULL(build->description);
-    NAOS_CHECK_NULL(value->help);
-    NAOS_CHECK_NULL(value->value_name);
-    NAOS_CHECK_NULL(value->env);
-    NAOS_CHECK_NULL(value->default_value);
-    NAOS_CHECK_INT_EQ(list->delimiter, '\0');
-    NAOS_CHECK_UINT_EQ(count->count_max, 0);
-    NAOS_CHECK_FALSE(flag->negatable);
-    NAOS_CHECK_FALSE(flag->terminal);
-    NAOS_CHECK_FALSE(list->required);
+    NAOS_CHECK_NULL(clopts_option_help(value));
+    NAOS_CHECK_NULL(clopts_option_value_name(value));
+    NAOS_CHECK_NULL(clopts_option_env(value));
+    NAOS_CHECK_NULL(clopts_option_default(value));
+    NAOS_CHECK_INT_EQ(clopts_option_delimiter(list), '\0');
+    NAOS_CHECK_UINT_EQ(clopts_option_count_max(count), 0);
+    NAOS_CHECK_FALSE(clopts_option_negatable(flag));
+    NAOS_CHECK_FALSE(clopts_option_terminal(flag));
+    NAOS_CHECK_FALSE(clopts_option_required(list));
     NAOS_CHECK_NULL(src->help);
     NAOS_CHECK_FALSE(src->variadic);
     NAOS_CHECK_FALSE(src->required);
@@ -1092,9 +1093,9 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, flag));
     NAOS_REQUIRE_NOT_NULL(test_decl_attach_positional(build, src));
     program = make_program(root, &build, 1);
-    NAOS_CHECK_NULL(value->help);
-    NAOS_CHECK_INT_EQ(list->delimiter, '\0');
-    NAOS_CHECK_FALSE(flag->terminal);
+    NAOS_CHECK_NULL(clopts_option_help(value));
+    NAOS_CHECK_INT_EQ(clopts_option_delimiter(list), '\0');
+    NAOS_CHECK_FALSE(clopts_option_terminal(flag));
     NAOS_CHECK_FALSE(src->required);
     NAOS_CHECK_NULL(build->summary);
 
@@ -1139,11 +1140,11 @@ NAOS_TEST(hundred_options_keep_the_first_handle)
     NAOS_REQUIRE_UINT_EQ(root->positionals.len, 100);
     NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
     NAOS_CHECK_PTR_EQ(option_at(root, 0), first);
-    NAOS_CHECK_INT_EQ(first->kind, CLOPTS_OPTION_VALUE);
-    NAOS_CHECK_STR_EQ(first->long_name, "o0");
-    NAOS_CHECK_INT_EQ(first->short_name, 'a');
-    NAOS_CHECK_STR_EQ(first->help, "first help");
-    NAOS_CHECK_STR_EQ(option_at(root, 99)->long_name, "o99");
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(first), CLOPTS_OPTION_VALUE);
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(first), "o0");
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(first), 'a');
+    NAOS_CHECK_STR_EQ(clopts_option_help(first), "first help");
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(option_at(root, 99)), "o99");
     NAOS_CHECK_STR_EQ(positional_at(root, 99)->name, "p99");
 
     clopts_program_destroy(program);
@@ -1272,7 +1273,7 @@ static void oom_command_unchanged(oom_call_t *c)
 
 static clopts_decl_error_t oom_option_new(oom_call_t *c)
 {
-    c->option_out = &sentinel_option;
+    c->option_out = SENTINEL_OPTION;
     return clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &c->option_out);
 }
 
@@ -1303,10 +1304,10 @@ static clopts_decl_error_t oom_option_default(oom_call_t *c)
 
 static void oom_option_unchanged(oom_call_t *c)
 {
-    NAOS_CHECK_STR_EQ(c->option->help, "old");
-    NAOS_CHECK_STR_EQ(c->option->value_name, "old");
-    NAOS_CHECK_STR_EQ(c->option->env, "old");
-    NAOS_CHECK_STR_EQ(c->option->default_value, "old");
+    NAOS_CHECK_STR_EQ(clopts_option_help(c->option), "old");
+    NAOS_CHECK_STR_EQ(clopts_option_value_name(c->option), "old");
+    NAOS_CHECK_STR_EQ(clopts_option_env(c->option), "old");
+    NAOS_CHECK_STR_EQ(clopts_option_default(c->option), "old");
 }
 
 static clopts_decl_error_t oom_add_option(oom_call_t *c)
@@ -1395,7 +1396,7 @@ NAOS_TEST(out_of_memory_changes_nothing)
     c.unchanged = oom_option_new_unchanged;
     NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
     NAOS_REQUIRE_NOT_NULL(c.option_out);
-    NAOS_REQUIRE_TRUE(c.option_out != &sentinel_option);
+    NAOS_REQUIRE_TRUE(c.option_out != SENTINEL_OPTION);
     c.option = c.option_out;
 
     EXPECT_OK(clopts_option_set_help(c.option, "old"));
@@ -1414,7 +1415,7 @@ NAOS_TEST(out_of_memory_changes_nothing)
     EXPECT_OK(clopts_option_set_env(c.option, "old"));
     c.call = oom_option_default;
     NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
-    NAOS_CHECK_STR_EQ(c.option->default_value, "new");
+    NAOS_CHECK_STR_EQ(clopts_option_default(c.option), "new");
 
     c.call = oom_add_option;
     c.unchanged = oom_add_option_unchanged;
@@ -1639,7 +1640,7 @@ NAOS_TEST(parse_leaves_the_program_as_it_is)
     NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 0), build);
     NAOS_CHECK_UINT_EQ(root->options.len, 1);
     NAOS_CHECK_PTR_EQ(option_at(root, 0), flag);
-    NAOS_CHECK_NULL(flag->help);
+    NAOS_CHECK_NULL(clopts_option_help(flag));
 
     clopts_program_destroy(program);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -1672,18 +1673,18 @@ static void check_option(const clopts_option_t *option, const expected_option_t 
     NAOS_REQUIRE_NOT_NULL(option);
     NAOS_REQUIRE_UINT_GT(expected->scope->options.len, expected->index);
     NAOS_CHECK_PTR_EQ(option_at(expected->scope, expected->index), option);
-    NAOS_CHECK_INT_EQ(option->kind, expected->kind);
-    check_str_or_null(option->long_name, expected->long_name);
-    NAOS_CHECK_INT_EQ(option->short_name, expected->short_name);
-    check_str_or_null(option->help, expected->help);
-    check_str_or_null(option->value_name, expected->value_name);
-    check_str_or_null(option->default_value, expected->default_value);
-    check_str_or_null(option->env, expected->env);
-    NAOS_CHECK_INT_EQ(option->delimiter, expected->delimiter);
-    NAOS_CHECK_UINT_EQ(option->count_max, expected->count_max);
-    NAOS_CHECK_INT_EQ(option->required, expected->required);
-    NAOS_CHECK_INT_EQ(option->negatable, expected->negatable);
-    NAOS_CHECK_INT_EQ(option->terminal, expected->terminal);
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(option), expected->kind);
+    check_str_or_null(clopts_option_long_name(option), expected->long_name);
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(option), expected->short_name);
+    check_str_or_null(clopts_option_help(option), expected->help);
+    check_str_or_null(clopts_option_value_name(option), expected->value_name);
+    check_str_or_null(clopts_option_default(option), expected->default_value);
+    check_str_or_null(clopts_option_env(option), expected->env);
+    NAOS_CHECK_INT_EQ(clopts_option_delimiter(option), expected->delimiter);
+    NAOS_CHECK_UINT_EQ(clopts_option_count_max(option), expected->count_max);
+    NAOS_CHECK_INT_EQ(clopts_option_required(option), expected->required);
+    NAOS_CHECK_INT_EQ(clopts_option_negatable(option), expected->negatable);
+    NAOS_CHECK_INT_EQ(clopts_option_terminal(option), expected->terminal);
 }
 
 /* Checks the model fields of positional, and that it is attached at index of scope. */

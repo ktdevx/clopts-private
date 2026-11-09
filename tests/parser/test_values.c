@@ -141,10 +141,10 @@ NAOS_TEST(fixture_list_delimiters_are_as_designed)
     fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_INT_EQ(f.keys->kind, CLOPTS_OPTION_LIST);
-    NAOS_CHECK_INT_EQ(f.keys->delimiter, ',');
-    NAOS_CHECK_INT_EQ(f.tags->kind, CLOPTS_OPTION_LIST);
-    NAOS_CHECK_INT_EQ(f.tags->delimiter, ',');
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(f.keys), CLOPTS_OPTION_LIST);
+    NAOS_CHECK_INT_EQ(clopts_option_delimiter(f.keys), ',');
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(f.tags), CLOPTS_OPTION_LIST);
+    NAOS_CHECK_INT_EQ(clopts_option_delimiter(f.tags), ',');
     fixture_tool_free(&f);
 }
 
@@ -155,11 +155,11 @@ NAOS_TEST(fixture_count_limits_are_as_designed)
     fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_INT_EQ(f.jobs->kind, CLOPTS_OPTION_COUNT);
-    NAOS_CHECK_UINT_EQ(f.jobs->count_max, 8);
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(f.jobs), CLOPTS_OPTION_COUNT);
+    NAOS_CHECK_UINT_EQ(clopts_option_count_max(f.jobs), 8);
     /* 0 selects the library default (UINT_MAX). */
-    NAOS_CHECK_INT_EQ(f.verbose->kind, CLOPTS_OPTION_COUNT);
-    NAOS_CHECK_UINT_EQ(f.verbose->count_max, 0);
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(f.verbose), CLOPTS_OPTION_COUNT);
+    NAOS_CHECK_UINT_EQ(clopts_option_count_max(f.verbose), 0);
     fixture_tool_free(&f);
 }
 
@@ -582,12 +582,12 @@ NAOS_TEST(nosub_declaration_is_valid)
     NAOS_CHECK_UINT_EQ(n.root->options.len, 7);
     NAOS_CHECK_UINT_EQ(n.root->positionals.len, 2);
     NAOS_CHECK_UINT_EQ(n.program->command_count, 0);
-    NAOS_CHECK_TRUE(n.help->terminal);
-    NAOS_CHECK_TRUE(n.version->terminal);
-    NAOS_CHECK_UINT_EQ(n.verbose->count_max, 3);
-    NAOS_CHECK_INT_EQ(n.keys->delimiter, ',');
-    NAOS_CHECK_TRUE(n.output->required);
-    NAOS_CHECK_TRUE(n.color->negatable);
+    NAOS_CHECK_TRUE(clopts_option_terminal(n.help));
+    NAOS_CHECK_TRUE(clopts_option_terminal(n.version));
+    NAOS_CHECK_UINT_EQ(clopts_option_count_max(n.verbose), 3);
+    NAOS_CHECK_INT_EQ(clopts_option_delimiter(n.keys), ',');
+    NAOS_CHECK_TRUE(clopts_option_required(n.output));
+    NAOS_CHECK_TRUE(clopts_option_negatable(n.color));
     NAOS_CHECK_TRUE(n.src->required);
     NAOS_CHECK_TRUE(n.rest->variadic);
     nosub_free(&n);
@@ -729,7 +729,7 @@ NAOS_TEST(nosub_unset_options_are_empty_and_default_applies)
     NAOS_CHECK_INT_EQ(clopts_result_source(result, n.keys), CLOPTS_SOURCE_NONE);
     NAOS_CHECK_UINT_EQ(clopts_result_count(result, n.verbose), 0);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, n.verbose), CLOPTS_SOURCE_NONE);
-    NAOS_CHECK_PTR_EQ(clopts_result_value(result, n.mode), n.mode->default_value);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(result, n.mode), clopts_option_default(n.mode));
     NAOS_CHECK_STR_EQ(clopts_result_value(result, n.mode), "fast");
     NAOS_CHECK_INT_EQ(clopts_result_source(result, n.mode), CLOPTS_SOURCE_DEFAULT);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, n.output), CLOPTS_SOURCE_EXPLICIT);

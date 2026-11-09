@@ -205,32 +205,32 @@ NAOS_TEST(fixture_long_names_and_kinds_are_as_designed)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_STR_EQ(t.verbose->long_name, "verbose");
-    NAOS_CHECK_INT_EQ(t.verbose->kind, CLOPTS_OPTION_COUNT);
-    NAOS_CHECK_STR_EQ(t.color->long_name, "color");
-    NAOS_CHECK_INT_EQ(t.color->kind, CLOPTS_OPTION_FLAG);
-    NAOS_CHECK_STR_EQ(t.config->long_name, "config");
-    NAOS_CHECK_INT_EQ(t.config->kind, CLOPTS_OPTION_VALUE);
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(t.verbose), "verbose");
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(t.verbose), CLOPTS_OPTION_COUNT);
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(t.color), "color");
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(t.color), CLOPTS_OPTION_FLAG);
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(t.config), "config");
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(t.config), CLOPTS_OPTION_VALUE);
 
-    NAOS_CHECK_STR_EQ(t.output->long_name, "output");
-    NAOS_CHECK_INT_EQ(t.output->kind, CLOPTS_OPTION_VALUE);
-    NAOS_CHECK_STR_EQ(t.keys->long_name, "keys");
-    NAOS_CHECK_INT_EQ(t.keys->kind, CLOPTS_OPTION_LIST);
-    NAOS_CHECK_NULL(t.jobs->long_name);
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(t.output), "output");
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(t.output), CLOPTS_OPTION_VALUE);
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(t.keys), "keys");
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(t.keys), CLOPTS_OPTION_LIST);
+    NAOS_CHECK_NULL(clopts_option_long_name(t.jobs));
 
-    NAOS_CHECK_STR_EQ(t.tags->long_name, "tags");
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(t.tags), "tags");
     fixture_tool_free(&t);
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_STR_EQ(f.lines->long_name, "lines");
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(f.lines), "lines");
     fixture_filt_free(&f);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
-    NAOS_CHECK_STR_EQ(s.token->long_name, "token");
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(s.token), "token");
     fixture_strict_free(&s);
 }
 
@@ -241,9 +241,9 @@ NAOS_TEST(fixture_only_color_is_negatable)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_TRUE(t.color->negatable);
-    NAOS_CHECK_FALSE(t.verbose->negatable);
-    NAOS_CHECK_FALSE(t.config->negatable);
+    NAOS_CHECK_TRUE(clopts_option_negatable(t.color));
+    NAOS_CHECK_FALSE(clopts_option_negatable(t.verbose));
+    NAOS_CHECK_FALSE(clopts_option_negatable(t.config));
     fixture_tool_free(&t);
 }
 

@@ -76,8 +76,9 @@ clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, co
  * Result handle (parser_result.c).
  *
  * A slot records one option and has the same index as the option in its
- * scope (option->index), so a slot is found in constant time. The value of a slot and its source are always updated together, and
- * value == owned whenever owned is not NULL.
+ * scope; a slot is found from its option by its address. The value of a slot
+ * and its source are always updated together, and value == owned whenever
+ * owned is not NULL.
  */
 
 /* Recorded state of one option. */

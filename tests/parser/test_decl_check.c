@@ -695,7 +695,7 @@ NAOS_TEST(negatable_flag_without_long_name_is_allowed)
 
     add(root, CLOPTS_OPTION_FLAG, "no-", '\0');
     option = attach(root, make_negatable(NULL, 'c'));
-    NAOS_CHECK_TRUE(option->negatable);
+    NAOS_CHECK_TRUE(clopts_option_negatable(option));
     clopts_command_destroy(root);
 }
 
@@ -870,7 +870,7 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     live = test_alloc.live;
     NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_DECL_DUPLICATE_OPTION);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
-    NAOS_CHECK_STR_EQ(option->help, "Force.");
+    NAOS_CHECK_STR_EQ(clopts_option_help(option), "Force.");
     EXPECT_OK(clopts_option_set_help(option, "Still mine."));
     clopts_option_destroy(option);
     NAOS_CHECK_INT_LT(test_alloc.live, live);

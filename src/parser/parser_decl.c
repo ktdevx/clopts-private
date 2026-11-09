@@ -80,11 +80,11 @@ typedef struct decl_query
 /* True when option matches query. */
 static bool decl_matches(const clopts_option_t *option, const decl_query_t *query)
 {
-    if ((query->long_name != NULL) && decl_long_equals(option->long_name, query->long_name, query->long_len))
+    if ((query->long_name != NULL) && decl_long_equals(clopts_option_long_name(option), query->long_name, query->long_len))
     {
         return true;
     }
-    return ((query->short_name != '\0') && (option->short_name == query->short_name));
+    return ((query->short_name != '\0') && (clopts_option_short_name(option) == query->short_name));
 }
 
 /* Returns the index in scope of the first option matching query, or scope->options.len. */
@@ -171,7 +171,7 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
     {
         const clopts_option_t *option = decl_option_at(scope, index);
 
-        if ((option->kind == CLOPTS_OPTION_FLAG) && option->negatable)
+        if ((clopts_option_kind_of(option) == CLOPTS_OPTION_FLAG) && clopts_option_negatable(option))
         {
             ref.option = option;
             ref.global = global;

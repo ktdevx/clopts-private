@@ -174,7 +174,7 @@ static void scan_select(scan_state_t *state, const clopts_command_t *command)
 static void scan_flag(scan_state_t *state, const clopts_parser_ref_t *ref)
 {
     clopts_parser_slot_set_flag(clopts_parser_result_slot(state->result, ref), !ref->negated, CLOPTS_SOURCE_EXPLICIT);
-    if (ref->option->terminal && !ref->negated)
+    if (clopts_option_terminal(ref->option) && !ref->negated)
     {
         state->terminal = ref->option;
     }
@@ -208,11 +208,11 @@ static scan_error_t *scan_option_value(scan_state_t *state, const clopts_parser_
         value = scan_token(state);
         state->pos++;
     }
-    if (ref->option->kind == CLOPTS_OPTION_VALUE)
+    if (clopts_option_kind_of(ref->option) == CLOPTS_OPTION_VALUE)
     {
         clopts_parser_slot_set_value(slot, value, CLOPTS_SOURCE_EXPLICIT);
     }
-    else if (clopts_parser_slot_append_list(slot, value, ref->option->delimiter,
+    else if (clopts_parser_slot_append_list(slot, value, clopts_option_delimiter(ref->option),
                                             CLOPTS_SOURCE_EXPLICIT) != 0)
     {
         state->out_of_memory = true;
@@ -248,7 +248,7 @@ static void scan_long_option(scan_state_t *state)
         return;
     }
 
-    switch (ref.option->kind)
+    switch (clopts_option_kind_of(ref.option))
     {
     case CLOPTS_OPTION_FLAG:
     case CLOPTS_OPTION_COUNT:
@@ -260,13 +260,13 @@ static void scan_long_option(scan_state_t *state)
                 error->option = ref.option;
             }
         }
-        else if (ref.option->kind == CLOPTS_OPTION_FLAG)
+        else if (clopts_option_kind_of(ref.option) == CLOPTS_OPTION_FLAG)
         {
             scan_flag(state, &ref);
         }
         else
         {
-            clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), ref.option->count_max);
+            clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), clopts_option_count_max(ref.option));
         }
         break;
     case CLOPTS_OPTION_VALUE:
@@ -305,7 +305,7 @@ static void scan_short_option(scan_state_t *state)
             }
             return;
         }
-        switch (ref.option->kind)
+        switch (clopts_option_kind_of(ref.option))
         {
         case CLOPTS_OPTION_FLAG:
             scan_flag(state, &ref);
@@ -315,7 +315,7 @@ static void scan_short_option(scan_state_t *state)
             }
             break;
         case CLOPTS_OPTION_COUNT:
-            clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), ref.option->count_max);
+            clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), clopts_option_count_max(ref.option));
             break;
         case CLOPTS_OPTION_VALUE:
         case CLOPTS_OPTION_LIST:
@@ -517,7 +517,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
         }
         *ref = clopts_parser_find_short(state->program, state->command, token[1]);
     }
-    if ((ref->option == NULL) || (ref->option->kind != CLOPTS_OPTION_FLAG) || !ref->option->terminal)
+    if ((ref->option == NULL) || (clopts_option_kind_of(ref->option) != CLOPTS_OPTION_FLAG) || !clopts_option_terminal(ref->option))
     {
         return NULL;
     }

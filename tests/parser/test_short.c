@@ -182,33 +182,33 @@ NAOS_TEST(fixture_short_names_are_as_designed)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_INT_EQ(t.verbose->short_name, 'v');
-    NAOS_CHECK_INT_EQ(t.color->short_name, '\0');
-    NAOS_CHECK_INT_EQ(t.config->short_name, '\0');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.verbose), 'v');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.color), '\0');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.config), '\0');
 
-    NAOS_CHECK_INT_EQ(t.output->short_name, 'o');
-    NAOS_CHECK_INT_EQ(t.keys->short_name, 'k');
-    NAOS_CHECK_INT_EQ(t.jobs->short_name, 'j');
-    NAOS_CHECK_INT_EQ(t.jobs->kind, CLOPTS_OPTION_COUNT);
-    NAOS_CHECK_UINT_EQ(t.jobs->count_max, 8);
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.output), 'o');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.keys), 'k');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.jobs), 'j');
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(t.jobs), CLOPTS_OPTION_COUNT);
+    NAOS_CHECK_UINT_EQ(clopts_option_count_max(t.jobs), 8);
 
-    NAOS_CHECK_INT_EQ(t.tags->short_name, '\0');
-    NAOS_CHECK_INT_EQ(t.help->short_name, 'h');
-    NAOS_CHECK_TRUE(t.help->terminal);
-    NAOS_CHECK_INT_EQ(t.version->short_name, '\0');
-    NAOS_CHECK_TRUE(t.version->terminal);
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.tags), '\0');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.help), 'h');
+    NAOS_CHECK_TRUE(clopts_option_terminal(t.help));
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(t.version), '\0');
+    NAOS_CHECK_TRUE(clopts_option_terminal(t.version));
     fixture_tool_free(&t);
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_INT_EQ(f.lines->short_name, 'n');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(f.lines), 'n');
     fixture_filt_free(&f);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
-    NAOS_CHECK_INT_EQ(s.token->short_name, '\0');
+    NAOS_CHECK_INT_EQ(clopts_option_short_name(s.token), '\0');
     fixture_strict_free(&s);
 }
 

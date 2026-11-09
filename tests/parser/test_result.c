@@ -328,7 +328,7 @@ NAOS_TEST(count_clamps_at_its_max)
     slot = slot_of(&s, result, s.jobs);
     for (i = 0; i < 12; i++)
     {
-        clopts_parser_slot_add_count(slot, s.jobs->count_max);
+        clopts_parser_slot_add_count(slot, clopts_option_count_max(s.jobs));
     }
     NAOS_CHECK_UINT_EQ(clopts_result_count(result, s.jobs), 8);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.jobs), CLOPTS_SOURCE_EXPLICIT);
@@ -346,10 +346,10 @@ NAOS_TEST(count_default_max_is_uint_max)
 
     SAMPLE_BEGIN(s, result);
     slot = slot_of(&s, result, s.verbose);
-    NAOS_CHECK_UINT_EQ(s.verbose->count_max, 0);
+    NAOS_CHECK_UINT_EQ(clopts_option_count_max(s.verbose), 0);
     for (i = 0; i < 12; i++)
     {
-        clopts_parser_slot_add_count(slot, s.verbose->count_max);
+        clopts_parser_slot_add_count(slot, clopts_option_count_max(s.verbose));
     }
     NAOS_CHECK_UINT_EQ(clopts_result_count(result, s.verbose), 12);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.verbose), CLOPTS_SOURCE_EXPLICIT);
@@ -631,8 +631,8 @@ NAOS_TEST(null_option_reads_as_unset)
     clopts_program_destroy(s.program);
 }
 
-/* Every attached option knows its position in the options of its command. */
-NAOS_TEST(option_index_is_its_position_in_its_command)
+/* Every attached option is at the position of its attachment in the options of its command. */
+NAOS_TEST(options_keep_their_attach_position_in_their_command)
 {
     sample_t s;
     const clopts_option_t *root_options[7];
@@ -654,28 +654,31 @@ NAOS_TEST(option_index_is_its_position_in_its_command)
     {
         NAOS_REQUIRE_TRUE(index_in(s.root, root_options[i], &index));
         NAOS_CHECK_UINT_EQ(index, i);
-        NAOS_CHECK_UINT_EQ(root_options[i]->index, i);
     }
-    NAOS_CHECK_UINT_EQ(s.release->index, 0);
-    NAOS_CHECK_UINT_EQ(s.build_output->index, 1);
-    /* copy's --output has the same index as build's --release. */
-    NAOS_CHECK_UINT_EQ(s.copy_output->index, 0);
+    NAOS_REQUIRE_TRUE(index_in(s.build, s.release, &index));
+    NAOS_CHECK_UINT_EQ(index, 0);
+    NAOS_REQUIRE_TRUE(index_in(s.build, s.build_output, &index));
+    NAOS_CHECK_UINT_EQ(index, 1);
+    /* copy's --output is at the same position as build's --release. */
+    NAOS_REQUIRE_TRUE(index_in(s.copy, s.copy_output, &index));
+    NAOS_CHECK_UINT_EQ(index, 0);
     clopts_program_destroy(s.program);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /*
- * An option is found through its index (constant time) and checked by its
- * address, so an option at the same index as a recorded one, but of a
- * command that was not selected, of another program or not attached at all,
- * reads as unset.
+ * An option is found by its address, so an option at the same position as a
+ * recorded one, but of a command that was not selected, of another program or
+ * not attached at all, reads as unset.
  */
-NAOS_TEST(option_at_the_same_index_elsewhere_reads_as_unset)
+NAOS_TEST(option_at_the_same_position_elsewhere_reads_as_unset)
 {
     sample_t s;
     sample_t other;
     clopts_option_t *loose;
     clopts_result_t *result;
+    size_t pos_a = 0;
+    size_t pos_b = 0;
 
     SAMPLE_BEGIN(s, result);
     sample_init(&other);
@@ -692,11 +695,16 @@ NAOS_TEST(option_at_the_same_index_elsewhere_reads_as_unset)
     NAOS_REQUIRE_TRUE(clopts_result_flag(result, s.release));
     NAOS_REQUIRE_STR_EQ(clopts_result_value(result, s.build_output), "out");
 
-    /* Same index as a recorded root slot (0) and command slot (0 / 1). */
-    NAOS_REQUIRE_UINT_EQ(s.copy_output->index, s.release->index);
-    NAOS_REQUIRE_UINT_EQ(other.force->index, s.force->index);
-    NAOS_REQUIRE_UINT_EQ(other.build_output->index, s.build_output->index);
-    NAOS_REQUIRE_UINT_EQ(loose->index, 0);
+    /* Same position as a recorded root slot and command slot. */
+    NAOS_REQUIRE_TRUE(index_in(s.build, s.release, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(s.copy, s.copy_output, &pos_b));
+    NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
+    NAOS_REQUIRE_TRUE(index_in(s.root, s.force, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(other.root, other.force, &pos_b));
+    NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
+    NAOS_REQUIRE_TRUE(index_in(s.build, s.build_output, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(other.build, other.build_output, &pos_b));
+    NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
     /* An option of a command that was not selected. */
     CHECK_UNSET(result, s.copy_output);
     /* Options of another program: root, and the command of the same name. */
@@ -1601,8 +1609,8 @@ NAOS_SUITE(result,
     NAOS_ADD_TEST(accessors_return_the_slot_of_the_handle),
     NAOS_ADD_TEST(command_options_are_unset_without_a_selected_command),
     NAOS_ADD_TEST(null_option_reads_as_unset),
-    NAOS_ADD_TEST(option_index_is_its_position_in_its_command),
-    NAOS_ADD_TEST(option_at_the_same_index_elsewhere_reads_as_unset),
+    NAOS_ADD_TEST(options_keep_their_attach_position_in_their_command),
+    NAOS_ADD_TEST(option_at_the_same_position_elsewhere_reads_as_unset),
     NAOS_ADD_TEST(option_beyond_the_slots_reads_as_unset),
     NAOS_ADD_TEST(value_accessors_are_unset_unless_ok_terminated_or_no_command),
     NAOS_ADD_TEST(no_command_keeps_only_the_root_values),

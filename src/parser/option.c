@@ -19,6 +19,29 @@
 
 #include <assert.h>
 
+/*
+ * Internal representation of an option. It is private to this file: the rest
+ * of the library reads it through the public read functions. An option holds
+ * its own attributes only: it does not point to the command it is attached
+ * to, and does not know its position there. Attached, it is owned by that
+ * command and read-only.
+ */
+struct clopts_option
+{
+    clopts_option_kind_t kind;
+    char *long_name;            /* may be NULL */
+    char short_name;            /* '\0' for none */
+    char *help;                 /* may be NULL; owned copy */
+    char *value_name;           /* may be NULL; owned copy */
+    char *default_value;        /* may be NULL; owned copy */
+    char *env;                  /* may be NULL; owned copy */
+    char delimiter;             /* non-'\0' for LIST only */
+    unsigned count_max;         /* non-0 for COUNT only; 0 means the default (UINT_MAX) */
+    bool required;              /* true for VALUE / LIST only */
+    bool negatable;             /* true for FLAG only */
+    bool terminal;              /* true for FLAG only */
+};
+
 /* True for the kinds that take no value (FLAG / COUNT). */
 static bool option_takes_no_value(clopts_option_kind_t kind)
 {
@@ -96,7 +119,6 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
     option->required = false;
     option->negatable = false;
     option->terminal = false;
-    option->index = 0;
 
     *out = option;
 

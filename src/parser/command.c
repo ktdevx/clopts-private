@@ -107,7 +107,7 @@ static bool command_has_negatable(const clopts_command_t *command, const char *n
 {
     const clopts_option_t *found = clopts_parser_find_named(command, name, name_len);
 
-    return ((found != NULL) && (found->kind == CLOPTS_OPTION_FLAG) && found->negatable);
+    return ((found != NULL) && (clopts_option_kind_of(found) == CLOPTS_OPTION_FLAG) && clopts_option_negatable(found));
 }
 
 /*
@@ -143,10 +143,10 @@ static int command_has_negation_name(const clopts_command_t *command, const char
 /* Checks of clopts_command_add_option(command, option) against command, in order. */
 static clopts_decl_error_t command_check_attach_option(const clopts_command_t *command, const clopts_option_t *option)
 {
-    const char *l = option->long_name;
+    const char *l = clopts_option_long_name(option);
     int conflict;
 
-    if (clopts_parser_find_conflict(command, l, option->short_name) != NULL)
+    if (clopts_parser_find_conflict(command, l, clopts_option_short_name(option)) != NULL)
     {
         return CLOPTS_DECL_DUPLICATE_OPTION;
     }
@@ -156,7 +156,7 @@ static clopts_decl_error_t command_check_attach_option(const clopts_command_t *c
         return CLOPTS_DECL_NEGATION_CONFLICT;
     }
 
-    if (option->negatable && (l != NULL))
+    if (clopts_option_negatable(option) && (l != NULL))
     {
         conflict = command_has_negation_name(command, l);
         if (conflict < 0)
@@ -175,7 +175,6 @@ static clopts_decl_error_t command_check_attach_option(const clopts_command_t *c
 clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option)
 {
     clopts_decl_error_t error;
-    size_t index;
 
     assert(command != NULL);
     assert(option != NULL);
@@ -186,14 +185,10 @@ clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_
         return error;
     }
 
-    index = command->options.len;
-
     if (clopts_core_vec_push(&command->options, &option) != 0)
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
-
-    option->index = index;
 
     return CLOPTS_DECL_NONE;
 }

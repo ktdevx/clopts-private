@@ -7,11 +7,11 @@
 #define CLOPTS_PARSER_MODEL_H
 
 #include "clopts/command.h"
+#include "clopts/option.h"
 #include "clopts/parse.h"
 #include "clopts/program.h"
 #include "core/core_internal.h"
 #include "parser/command_internal.h"
-#include "parser/option_internal.h"
 #include "parser/parser_positional.h"
 
 /*
@@ -31,8 +31,7 @@
  *   - The address of every handle stays the same until it is released:
  *     children are allocated one by one and the vecs hold pointers only.
  *   - Nothing points to its owner: an option or positional does not point to
- *     its command, and a command does not point to its program. The index of
- *     an option is its position in the vec of the command it is attached to.
+ *     its command, and a command does not point to its program.
  *   - A program never changes after clopts_program_create(): its root and
  *     commands are attached (read-only) from then on.
  */

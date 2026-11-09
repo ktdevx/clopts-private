@@ -321,11 +321,20 @@ static bool result_has_values(const clopts_result_t *result)
             || (result->status == CLOPTS_NO_COMMAND));
 }
 
-/* Returns slot index of slots when it records option, or NULL. */
-static const clopts_parser_slot_t *slot_of(const clopts_parser_slot_t *slots, size_t count, size_t index,
+/* Returns the slot of slots that records option, or NULL. */
+static const clopts_parser_slot_t *slot_of(const clopts_parser_slot_t *slots, size_t count,
                                            const clopts_option_t *option)
 {
-    return ((index < count) && (slots[index].option == option)) ? &slots[index] : NULL;
+    size_t i;
+
+    for (i = 0; i < count; i++)
+    {
+        if (slots[i].option == option)
+        {
+            return &slots[i];
+        }
+    }
+    return NULL;
 }
 
 /*
@@ -334,8 +343,7 @@ static const clopts_parser_slot_t *slot_of(const clopts_parser_slot_t *slots, si
  * sentinel, a NULL option, a status other than OK / TERMINATED /
  * NO_COMMAND, or an option that is attached neither to the root nor to the
  * selected command (an option of another command or program, or an
- * unattached one). The option is found through its index and checked by its
- * address.
+ * unattached one). The option is found by its address.
  */
 static const clopts_parser_slot_t *find_slot(const clopts_result_t *result, const clopts_option_t *option)
 {
@@ -346,10 +354,10 @@ static const clopts_parser_slot_t *find_slot(const clopts_result_t *result, cons
     {
         return NULL;
     }
-    slot = slot_of(result->global_slots, result->global_count, option->index, option);
+    slot = slot_of(result->global_slots, result->global_count, option);
     if ((slot == NULL) && (result->status != CLOPTS_NO_COMMAND))
     {
-        slot = slot_of(result->command_slots, result->command_count, option->index, option);
+        slot = slot_of(result->command_slots, result->command_count, option);
     }
     return slot;
 }

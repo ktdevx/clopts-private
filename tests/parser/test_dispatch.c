@@ -177,19 +177,15 @@ NAOS_TEST(fixture_commands_are_shaped_as_designed)
     NAOS_CHECK_PTR_EQ(option_at(t.root, 2), t.config);
     NAOS_CHECK_PTR_EQ(option_at(t.root, 3), t.help);
     NAOS_CHECK_PTR_EQ(option_at(t.root, 4), t.version);
-    NAOS_CHECK_TRUE(t.help->terminal);
-    NAOS_CHECK_TRUE(t.version->terminal);
-    NAOS_CHECK_FALSE(t.verbose->terminal);
-    NAOS_CHECK_UINT_EQ(t.help->index, 3);
-    NAOS_CHECK_UINT_EQ(t.version->index, 4);
+    NAOS_CHECK_TRUE(clopts_option_terminal(t.help));
+    NAOS_CHECK_TRUE(clopts_option_terminal(t.version));
+    NAOS_CHECK_FALSE(clopts_option_terminal(t.verbose));
 
     NAOS_CHECK_STR_EQ(t.build->name, "build");
     NAOS_REQUIRE_UINT_EQ(t.build->options.len, 3);
     NAOS_CHECK_PTR_EQ(option_at(t.build, 0), t.output);
     NAOS_CHECK_PTR_EQ(option_at(t.build, 1), t.keys);
     NAOS_CHECK_PTR_EQ(option_at(t.build, 2), t.jobs);
-    NAOS_CHECK_UINT_EQ(t.output->index, 0);
-    NAOS_CHECK_UINT_EQ(t.jobs->index, 2);
     NAOS_REQUIRE_UINT_EQ(t.build->positionals.len, 2);
     NAOS_CHECK_PTR_EQ(positional_at(t.build, 0), t.build_src);
     NAOS_CHECK_PTR_EQ(positional_at(t.build, 1), t.build_extra);
@@ -224,7 +220,7 @@ NAOS_TEST(fixture_filt_has_no_commands_and_a_help_option)
     NAOS_REQUIRE_UINT_EQ(f.root->options.len, 2);
     NAOS_CHECK_PTR_EQ(option_at(f.root, 0), f.lines);
     NAOS_CHECK_PTR_EQ(option_at(f.root, 1), f.help);
-    NAOS_CHECK_TRUE(f.help->terminal);
+    NAOS_CHECK_TRUE(clopts_option_terminal(f.help));
     NAOS_REQUIRE_UINT_EQ(f.root->positionals.len, 1);
     NAOS_CHECK_PTR_EQ(positional_at(f.root, 0), f.file);
     fixture_filt_free(&f);
@@ -266,8 +262,7 @@ NAOS_TEST(parse_leaves_the_program_unchanged)
     NAOS_CHECK_UINT_EQ(t.program->command_count, 4);
     NAOS_CHECK_UINT_EQ(t.root->options.len, 5);
     NAOS_CHECK_UINT_EQ(t.build->options.len, 3);
-    NAOS_CHECK_UINT_EQ(t.output->index, 0);
-    NAOS_CHECK_NULL(t.output->default_value);
+    NAOS_CHECK_NULL(clopts_option_default(t.output));
     NAOS_CHECK_PTR_EQ(result->command, t.build);
     NAOS_CHECK_NULL(result->terminal);
     clopts_result_free(result);

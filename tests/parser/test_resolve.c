@@ -238,26 +238,28 @@ static void sample_init(sample_t *s)
     sample_build(s, false);
 }
 
-/*
- * Returns the slot of option (in the root or the selected command), found by
- * its index in its command (option->index): the root slot of that index when
- * it records option, else the slot of the selected command.
- */
+/* Returns the slot of option (in the root or the selected command), found by its address. */
 static clopts_parser_slot_t *slot_of(clopts_result_t *result, const clopts_option_t *option)
 {
-    clopts_parser_ref_t ref;
+    size_t i;
 
-    ref.option = option;
-    ref.negated = false;
-    ref.index = option->index;
-    ref.global = (option->index < result->global_count) && (result->global_slots[option->index].option == option);
-    if (!ref.global)
+    for (i = 0; i < result->global_count; i++)
     {
-        NAOS_REQUIRE_NOT_NULL(result->command);
-        NAOS_REQUIRE_TRUE(option->index < result->command_count);
-        NAOS_REQUIRE_PTR_EQ(result->command_slots[option->index].option, option);
+        if (result->global_slots[i].option == option)
+        {
+            return &result->global_slots[i];
+        }
     }
-    return clopts_parser_result_slot(result, &ref);
+    NAOS_REQUIRE_NOT_NULL(result->command);
+    for (i = 0; i < result->command_count; i++)
+    {
+        if (result->command_slots[i].option == option)
+        {
+            return &result->command_slots[i];
+        }
+    }
+    NAOS_REQUIRE_TRUE(false);
+    return NULL;
 }
 
 /* Returns item index of the LIST slot. */
@@ -405,7 +407,7 @@ NAOS_TEST(default_when_env_is_unset)
     NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
     slot = slot_of(result, s.config);
     NAOS_CHECK_INT_EQ(slot->source, CLOPTS_SOURCE_DEFAULT);
-    NAOS_CHECK_PTR_EQ(slot->value, s.config->default_value);
+    NAOS_CHECK_PTR_EQ(slot->value, clopts_option_default(s.config));
     NAOS_CHECK_NULL(slot->owned);
     slot = slot_of(result, s.name);
     NAOS_CHECK_INT_EQ(slot->source, CLOPTS_SOURCE_NONE);
@@ -1037,25 +1039,25 @@ NAOS_TEST(fixture_env_and_defaults_are_as_designed)
     fixture_strict_t s;
 
     TOOL_BEGIN(t);
-    NAOS_CHECK_STR_EQ(t.config->env, "TOOL_CONFIG");
-    NAOS_CHECK_NULL(t.config->default_value);
-    NAOS_CHECK_STR_EQ(t.tags->env, "TOOL_TAGS");
-    NAOS_CHECK_STR_EQ(t.tags->default_value, "a,b");
-    NAOS_CHECK_NULL(t.output->env);
-    NAOS_CHECK_NULL(t.output->default_value);
+    NAOS_CHECK_STR_EQ(clopts_option_env(t.config), "TOOL_CONFIG");
+    NAOS_CHECK_NULL(clopts_option_default(t.config));
+    NAOS_CHECK_STR_EQ(clopts_option_env(t.tags), "TOOL_TAGS");
+    NAOS_CHECK_STR_EQ(clopts_option_default(t.tags), "a,b");
+    NAOS_CHECK_NULL(clopts_option_env(t.output));
+    NAOS_CHECK_NULL(clopts_option_default(t.output));
     fixture_tool_free(&t);
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_STR_EQ(f.lines->env, "FILT_LINES");
-    NAOS_CHECK_STR_EQ(f.lines->default_value, "10");
+    NAOS_CHECK_STR_EQ(clopts_option_env(f.lines), "FILT_LINES");
+    NAOS_CHECK_STR_EQ(clopts_option_default(f.lines), "10");
     fixture_filt_free(&f);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
-    NAOS_CHECK_NULL(s.token->env);
+    NAOS_CHECK_NULL(clopts_option_env(s.token));
     fixture_strict_free(&s);
 }
 
@@ -1173,7 +1175,7 @@ NAOS_TEST(parse_filt_default_points_into_the_declaration)
     NAOS_CHECK_INT_EQ(clopts_result_source(result, f.lines), CLOPTS_SOURCE_DEFAULT);
     NAOS_CHECK_STR_EQ(clopts_result_value(result, f.lines), "10");
     /* The default is not copied: it points into the declaration model. */
-    NAOS_CHECK_PTR_EQ(clopts_result_value(result, f.lines), f.lines->default_value);
+    NAOS_CHECK_PTR_EQ(clopts_result_value(result, f.lines), clopts_option_default(f.lines));
     NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "FILT_LINES"));
     clopts_result_free(result);
     fixture_filt_free(&f);

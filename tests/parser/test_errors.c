@@ -188,22 +188,22 @@ NAOS_TEST(fixture_required_options_are_as_designed)
     fixture_strict_t s;
 
     TOOL_BEGIN(t);
-    NAOS_CHECK_TRUE(t.output->required);
-    NAOS_CHECK_FALSE(t.keys->required);
-    NAOS_CHECK_FALSE(t.jobs->required);
-    NAOS_CHECK_FALSE(t.verbose->required);
-    NAOS_CHECK_FALSE(t.color->required);
-    NAOS_CHECK_FALSE(t.config->required);
-    NAOS_CHECK_FALSE(t.tags->required);
+    NAOS_CHECK_TRUE(clopts_option_required(t.output));
+    NAOS_CHECK_FALSE(clopts_option_required(t.keys));
+    NAOS_CHECK_FALSE(clopts_option_required(t.jobs));
+    NAOS_CHECK_FALSE(clopts_option_required(t.verbose));
+    NAOS_CHECK_FALSE(clopts_option_required(t.color));
+    NAOS_CHECK_FALSE(clopts_option_required(t.config));
+    NAOS_CHECK_FALSE(clopts_option_required(t.tags));
     fixture_tool_free(&t);
 
     FILT_BEGIN(f);
-    NAOS_CHECK_FALSE(f.lines->required);
+    NAOS_CHECK_FALSE(clopts_option_required(f.lines));
     fixture_filt_free(&f);
 
     STRICT_BEGIN(s);
-    NAOS_CHECK_TRUE(s.token->required);
-    NAOS_CHECK_INT_EQ(s.token->kind, CLOPTS_OPTION_VALUE);
+    NAOS_CHECK_TRUE(clopts_option_required(s.token));
+    NAOS_CHECK_INT_EQ(clopts_option_kind_of(s.token), CLOPTS_OPTION_VALUE);
     fixture_strict_free(&s);
 }
 
