@@ -282,8 +282,6 @@ const char *clopts_decl_error_message(clopts_decl_error_t error)
         return "a program with subcommands cannot have root arguments";
     case CLOPTS_DECL_INVALID_KIND:
         return "invalid option kind";
-    case CLOPTS_DECL_ALREADY_ATTACHED:
-        return "already attached";
     case CLOPTS_DECL_INVALID_ARGUMENT:
         return "invalid argument";
     case CLOPTS_DECL_OUT_OF_MEMORY:

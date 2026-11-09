@@ -20,7 +20,6 @@
 
 struct clopts_option
 {
-    bool attached;              /* attached to a command: owned by it and read-only */
     clopts_option_kind_t kind;
     char *long_name;            /* may be NULL */
     char short_name;            /* '\0' for none */

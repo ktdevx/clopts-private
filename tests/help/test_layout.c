@@ -1002,21 +1002,6 @@ NAOS_TEST(add_options_reject_a_null_command)
     NAOS_CHECK_INT_EQ(clopts_help_add_version_option(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
 }
 
-NAOS_TEST(add_options_to_an_attached_command_fail)
-{
-    /* The commands of a program are read-only. */
-    const clopts_option_t *option = layout_stale_option;
-    layout_nover_t f;
-
-    layout_nover_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(f.init, &option), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_NULL(option);
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(f.init, NULL), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(f.init), 0);
-    clopts_program_destroy(f.program);
-}
-
 NAOS_TEST(help_command_new_declaration)
 {
     clopts_command_t *command = NULL;
@@ -1406,7 +1391,6 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(add_help_option_fails_on_a_taken_short_name),
     NAOS_ADD_TEST(add_options_in_several_commands),
     NAOS_ADD_TEST(add_options_reject_a_null_command),
-    NAOS_ADD_TEST(add_options_to_an_attached_command_fail),
     NAOS_ADD_TEST(help_command_new_declaration),
     NAOS_ADD_TEST(help_command_new_rejects_a_null_out),
     NAOS_ADD_TEST(help_command_new_gives_a_new_command_each_time),

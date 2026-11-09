@@ -586,7 +586,7 @@ NAOS_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory)
 
 /* Largest value of each kind enum; a new kind must raise them (12.2). */
 #define MESSAGE_USAGE_KIND_MAX 7
-#define MESSAGE_DECL_KIND_MAX 18
+#define MESSAGE_DECL_KIND_MAX 17
 
 NAOS_TEST(decl_error_message_of_every_kind)
 {
@@ -610,7 +610,6 @@ NAOS_TEST(decl_error_message_of_every_kind)
         { CLOPTS_DECL_ATTRIBUTE_KIND, "attribute does not apply to this kind of option" },
         { CLOPTS_DECL_MIXED_LAYOUT, "a program with subcommands cannot have root arguments" },
         { CLOPTS_DECL_INVALID_KIND, "invalid option kind" },
-        { CLOPTS_DECL_ALREADY_ATTACHED, "already attached" },
         { CLOPTS_DECL_INVALID_ARGUMENT, "invalid argument" },
         { CLOPTS_DECL_OUT_OF_MEMORY, "out of memory" },
     };

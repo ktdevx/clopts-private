@@ -53,7 +53,6 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
 
-    command->attached = false;
     command->summary = NULL;
     command->description = NULL;
     clopts_core_vec_init(&command->options, sizeof(clopts_option_t *));
@@ -94,12 +93,7 @@ void clopts_command_destroy(clopts_command_t *command)
 /* Common checks of a call that changes command. */
 static clopts_decl_error_t command_check_call(const clopts_command_t *command)
 {
-    if (command == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
-
-    return command->attached ? CLOPTS_DECL_ALREADY_ATTACHED : CLOPTS_DECL_NONE;
+    return (command == NULL) ? CLOPTS_DECL_INVALID_ARGUMENT : CLOPTS_DECL_NONE;
 }
 
 clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
@@ -209,11 +203,6 @@ clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
 
-    if (command->attached || option->attached)
-    {
-        return CLOPTS_DECL_ALREADY_ATTACHED;
-    }
-
     error = command_check_attach_option(command, option);
     if (error != CLOPTS_DECL_NONE)
     {
@@ -227,7 +216,6 @@ clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
 
-    option->attached = true;
     option->index = index;
 
     return CLOPTS_DECL_NONE;
@@ -268,11 +256,6 @@ clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clo
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
 
-    if (command->attached || positional->attached)
-    {
-        return CLOPTS_DECL_ALREADY_ATTACHED;
-    }
-
     error = command_check_attach_positional(command, positional);
     if (error != CLOPTS_DECL_NONE)
     {
@@ -283,8 +266,6 @@ clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clo
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
-
-    positional->attached = true;
 
     return CLOPTS_DECL_NONE;
 }

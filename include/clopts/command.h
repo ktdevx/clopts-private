@@ -48,16 +48,16 @@ CLOPTS_API clopts_decl_error_t clopts_command_set_description(clopts_command_t *
 /*
  * Attaches option to command. On success command owns option, and option
  * stays valid (read-only) as long as command does. On failure nothing
- * changes and the caller still owns option: ALREADY_ATTACHED (option or
- * command), DUPLICATE_OPTION (within command) or NEGATION_CONFLICT (within
- * command).
+ * changes and the caller still owns option: DUPLICATE_OPTION (within
+ * command) or NEGATION_CONFLICT (within command). Neither command nor option
+ * may be attached already (the behavior is undefined, clopts/decl_types.h).
  */
 CLOPTS_API clopts_decl_error_t clopts_command_add_option(clopts_command_t *command,
                                                          clopts_option_t *option);
 
 /*
  * Attaches positional to command, after the positionals already attached.
- * Ownership as with clopts_command_add_option(). ALREADY_ATTACHED,
+ * Ownership and preconditions as with clopts_command_add_option().
  * VARIADIC_POSITION (the last attached one is variadic) or POSITIONAL_ORDER
  * (positional is required and the last attached one is optional).
  */

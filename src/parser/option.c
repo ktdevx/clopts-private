@@ -76,7 +76,6 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
 
-    option->attached = false;
     option->kind = kind;
     option->long_name = clopts_core_strdup(long_name);
     if ((long_name != NULL) && (option->long_name == NULL))
@@ -119,12 +118,7 @@ void clopts_option_destroy(clopts_option_t *option)
 /* Common checks of an option setter. */
 static clopts_decl_error_t option_check_call(const clopts_option_t *option)
 {
-    if (option == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
-
-    return option->attached ? CLOPTS_DECL_ALREADY_ATTACHED : CLOPTS_DECL_NONE;
+    return (option == NULL) ? CLOPTS_DECL_INVALID_ARGUMENT : CLOPTS_DECL_NONE;
 }
 
 clopts_decl_error_t clopts_option_set_help(clopts_option_t *option, const char *help)

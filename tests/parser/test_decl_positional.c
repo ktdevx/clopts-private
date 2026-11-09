@@ -47,7 +47,6 @@ NAOS_TEST(positional_name_invalid)
     positional = NULL;
     EXPECT_OK(clopts_positional_create("FILE", &positional));
     NAOS_REQUIRE_NOT_NULL(positional);
-    NAOS_CHECK_FALSE(positional->attached);
     NAOS_CHECK_STR_EQ(positional->name, "FILE");
     clopts_positional_destroy(positional);
 }

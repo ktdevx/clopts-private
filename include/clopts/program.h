@@ -29,9 +29,9 @@ extern "C" {
  * its options are the global options. On success the program owns root and
  * every command, and they become read-only; on failure nothing changes and
  * the caller still owns them. INVALID_ARGUMENT (NULL root or command),
- * ALREADY_ATTACHED (a command already belongs to a program, a command is
- * listed twice, or root is also listed among commands), DUPLICATE_COMMAND, or
- * MIXED_LAYOUT when there are subcommands and root has positionals.
+ * DUPLICATE_COMMAND, or MIXED_LAYOUT when there are subcommands and root has
+ * positionals. root and the commands must not belong to a program already,
+ * and each must appear once (the behavior is undefined otherwise).
  */
 CLOPTS_API clopts_decl_error_t clopts_program_create(clopts_command_t *root,
                                                      clopts_command_t *const *commands,

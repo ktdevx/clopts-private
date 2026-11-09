@@ -259,15 +259,11 @@ NAOS_TEST(parse_leaves_the_program_unchanged)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_TRUE(t.root->attached);
-    NAOS_CHECK_TRUE(t.build->attached);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 6, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_PTR_EQ(t.program->root, t.root);
     NAOS_CHECK_UINT_EQ(t.program->command_count, 4);
-    NAOS_CHECK_TRUE(t.root->attached);
-    NAOS_CHECK_TRUE(t.build->attached);
     NAOS_CHECK_UINT_EQ(t.root->options.len, 5);
     NAOS_CHECK_UINT_EQ(t.build->options.len, 3);
     NAOS_CHECK_UINT_EQ(t.output->index, 0);

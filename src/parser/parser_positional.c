@@ -29,7 +29,6 @@ clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
-    positional->attached = false;
     positional->name = clopts_core_strdup(name);
     if (positional->name == NULL)
     {
@@ -57,11 +56,7 @@ void clopts_positional_destroy(clopts_positional_t *positional)
 /* Common checks of a positional setter. */
 static clopts_decl_error_t positional_check_call(const clopts_positional_t *positional)
 {
-    if (positional == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
-    return positional->attached ? CLOPTS_DECL_ALREADY_ATTACHED : CLOPTS_DECL_NONE;
+    return (positional == NULL) ? CLOPTS_DECL_INVALID_ARGUMENT : CLOPTS_DECL_NONE;
 }
 
 clopts_decl_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help)

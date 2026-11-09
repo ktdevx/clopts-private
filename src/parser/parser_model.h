@@ -24,7 +24,10 @@
  *
  * Invariants, guaranteed by the builder:
  *   - Everything attached to a program satisfies every declaration rule:
- *     a builder call that would break one fails and changes nothing.
+ *     a builder call that would break one fails and changes nothing. This
+ *     holds as long as the caller keeps the ownership contract (no setter or
+ *     attach after the attach, no handle attached twice), which is not
+ *     checked.
  *   - The address of every handle stays the same until it is released:
  *     children are allocated one by one and the vecs hold pointers only.
  *   - Nothing points to its owner: an option or positional does not point to

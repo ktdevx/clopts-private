@@ -65,9 +65,12 @@ extern "C" {
  * Other rules:
  *   - A NULL handle or out pointer gives CLOPTS_DECL_INVALID_ARGUMENT. On
  *     failure, an out pointer that is not NULL is set to NULL.
- *   - Attached handles are read-only: a setter or an attach called on an
- *     attached option, positional or command gives
- *     CLOPTS_DECL_ALREADY_ATTACHED. A program never changes after
+ *   - Attached handles are read-only, and a handle is attached at most once.
+ *     The library does not check either: calling a setter or an attach on an
+ *     attached option, positional or command, attaching the same option or
+ *     positional twice, or listing the same command twice (or root among the
+ *     commands) in clopts_program_create() is a contract violation (the
+ *     behavior is undefined). A program never changes after
  *     clopts_program_create().
  *   - Setting a string attribute again replaces the previous copy (last call
  *     wins). NULL, false, '\0' or 0 resets an attribute.
@@ -116,12 +119,10 @@ typedef enum clopts_decl_error
     CLOPTS_DECL_MIXED_LAYOUT = 14,
     /* An option kind outside clopts_option_kind_t. */
     CLOPTS_DECL_INVALID_KIND = 15,
-    /* The handle is already attached (attach again, or a setter after the attach). */
-    CLOPTS_DECL_ALREADY_ATTACHED = 16,
     /* A NULL handle or out pointer. */
-    CLOPTS_DECL_INVALID_ARGUMENT = 17,
+    CLOPTS_DECL_INVALID_ARGUMENT = 16,
     /* An allocation failed. */
-    CLOPTS_DECL_OUT_OF_MEMORY = 18
+    CLOPTS_DECL_OUT_OF_MEMORY = 17
 } clopts_decl_error_t;
 
 /*

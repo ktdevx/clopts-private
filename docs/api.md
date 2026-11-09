@@ -222,7 +222,7 @@ Run 'taskbook --help' for usage.
 | `clopts_argv_t` | UTF-8 の argv | `clopts_argv_get`、`clopts_argv_from_wide`（Windows のみ） | `clopts_argv_free` | `clopts_argv_free` まで。Windows 以外では、渡した argv が有効な間だけ | Windows 以外では、呼び出し側の argv |
 | `clopts_env_t` | 環境変数を引くための文脈 | `clopts_env_new` | `clopts_env_free` | `clopts_env_free` まで | なし |
 
-オプションと位置引数は自分を渡したコマンドを知らず、コマンドは自分を渡したプログラムを知らない。渡した後は読み取り専用になり、その後に属性を変える関数や渡す関数を呼ぶと `CLOPTS_DECL_ALREADY_ATTACHED` が返る。プログラムは `clopts_program_create` で作った後は変わらない。
+オプションと位置引数は自分を渡したコマンドを知らず、コマンドは自分を渡したプログラムを知らない。渡した後は読み取り専用になり、同じものを 2 回渡すこともできない。ライブラリはこれを検査しないので、渡した後に属性を変える関数や渡す関数を呼ぶこと、同じオプション・位置引数を 2 回渡すこと、同じコマンドを `clopts_program_create` に 2 回並べること（root を `commands` にも並べることを含む）は契約違反で、動作は未定義になる。プログラムは `clopts_program_create` で作った後は変わらない。
 
 root は `clopts_program_create` の最初の引数に渡すコマンドで、グローバルオプションを持つ。root の名前はプログラムの名前に、root の説明（description）はプログラムの説明になる。サブコマンドのないプログラムでは、位置引数も root に置く。
 
@@ -243,7 +243,7 @@ root は `clopts_program_create` の最初の引数に渡すコマンドで、�
 
 | 関数 | 引数と戻り値 |
 |------|--------------|
-| `clopts_program_create`（`root, commands, command_count, out`） | root と、`commands` の `command_count` 個のサブコマンド（`command_count` が 0 なら `commands` は NULL でよい）からプログラムを作り、`*out` に入れる。成功するとプログラムが root とすべてのコマンドを持ち、それらは読み取り専用になる。失敗すると何も変わらず、コマンドは呼び出し側が持ったままになる。失敗の理由は検査の順に、NULL の `out`・root・コマンド（`CLOPTS_DECL_INVALID_ARGUMENT`）、すでにプログラムに渡したコマンド・2 回並べたコマンド・`commands` に並べた root（`CLOPTS_DECL_ALREADY_ATTACHED`）、同じ名前のサブコマンド（`CLOPTS_DECL_DUPLICATE_COMMAND`）、サブコマンドがあるのに root に位置引数がある（`CLOPTS_DECL_MIXED_LAYOUT`） |
+| `clopts_program_create`（`root, commands, command_count, out`） | root と、`commands` の `command_count` 個のサブコマンド（`command_count` が 0 なら `commands` は NULL でよい）からプログラムを作り、`*out` に入れる。成功するとプログラムが root とすべてのコマンドを持ち、それらは読み取り専用になる。失敗すると何も変わらず、コマンドは呼び出し側が持ったままになる。失敗の理由は検査の順に、NULL の `out`・root・コマンド（`CLOPTS_DECL_INVALID_ARGUMENT`）、同じ名前のサブコマンド（`CLOPTS_DECL_DUPLICATE_COMMAND`）、サブコマンドがあるのに root に位置引数がある（`CLOPTS_DECL_MIXED_LAYOUT`） |
 | `clopts_program_destroy`（`program`） | プログラムと、それが持つすべてのもの（root、コマンド、渡されたオプションと位置引数）を解放する。NULL なら何もしない |
 | `clopts_program_root`（`program`） | root を返す。`program` が NULL なら NULL |
 | `clopts_program_command_count`（`program`） | サブコマンドの数 |
@@ -260,8 +260,8 @@ root は `clopts_program_create` の最初の引数に渡すコマンドで、�
 | `clopts_command_destroy`（`command`） | プログラムに渡していないコマンドを、渡されたオプションと位置引数ごと解放する。NULL なら何もしない。プログラムに渡したコマンドを渡すのは契約違反で、`assert` で検出される（`assert` が無効なら何もしない） |
 | `clopts_command_set_summary`（`command, summary`） | プログラムのヘルプのコマンド一覧に出す 1 行の説明。root には使われない |
 | `clopts_command_set_description`（`command, description`） | コマンドのヘルプに出す説明。root ではプログラムの説明になる |
-| `clopts_command_add_option`（`command, option`） | `option` をコマンドに渡す。成功するとコマンドが `option` を持ち、`option` はコマンドが解放されるまで読み取り専用で有効になる。失敗すると何も変わらず、`option` は呼び出し側が持ったままになる（直してもう一度渡すか、`clopts_option_destroy` で解放する）。失敗の理由は、オプションかコマンドが渡し済み（`CLOPTS_DECL_ALREADY_ATTACHED`）、同じコマンドの中での名前の重なり（`CLOPTS_DECL_DUPLICATE_OPTION`）、同じコマンドの中での否定形との衝突（`CLOPTS_DECL_NEGATION_CONFLICT`） |
-| `clopts_command_add_positional`（`command, positional`） | `positional` を、すでに渡した位置引数の後ろに渡す。所有権は `clopts_command_add_option` と同じに移る。失敗の理由は、渡し済み（`CLOPTS_DECL_ALREADY_ATTACHED`）、最後の位置引数が可変長（`CLOPTS_DECL_VARIADIC_POSITION`）、必須の位置引数を省略できる位置引数の後ろに渡した（`CLOPTS_DECL_POSITIONAL_ORDER`） |
+| `clopts_command_add_option`（`command, option`） | `option` をコマンドに渡す。成功するとコマンドが `option` を持ち、`option` はコマンドが解放されるまで読み取り専用で有効になる。失敗すると何も変わらず、`option` は呼び出し側が持ったままになる（直してもう一度渡すか、`clopts_option_destroy` で解放する）。失敗の理由は、同じコマンドの中での名前の重なり（`CLOPTS_DECL_DUPLICATE_OPTION`）、同じコマンドの中での否定形との衝突（`CLOPTS_DECL_NEGATION_CONFLICT`） |
+| `clopts_command_add_positional`（`command, positional`） | `positional` を、すでに渡した位置引数の後ろに渡す。所有権は `clopts_command_add_option` と同じに移る。失敗の理由は、最後の位置引数が可変長（`CLOPTS_DECL_VARIADIC_POSITION`）、必須の位置引数を省略できる位置引数の後ろに渡した（`CLOPTS_DECL_POSITIONAL_ORDER`） |
 | `clopts_command_name`（`command`） | 名前 |
 | `clopts_command_summary`（`command`）、`clopts_command_description`（`command`） | 1 行の説明と説明。設定していなければ NULL |
 | `clopts_command_option_count`（`command`）、`clopts_command_option_at`（`command, index`） | 渡したオプションの数と、`index` 番目のオプション（渡した順） |
@@ -349,7 +349,7 @@ root にするコマンドに渡したオプションはグローバルオプシ
 - オプションや位置引数だけで決まる検査（種類、名前の形、属性の組み合わせ）は、作る関数と属性の関数が行う。同じコマンドのほかのオプション・位置引数との関係で決まる検査（名前の重なり、否定形との衝突、位置引数の順序）は、コマンドに渡す関数が行う。コマンドの間の関係で決まる検査（サブコマンドの名前の重なり、root とサブコマンドの混在）は、`clopts_program_create` だけが行う。
 - メモリの確保に失敗すると `CLOPTS_DECL_OUT_OF_MEMORY` が返る。
 - NULL のハンドルか NULL の `out` を渡すと `CLOPTS_DECL_INVALID_ARGUMENT` が返る。NULL のハンドルを渡しても壊れないので、最初のエラーを 1 つ残しておき、残した後の呼び出しの結果を無視する書き方ができる（taskbook と textcount の `check`）。このとき、コマンドに渡せなかったオプションと位置引数は、呼び出し側が解放する。
-- 渡した後のオプション・位置引数・コマンドに属性の関数や渡す関数を呼ぶと、`CLOPTS_DECL_ALREADY_ATTACHED` が返る。
+- 渡した後のオプション・位置引数・コマンドに属性の関数や渡す関数を呼ぶことと、同じものを 2 回渡すことは検査しない（契約違反で、動作は未定義）。
 - 宣言エラーの短い説明（英語）は、`clopts/decl_types.h` の `clopts_decl_error_message` で得られる。
 
 `clopts_program_create`、`clopts_command_create`、`clopts_option_create`、`clopts_positional_create`、`clopts_command_add_option`、`clopts_command_add_positional` と `clopts/help.h` の宣言の関数の戻り値を捨てると、GCC と Clang では警告が出る（捨てるとハンドルを失うか、渡せなかったものが解放されないため）。
@@ -557,7 +557,6 @@ Run 'taskbook add --help' for usage.
 | `CLOPTS_DECL_ATTRIBUTE_KIND` | LIST でないオプションに区切り文字、COUNT でないオプションに回数の上限、FLAG でないオプションに終端を設定した | `attribute does not apply to this kind of option` |
 | `CLOPTS_DECL_MIXED_LAYOUT` | サブコマンドがあるのに、root に位置引数がある（`clopts_program_create`） | `a program with subcommands cannot have root arguments` |
 | `CLOPTS_DECL_INVALID_KIND` | `clopts_option_kind_t` にない種類で `clopts_option_create` | `invalid option kind` |
-| `CLOPTS_DECL_ALREADY_ATTACHED` | 渡したオプション・位置引数・コマンドを、もう一度渡した、または変えようとした（`clopts_program_create` に同じコマンドを 2 回並べた、root を `commands` にも並べた、を含む） | `already attached` |
 | `CLOPTS_DECL_INVALID_ARGUMENT` | NULL のハンドルか NULL の `out` | `invalid argument` |
 | `CLOPTS_DECL_OUT_OF_MEMORY` | メモリの確保に失敗した | `out of memory` |
 

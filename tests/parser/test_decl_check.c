@@ -11,8 +11,8 @@
  * failing call changes nothing. Each rule therefore has a test that the
  * offending call returns the expected error and leaves everything as it was
  * (the out pointer NULL, the vecs of the command the same length, the
- * attribute unchanged, an option, positional or command still unattached and
- * owned by the caller, who releases it), and a test of the allowed
+ * attribute unchanged, an option, positional or command still owned by the
+ * caller, who releases it), and a test of the allowed
  * counterparts. Checks against the siblings of an option or positional are
  * made by the attach functions and look at that command only; checks between
  * commands (command names, the layout of the root) are made by
@@ -161,8 +161,7 @@ static clopts_positional_t *add_positional(clopts_command_t *scope, const char *
 
 /*
  * Attaches option to scope expecting error: checks that the options of scope
- * are unchanged and that option is still unattached, then releases it (the
- * caller still owns it).
+ * are unchanged, then releases option (the caller still owns it).
  */
 static void expect_attach_error(clopts_command_t *scope, clopts_option_t *option, clopts_decl_error_t error)
 {
@@ -173,11 +172,7 @@ static void expect_attach_error(clopts_command_t *scope, clopts_option_t *option
     len = scope->options.len;
     NAOS_CHECK_INT_EQ(clopts_command_add_option(scope, option), error);
     NAOS_CHECK_UINT_EQ(scope->options.len, len);
-    NAOS_CHECK_FALSE(option->attached);
-    if (!option->attached)
-    {
-        clopts_option_destroy(option);
-    }
+    clopts_option_destroy(option);
 }
 
 /* As expect_attach_error(), for a positional. */
@@ -191,11 +186,7 @@ static void expect_attach_positional_error(clopts_command_t *scope, clopts_posit
     len = scope->positionals.len;
     NAOS_CHECK_INT_EQ(clopts_command_add_positional(scope, positional), error);
     NAOS_CHECK_UINT_EQ(scope->positionals.len, len);
-    NAOS_CHECK_FALSE(positional->attached);
-    if (!positional->attached)
-    {
-        clopts_positional_destroy(positional);
-    }
+    clopts_positional_destroy(positional);
 }
 
 /* Maximum number of commands passed to expect_program_error(). */
@@ -204,14 +195,13 @@ static void expect_attach_positional_error(clopts_command_t *scope, clopts_posit
 /*
  * Calls clopts_program_create(root, commands, count) expecting error and checks
  * that the out pointer is set to NULL and that no handle changed: the
- * attached state of root and of every command (NULL entries skipped) and
- * their numbers of options and positionals are the same as before.
+ * numbers of options and positionals of root and of every command (NULL
+ * entries skipped) are the same as before.
  */
 static void expect_program_error(clopts_command_t *root, clopts_command_t *const *commands, size_t count,
                                  clopts_decl_error_t error)
 {
     clopts_command_t *all[MAX_PROGRAM_COMMANDS + 1];
-    bool attached[MAX_PROGRAM_COMMANDS + 1];
     size_t options[MAX_PROGRAM_COMMANDS + 1];
     size_t positionals[MAX_PROGRAM_COMMANDS + 1];
     clopts_program_t *out = &sentinel_program;
@@ -228,7 +218,6 @@ static void expect_program_error(clopts_command_t *root, clopts_command_t *const
     {
         if (all[i] != NULL)
         {
-            attached[i] = all[i]->attached;
             options[i] = all[i]->options.len;
             positionals[i] = all[i]->positionals.len;
         }
@@ -241,7 +230,6 @@ static void expect_program_error(clopts_command_t *root, clopts_command_t *const
         if (all[i] != NULL)
         {
             NAOS_NOTE("handle %u", (unsigned)i);
-            NAOS_CHECK_INT_EQ(all[i]->attached, attached[i]);
             NAOS_CHECK_UINT_EQ(all[i]->options.len, options[i]);
             NAOS_CHECK_UINT_EQ(all[i]->positionals.len, positionals[i]);
         }
@@ -388,48 +376,6 @@ NAOS_TEST(program_new_invalid_arguments)
     clopts_command_destroy(build);
 }
 
-/* ---- clopts_program_create: ALREADY_ATTACHED ----------------------------------- */
-
-NAOS_TEST(program_new_already_attached)
-{
-    clopts_command_t *first_root = new_command("first");
-    clopts_command_t *first_build = new_command("build");
-    clopts_command_t *root = new_command("tool");
-    clopts_command_t *copy = new_command("copy");
-    clopts_command_t *commands[3];
-    clopts_program_t *first;
-
-    first = program_new(first_root, &first_build, 1);
-
-    /* the root of another program, as root and as a command */
-    expect_program_error(first_root, NULL, 0, CLOPTS_DECL_ALREADY_ATTACHED);
-    commands[0] = copy;
-    commands[1] = first_root;
-    expect_program_error(root, commands, 2, CLOPTS_DECL_ALREADY_ATTACHED);
-
-    /* a command of another program, as a command and as root */
-    commands[1] = first_build;
-    expect_program_error(root, commands, 2, CLOPTS_DECL_ALREADY_ATTACHED);
-    expect_program_error(first_build, &copy, 1, CLOPTS_DECL_ALREADY_ATTACHED);
-
-    /* root listed among its own commands */
-    commands[1] = root;
-    expect_program_error(root, commands, 2, CLOPTS_DECL_ALREADY_ATTACHED);
-
-    /* a command listed twice, next to each other or not */
-    commands[1] = copy;
-    expect_program_error(root, commands, 2, CLOPTS_DECL_ALREADY_ATTACHED);
-    commands[1] = new_command("build");
-    commands[2] = copy;
-    expect_program_error(root, commands, 3, CLOPTS_DECL_ALREADY_ATTACHED);
-
-    /* the other program is untouched, and the same handles make a program */
-    NAOS_CHECK_UINT_EQ(clopts_program_command_count(first), 1);
-    NAOS_CHECK_PTR_EQ(clopts_program_root(first), first_root);
-    clopts_program_destroy(program_new(root, commands, 2));
-    clopts_program_destroy(first);
-}
-
 /* ---- clopts_program_create: DUPLICATE_COMMAND ---------------------------------- */
 
 NAOS_TEST(program_new_duplicate_command)
@@ -505,30 +451,21 @@ NAOS_TEST(program_new_checks_follow_order)
     clopts_command_t *root = new_command("tool");
     clopts_command_t *build = new_command("build");
     clopts_command_t *build2 = new_command("build");
-    clopts_command_t *other_root = new_command("other");
-    clopts_command_t *other_cmd = new_command("other-cmd");
     clopts_command_t *commands[4];
-    clopts_program_t *other;
 
-    other = program_new(other_root, &other_cmd, 1);
     add_positional(root, "file");
 
     /* out pointer before everything */
     NAOS_CHECK_INT_EQ(clopts_program_create(NULL, NULL, 1, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
 
-    /* INVALID_ARGUMENT (a NULL entry anywhere) before ALREADY_ATTACHED */
-    commands[0] = other_cmd;
+    /* INVALID_ARGUMENT (a NULL entry anywhere) before DUPLICATE_COMMAND */
+    commands[0] = build;
     commands[1] = NULL;
     expect_program_error(root, commands, 2, CLOPTS_DECL_INVALID_ARGUMENT);
-    expect_program_error(other_root, commands, 2, CLOPTS_DECL_INVALID_ARGUMENT);
-
-    /* ALREADY_ATTACHED (anywhere) before DUPLICATE_COMMAND */
     commands[0] = build;
     commands[1] = build2;
-    commands[2] = other_cmd;
-    expect_program_error(root, commands, 3, CLOPTS_DECL_ALREADY_ATTACHED);
-    commands[2] = build;
-    expect_program_error(root, commands, 3, CLOPTS_DECL_ALREADY_ATTACHED);
+    commands[2] = NULL;
+    expect_program_error(root, commands, 3, CLOPTS_DECL_INVALID_ARGUMENT);
 
     /* DUPLICATE_COMMAND before MIXED_LAYOUT */
     expect_program_error(root, commands, 2, CLOPTS_DECL_DUPLICATE_COMMAND);
@@ -539,7 +476,6 @@ NAOS_TEST(program_new_checks_follow_order)
     clopts_command_destroy(root);
     clopts_command_destroy(build);
     clopts_command_destroy(build2);
-    clopts_program_destroy(other);
 }
 
 /*
@@ -596,44 +532,11 @@ NAOS_TEST(program_new_failure_changes_nothing)
     test_alloc_set_fail_at(0);
 
     program = program_new(root, commands, 1);
-    NAOS_CHECK_TRUE(root->attached);
-    NAOS_CHECK_TRUE(commands[0]->attached);
+    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 0), commands[0]);
     clopts_program_destroy(program);
     NAOS_CHECK_INT_EQ(test_alloc.live, 0);
     NAOS_CHECK_TRUE(test_alloc_end());
-}
-
-/* After clopts_program_create() the root and the commands are read-only. */
-NAOS_TEST(commands_are_read_only_in_a_program)
-{
-    clopts_command_t *root = new_command("tool");
-    clopts_command_t *build = new_command("build");
-    clopts_command_t *handles[2];
-    clopts_program_t *program;
-    clopts_option_t *option;
-    clopts_positional_t *positional;
-    size_t i;
-
-    EXPECT_OK(clopts_command_set_summary(build, "Build things."));
-    program = program_new(root, &build, 1);
-    handles[0] = root;
-    handles[1] = build;
-    for (i = 0; i < COUNT_OF(handles); i++)
-    {
-        NAOS_NOTE("command %s", handles[i]->name);
-        NAOS_CHECK_INT_EQ(clopts_command_set_summary(handles[i], "Other."), CLOPTS_DECL_ALREADY_ATTACHED);
-        NAOS_CHECK_INT_EQ(clopts_command_set_summary(handles[i], NULL), CLOPTS_DECL_ALREADY_ATTACHED);
-        NAOS_CHECK_INT_EQ(clopts_command_set_description(handles[i], "Other."), CLOPTS_DECL_ALREADY_ATTACHED);
-
-        /* the attachment of the command is checked before the names */
-        option = make(CLOPTS_OPTION_FLAG, "force", 'f');
-        expect_attach_error(handles[i], option, CLOPTS_DECL_ALREADY_ATTACHED);
-        positional = make_positional("file");
-        expect_attach_positional_error(handles[i], positional, CLOPTS_DECL_ALREADY_ATTACHED);
-    }
-    NAOS_CHECK_STR_EQ(build->summary, "Build things.");
-    NAOS_CHECK_NULL(root->description);
-    clopts_program_destroy(program);
 }
 
 /* ---- names shared by the root and a command ----------------------------------- */
@@ -835,11 +738,8 @@ NAOS_TEST(negatable_flag_without_long_name_is_allowed)
 NAOS_TEST(option_attach_checks_follow_order)
 {
     clopts_command_t *root = new_command("tool");
-    clopts_option_t *option;
 
-    /* ALREADY_ATTACHED before the name checks */
-    option = add(root, CLOPTS_OPTION_FLAG, "hidden", '\0');
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(root, option), CLOPTS_DECL_ALREADY_ATTACHED);
+    add(root, CLOPTS_OPTION_FLAG, "hidden", '\0');
 
     /* DUPLICATE_OPTION before NEGATION_CONFLICT, in both directions */
     attach(root, make_negatable("color", '\0'));
@@ -961,181 +861,6 @@ NAOS_TEST(negatable_unset_is_not_checked)
     clopts_command_destroy(root);
 }
 
-/* ---- already attached --------------------------------------------------- */
-
-NAOS_TEST(option_attached_twice)
-{
-    clopts_command_t *root = new_command("tool");
-    clopts_command_t *build = new_command("build");
-    clopts_command_t *copy = new_command("copy");
-    clopts_command_t *other_root = new_command("other");
-    clopts_program_t *other;
-    clopts_option_t *option;
-
-    other = program_new(other_root, NULL, 0);
-    option = add(build, CLOPTS_OPTION_FLAG, "force", 'f');
-    NAOS_CHECK_TRUE(option->attached);
-    NAOS_CHECK_UINT_EQ(option->index, 0);
-
-    /* the same command, another command, a root, the root of a program */
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(copy, option), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(root, option), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(other_root, option), CLOPTS_DECL_ALREADY_ATTACHED);
-
-    NAOS_CHECK_UINT_EQ(build->options.len, 1);
-    NAOS_CHECK_UINT_EQ(copy->options.len, 0);
-    NAOS_CHECK_UINT_EQ(root->options.len, 0);
-    NAOS_CHECK_UINT_EQ(other_root->options.len, 0);
-    NAOS_CHECK_TRUE(option->attached);
-    NAOS_CHECK_UINT_EQ(option->index, 0);
-    clopts_program_destroy(other);
-    clopts_command_destroy(copy);
-    clopts_command_destroy(build);
-    clopts_command_destroy(root);
-}
-
-NAOS_TEST(positional_attached_twice)
-{
-    clopts_command_t *root = new_command("tool");
-    clopts_command_t *build = new_command("build");
-    clopts_command_t *copy = new_command("copy");
-    clopts_positional_t *positional;
-    clopts_positional_t *rest;
-
-    positional = add_positional(build, "file");
-    NAOS_CHECK_TRUE(positional->attached);
-
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(build, positional), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(copy, positional), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(root, positional), CLOPTS_DECL_ALREADY_ATTACHED);
-
-    /* ALREADY_ATTACHED before VARIADIC_POSITION */
-    rest = make_positional("rest");
-    EXPECT_OK(clopts_positional_set_variadic(rest, true));
-    attach_positional(copy, rest);
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(copy, positional), CLOPTS_DECL_ALREADY_ATTACHED);
-
-    NAOS_CHECK_UINT_EQ(build->positionals.len, 1);
-    NAOS_CHECK_UINT_EQ(copy->positionals.len, 1);
-    NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
-    clopts_command_destroy(copy);
-    clopts_command_destroy(build);
-    clopts_command_destroy(root);
-}
-
-/* Every option setter on an attached option, with a value that would otherwise be accepted. */
-NAOS_TEST(option_setters_after_attach)
-{
-    clopts_command_t *root = new_command("tool");
-    clopts_option_t *value;
-    clopts_option_t *token;
-    clopts_option_t *list;
-    clopts_option_t *count;
-    clopts_option_t *flag;
-    clopts_option_t *help;
-
-    value = make(CLOPTS_OPTION_VALUE, "output", 'o');
-    EXPECT_OK(clopts_option_set_help(value, "Output file."));
-    EXPECT_OK(clopts_option_set_value_name(value, "FILE"));
-    EXPECT_OK(clopts_option_set_env(value, "TOOL_OUTPUT"));
-    EXPECT_OK(clopts_option_set_default(value, "a.out"));
-    attach(root, value);
-    token = make(CLOPTS_OPTION_VALUE, "token", '\0');
-    EXPECT_OK(clopts_option_set_required(token, true));
-    attach(root, token);
-    list = make(CLOPTS_OPTION_LIST, "include", 'I');
-    EXPECT_OK(clopts_option_set_delimiter(list, ','));
-    attach(root, list);
-    count = make(CLOPTS_OPTION_COUNT, "verbose", 'v');
-    EXPECT_OK(clopts_option_set_count_max(count, 3));
-    attach(root, count);
-    flag = attach(root, make_negatable("color", '\0'));
-    help = make(CLOPTS_OPTION_FLAG, "help", 'h');
-    EXPECT_OK(clopts_option_set_terminal(help, true));
-    attach(root, help);
-
-    /* setting and resetting */
-    NAOS_CHECK_INT_EQ(clopts_option_set_help(value, "Other."), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_help(value, NULL), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_value_name(value, "PATH"), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_value_name(value, NULL), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_env(value, "OTHER"), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_env(value, NULL), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_default(value, "b.out"), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_default(value, NULL), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(token, false), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(token, true), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_delimiter(list, ':'), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_delimiter(list, '\0'), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_count_max(count, 8), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_count_max(count, 0), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_negatable(flag, false), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_negatable(flag, true), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(help, false), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(flag, true), CLOPTS_DECL_ALREADY_ATTACHED);
-
-    /* the attachment is checked before the kind */
-    NAOS_CHECK_INT_EQ(clopts_option_set_negatable(value, true), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_delimiter(value, ','), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_count_max(flag, 2), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_env(flag, ""), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_default(flag, "1"), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(count, true), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(value, true), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(value, true), CLOPTS_DECL_ALREADY_ATTACHED);
-
-    /* nothing changed */
-    NAOS_CHECK_STR_EQ(value->help, "Output file.");
-    NAOS_CHECK_STR_EQ(value->value_name, "FILE");
-    NAOS_CHECK_STR_EQ(value->env, "TOOL_OUTPUT");
-    NAOS_CHECK_STR_EQ(value->default_value, "a.out");
-    NAOS_CHECK_FALSE(value->required);
-    NAOS_CHECK_FALSE(value->negatable);
-    NAOS_CHECK_FALSE(value->terminal);
-    NAOS_CHECK_INT_EQ(value->delimiter, '\0');
-    NAOS_CHECK_TRUE(token->required);
-    NAOS_CHECK_INT_EQ(list->delimiter, ',');
-    NAOS_CHECK_UINT_EQ(count->count_max, 3);
-    NAOS_CHECK_FALSE(count->required);
-    NAOS_CHECK_TRUE(flag->negatable);
-    NAOS_CHECK_FALSE(flag->terminal);
-    NAOS_CHECK_UINT_EQ(flag->count_max, 0);
-    NAOS_CHECK_NULL(flag->env);
-    NAOS_CHECK_NULL(flag->default_value);
-    NAOS_CHECK_TRUE(help->terminal);
-    clopts_command_destroy(root);
-}
-
-NAOS_TEST(positional_setters_after_attach)
-{
-    clopts_command_t *root = new_command("tool");
-    clopts_positional_t *src;
-    clopts_positional_t *rest;
-
-    src = make_positional("src");
-    EXPECT_OK(clopts_positional_set_help(src, "Source."));
-    EXPECT_OK(clopts_positional_set_required(src, true));
-    attach_positional(root, src);
-    rest = make_positional("rest");
-    EXPECT_OK(clopts_positional_set_variadic(rest, true));
-    attach_positional(root, rest);
-
-    NAOS_CHECK_INT_EQ(clopts_positional_set_help(src, "Other."), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_help(src, NULL), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_required(src, false), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_required(rest, true), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_variadic(rest, false), CLOPTS_DECL_ALREADY_ATTACHED);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_variadic(src, true), CLOPTS_DECL_ALREADY_ATTACHED);
-
-    NAOS_CHECK_STR_EQ(src->help, "Source.");
-    NAOS_CHECK_TRUE(src->required);
-    NAOS_CHECK_FALSE(src->variadic);
-    NAOS_CHECK_FALSE(rest->required);
-    NAOS_CHECK_TRUE(rest->variadic);
-    clopts_command_destroy(root);
-}
-
 /* ---- invalid arguments -------------------------------------------------- */
 
 NAOS_TEST(null_handles_are_invalid_arguments)
@@ -1195,9 +920,6 @@ NAOS_TEST(null_handles_are_invalid_arguments)
     clopts_positional_destroy(NULL);
 
     /* nothing changed: the handles are still the caller's */
-    NAOS_CHECK_FALSE(option->attached);
-    NAOS_CHECK_FALSE(positional->attached);
-    NAOS_CHECK_FALSE(root->attached);
     NAOS_CHECK_UINT_EQ(root->options.len, 0);
     NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
     clopts_option_destroy(option);
@@ -1219,7 +941,6 @@ NAOS_TEST(null_out_pointers_are_invalid_arguments)
     NAOS_CHECK_INT_EQ(clopts_positional_create(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_program_create(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_program_create(NULL, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_FALSE(root->attached);
     clopts_command_destroy(root);
 }
 
@@ -1257,7 +978,6 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     live = test_alloc.live;
     NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_DECL_DUPLICATE_OPTION);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
-    NAOS_CHECK_FALSE(option->attached);
     NAOS_CHECK_STR_EQ(option->help, "Force.");
     EXPECT_OK(clopts_option_set_help(option, "Still mine."));
     clopts_option_destroy(option);
@@ -1268,7 +988,6 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     EXPECT_OK(clopts_option_set_help(option, "Output."));
     NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_DECL_DUPLICATE_OPTION);
     EXPECT_OK(clopts_command_add_option(copy, option));
-    NAOS_CHECK_TRUE(option->attached);
     NAOS_CHECK_PTR_EQ(option_at(copy, 0), option);
 
     /* the same for positionals */
@@ -1280,7 +999,6 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     live = test_alloc.live;
     NAOS_CHECK_INT_EQ(clopts_command_add_positional(build, positional), CLOPTS_DECL_VARIADIC_POSITION);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
-    NAOS_CHECK_FALSE(positional->attached);
     EXPECT_OK(clopts_command_add_positional(copy, positional));
     NAOS_CHECK_PTR_EQ(positional_at(copy, 0), positional);
 
@@ -1860,13 +1578,11 @@ NAOS_SUITE(decl,
     NAOS_ADD_TEST(command_name_invalid),
     NAOS_ADD_TEST(command_named_help_is_accepted),
     NAOS_ADD_TEST(program_new_invalid_arguments),
-    NAOS_ADD_TEST(program_new_already_attached),
     NAOS_ADD_TEST(program_new_duplicate_command),
     NAOS_ADD_TEST(command_names_are_case_sensitive),
     NAOS_ADD_TEST(program_new_root_positional_with_commands_is_mixed),
     NAOS_ADD_TEST(program_new_checks_follow_order),
     NAOS_ADD_TEST(program_new_failure_changes_nothing),
-    NAOS_ADD_TEST(commands_are_read_only_in_a_program),
     NAOS_ADD_TEST(help_and_version_names_are_accepted),
     NAOS_ADD_TEST(option_same_name_in_root_and_command_is_accepted),
     NAOS_ADD_TEST(negation_across_root_and_command_is_accepted),
@@ -1880,10 +1596,6 @@ NAOS_SUITE(decl,
     NAOS_ADD_TEST(required_positional_after_optional),
     NAOS_ADD_TEST(positional_order_allowed),
     NAOS_ADD_TEST(negatable_unset_is_not_checked),
-    NAOS_ADD_TEST(option_attached_twice),
-    NAOS_ADD_TEST(positional_attached_twice),
-    NAOS_ADD_TEST(option_setters_after_attach),
-    NAOS_ADD_TEST(positional_setters_after_attach),
     NAOS_ADD_TEST(null_handles_are_invalid_arguments),
     NAOS_ADD_TEST(null_out_pointers_are_invalid_arguments),
     NAOS_ADD_TEST(failed_attach_leaves_ownership_with_the_caller),

@@ -19,7 +19,6 @@
 
 struct clopts_command
 {
-    bool attached;                  /* owned by a program and read-only */
     char *name;                     /* owned copy */
     char *summary;                  /* may be NULL; owned copy */
     char *description;              /* may be NULL; owned copy */

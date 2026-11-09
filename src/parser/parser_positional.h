@@ -17,7 +17,6 @@
 
 struct clopts_positional
 {
-    bool attached;              /* attached to a command: owned by it and read-only */
     char *name;                 /* not empty; owned copy */
     char *help;                 /* may be NULL; owned copy */
     bool required;

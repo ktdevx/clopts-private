@@ -37,24 +37,6 @@ static clopts_decl_error_t program_check_new(const clopts_command_t *root, clopt
             return CLOPTS_DECL_INVALID_ARGUMENT;
         }
     }
-    if (root->attached)
-    {
-        return CLOPTS_DECL_ALREADY_ATTACHED;
-    }
-    for (i = 0; i < count; i++)
-    {
-        if (commands[i]->attached || (commands[i] == root))
-        {
-            return CLOPTS_DECL_ALREADY_ATTACHED;
-        }
-        for (j = 0; j < i; j++)
-        {
-            if (commands[j] == commands[i])
-            {
-                return CLOPTS_DECL_ALREADY_ATTACHED;
-            }
-        }
-    }
     for (i = 0; i < count; i++)
     {
         for (j = 0; j < i; j++)
@@ -78,7 +60,6 @@ clopts_decl_error_t clopts_program_create(clopts_command_t *root, clopts_command
     clopts_program_t *program;
     clopts_command_t **copy = NULL;
     clopts_decl_error_t error;
-    size_t i;
 
     if (out == NULL)
     {
@@ -108,11 +89,6 @@ clopts_decl_error_t clopts_program_create(clopts_command_t *root, clopts_command
     }
 
     /* Nothing can fail from here on: the program takes ownership. */
-    root->attached = true;
-    for (i = 0; i < command_count; i++)
-    {
-        copy[i]->attached = true;
-    }
     program->root = root;
     program->commands = copy;
     program->command_count = command_count;
