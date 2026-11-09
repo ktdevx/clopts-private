@@ -41,7 +41,8 @@
  * Internal contracts of the parser module, shared by the builder
  * (program.c, command.c, option.c, positional.c, scope.c), the name rules
  * and lookups (names.c), the entry of parsing (parse.c), the scanner
- * (scan.c), the resolver (resolve.c) and the result handle (result.c). None
+ * (scan.c), the resolver (resolve.c), the required checks (check.c) and the
+ * result handle (result.c). None
  * of these symbols is exported from the shared library. Every allocation
  * goes through the allocation gateway of core (clopts_core_malloc and the
  * others, core/core_internal.h).
@@ -279,17 +280,22 @@ clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, co
  * Fills the VALUE / LIST slots that got nothing from argv, from the
  * environment and then from the default value, in declaration order. A found
  * environment value is copied before the callback is called again. Only the
- * global options are resolved when include_command is false. Returns 0, or -1 (out of
- * memory) when the lookup fails or a copy cannot be allocated.
+ * global options are resolved when include_command is false. Returns 0, or
+ * -1 (out of memory) when the lookup fails or a copy cannot be allocated.
  */
 int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *program,
                           clopts_getenv_fn getenv_fn, void *env_ctx, bool include_command);
 
 /*
+ * Required checks (check.c).
+ */
+
+/*
  * Checks required options and positionals in declaration order (global
  * options, selected command options, positionals); an option counts as given
  * when its source is EXPLICIT or ENV. Returns 0 when nothing is missing;
- * otherwise records the first missing one in result->error and returns -1.
+ * otherwise records the first missing one as the error of result and
+ * returns -1.
  */
 int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t *program, bool include_command);
 
