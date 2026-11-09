@@ -4,6 +4,18 @@
 # clopts_add_doc_program (cmake/CloptsExamples.cmake); the examples under
 # examples/ are registered before this directory is processed.
 #
+# Checks of the real documentation (design "DocsTests"); the user
+# documentation is README.md and docs/*.md (not docs/dev/):
+#
+#   docs.outputs        check_docs.cmake MODE=outputs on the user
+#                       documentation, with every clopts_add_doc_program
+#                       program; REQUIRE is every EXAMPLE program. Registered
+#                       only when CLOPTS_BUILD_EXAMPLES is ON
+#   docs.sources        MODE=sources on README.md
+#   docs.links          MODE=links on the user documentation
+#   docs.api_coverage   MODE=api_coverage of abi/clopts.symbols on docs/api.md
+#   docs.changelog      check_changelog.cmake MODE=format on CHANGELOG.md
+#
 # Self-tests of the check scripts (requirement 8.1, design "DocsTests"):
 #
 #   docs_selftest.outputs.<case>       check_docs.cmake MODE=outputs on
@@ -84,6 +96,83 @@ endfunction()
 _clopts_docs_add_subproject_test(examples_subproject_default)
 _clopts_docs_add_subproject_test(examples_subproject_on
     -DCLOPTS_BUILD_EXAMPLES=ON -DEXPECT_EXAMPLES=ON)
+
+# ---- Checks of the real documentation --------------------------------------
+
+# docs/*.md, sorted by name; docs/dev/ (maintainer docs) is not included.
+# CONFIGURE_DEPENDS re-runs the configuration when a document is added or
+# removed.
+file(GLOB _clopts_docs_pages CONFIGURE_DEPENDS
+    RELATIVE "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/docs/*.md")
+list(SORT _clopts_docs_pages)
+set(_clopts_docs_user_docs README.md ${_clopts_docs_pages})
+
+# _clopts_docs_add_check(<mode> FILES <file>... [ARGS <-Dvar=value>...])
+#
+# Registers docs.<mode>: check_docs.cmake MODE=<mode> with
+# SOURCE_DIR=<project source dir> and FILES relative to it. A quoted
+# argument keeps its ";" through add_test, and PARSE_ARGV keeps each ARGS
+# element whole, so list values need no escaping here.
+function(_clopts_docs_add_check mode)
+    cmake_parse_arguments(PARSE_ARGV 1 ARG "" "" "FILES;ARGS")
+    add_test(NAME "docs.${mode}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DMODE=${mode}"
+            "-DSOURCE_DIR=${PROJECT_SOURCE_DIR}"
+            "-DFILES=${ARG_FILES}"
+            ${ARG_ARGS}
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/check_docs.cmake")
+    set_tests_properties("docs.${mode}" PROPERTIES LABELS docs)
+endfunction()
+
+# docs.outputs (requirements 8.1-8.3): every clopts-check marker of the user
+# documentation is run against the registered programs. The examples are
+# required by its markers, so it exists only when they are built.
+if(CLOPTS_BUILD_EXAMPLES)
+    get_property(_clopts_docs_programs GLOBAL PROPERTY CLOPTS_DOC_PROGRAMS)
+    get_property(_clopts_docs_require GLOBAL PROPERTY CLOPTS_DOC_EXAMPLES)
+    set(_clopts_docs_program_paths "")
+    set(_clopts_docs_env_vars "")
+    foreach(_clopts_docs_program IN LISTS _clopts_docs_programs)
+        get_property(_clopts_docs_target GLOBAL
+            PROPERTY "CLOPTS_DOC_PROGRAM_TARGET_${_clopts_docs_program}")
+        get_property(_clopts_docs_env GLOBAL
+            PROPERTY "CLOPTS_DOC_PROGRAM_ENV_${_clopts_docs_program}")
+        list(APPEND _clopts_docs_program_paths
+            "${_clopts_docs_program}=$<TARGET_FILE:${_clopts_docs_target}>")
+        if(_clopts_docs_env)
+            list(JOIN _clopts_docs_env "," _clopts_docs_env)
+            list(APPEND _clopts_docs_env_vars "${_clopts_docs_program}=${_clopts_docs_env}")
+        endif()
+    endforeach()
+    _clopts_docs_add_check(outputs
+        FILES ${_clopts_docs_user_docs}
+        ARGS
+            "-DPROGRAMS=${_clopts_docs_program_paths}"
+            "-DENV_VARS=${_clopts_docs_env_vars}"
+            "-DREQUIRE=${_clopts_docs_require}"
+            "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/work/outputs")
+endif()
+
+# docs.sources (requirement 8.6): the README code blocks match their files.
+_clopts_docs_add_check(sources FILES README.md)
+
+# docs.links (requirements 6.2, 6.5): relative links of the user documentation.
+_clopts_docs_add_check(links FILES ${_clopts_docs_user_docs})
+
+# docs.api_coverage (requirements 2.9, 8.7): every public symbol is in the API
+# reference.
+_clopts_docs_add_check(api_coverage
+    FILES docs/api.md
+    ARGS "-DSYMBOLS=${PROJECT_SOURCE_DIR}/abi/clopts.symbols")
+
+# docs.changelog (requirement 10.1): the format of CHANGELOG.md.
+add_test(NAME docs.changelog
+    COMMAND "${CMAKE_COMMAND}"
+        -DMODE=format
+        "-DCHANGELOG=${PROJECT_SOURCE_DIR}/CHANGELOG.md"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/check_changelog.cmake")
+set_tests_properties(docs.changelog PROPERTIES LABELS docs)
 
 # ---- Self-tests of the check scripts ---------------------------------------
 

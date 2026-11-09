@@ -138,7 +138,7 @@
   - _Requirements: 11.1, 11.4, 11.5, 11.6, 11.7, 11.8_
 
 - [ ] 6. 統合と検証
-- [ ] 6.1 実際の文書の検査を CTest に登録し、全体を通す
+- [x] 6.1 実際の文書の検査を CTest に登録し、全体を通す
   - `tests/docs/CMakeLists.txt` に、設計の DocsTests の表どおりに `docs.outputs`（`CLOPTS_BUILD_EXAMPLES` が ON のときだけ）、`docs.sources`、`docs.links`、`docs.api_coverage`、`docs.changelog` を登録する。outputs の `PROGRAMS`、`ENV_VARS`、`REQUIRE` は、グローバルプロパティから `$<TARGET_FILE:...>` で組み立てる。`docs/*.md` は `CONFIGURE_DEPENDS` 付きの glob で集め、名前の順に並べる
   - 完了条件: Linux の静的・共有の両形式で、`CLOPTS_WERROR=ON` のもとで構成・ビルドし、`ctest -L docs` がすべて通る。`docs.outputs` は、taskbook と textcount の両方に終了コード 0 と 0 以外の印があることを含めて通る。`-DCLOPTS_BUILD_EXAMPLES=OFF` では `docs.outputs` が登録されず、他の `docs.*` は通る
   - _Depends: 3.4, 4.5, 5.1_
@@ -163,3 +163,4 @@
 - 4.3: docs/integration.md の FetchContent の例は、設計の ReadmeDoc どおり `ktdevx/clopts-private.git` と `GIT_TAG v0.1.0` を使う（タグはリリースまで存在しない）。Windows の DLL のコピーは共有版のときだけ行う（静的版では `$<TARGET_RUNTIME_DLLS>` が空になり、`copy_if_different` が失敗する）。README の記述例もこの形に合わせること。
 - 5.2: リリース手順書は、リリースのワークフローを「タイトル `CLOpts X.Y.Z`、添付は `clopts-X.Y.Z.tar.gz`、`clopts-X.Y.Z.zip`、`SHA256SUMS`、ノートは `$RUNNER_TEMP` に書く」と記述している。5.3 の `release.yml` はこれに合わせる。手順書の FetchContent の URL（`ktdevx/clopts-private.git`）は、公開先が決まったら README と docs/integration.md と一緒に直す。
 - 5.3: リリースのワークフローの手順 3〜6 は手元で再現した（`git archive --worktree-attributes`、ネットワークなしの構成とビルド、`SHA256SUMS` の検証）。リモートに仮のタグを push して全体を試すことは、ユーザーの承認がないので未実施。試す手順は docs/dev/release.md の「リリースのワークフローを試す方法」にある。`git archive` は同名のブランチとの曖昧さを避けるため `refs/tags/$TAG` を指定する。
+- 6.1: 実際の文書の検査（`docs.outputs`、`docs.sources`、`docs.links`、`docs.api_coverage`、`docs.changelog`）は、リストを生の `;` を含む引用付きの `-D` 引数で渡す（`cmake_parse_arguments(PARSE_ARGV)` 経由なのでエスケープは不要）。利用者向けの文書は README.md と `docs/*.md`（再帰しないので `docs/dev/` は除かれる）。
