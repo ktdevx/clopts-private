@@ -4,11 +4,13 @@
 #include "clopts/option.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 /*
  * Internal representation of an option (parser_option.c). An option holds
  * its own attributes only: it does not point to the command it is attached
- * to. Attached, it is owned by that command and read-only.
+ * to, it only knows its position there. Attached, it is owned by that
+ * command and read-only.
  */
 
 /* Kind of an option: the public kind. */
@@ -33,9 +35,11 @@ struct clopts_option
     unsigned count_max;         /* non-0 for COUNT only; 0 means the default (UINT_MAX) */
     bool required;              /* true for VALUE / LIST only */
     bool negatable;             /* true for FLAG only */
+    bool terminal;              /* true for FLAG only */
+    size_t index;               /* attached: position in the options of its command */
 };
 
-/* Releases option and its strings, attached or not (used by clopts_program_free()). */
+/* Releases option and its strings, attached or not (used when its command is released). */
 void clopts_parser_option_release(clopts_option_t *option);
 
 #endif /* CLOPTS_PARSER_OPTION_H */

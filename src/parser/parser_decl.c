@@ -2,10 +2,11 @@
  * Name rules and lookups, shared by the builder and the scanner.
  *
  * Names are compared byte by byte, exactly and case-sensitively, with no
- * prefix matching. The lookup range of a scope is the scope itself followed,
- * for the root, by every command in declaration order and, for a command, by
- * the root. The find_* functions used by the scanner search the selected
- * command (when there is one) and then the root.
+ * prefix matching. The checks of the builder look at one command only. The
+ * find_* functions used by the scanner search the selected command (when
+ * there is one) and then the root, so a name of the command shadows the same
+ * name of the root; in each scope an exact long name comes before
+ * --no-<name>. The declaration error messages live here too.
  */
 
 #include "parser/parser_internal.h"
@@ -59,12 +60,6 @@ static const clopts_option_t *decl_option_at(const clopts_command_t *scope, size
     return *(clopts_option_t *const *)clopts_core_vec_at(&scope->options, index);
 }
 
-/* Returns command index of program. */
-static const clopts_command_t *decl_command_at(const clopts_program_t *program, size_t index)
-{
-    return *(clopts_command_t *const *)clopts_core_vec_at(&program->commands, index);
-}
-
 /* True when long_name is exactly the name_len bytes at name. */
 static bool decl_long_equals(const char *long_name, const char *name, size_t name_len)
 {
@@ -112,53 +107,26 @@ static const clopts_option_t *decl_find_in(const clopts_command_t *scope, const 
     return (index < scope->options.len) ? decl_option_at(scope, index) : NULL;
 }
 
-/* Returns the first option matching query in the lookup range of scope, or NULL. */
-static const clopts_option_t *decl_find_in_range(const clopts_command_t *scope, const decl_query_t *query)
-{
-    const clopts_program_t *program = scope->program;
-    const clopts_option_t *found;
-    size_t i;
-
-    found = decl_find_in(scope, query);
-    if (found != NULL)
-    {
-        return found;
-    }
-    if (scope != &program->root)
-    {
-        return decl_find_in(&program->root, query);
-    }
-    for (i = 0; i < program->commands.len; i++)
-    {
-        found = decl_find_in(decl_command_at(program, i), query);
-        if (found != NULL)
-        {
-            return found;
-        }
-    }
-    return NULL;
-}
-
-const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *scope, const char *l, char s)
+const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *command, const char *l, char s)
 {
     decl_query_t query;
 
-    assert(scope != NULL);
+    assert(command != NULL);
     query.long_name = l;
     query.long_len = (l != NULL) ? strlen(l) : 0;
     query.short_name = s;
-    return decl_find_in_range(scope, &query);
+    return decl_find_in(command, &query);
 }
 
-const clopts_option_t *clopts_parser_find_named(const clopts_command_t *scope, const char *name, size_t name_len)
+const clopts_option_t *clopts_parser_find_named(const clopts_command_t *command, const char *name, size_t name_len)
 {
     decl_query_t query;
 
-    assert((scope != NULL) && (name != NULL));
+    assert((command != NULL) && (name != NULL));
     query.long_name = name;
     query.long_len = name_len;
     query.short_name = '\0';
-    return decl_find_in_range(scope, &query);
+    return decl_find_in(command, &query);
 }
 
 /* ---- lookups for the scanner --------------------------------------------- */
@@ -171,34 +139,64 @@ static clopts_parser_ref_t decl_no_ref(void)
 }
 
 /*
+ * Looks query up in scope (global tells which one it is). For a long name
+ * that is not found exactly, also looks up --no-<name> of a negatable FLAG.
+ */
+static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool global, const decl_query_t *query)
+{
+    clopts_parser_ref_t ref = decl_no_ref();
+    decl_query_t negation;
+    size_t index;
+
+    index = decl_index_in(scope, query);
+    if (index < scope->options.len)
+    {
+        ref.option = decl_option_at(scope, index);
+        ref.global = global;
+        ref.index = index;
+        return ref;
+    }
+    if ((query->long_name == NULL) || (query->long_len <= 3) || (memcmp(query->long_name, "no-", 3) != 0))
+    {
+        return ref;
+    }
+    negation.long_name = query->long_name + 3;
+    negation.long_len = query->long_len - 3;
+    negation.short_name = '\0';
+    index = decl_index_in(scope, &negation);
+    if (index < scope->options.len)
+    {
+        const clopts_option_t *option = decl_option_at(scope, index);
+
+        if ((option->kind == CLOPTS_PARSER_FLAG) && option->negatable)
+        {
+            ref.option = option;
+            ref.global = global;
+            ref.index = index;
+            ref.negated = true;
+        }
+    }
+    return ref;
+}
+
+/*
  * Searches the selected command (NULL or the root means none) and then the
  * root for the first option matching query.
  */
 static clopts_parser_ref_t decl_lookup(const clopts_program_t *program, const clopts_command_t *command,
                                        const decl_query_t *query)
 {
-    clopts_parser_ref_t ref = { NULL, false, 0, false };
-    size_t index;
+    clopts_parser_ref_t ref = decl_no_ref();
 
-    if ((command != NULL) && (command != &program->root))
+    if ((command != NULL) && (command != program->root))
     {
-        index = decl_index_in(command, query);
-        if (index < command->options.len)
+        ref = decl_lookup_in(command, false, query);
+        if (ref.option != NULL)
         {
-            ref.option = decl_option_at(command, index);
-            ref.global = false;
-            ref.index = index;
             return ref;
         }
     }
-    index = decl_index_in(&program->root, query);
-    if (index < program->root.options.len)
-    {
-        ref.option = decl_option_at(&program->root, index);
-        ref.global = true;
-        ref.index = index;
-    }
-    return ref;
+    return decl_lookup_in(program->root, true, query);
 }
 
 const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program, const char *name)
@@ -206,13 +204,11 @@ const clopts_command_t *clopts_parser_find_command(const clopts_program_t *progr
     size_t i;
 
     assert((program != NULL) && (name != NULL));
-    for (i = 0; i < program->commands.len; i++)
+    for (i = 0; i < program->command_count; i++)
     {
-        const clopts_command_t *command = decl_command_at(program, i);
-
-        if ((command->name != NULL) && (strcmp(command->name, name) == 0))
+        if (strcmp(program->commands[i]->name, name) == 0)
         {
-            return command;
+            return program->commands[i];
         }
     }
     return NULL;
@@ -230,25 +226,6 @@ clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program, con
     return decl_lookup(program, command, &query);
 }
 
-clopts_parser_ref_t clopts_parser_find_negation(const clopts_program_t *program, const clopts_command_t *command,
-                                                const char *name, size_t name_len)
-{
-    clopts_parser_ref_t ref;
-
-    assert((program != NULL) && (name != NULL));
-    if ((name_len <= 3) || (memcmp(name, "no-", 3) != 0))
-    {
-        return decl_no_ref();
-    }
-    ref = clopts_parser_find_long(program, command, name + 3, name_len - 3);
-    if ((ref.option == NULL) || (ref.option->kind != CLOPTS_PARSER_FLAG) || (!ref.option->negatable))
-    {
-        return decl_no_ref();
-    }
-    ref.negated = true;
-    return ref;
-}
-
 clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, const clopts_command_t *command, char c)
 {
     decl_query_t query;
@@ -262,4 +239,52 @@ clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, co
     query.long_len = 0;
     query.short_name = c;
     return decl_lookup(program, command, &query);
+}
+
+/* ---- declaration error messages -------------------------------------------- */
+
+const char *clopts_decl_error_message(clopts_decl_error_t error)
+{
+    switch (error)
+    {
+    case CLOPTS_DECL_NONE:
+        return NULL;
+    case CLOPTS_DECL_INVALID_NAME:
+        return "invalid name";
+    case CLOPTS_DECL_NO_NAME:
+        return "option has neither a long nor a short name";
+    case CLOPTS_DECL_DUPLICATE_COMMAND:
+        return "duplicate command name";
+    case CLOPTS_DECL_DUPLICATE_OPTION:
+        return "duplicate option name";
+    case CLOPTS_DECL_NOT_NEGATABLE:
+        return "only a flag can be negatable";
+    case CLOPTS_DECL_NEGATION_CONFLICT:
+        return "conflicts with the negated form of a flag";
+    case CLOPTS_DECL_DEFAULT_NOT_ALLOWED:
+        return "a flag or count cannot have a default value";
+    case CLOPTS_DECL_ENV_NOT_ALLOWED:
+        return "a flag or count cannot have an environment variable";
+    case CLOPTS_DECL_REQUIRED_WITH_DEFAULT:
+        return "a required option cannot have a default value";
+    case CLOPTS_DECL_REQUIRED_NOT_ALLOWED:
+        return "a flag or count cannot be required";
+    case CLOPTS_DECL_POSITIONAL_ORDER:
+        return "a required argument cannot follow an optional one";
+    case CLOPTS_DECL_VARIADIC_POSITION:
+        return "only the last argument can be variadic";
+    case CLOPTS_DECL_ATTRIBUTE_KIND:
+        return "attribute does not apply to this kind of option";
+    case CLOPTS_DECL_MIXED_LAYOUT:
+        return "a program with subcommands cannot have root arguments";
+    case CLOPTS_DECL_INVALID_KIND:
+        return "invalid option kind";
+    case CLOPTS_DECL_ALREADY_ATTACHED:
+        return "already attached";
+    case CLOPTS_DECL_INVALID_ARGUMENT:
+        return "invalid argument";
+    case CLOPTS_DECL_OUT_OF_MEMORY:
+        return "out of memory";
+    }
+    return NULL;
 }

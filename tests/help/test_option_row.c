@@ -22,14 +22,17 @@
 /* ---- helpers ----------------------------------------------------------- */
 
 /*
- * A new program named "t" for a small declaration, after clearing the
- * failure count of the declaration helpers: a test creates and configures
- * its options, attaches them and then requires test_decl_failures to be 0.
+ * A new unattached command named "t" for a small declaration, after clearing
+ * the failure count of the declaration helpers: a test creates and
+ * configures its options, attaches them and then requires
+ * test_decl_failures to be 0. The rows read the options through the public
+ * read functions, so no program is needed; the test releases the command
+ * with test_decl_discard().
  */
-static clopts_program_t *new_program(void)
+static clopts_command_t *new_root(void)
 {
     test_decl_reset();
-    return test_decl_program("t");
+    return test_decl_root("t");
 }
 
 /* Writes the count rows at rows as one list into rec. */
@@ -95,6 +98,7 @@ NAOS_TEST(fixture_wide_builds_ok)
     NAOS_CHECK_NOT_NULL(f.naive);
     NAOS_CHECK_NOT_NULL(f.nihongo);
     NAOS_CHECK_NOT_NULL(f.raw);
+    NAOS_CHECK_NOT_NULL(f.help);
     NAOS_CHECK_NOT_NULL(f.file);
 
     /* With no argument (the positional is optional) it parses to OK. */
@@ -121,47 +125,43 @@ NAOS_TEST(fixture_wide_names_have_the_intended_bytes)
 
 NAOS_TEST(left_short_and_long_names)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, "name", 'c');
 
     test_decl_check(clopts_option_set_help(option, "Desc"));
     option = test_decl_attach(root, option);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     CHECK_ROW(option, "  -c, --name  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(left_long_name_only_is_indented_by_four_spaces)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, "name", '\0');
 
     test_decl_check(clopts_option_set_help(option, "Desc"));
     option = test_decl_attach(root, option);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     CHECK_ROW(option, "      --name  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(left_short_name_only)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, NULL, 'c');
 
     test_decl_check(clopts_option_set_help(option, "Desc"));
     option = test_decl_attach(root, option);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     CHECK_ROW(option, "  -c  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(left_negatable_flag)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *both = test_decl_option(CLOPTS_OPTION_FLAG, "color", 'c');
     clopts_option_t *long_only = test_decl_option(CLOPTS_OPTION_FLAG, "cache", '\0');
     clopts_option_t *short_only = test_decl_option(CLOPTS_OPTION_FLAG, NULL, 'q');
@@ -181,13 +181,12 @@ NAOS_TEST(left_negatable_flag)
     CHECK_ROW(long_only, "      --[no-]cache  Desc\n");
     /* Without a long name there is no --no- form: the short name only. */
     CHECK_ROW(short_only, "  -q  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(left_count)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *both = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
     clopts_option_t *short_only = test_decl_option(CLOPTS_OPTION_COUNT, NULL, 'j');
     clopts_option_t *long_only = test_decl_option(CLOPTS_OPTION_COUNT, "debug", '\0');
@@ -203,13 +202,12 @@ NAOS_TEST(left_count)
     CHECK_ROW(both, "  -v, --verbose...  Desc\n");
     CHECK_ROW(short_only, "  -j...  Desc\n");
     CHECK_ROW(long_only, "      --debug...  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(left_value)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *both = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
     clopts_option_t *short_only = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 'n');
     clopts_option_t *long_only = test_decl_option(CLOPTS_OPTION_VALUE, "config", '\0');
@@ -228,13 +226,12 @@ NAOS_TEST(left_value)
     CHECK_ROW(both, "  -o, --output <FILE>  Desc\n");
     CHECK_ROW(short_only, "  -n <N>  Desc\n");
     CHECK_ROW(long_only, "      --config <PATH>  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(left_value_name_unset_or_empty_is_VALUE)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *unset = test_decl_option(CLOPTS_OPTION_VALUE, "unset", 'u');
     clopts_option_t *empty = test_decl_option(CLOPTS_OPTION_VALUE, "empty", 'e');
     clopts_option_t *list = test_decl_option(CLOPTS_OPTION_LIST, "list", 'l');
@@ -252,13 +249,12 @@ NAOS_TEST(left_value_name_unset_or_empty_is_VALUE)
     CHECK_ROW(unset, "  -u, --unset <VALUE>  Desc\n");
     CHECK_ROW(empty, "  -e, --empty <VALUE>  Desc\n");
     CHECK_ROW(list, "  -l, --list <VALUE>[,<VALUE>...]  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(left_list_with_delimiter)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *comma = test_decl_option(CLOPTS_OPTION_LIST, "keys", 'k');
     clopts_option_t *colon = test_decl_option(CLOPTS_OPTION_LIST, "path", '\0');
 
@@ -275,13 +271,12 @@ NAOS_TEST(left_list_with_delimiter)
     CHECK_ROW(comma, "  -k, --keys <KEY>[,<KEY>...]  Desc\n");
     /* The declared delimiter is written in place of ','. */
     CHECK_ROW(colon, "      --path <DIR>[:<DIR>...]  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(left_list_without_delimiter)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *long_only = test_decl_option(CLOPTS_OPTION_LIST, "tag", '\0');
     clopts_option_t *short_only = test_decl_option(CLOPTS_OPTION_LIST, NULL, 't');
 
@@ -294,15 +289,14 @@ NAOS_TEST(left_list_without_delimiter)
 
     CHECK_ROW(long_only, "      --tag <TAG>...  Desc\n");
     CHECK_ROW(short_only, "  -t <VALUE>...  Desc\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 /* ---- notes (4.7 to 4.12) ----------------------------------------------- */
 
 NAOS_TEST(note_required)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *option = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
 
     test_decl_check(clopts_option_set_value_name(option, "FILE"));
@@ -312,13 +306,12 @@ NAOS_TEST(note_required)
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 
     CHECK_ROW(option, "  -o, --output <FILE>  Write the result to FILE (required)\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(note_default)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *value = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
     clopts_option_t *list = test_decl_option(CLOPTS_OPTION_LIST, "keys", 'k');
 
@@ -336,13 +329,12 @@ NAOS_TEST(note_default)
     CHECK_ROW(value, "  -n, --lines <N>  Number of lines (default: 10)\n");
     /* The default of a LIST is written as declared, not split. */
     CHECK_ROW(list, "  -k, --keys <KEY>[,<KEY>...]  Keys to include (default: a,b)\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(note_env)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *option = test_decl_option(CLOPTS_OPTION_VALUE, "config", '\0');
 
     test_decl_check(clopts_option_set_value_name(option, "FILE"));
@@ -352,13 +344,12 @@ NAOS_TEST(note_env)
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 
     CHECK_ROW(option, "      --config <FILE>  Configuration file [env: TOOL_CONFIG]\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(notes_two_in_fixed_order)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *with_default = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
     clopts_option_t *with_required = test_decl_option(CLOPTS_OPTION_LIST, "keys", 'k');
 
@@ -377,13 +368,12 @@ NAOS_TEST(notes_two_in_fixed_order)
 
     CHECK_ROW(with_default, "  -n, --lines <N>  Number of lines (default: 10) [env: FILT_LINES]\n");
     CHECK_ROW(with_required, "  -k, --keys <KEY>...  Keys (required) [env: KEYS]\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(no_description_and_no_notes_writes_the_left_column_only)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *unset = test_decl_option(CLOPTS_OPTION_FLAG, "name", 'c');
     clopts_option_t *empty = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 'n');
 
@@ -397,13 +387,12 @@ NAOS_TEST(no_description_and_no_notes_writes_the_left_column_only)
 
     CHECK_ROW(unset, "  -c, --name\n");
     CHECK_ROW(empty, "  -n <N>\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 NAOS_TEST(no_description_with_notes_starts_the_notes_at_the_description)
 {
-    clopts_program_t *program = new_program();
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = new_root();
     clopts_option_t *with_default = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
     clopts_option_t *with_env = test_decl_option(CLOPTS_OPTION_VALUE, "config", '\0');
     clopts_option_t *with_required = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 'o');
@@ -424,7 +413,7 @@ NAOS_TEST(no_description_with_notes_starts_the_notes_at_the_description)
     CHECK_ROW(with_default, "  -n, --lines <N>  (default: 10) [env: LINES]\n");
     CHECK_ROW(with_env, "      --config <FILE>  [env: TOOL_CONFIG]\n");
     CHECK_ROW(with_required, "  -o <FILE>  (required)\n");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 /* ---- lists (10.1, 10.2) ------------------------------------------------ */
@@ -457,8 +446,8 @@ NAOS_TEST(list_pads_every_row_to_the_widest_left_column)
     rows[0] = option_row(f.verbose);
     rows[1] = option_row(f.color);
     rows[2] = option_row(f.config);
-    rows[3] = fixed_row("-h, --help", "Show this help");
-    rows[4] = fixed_row("    --version", "Show version information");
+    rows[3] = option_row(f.help);
+    rows[4] = option_row(f.version);
     NAOS_CHECK_INT_EQ(write_rows(&rec, rows, 5), CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
 
@@ -520,7 +509,7 @@ NAOS_TEST(list_aligns_descriptions_in_code_points_with_non_ascii_names)
     rows[0] = option_row(f.naive);
     rows[1] = option_row(f.nihongo);
     rows[2] = option_row(f.raw);
-    rows[3] = fixed_row("-h, --help", "Show this help");
+    rows[3] = option_row(f.help);
     NAOS_CHECK_INT_EQ(write_rows(&rec, rows, 4), CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
 

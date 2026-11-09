@@ -12,9 +12,11 @@
 
 #include "clopts/clopts.h"
 
-/* Option handles read by the handler (passed as userdata). */
+/* Option handles read after the parse. */
 struct textcount_options
 {
+    const clopts_option_t *help;
+    const clopts_option_t *version;
     clopts_option_t *lines;
     clopts_option_t *words;
     clopts_option_t *total;
@@ -49,9 +51,8 @@ static void print_flag(const clopts_result_t *result, const char *key, const clo
     print_source(result, option);
 }
 
-static int run(const clopts_result_t *result, void *userdata)
+static int run(const clopts_result_t *result, const struct textcount_options *opts)
 {
-    const struct textcount_options *opts = userdata;
     size_t count = clopts_result_positional_count(result);
     size_t i;
 
@@ -102,17 +103,19 @@ static clopts_option_t *attach_option(clopts_decl_error_t *first, clopts_command
     return option;
 }
 
-/* Declares the program. Returns the first declaration error, or CLOPTS_DECL_NONE. */
-static clopts_decl_error_t declare(clopts_program_t *program, struct textcount_options *opts)
+/*
+ * Declares the program into *out: the root first, then the program. Returns
+ * the first declaration error, or CLOPTS_DECL_NONE.
+ */
+static clopts_decl_error_t declare(clopts_program_t **out, struct textcount_options *opts)
 {
     clopts_decl_error_t e = CLOPTS_DECL_NONE;
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *positional = NULL;
 
-    check(&e, clopts_program_set_version(program, "0.4.0"));
+    check(&e, clopts_command_new("textcount", &root));
     check(&e, clopts_command_set_description(root, "Count the lines and words of text files."));
-    check(&e, clopts_command_set_handler(root, run, opts));
 
     check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "lines", 'l', &option));
     check(&e, clopts_option_set_help(option, "Count lines"));
@@ -138,6 +141,8 @@ static clopts_decl_error_t declare(clopts_program_t *program, struct textcount_o
     check(&e, clopts_option_set_delimiter(option, ','));
     check(&e, clopts_option_set_help(option, "Skip files matching the patterns"));
     opts->exclude = attach_option(&e, root, option);
+    check(&e, clopts_help_add_help_option(root, &opts->help));
+    check(&e, clopts_help_add_version_option(root, &opts->version));
 
     check(&e, clopts_positional_new("FILE", &positional));
     check(&e, clopts_positional_set_required(positional, true));
@@ -147,21 +152,32 @@ static clopts_decl_error_t declare(clopts_program_t *program, struct textcount_o
     {
         clopts_positional_free(positional);
     }
+
+    check(&e, clopts_program_new(root, NULL, 0, out));
+    if (e != CLOPTS_DECL_NONE)
+    {
+        clopts_command_free(root);
+    }
     return e;
 }
 
 /* Writes the text for result and returns the exit code (0, 1 or 2). */
-static int finish(const clopts_program_t *program, const clopts_result_t *result)
+static int finish(const clopts_program_t *program, const clopts_result_t *result,
+                  const struct textcount_options *opts)
 {
     switch (clopts_result_status(result))
     {
     case CLOPTS_OK:
-        return clopts_result_run(result);
-    case CLOPTS_HELP:
-        clopts_write_help(program, clopts_result_command(result), clopts_file_write, stdout);
-        return 0;
-    case CLOPTS_VERSION:
-        clopts_write_version(program, clopts_file_write, stdout);
+        return run(result, opts);
+    case CLOPTS_TERMINATED:
+        if (clopts_result_terminal(result) == opts->version)
+        {
+            clopts_write_version(program, "0.4.0", clopts_file_write, stdout);
+        }
+        else
+        {
+            clopts_write_help(program, NULL, clopts_file_write, stdout);
+        }
         return 0;
     case CLOPTS_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
@@ -181,23 +197,18 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
 
 int main(int argc, char **argv)
 {
-    struct textcount_options opts = {NULL, NULL, NULL, NULL, NULL, NULL};
-    clopts_program_t *program;
+    struct textcount_options opts = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+    clopts_program_t *program = NULL;
     clopts_argv_t *args;
     clopts_env_t *env;
     clopts_result_t *result;
     clopts_decl_error_t error;
     int code;
 
-    error = clopts_program_new("textcount", &program);
-    if (error == CLOPTS_DECL_NONE)
-    {
-        error = declare(program, &opts);
-    }
+    error = declare(&program, &opts);
     if (error != CLOPTS_DECL_NONE)
     {
         fprintf(stderr, "textcount: error: invalid declaration: %s\n", clopts_decl_error_message(error));
-        clopts_program_free(program);
         return 1;
     }
 
@@ -215,7 +226,7 @@ int main(int argc, char **argv)
        parse reports out of memory. */
     env = clopts_env_new();
     result = clopts_parse_with_env(program, clopts_argv_count(args), clopts_argv_values(args), clopts_env_lookup, env);
-    code = finish(program, result);
+    code = finish(program, result, &opts);
 
     clopts_result_free(result);
     clopts_env_free(env);

@@ -14,8 +14,17 @@
  * could not be made, and nothing leaks: an option or positional whose attach
  * fails is released by the helper.
  *
- * Setters must be called before the attach: an attached option or
- * positional is read-only.
+ * Setters must be called before the attach: an attached option, positional
+ * or command is read-only.
+ *
+ * A program is built from the bottom up (clopts_program_new() takes the root
+ * and the commands). To keep tests short, test_decl_root() makes a root and
+ * test_decl_command() makes a command and remembers it for that root; once
+ * everything is declared, test_decl_finish() creates the program from the
+ * root and its remembered commands, in order. When it fails (or root is
+ * NULL), the root and the commands are released and NULL is returned, so a
+ * test under fault injection leaks nothing either. A root that is never
+ * finished must be released with test_decl_discard().
  *
  * test_decl_last holds the result of the last builder call made by a helper,
  * so a test can check why a helper gave NULL. test_decl_failures counts the
@@ -35,11 +44,37 @@ void test_decl_reset(void);
 /* Records error (counting it in test_decl_failures unless it is NONE) and returns it. */
 clopts_decl_error_t test_decl_check(clopts_decl_error_t error);
 
-/* clopts_program_new(name); NULL on failure. */
+/* Maximum number of commands test_decl_command() remembers per root. */
+#define TEST_DECL_MAX_COMMANDS 16
+
+/* clopts_command_new(name), as a root; NULL on failure. */
+clopts_command_t *test_decl_root(const char *name);
+
+/*
+ * clopts_command_new(name), remembered as a subcommand of root; NULL on
+ * failure or when root is NULL (nothing is created then).
+ */
+clopts_command_t *test_decl_command(clopts_command_t *root, const char *name);
+
+/*
+ * Remembers command (made elsewhere, e.g. by clopts_help_command_new()) as a
+ * subcommand of root and returns it. NULL command gives NULL; NULL root
+ * releases command and gives NULL.
+ */
+clopts_command_t *test_decl_adopt(clopts_command_t *root, clopts_command_t *command);
+
+/*
+ * clopts_program_new(root, <the remembered commands of root>); NULL on
+ * failure, after releasing root and its commands. NULL root gives NULL (the
+ * commands remembered for it, if any, are released).
+ */
+clopts_program_t *test_decl_finish(clopts_command_t *root);
+
+/* test_decl_root(name) then test_decl_finish(): a program with a bare root and no subcommand. */
 clopts_program_t *test_decl_program(const char *name);
 
-/* clopts_program_add_command(program, name); NULL on failure. */
-clopts_command_t *test_decl_command(clopts_program_t *program, const char *name);
+/* Releases root and its remembered commands without making a program. NULL is fine. */
+void test_decl_discard(clopts_command_t *root);
 
 /* clopts_option_new(kind, long_name, short_name); NULL on failure. */
 clopts_option_t *test_decl_option(clopts_option_kind_t kind, const char *long_name, char short_name);

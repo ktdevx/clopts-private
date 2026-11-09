@@ -61,14 +61,14 @@ static void message_write_token_name(clopts_help_out_t *out, const char *token)
 /* Writes "--<long>" of option, or "-<c>" when it has no long name. */
 static void message_write_option_name(clopts_help_out_t *out, const clopts_option_t *option)
 {
-    if (message_has_text(option->long_name))
+    if (message_has_text(clopts_option_long_name(option)))
     {
         clopts_help_out_str(out, "--");
-        clopts_help_out_str(out, option->long_name);
+        clopts_help_out_str(out, clopts_option_long_name(option));
     }
     else
     {
-        message_write_short(out, option->short_name);
+        message_write_short(out, clopts_option_short_name(option));
     }
 }
 
@@ -85,7 +85,7 @@ static void message_write_written_option(clopts_help_out_t *out, const clopts_re
     {
         message_write_short(out, short_name);
     }
-    else if ((option != NULL) && (message_has_text(option->long_name) || (option->short_name != '\0')))
+    else if ((option != NULL) && (message_has_text(clopts_option_long_name(option)) || (clopts_option_short_name(option) != '\0')))
     {
         message_write_option_name(out, option);
     }
@@ -124,10 +124,10 @@ static void message_write_unexpected_value(clopts_help_out_t *out, const clopts_
 
     if (option == NULL)
     {
-        /* A reserved option (--help, --version). */
+        /* No option recorded: the token before "=". */
         message_write_token_name(out, clopts_result_error_token(result));
     }
-    else if (message_has_text(option->long_name))
+    else if (message_has_text(clopts_option_long_name(option)))
     {
         message_write_option_name(out, option);
     }
@@ -174,7 +174,7 @@ static void message_write_usage_argument(clopts_help_out_t *out, const clopts_re
         positional = clopts_result_error_positional(result);
         if (positional != NULL)
         {
-            message_write_str(out, positional->name);
+            message_write_str(out, clopts_positional_name(positional));
         }
         break;
     }
@@ -215,13 +215,13 @@ static void message_write_prefix(clopts_help_out_t *out, const clopts_program_t 
 {
     flags &= MESSAGE_PREFIX_DEFINED;
 
-    if (((flags & CLOPTS_PREFIX_PROGRAM) != 0u) && message_has_text(program->root.name))
+    if (((flags & CLOPTS_PREFIX_PROGRAM) != 0u) && message_has_text(clopts_command_name(clopts_program_root(program))))
     {
-        clopts_help_out_str(out, program->root.name);
-        if ((command != NULL) && message_has_text(command->name))
+        clopts_help_out_str(out, clopts_command_name(clopts_program_root(program)));
+        if ((command != NULL) && message_has_text(clopts_command_name(command)))
         {
             clopts_help_out_char(out, ' ');
-            clopts_help_out_str(out, command->name);
+            clopts_help_out_str(out, clopts_command_name(command));
         }
         clopts_help_out_str(out, ": ");
     }
@@ -243,7 +243,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
     assert(write_fn != NULL);
 
     command = clopts_result_error_command(result);
-    assert((command == NULL) || (command->program == program));
+    assert((command == NULL) || clopts_help_has_command(program, command));
 
     switch (clopts_result_status(result))
     {
@@ -264,7 +264,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
         clopts_help_out_str(&out, "out of memory");
         break;
     default:
-        /* OK / HELP / VERSION / NO_COMMAND: no error to describe. */
+        /* OK / TERMINATED / NO_COMMAND: no error to describe. */
         return CLOPTS_WRITE_UNAVAILABLE;
     }
     clopts_help_out_char(&out, '\n');
@@ -291,56 +291,6 @@ const char *clopts_help_usage_text(clopts_usage_error_t kind)
         return "missing argument";
     case CLOPTS_USAGE_UNEXPECTED_ARGUMENT:
         return "unexpected argument";
-    }
-    return NULL;
-}
-
-const char *clopts_decl_error_message(clopts_decl_error_t error)
-{
-    switch (error)
-    {
-    case CLOPTS_DECL_NONE:
-        return NULL;
-    case CLOPTS_DECL_INVALID_NAME:
-        return "invalid name";
-    case CLOPTS_DECL_NO_NAME:
-        return "option has neither a long nor a short name";
-    case CLOPTS_DECL_DUPLICATE_COMMAND:
-        return "duplicate command name";
-    case CLOPTS_DECL_DUPLICATE_OPTION:
-        return "duplicate option name";
-    case CLOPTS_DECL_RESERVED_NAME:
-        return "reserved name";
-    case CLOPTS_DECL_NOT_NEGATABLE:
-        return "only a flag can be negatable";
-    case CLOPTS_DECL_NEGATION_CONFLICT:
-        return "conflicts with the negated form of a flag";
-    case CLOPTS_DECL_DEFAULT_NOT_ALLOWED:
-        return "a flag or count cannot have a default value";
-    case CLOPTS_DECL_ENV_NOT_ALLOWED:
-        return "a flag or count cannot have an environment variable";
-    case CLOPTS_DECL_REQUIRED_WITH_DEFAULT:
-        return "a required option cannot have a default value";
-    case CLOPTS_DECL_REQUIRED_NOT_ALLOWED:
-        return "a flag or count cannot be required";
-    case CLOPTS_DECL_POSITIONAL_ORDER:
-        return "a required argument cannot follow an optional one";
-    case CLOPTS_DECL_VARIADIC_POSITION:
-        return "only the last argument can be variadic";
-    case CLOPTS_DECL_ATTRIBUTE_KIND:
-        return "attribute does not apply to this kind of option";
-    case CLOPTS_DECL_MIXED_LAYOUT:
-        return "a program with subcommands cannot have root arguments or a root handler";
-    case CLOPTS_DECL_INVALID_KIND:
-        return "invalid option kind";
-    case CLOPTS_DECL_ALREADY_ATTACHED:
-        return "already attached to a command";
-    case CLOPTS_DECL_INVALID_ARGUMENT:
-        return "invalid argument";
-    case CLOPTS_DECL_FROZEN:
-        return "the program is frozen";
-    case CLOPTS_DECL_OUT_OF_MEMORY:
-        return "out of memory";
     }
     return NULL;
 }

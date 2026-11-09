@@ -12,13 +12,15 @@ extern "C" {
 
 /*
  * Declaration API: the handle types, the result of the builder functions and
- * the rules they share. A program is built at run time with the builder
- * functions of clopts/program.h, clopts/command.h, clopts/option.h and
- * clopts/positional.h (all included by clopts/decl.h) and is referred to
+ * the rules they share. A declaration is built at run time with the builder
+ * functions of clopts/option.h, clopts/positional.h, clopts/command.h and
+ * clopts/program.h (all included by clopts/decl.h) and is referred to
  * through opaque handles only; their layout is private to the library.
  *
- * Options and positionals are created on their own, configured, and then
- * attached to a command:
+ * A declaration is built from the bottom up. Options and positionals are
+ * created on their own, configured, and then attached to a command; commands
+ * are created on their own, filled, and then handed to clopts_program_new()
+ * together with the root:
  *
  *     clopts_option_t *verbose;
  *     if (clopts_option_new(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_DECL_NONE) ...
@@ -28,15 +30,18 @@ extern "C" {
  *         ...
  *     }
  *
- * An option or positional does not know the command it is attached to.
+ * An option or positional does not know the command it is attached to, and
+ * a command does not know the program it belongs to.
  *
  * Ownership and lifetime:
  *   - Every string passed to a builder function is copied; the caller may
  *     change or release it right after the call.
- *   - A new option or positional is owned by the caller until it is attached
- *     successfully; the caller releases an unattached one with
- *     clopts_option_free() / clopts_positional_free(). A successful attach
- *     moves ownership to the command; a failed one changes nothing.
+ *   - A new option, positional or command is owned by the caller until it is
+ *     attached successfully; the caller releases an unattached one with
+ *     clopts_option_free() / clopts_positional_free() /
+ *     clopts_command_free(). A successful attach (clopts_command_add_option(),
+ *     clopts_command_add_positional(), clopts_program_new()) moves ownership
+ *     to the command or the program; a failed one changes nothing.
  *   - The program owns its root, its commands and everything attached to
  *     them. These handles stay valid, at the same address, until
  *     clopts_program_free().
@@ -45,20 +50,25 @@ extern "C" {
  * another clopts_decl_error_t right away on failure, leaving every handle
  * unchanged. Nothing is recorded for later: a program built only from
  * successful calls is always valid. Checks that need only the option or
- * positional itself (its kind and attributes) are made by its constructor and
- * setters; checks against the other options, positionals and commands (name
- * collisions, reserved names, order and layout) are made when it is attached.
+ * positional itself are made by its constructor and setters; checks against
+ * the other options and positionals of the same command are made when it is
+ * attached to the command; checks between commands (command names, the
+ * layout of the root) are made by clopts_program_new(). Option names are not
+ * checked between commands: a name of a command shadows the same name of the
+ * root (clopts/parse.h).
  *
  * Other rules:
  *   - A NULL handle or out pointer gives CLOPTS_DECL_INVALID_ARGUMENT. On
  *     failure, an out pointer that is not NULL is set to NULL.
- *   - A setter called on an attached option or positional gives
- *     CLOPTS_DECL_ALREADY_ATTACHED: attached handles are read-only.
- *   - The first clopts_parse*() freezes the program. Changing a frozen
- *     program is a contract violation caught by assert (without assert it
- *     gives CLOPTS_DECL_FROZEN).
+ *   - Attached handles are read-only: a setter or an attach called on an
+ *     attached option, positional or command gives
+ *     CLOPTS_DECL_ALREADY_ATTACHED. A program never changes after
+ *     clopts_program_new().
  *   - Setting a string attribute again replaces the previous copy (last call
  *     wins). NULL, false, '\0' or 0 resets an attribute.
+ *   - The read functions (clopts_option_long_name() and the others) accept
+ *     attached and unattached handles alike; a NULL handle reads as empty
+ *     (NULL, 0, false or '\0').
  */
 
 typedef struct clopts_program clopts_program_t;
@@ -71,54 +81,50 @@ typedef struct clopts_result clopts_result_t;
 typedef enum clopts_decl_error
 {
     CLOPTS_DECL_NONE = 0,
-    /* Malformed program / command / option / positional name or empty env name. */
+    /* Malformed command / option / positional name or empty env name. */
     CLOPTS_DECL_INVALID_NAME = 1,
     /* An option has neither a long nor a short name. */
     CLOPTS_DECL_NO_NAME = 2,
-    /* Two commands share a name. */
+    /* Two commands of a program share a name. */
     CLOPTS_DECL_DUPLICATE_COMMAND = 3,
-    /* Option names collide within a scope or between the root and a command. */
+    /* Option names collide within a command. */
     CLOPTS_DECL_DUPLICATE_OPTION = 4,
-    /* help / h / version (when a version is set) or the help command. */
-    CLOPTS_DECL_RESERVED_NAME = 5,
     /* negatable set on an option that is not a FLAG. */
-    CLOPTS_DECL_NOT_NEGATABLE = 6,
-    /* A negatable FLAG x and an option named no-x. */
-    CLOPTS_DECL_NEGATION_CONFLICT = 7,
+    CLOPTS_DECL_NOT_NEGATABLE = 5,
+    /* A negatable FLAG x and an option named no-x in the same command. */
+    CLOPTS_DECL_NEGATION_CONFLICT = 6,
     /* A default value set on a FLAG / COUNT. */
-    CLOPTS_DECL_DEFAULT_NOT_ALLOWED = 8,
+    CLOPTS_DECL_DEFAULT_NOT_ALLOWED = 7,
     /* An environment variable set on a FLAG / COUNT. */
-    CLOPTS_DECL_ENV_NOT_ALLOWED = 9,
+    CLOPTS_DECL_ENV_NOT_ALLOWED = 8,
     /* required and a default value both set. */
-    CLOPTS_DECL_REQUIRED_WITH_DEFAULT = 10,
+    CLOPTS_DECL_REQUIRED_WITH_DEFAULT = 9,
     /* required set on a FLAG / COUNT. */
-    CLOPTS_DECL_REQUIRED_NOT_ALLOWED = 11,
+    CLOPTS_DECL_REQUIRED_NOT_ALLOWED = 10,
     /* A required positional attached after an optional one. */
-    CLOPTS_DECL_POSITIONAL_ORDER = 12,
+    CLOPTS_DECL_POSITIONAL_ORDER = 11,
     /* A positional attached after a variadic one. */
-    CLOPTS_DECL_VARIADIC_POSITION = 13,
-    /* A delimiter on a non-LIST option or a count limit on a non-COUNT option. */
-    CLOPTS_DECL_ATTRIBUTE_KIND = 14,
-    /* Positionals or a handler on the root of a program with subcommands. */
-    CLOPTS_DECL_MIXED_LAYOUT = 15,
+    CLOPTS_DECL_VARIADIC_POSITION = 12,
+    /* A delimiter on a non-LIST option, a count limit on a non-COUNT option or terminal on a non-FLAG option. */
+    CLOPTS_DECL_ATTRIBUTE_KIND = 13,
+    /* Positionals on the root of a program with subcommands. */
+    CLOPTS_DECL_MIXED_LAYOUT = 14,
     /* An option kind outside clopts_option_kind_t. */
-    CLOPTS_DECL_INVALID_KIND = 16,
-    /* The option or positional is already attached (attach again, or a setter after the attach). */
-    CLOPTS_DECL_ALREADY_ATTACHED = 17,
+    CLOPTS_DECL_INVALID_KIND = 15,
+    /* The handle is already attached (attach again, or a setter after the attach). */
+    CLOPTS_DECL_ALREADY_ATTACHED = 16,
     /* A NULL handle or out pointer. */
-    CLOPTS_DECL_INVALID_ARGUMENT = 18,
-    /* The program was frozen by a parse (a contract violation, caught by assert). */
-    CLOPTS_DECL_FROZEN = 19,
+    CLOPTS_DECL_INVALID_ARGUMENT = 17,
     /* An allocation failed. */
-    CLOPTS_DECL_OUT_OF_MEMORY = 20
+    CLOPTS_DECL_OUT_OF_MEMORY = 18
 } clopts_decl_error_t;
 
 /*
- * Handler of the selected scope, called by clopts_result_run() with the
- * result and the userdata given to clopts_command_set_handler(). Its return
- * value is returned by clopts_result_run() unchanged.
+ * Returns a static English description of error (for example "duplicate
+ * option name"), for the messages of the program that declares the options.
+ * NULL for CLOPTS_DECL_NONE and for values outside clopts_decl_error_t.
  */
-typedef int (*clopts_handler_fn)(const clopts_result_t *result, void *userdata);
+CLOPTS_API const char *clopts_decl_error_message(clopts_decl_error_t error);
 
 #ifdef __cplusplus
 }

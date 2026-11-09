@@ -356,6 +356,9 @@ NAOS_TEST(init_starts_over)
 
 /* ---- public functions: write failure ----------------------------------- */
 
+/* Version string passed to clopts_write_version() by an OUT_VERSION case. */
+#define OUT_VERSION_STRING "1.2.3"
+
 /* Public write function exercised by an out_case_t. */
 typedef enum out_kind
 {
@@ -386,7 +389,7 @@ static clopts_write_status_t out_case_run(const out_case_t *c, clopts_write_fn f
     case OUT_USAGE:
         return clopts_write_usage(c->program, c->command, fn, ctx);
     case OUT_VERSION:
-        return clopts_write_version(c->program, fn, ctx);
+        return clopts_write_version(c->program, OUT_VERSION_STRING, fn, ctx);
     case OUT_HINT:
         return clopts_write_usage_hint(c->program, c->command, fn, ctx);
     case OUT_ERROR:
@@ -461,6 +464,7 @@ NAOS_TEST(public_help_functions_stop_after_a_write_failure)
             { "help tool", OUT_HELP, tool.program, NULL, NULL, 0u },
             { "help tool build", OUT_HELP, tool.program, tool.build, NULL, 0u },
             { "help tool copy", OUT_HELP, tool.program, tool.copy, NULL, 0u },
+            { "help tool help", OUT_HELP, tool.program, tool.help_command, NULL, 0u },
             { "help filt", OUT_HELP, filt.program, NULL, NULL, 0u },
             { "help bare", OUT_HELP, bare.program, NULL, NULL, 0u },
             { "help bare run", OUT_HELP, bare.program, bare.run, NULL, 0u },
@@ -470,6 +474,7 @@ NAOS_TEST(public_help_functions_stop_after_a_write_failure)
             { "usage filt", OUT_USAGE, filt.program, NULL, NULL, 0u },
             { "version tool", OUT_VERSION, tool.program, NULL, NULL, 0u },
             { "version bare", OUT_VERSION, bare.program, NULL, NULL, 0u },
+            { "version filt", OUT_VERSION, filt.program, NULL, NULL, 0u },
             { "hint tool", OUT_HINT, tool.program, NULL, NULL, 0u },
             { "hint tool build", OUT_HINT, tool.program, tool.build, NULL, 0u },
         };

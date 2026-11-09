@@ -1,6 +1,8 @@
 #ifndef CLOPTS_PROGRAM_H
 #define CLOPTS_PROGRAM_H
 
+#include <stddef.h>
+
 #include "clopts/decl_types.h"
 #include "clopts/export.h"
 
@@ -9,41 +11,41 @@ extern "C" {
 #endif
 
 /*
- * Program: creation and release, the version, the root and the subcommands.
- * The rules shared by every builder function are in clopts/decl_types.h.
+ * Program: creation from a root and its subcommands, release, and the read
+ * functions. A program is created in one call and never changes afterwards,
+ * so it can be parsed and read from several threads at the same time. The
+ * rules shared by every builder function are in clopts/decl_types.h.
  */
 
 /*
- * Creates a program named name (copied) into *out. The name must not be
- * NULL or empty, start with '-' or contain white space (INVALID_NAME).
+ * Creates a program from root and the command_count subcommands at commands
+ * (NULL is fine when command_count is 0) into *out. The name of root is the
+ * name of the program, its description the description of the program, and
+ * its options are the global options. On success the program owns root and
+ * every command, and they become read-only; on failure nothing changes and
+ * the caller still owns them. INVALID_ARGUMENT (NULL root or command),
+ * ALREADY_ATTACHED (a command already belongs to a program, a command is
+ * listed twice, or root is also listed among commands), DUPLICATE_COMMAND, or
+ * MIXED_LAYOUT when there are subcommands and root has positionals.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_program_new(const char *name, clopts_program_t **out);
+CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_program_new(clopts_command_t *root,
+                                                                   clopts_command_t *const *commands,
+                                                                   size_t command_count, clopts_program_t **out);
 
 /* Releases program and everything attached to it. NULL does nothing. */
 CLOPTS_API void clopts_program_free(clopts_program_t *program);
 
-/*
- * Sets the version string (copied). NULL resets it: --version is not
- * reserved. RESERVED_NAME when an option named version is attached.
- */
-CLOPTS_API clopts_decl_error_t clopts_program_set_version(clopts_program_t *program, const char *version);
+/* The root of program (NULL for NULL). */
+CLOPTS_API const clopts_command_t *clopts_program_root(const clopts_program_t *program);
 
-/*
- * Returns the root scope: global options, and for a program without
- * subcommands its positionals and handler; its description is the program
- * description. NULL when program is NULL. Not a builder call: the same handle
- * is returned whether or not the program is frozen.
- */
-CLOPTS_API clopts_command_t *clopts_program_root(clopts_program_t *program);
+/* Number of subcommands, in the order given to clopts_program_new(). */
+CLOPTS_API size_t clopts_program_command_count(const clopts_program_t *program);
 
-/*
- * Adds a subcommand named name (copied) into *out. The program owns it.
- * INVALID_NAME, RESERVED_NAME (help), DUPLICATE_COMMAND, or MIXED_LAYOUT when
- * the root has positionals or a handler.
- */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_program_add_command(clopts_program_t *program,
-                                                                           const char *name,
-                                                                           clopts_command_t **out);
+/* Subcommand index; index must be less than clopts_program_command_count() (caught by assert). */
+CLOPTS_API const clopts_command_t *clopts_program_command_at(const clopts_program_t *program, size_t index);
+
+/* The subcommand named name (exact, case-sensitive), or NULL. */
+CLOPTS_API const clopts_command_t *clopts_program_find_command(const clopts_program_t *program, const char *name);
 
 #ifdef __cplusplus
 }

@@ -69,6 +69,36 @@ CLOPTS_API clopts_decl_error_t clopts_option_set_delimiter(clopts_option_t *opti
 /* COUNT: upper limit of the count. 0 resets it to the default (UINT_MAX). ATTRIBUTE_KIND. */
 CLOPTS_API clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *option, unsigned count_max);
 
+/*
+ * FLAG: a terminal option. When argv gives it (not as --no-<name>), the
+ * parse stops right there with CLOPTS_TERMINATED: the remaining tokens are
+ * not read and the required options and positionals are not checked
+ * (clopts/parse.h). Meant for options such as --help and --version
+ * (clopts/help.h). ATTRIBUTE_KIND.
+ */
+CLOPTS_API clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal);
+
+/* ---- read functions ---- */
+
+/* The kind; CLOPTS_OPTION_FLAG for NULL. */
+CLOPTS_API clopts_option_kind_t clopts_option_kind_of(const clopts_option_t *option);
+/* Without the leading "--"; NULL for none. */
+CLOPTS_API const char *clopts_option_long_name(const clopts_option_t *option);
+/* '\0' for none. */
+CLOPTS_API char clopts_option_short_name(const clopts_option_t *option);
+/* The string attributes; NULL when not set. */
+CLOPTS_API const char *clopts_option_help(const clopts_option_t *option);
+CLOPTS_API const char *clopts_option_value_name(const clopts_option_t *option);
+CLOPTS_API const char *clopts_option_env(const clopts_option_t *option);
+CLOPTS_API const char *clopts_option_default(const clopts_option_t *option);
+/* '\0' when not set. */
+CLOPTS_API char clopts_option_delimiter(const clopts_option_t *option);
+/* 0 when not set (the default, UINT_MAX). */
+CLOPTS_API unsigned clopts_option_count_max(const clopts_option_t *option);
+CLOPTS_API bool clopts_option_required(const clopts_option_t *option);
+CLOPTS_API bool clopts_option_negatable(const clopts_option_t *option);
+CLOPTS_API bool clopts_option_terminal(const clopts_option_t *option);
+
 #ifdef __cplusplus
 }
 #endif
