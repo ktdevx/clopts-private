@@ -662,6 +662,56 @@ NAOS_TEST(help_global_options_leave_out_the_shadowed_ones)
     clopts_program_free(f.program);
 }
 
+NAOS_TEST(help_negatable_global_option_stays_while_its_negation_is_free)
+{
+    /*
+     * The root has a negatable --color; the command has a plain --color.
+     * --no-color still reaches the root option there (the command has no
+     * no-color and its color is not negatable), so the root option stays in
+     * the Global Options. A negatable --color in the command hides it.
+     */
+    static const char kept[] =
+        "Usage: neg plain [<options>]\n"
+        "\n"
+        "Options:\n"
+        "      --color  Paint\n"
+        "\n"
+        "Global Options:\n"
+        "      --[no-]color  Colorize\n";
+    static const char hidden[] =
+        "Usage: neg both [<options>]\n"
+        "\n"
+        "Options:\n"
+        "      --[no-]color  Paint\n";
+    clopts_command_t *root;
+    clopts_command_t *plain;
+    clopts_command_t *both;
+    clopts_option_t *option;
+    clopts_program_t *program;
+
+    test_decl_reset();
+    root = test_decl_root("neg");
+    option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
+    test_decl_check(clopts_option_set_negatable(option, true));
+    test_decl_check(clopts_option_set_help(option, "Colorize"));
+    (void)test_decl_attach(root, option);
+    plain = test_decl_command(root, "plain");
+    option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
+    test_decl_check(clopts_option_set_help(option, "Paint"));
+    (void)test_decl_attach(plain, option);
+    both = test_decl_command(root, "both");
+    option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
+    test_decl_check(clopts_option_set_negatable(option, true));
+    test_decl_check(clopts_option_set_help(option, "Paint"));
+    (void)test_decl_attach(both, option);
+    program = test_decl_finish(root);
+    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
+    NAOS_REQUIRE_NOT_NULL(program);
+    CHECK_HELP(program, plain, kept);
+    CHECK_HELP(program, both, hidden);
+    clopts_program_free(program);
+}
+
 NAOS_TEST(help_global_options_are_filtered_per_command)
 {
     /* plain shadows nothing: every global option is listed, in the declared order. */
@@ -1340,6 +1390,7 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(usage_hint_without_command),
     NAOS_ADD_TEST(usage_hint_with_command),
     NAOS_ADD_TEST(help_global_options_leave_out_the_shadowed_ones),
+    NAOS_ADD_TEST(help_negatable_global_option_stays_while_its_negation_is_free),
     NAOS_ADD_TEST(help_global_options_are_filtered_per_command),
     NAOS_ADD_TEST(help_program_lists_every_global_option),
     NAOS_ADD_TEST(help_shadowed_help_option_is_left_out_of_the_global_options),

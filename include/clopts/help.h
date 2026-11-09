@@ -52,8 +52,9 @@ typedef enum clopts_write_status
 
 /*
  * command: NULL or the root for the program help, a subcommand for its help.
- * In the help of a subcommand, the global options it shadows (every name of
- * the root option is also a name of the subcommand) are left out.
+ * In the help of a subcommand, the global options it shadows (every form of
+ * the root option, --no-<name> of a negatable one included, is found in the
+ * subcommand first) are left out.
  */
 CLOPTS_API clopts_write_status_t clopts_write_help(const clopts_program_t *program, const clopts_command_t *command,
                                                    clopts_write_fn write_fn, void *ctx);

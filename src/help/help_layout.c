@@ -209,8 +209,39 @@ static bool help_short_taken(const clopts_command_t *command, char c)
 }
 
 /*
- * True when the global option option is shadowed in command: every name it
- * has is found in command first, so it cannot be given there.
+ * True when --no-<l> is taken in command: by an option named "no-<l>", or as
+ * the negation of a negatable FLAG named l.
+ */
+static bool help_negation_taken(const clopts_command_t *command, const char *l)
+{
+    size_t count = clopts_command_option_count(command);
+    size_t i;
+
+    for (i = 0; i < count; i++)
+    {
+        const clopts_option_t *option = clopts_command_option_at(command, i);
+        const char *name = clopts_option_long_name(option);
+
+        if (name == NULL)
+        {
+            continue;
+        }
+        if ((strncmp(name, "no-", 3) == 0) && (strcmp(name + 3, l) == 0))
+        {
+            return true;
+        }
+        if (clopts_option_negatable(option) && (strcmp(name, l) == 0))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * True when the global option option is shadowed in command: every form it
+ * can be given in (its long name, --no-<long> when it is negatable, its short
+ * name) is found in command first, so it cannot be given there.
  */
 static bool help_shadowed(const clopts_option_t *option, const clopts_command_t *command)
 {
@@ -218,6 +249,10 @@ static bool help_shadowed(const clopts_option_t *option, const clopts_command_t 
     const char s = clopts_option_short_name(option);
 
     if ((l != NULL) && !help_long_taken(command, l))
+    {
+        return false;
+    }
+    if ((l != NULL) && clopts_option_negatable(option) && !help_negation_taken(command, l))
     {
         return false;
     }

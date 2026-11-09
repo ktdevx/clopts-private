@@ -569,7 +569,7 @@ taskbook と textcount は、宣言エラーがあれば `<program>: error: inva
 
 | 関数 | 出す文面 |
 |------|----------|
-| `clopts_write_help`（`program, command, write_fn, ctx`） | ヘルプ。`command` が NULL か root ならプログラム全体の、サブコマンドならそのコマンドのヘルプ。並ぶのは宣言したものだけで、行のない段落（`Options:` など）は出さない。サブコマンドのヘルプの `Global Options:` には、そのコマンドに隠された（名前がすべてそのコマンドの名前と重なる）root のオプションを出さない |
+| `clopts_write_help`（`program, command, write_fn, ctx`） | ヘルプ。`command` が NULL か root ならプログラム全体の、サブコマンドならそのコマンドのヘルプ。並ぶのは宣言したものだけで、行のない段落（`Options:` など）は出さない。サブコマンドのヘルプの `Global Options:` には、そのコマンドに隠された（書ける形がすべて、つまり長い名前、否定できるなら `--no-<name>`、短い名前がすべて、先にそのコマンドで見つかる）root のオプションを出さない |
 | `clopts_write_usage`（`program, command, write_fn, ctx`） | `clopts_write_help` の Usage の行だけ |
 | `clopts_write_version`（`program, version, write_fn, ctx`） | `<program> <version>` の 1 行。`version` が NULL なら `CLOPTS_WRITE_UNAVAILABLE` |
 | `clopts_write_usage_hint`（`program, command, write_fn, ctx`） | `Run '<program> [<command>] --help' for usage.` の 1 行 |
