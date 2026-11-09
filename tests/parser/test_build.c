@@ -817,9 +817,9 @@ NAOS_TEST(positional_read_functions)
     root = make_command("tool");
     src = make_positional("SRC");
     EXPECT_OK(clopts_positional_set_help(src, "Source."));
-    EXPECT_OK(clopts_positional_set_required(src, true));
+    clopts_positional_set_required(src, true);
     rest = make_positional("REST");
-    EXPECT_OK(clopts_positional_set_variadic(rest, true));
+    clopts_positional_set_variadic(rest, true);
 
     program = NULL;
     for (pass = 0; pass < 2; pass++)
@@ -1038,8 +1038,8 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     EXPECT_OK(clopts_option_set_required(list, true));
     EXPECT_OK(clopts_positional_set_help(src, "first"));
     EXPECT_OK(clopts_positional_set_help(src, "second"));
-    EXPECT_OK(clopts_positional_set_required(src, true));
-    EXPECT_OK(clopts_positional_set_variadic(src, true));
+    clopts_positional_set_required(src, true);
+    clopts_positional_set_variadic(src, true);
 
     NAOS_CHECK_STR_EQ(build->summary, "second");
     NAOS_CHECK_STR_EQ(build->description, "second");
@@ -1069,8 +1069,8 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     EXPECT_OK(clopts_option_set_terminal(flag, false));
     EXPECT_OK(clopts_option_set_required(list, false));
     EXPECT_OK(clopts_positional_set_help(src, NULL));
-    EXPECT_OK(clopts_positional_set_variadic(src, false));
-    EXPECT_OK(clopts_positional_set_required(src, false));
+    clopts_positional_set_variadic(src, false);
+    clopts_positional_set_required(src, false);
 
     NAOS_CHECK_NULL(build->summary);
     NAOS_CHECK_NULL(build->description);

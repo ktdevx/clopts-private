@@ -31,10 +31,10 @@ CLOPTS_API void clopts_positional_destroy(clopts_positional_t *positional);
 CLOPTS_API clopts_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help);
 
 /* Required positionals must precede optional ones (checked when attached). */
-CLOPTS_API clopts_error_t clopts_positional_set_required(clopts_positional_t *positional, bool required);
+CLOPTS_API void clopts_positional_set_required(clopts_positional_t *positional, bool required);
 
 /* Takes all remaining tokens. Must be the last positional (checked when the next one is attached). */
-CLOPTS_API clopts_error_t clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic);
+CLOPTS_API void clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic);
 
 /* ---- read functions ---- */
 

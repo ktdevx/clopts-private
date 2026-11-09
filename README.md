@@ -56,7 +56,7 @@ static clopts_error_t declare(clopts_program_t **program, clopts_option_t **gree
     option = NULL;
 
     CHECK(clopts_positional_create("NAME", &name));
-    CHECK(clopts_positional_set_required(name, true));
+    clopts_positional_set_required(name, true);
     CHECK(clopts_positional_set_help(name, "Who to greet"));
     CHECK(clopts_command_add_positional(root, name));
     name = NULL; /* now owned by root */

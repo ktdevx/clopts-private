@@ -147,8 +147,8 @@ static clopts_error_t declare(clopts_program_t **out, struct textcount_options *
     CHECK(clopts_help_add_version_option(root, &opts->version));
 
     CHECK(clopts_positional_create("FILE", &positional));
-    CHECK(clopts_positional_set_required(positional, true));
-    CHECK(clopts_positional_set_variadic(positional, true));
+    clopts_positional_set_required(positional, true);
+    clopts_positional_set_variadic(positional, true);
     CHECK(clopts_positional_set_help(positional, "Files to count (- for standard input)"));
     CHECK(clopts_command_add_positional(root, positional));
     positional = NULL; /* now owned by root */

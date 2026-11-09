@@ -159,7 +159,7 @@ CHECK(clopts_command_add_option(add, option));
 opts->priority = option;
 option = NULL; /* now owned by add */
 CHECK(clopts_positional_create("TITLE", &positional));
-CHECK(clopts_positional_set_required(positional, true));
+clopts_positional_set_required(positional, true);
 CHECK(clopts_positional_set_help(positional, "Title of the task"));
 CHECK(clopts_command_add_positional(add, positional));
 positional = NULL; /* now owned by add */
@@ -244,7 +244,7 @@ root は `clopts_program_create` の最初の引数に渡すコマンドで、�
 
 宣言は、実行時にビルダー関数を呼んで組み立てる。宣言の関数は、ハンドルごとに `clopts/program.h`、`clopts/command.h`、`clopts/option.h`、`clopts/positional.h` に分かれており、`clopts/decl.h` で全部を取り込める。宣言は下から上へ組み立てる。オプションと位置引数は単独で作って設定してからコマンドに渡し、コマンドは単独で作って埋めてから、root とサブコマンドをまとめて `clopts_program_create` に渡す。
 
-ビルダー関数（解放の関数と読み取りの関数を除く）は、どれも `clopts_error_t` を返す。成功なら `CLOPTS_ERROR_NONE`、失敗ならその理由である（「[失敗の扱い](#失敗の扱い)」）。ハンドルを作る関数は、作ったハンドルを最後の引数 `out` に入れる。
+ビルダー関数（解放の関数、読み取りの関数、失敗しない `clopts_positional_set_required` と `clopts_positional_set_variadic` を除く）は、どれも `clopts_error_t` を返す。成功なら `CLOPTS_ERROR_NONE`、失敗ならその理由である（「[失敗の扱い](#失敗の扱い)」）。ハンドルを作る関数は、作ったハンドルを最後の引数 `out` に入れる。
 
 ### プログラム
 
@@ -330,8 +330,8 @@ root にするコマンドに渡したオプションはグローバルオプシ
 | `clopts_positional_create`（`name, out`） | `name` という名前（複製される。ヘルプと文面に使う）の位置引数を、どのコマンドにも渡していない状態で作り、`*out` に入れる。NULL か空なら `CLOPTS_ERROR_INVALID_NAME` |
 | `clopts_positional_destroy`（`positional`） | コマンドに渡していない位置引数を解放する（`clopts_option_destroy` と同じ扱い） |
 | `clopts_positional_set_help`（`positional, help`） | ヘルプに出す 1 行の説明。NULL で元に戻す |
-| `clopts_positional_set_required`（`positional, required`） | 必須にする。必須の位置引数は、省略できる位置引数より前に渡す（渡すときに検査される） |
-| `clopts_positional_set_variadic`（`positional, variadic`） | 残りのトークンをすべて受け取る。可変長の位置引数の後ろには、位置引数を渡せない（渡すときに検査される） |
+| `clopts_positional_set_required`（`positional, required`） | 必須にする。必須の位置引数は、省略できる位置引数より前に渡す（渡すときに検査される）。失敗しないので戻り値はない |
+| `clopts_positional_set_variadic`（`positional, variadic`） | 残りのトークンをすべて受け取る。可変長の位置引数の後ろには、位置引数を渡せない（渡すときに検査される）。失敗しないので戻り値はない |
 | `clopts_positional_name`、`clopts_positional_help`（`positional`） | 名前と、ヘルプの説明（設定していなければ NULL） |
 | `clopts_positional_required`、`clopts_positional_variadic`（`positional`） | 必須か、可変長か |
 

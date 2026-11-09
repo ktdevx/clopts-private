@@ -52,9 +52,10 @@ extern "C" {
  *     them. These handles stay valid, at the same address, until
  *     clopts_program_destroy().
  *
- * Errors: every builder function returns CLOPTS_ERROR_NONE on success and
- * another clopts_error_t right away on failure, leaving every handle
- * unchanged. Nothing is recorded for later: a program built only from
+ * Errors: every builder function that can fail returns CLOPTS_ERROR_NONE on
+ * success and another clopts_error_t right away on failure, leaving every
+ * handle unchanged. clopts_positional_set_required() and
+ * clopts_positional_set_variadic() cannot fail and return nothing. Nothing is recorded for later: a program built only from
  * successful calls is always valid. Checks that need only the option or
  * positional itself are made by its constructor and setters; checks against
  * the other options and positionals of the same command are made when it is

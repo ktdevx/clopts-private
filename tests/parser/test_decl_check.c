@@ -724,17 +724,17 @@ NAOS_TEST(positional_after_variadic)
     clopts_positional_t *extra;
 
     files = make_positional("files");
-    EXPECT_OK(clopts_positional_set_variadic(files, true));
+    clopts_positional_set_variadic(files, true);
     attach_positional(build, files);
 
     expect_attach_positional_error(build, make_positional("extra"), CLOPTS_ERROR_VARIADIC_POSITION);
     extra = make_positional("extra");
-    EXPECT_OK(clopts_positional_set_variadic(extra, true));
+    clopts_positional_set_variadic(extra, true);
     expect_attach_positional_error(build, extra, CLOPTS_ERROR_VARIADIC_POSITION);
 
     /* VARIADIC_POSITION before POSITIONAL_ORDER (an optional variadic, then a required one) */
     extra = make_positional("extra");
-    EXPECT_OK(clopts_positional_set_required(extra, true));
+    clopts_positional_set_required(extra, true);
     expect_attach_positional_error(build, extra, CLOPTS_ERROR_VARIADIC_POSITION);
     NAOS_CHECK_PTR_EQ(positional_at(build, 0), files);
     clopts_command_destroy(build);
@@ -747,13 +747,13 @@ NAOS_TEST(required_positional_after_optional)
 
     add_positional(copy, "src");
     dst = make_positional("dst");
-    EXPECT_OK(clopts_positional_set_required(dst, true));
+    clopts_positional_set_required(dst, true);
     expect_attach_positional_error(copy, dst, CLOPTS_ERROR_POSITIONAL_ORDER);
 
     /* a required variadic one too */
     dst = make_positional("dst");
-    EXPECT_OK(clopts_positional_set_required(dst, true));
-    EXPECT_OK(clopts_positional_set_variadic(dst, true));
+    clopts_positional_set_required(dst, true);
+    clopts_positional_set_variadic(dst, true);
     expect_attach_positional_error(copy, dst, CLOPTS_ERROR_POSITIONAL_ORDER);
 
     /* an optional one is allowed */
@@ -772,19 +772,19 @@ NAOS_TEST(positional_order_allowed)
     clopts_program_t *program;
 
     a = make_positional("a");
-    EXPECT_OK(clopts_positional_set_required(a, true));
+    clopts_positional_set_required(a, true);
     attach_positional(root, a);
     b = make_positional("b");
-    EXPECT_OK(clopts_positional_set_required(b, true));
-    EXPECT_OK(clopts_positional_set_variadic(b, true));
-    EXPECT_OK(clopts_positional_set_variadic(b, false));
+    clopts_positional_set_required(b, true);
+    clopts_positional_set_variadic(b, true);
+    clopts_positional_set_variadic(b, false);
     attach_positional(root, b);
     c = make_positional("c");
-    EXPECT_OK(clopts_positional_set_required(c, true));
-    EXPECT_OK(clopts_positional_set_required(c, false));
+    clopts_positional_set_required(c, true);
+    clopts_positional_set_required(c, false);
     attach_positional(root, c);
     d = make_positional("d");
-    EXPECT_OK(clopts_positional_set_variadic(d, true));
+    clopts_positional_set_variadic(d, true);
     attach_positional(root, d);
 
     NAOS_REQUIRE_UINT_EQ(root->positionals.len, 4);
@@ -800,8 +800,8 @@ NAOS_TEST(positional_order_allowed)
     /* a single required variadic one */
     root = new_command("tool");
     a = make_positional("files");
-    EXPECT_OK(clopts_positional_set_required(a, true));
-    EXPECT_OK(clopts_positional_set_variadic(a, true));
+    clopts_positional_set_required(a, true);
+    clopts_positional_set_variadic(a, true);
     attach_positional(root, a);
     clopts_command_destroy(root);
 }
@@ -884,7 +884,7 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
 
     /* the same for positionals */
     positional = make_positional("rest");
-    EXPECT_OK(clopts_positional_set_variadic(positional, true));
+    clopts_positional_set_variadic(positional, true);
     attach_positional(build, positional);
     positional = make_positional("src");
     EXPECT_OK(clopts_positional_set_help(positional, "Source."));
@@ -895,7 +895,7 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     NAOS_CHECK_PTR_EQ(positional_at(copy, 0), positional);
 
     positional = make_positional("dst");
-    EXPECT_OK(clopts_positional_set_required(positional, true));
+    clopts_positional_set_required(positional, true);
     NAOS_CHECK_INT_EQ(clopts_command_add_positional(copy, positional), CLOPTS_ERROR_POSITIONAL_ORDER);
     clopts_positional_destroy(positional);
 
@@ -955,20 +955,20 @@ NAOS_TEST(tool_like_declaration_is_ok)
     EXPECT_OK(clopts_option_set_terminal(option, true));
     attach(build, option);
     positional = make_positional("src");
-    EXPECT_OK(clopts_positional_set_required(positional, true));
+    clopts_positional_set_required(positional, true);
     attach_positional(build, positional);
     positional = make_positional("rest");
-    EXPECT_OK(clopts_positional_set_variadic(positional, true));
+    clopts_positional_set_variadic(positional, true);
     attach_positional(build, positional);
 
     copy = command(root, "copy");
     add(copy, CLOPTS_OPTION_FLAG, "release", 'r');
     add(copy, CLOPTS_OPTION_VALUE, "output", 'o');
     positional = make_positional("src");
-    EXPECT_OK(clopts_positional_set_required(positional, true));
+    clopts_positional_set_required(positional, true);
     attach_positional(copy, positional);
     positional = make_positional("dst");
-    EXPECT_OK(clopts_positional_set_required(positional, true));
+    clopts_positional_set_required(positional, true);
     attach_positional(copy, positional);
 
     program = finish(root);

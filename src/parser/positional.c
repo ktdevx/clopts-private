@@ -79,18 +79,16 @@ clopts_error_t clopts_positional_set_help(clopts_positional_t *positional, const
     return (clopts_core_replace_string(&positional->help, help) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_error_t clopts_positional_set_required(clopts_positional_t *positional, bool required)
+void clopts_positional_set_required(clopts_positional_t *positional, bool required)
 {
     assert(positional != NULL);
     positional->required = required;
-    return CLOPTS_ERROR_NONE;
 }
 
-clopts_error_t clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic)
+void clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic)
 {
     assert(positional != NULL);
     positional->variadic = variadic;
-    return CLOPTS_ERROR_NONE;
 }
 
 /* ---- read functions ---- */

@@ -59,10 +59,10 @@ NAOS_TEST(positional_setters_before_attach_never_fail)
 {
     clopts_positional_t *positional = make_positional("file");
 
-    EXPECT_OK(clopts_positional_set_variadic(positional, true));
-    EXPECT_OK(clopts_positional_set_required(positional, true));
-    EXPECT_OK(clopts_positional_set_variadic(positional, false));
-    EXPECT_OK(clopts_positional_set_required(positional, false));
+    clopts_positional_set_variadic(positional, true);
+    clopts_positional_set_required(positional, true);
+    clopts_positional_set_variadic(positional, false);
+    clopts_positional_set_required(positional, false);
     EXPECT_OK(clopts_positional_set_help(positional, "File."));
     EXPECT_OK(clopts_positional_set_help(positional, NULL));
     NAOS_CHECK_FALSE(clopts_positional_required(positional));

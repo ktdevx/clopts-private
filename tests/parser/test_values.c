@@ -513,11 +513,11 @@ static void nosub_init(nosub_t *n)
     n->mode = test_decl_attach(n->root, n->mode);
 
     n->src = test_decl_positional("SRC");
-    test_decl_check(clopts_positional_set_required(n->src, true));
+    clopts_positional_set_required(n->src, true);
     n->src = test_decl_attach_positional(n->root, n->src);
 
     n->rest = test_decl_positional("REST");
-    test_decl_check(clopts_positional_set_variadic(n->rest, true));
+    clopts_positional_set_variadic(n->rest, true);
     n->rest = test_decl_attach_positional(n->root, n->rest);
 
     if (n->root != NULL)

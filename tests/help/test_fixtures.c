@@ -123,7 +123,7 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     }
     if (f->build_src != NULL)
     {
-        test_decl_check(clopts_positional_set_required(f->build_src, true));
+        clopts_positional_set_required(f->build_src, true);
     }
     f->build_src = test_decl_attach_positional(f->build, f->build_src);
 
@@ -134,7 +134,7 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     }
     if (f->build_extra != NULL)
     {
-        test_decl_check(clopts_positional_set_variadic(f->build_extra, true));
+        clopts_positional_set_variadic(f->build_extra, true);
     }
     f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
 
@@ -152,7 +152,7 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     }
     if (f->copy_src != NULL)
     {
-        test_decl_check(clopts_positional_set_required(f->copy_src, true));
+        clopts_positional_set_required(f->copy_src, true);
     }
     f->copy_src = test_decl_attach_positional(f->copy, f->copy_src);
 
@@ -163,7 +163,7 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     }
     if (f->copy_dst != NULL)
     {
-        test_decl_check(clopts_positional_set_required(f->copy_dst, true));
+        clopts_positional_set_required(f->copy_dst, true);
     }
     f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
 
@@ -208,11 +208,11 @@ void help_fixture_filt_init(help_fixture_filt_t *f)
     }
     if (f->file != NULL)
     {
-        test_decl_check(clopts_positional_set_required(f->file, true));
+        clopts_positional_set_required(f->file, true);
     }
     if (f->file != NULL)
     {
-        test_decl_check(clopts_positional_set_variadic(f->file, true));
+        clopts_positional_set_variadic(f->file, true);
     }
     f->file = test_decl_attach_positional(f->root, f->file);
     help_fixture_add_terminals(f->root, &f->help, NULL);
@@ -288,7 +288,7 @@ void help_fixture_wide_init(help_fixture_wide_t *f)
     }
     if (f->file != NULL)
     {
-        test_decl_check(clopts_positional_set_variadic(f->file, true));
+        clopts_positional_set_variadic(f->file, true);
     }
     f->file = test_decl_attach_positional(f->root, f->file);
     help_fixture_add_terminals(f->root, &f->help, NULL);
