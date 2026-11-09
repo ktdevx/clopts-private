@@ -637,6 +637,26 @@ NAOS_TEST(recovery_ignores_the_negation_of_a_terminal)
     clopts_program_free(r.program);
 }
 
+NAOS_TEST(negation_of_a_terminal_does_not_terminate)
+{
+    /*
+     * In the main scan too, --no-info only records the negatable terminal
+     * --info as false: the parse goes on and ends as usual.
+     */
+    char *argv[] = { "rec", "idle", "--no-info", NULL };
+    clopts_result_t *result;
+    rec_t r;
+
+    rec_init(&r);
+    result = clopts_parse(r.program, 3, argv);
+    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_NULL(clopts_result_terminal(result));
+    NAOS_CHECK_FALSE(clopts_result_flag(result, r.info));
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, r.info), CLOPTS_SOURCE_EXPLICIT);
+    clopts_result_free(result);
+    clopts_program_free(r.program);
+}
+
 /* ---- fields of each usage error kind (11.3, 11.4) ----------------------- */
 
 NAOS_TEST(unknown_command_fields)
@@ -810,6 +830,7 @@ NAOS_SUITE(errors,
     NAOS_ADD_TEST(recovery_finds_a_terminal_of_the_selected_command),
     NAOS_ADD_TEST(recovery_ignores_a_terminal_out_of_scope),
     NAOS_ADD_TEST(recovery_ignores_the_negation_of_a_terminal),
+    NAOS_ADD_TEST(negation_of_a_terminal_does_not_terminate),
     NAOS_ADD_TEST(unknown_command_fields),
     NAOS_ADD_TEST(unknown_option_fields_long_form),
     NAOS_ADD_TEST(unknown_option_fields_short_form),
