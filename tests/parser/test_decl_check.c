@@ -884,27 +884,6 @@ NAOS_TEST(null_handles_are_invalid_arguments)
     NAOS_CHECK_INT_EQ(clopts_command_add_positional(root, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_command_add_positional(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
 
-    /* option */
-    NAOS_CHECK_INT_EQ(clopts_option_set_help(NULL, "help"), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_help(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_value_name(NULL, "NAME"), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_value_name(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_env(NULL, "ENV"), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_env(NULL, ""), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_env(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_default(NULL, "default"), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_default(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(NULL, false), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_negatable(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_negatable(NULL, false), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_delimiter(NULL, ','), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_delimiter(NULL, '\0'), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_count_max(NULL, 3), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_count_max(NULL, 0), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(NULL, false), CLOPTS_DECL_INVALID_ARGUMENT);
-
     /* positional */
     NAOS_CHECK_INT_EQ(clopts_positional_set_help(NULL, "help"), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_positional_set_help(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);

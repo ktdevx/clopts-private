@@ -19,7 +19,8 @@ extern "C" {
  * Option: its kinds, creation, release and attributes. An option is created
  * unattached, configured, and then attached with clopts_command_add_option()
  * (clopts/command.h); it does not know its command. The checks made here
- * depend on the option alone. Strings are copied; NULL resets.
+ * depend on the option alone. Strings are copied; NULL resets. A NULL option
+ * passed to a setter is a contract violation (assert).
  */
 
 /* Kind of an option. The values are part of the ABI. */

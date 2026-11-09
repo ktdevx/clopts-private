@@ -325,11 +325,6 @@ NAOS_TEST(terminal_on_non_flag)
     }
 }
 
-NAOS_TEST(terminal_null_option)
-{
-    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
-}
-
 /* ---- delimiter and count maximum ------------------------------------- */
 
 NAOS_TEST(delimiter_on_non_list)
@@ -392,7 +387,6 @@ NAOS_SUITE(decl_option,
     NAOS_ADD_TEST(negatable_on_non_flag),
     NAOS_ADD_TEST(terminal_on_flag),
     NAOS_ADD_TEST(terminal_on_non_flag),
-    NAOS_ADD_TEST(terminal_null_option),
     NAOS_ADD_TEST(delimiter_on_non_list),
     NAOS_ADD_TEST(count_max_on_non_count),
     NAOS_ADD_TEST(delimiter_and_count_max_unset_are_not_checked)

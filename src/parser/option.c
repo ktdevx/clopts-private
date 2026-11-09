@@ -115,44 +115,21 @@ void clopts_option_destroy(clopts_option_t *option)
     clopts_core_free(option);
 }
 
-/* Common checks of an option setter. */
-static clopts_decl_error_t option_check_call(const clopts_option_t *option)
-{
-    return (option == NULL) ? CLOPTS_DECL_INVALID_ARGUMENT : CLOPTS_DECL_NONE;
-}
-
 clopts_decl_error_t clopts_option_set_help(clopts_option_t *option, const char *help)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
-
+    assert(option != NULL);
     return (clopts_core_replace_string(&option->help, help) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
 clopts_decl_error_t clopts_option_set_value_name(clopts_option_t *option, const char *value_name)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
-
+    assert(option != NULL);
     return (clopts_core_replace_string(&option->value_name, value_name) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
 clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *env)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(option != NULL);
 
     if ((env != NULL) && option_takes_no_value(option->kind))
     {
@@ -169,12 +146,7 @@ clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *e
 
 clopts_decl_error_t clopts_option_set_default(clopts_option_t *option, const char *default_value)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(option != NULL);
 
     if ((default_value != NULL) && option_takes_no_value(option->kind))
     {
@@ -191,12 +163,7 @@ clopts_decl_error_t clopts_option_set_default(clopts_option_t *option, const cha
 
 clopts_decl_error_t clopts_option_set_required(clopts_option_t *option, bool required)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(option != NULL);
 
     if (required && option_takes_no_value(option->kind))
     {
@@ -215,12 +182,7 @@ clopts_decl_error_t clopts_option_set_required(clopts_option_t *option, bool req
 
 clopts_decl_error_t clopts_option_set_negatable(clopts_option_t *option, bool negatable)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(option != NULL);
 
     if (negatable && (option->kind != CLOPTS_OPTION_FLAG))
     {
@@ -234,12 +196,7 @@ clopts_decl_error_t clopts_option_set_negatable(clopts_option_t *option, bool ne
 
 clopts_decl_error_t clopts_option_set_delimiter(clopts_option_t *option, char delimiter)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(option != NULL);
 
     if ((delimiter != '\0') && (option->kind != CLOPTS_OPTION_LIST))
     {
@@ -253,12 +210,7 @@ clopts_decl_error_t clopts_option_set_delimiter(clopts_option_t *option, char de
 
 clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *option, unsigned count_max)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(option != NULL);
 
     if ((count_max != 0) && (option->kind != CLOPTS_OPTION_COUNT))
     {
@@ -272,12 +224,7 @@ clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *option, unsigne
 
 clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal)
 {
-    clopts_decl_error_t error = option_check_call(option);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(option != NULL);
 
     if (terminal && (option->kind != CLOPTS_OPTION_FLAG))
     {

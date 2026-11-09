@@ -939,8 +939,6 @@ NAOS_TEST(set_terminal_is_for_flags)
     EXPECT_OK(clopts_option_set_terminal(flag, false));
     NAOS_CHECK_FALSE(flag->terminal);
     EXPECT_OK(clopts_option_set_terminal(flag, true));
-    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(NULL, false), CLOPTS_DECL_INVALID_ARGUMENT);
 
     NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, flag));
     program = make_program(root, NULL, 0);
@@ -1531,19 +1529,37 @@ static void build_sample(clopts_command_t *root)
     test_decl_check(clopts_command_set_description(root, "A tool."));
     test_decl_add(root, CLOPTS_OPTION_COUNT, "verbose", 'v');
     color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
-    test_decl_check(clopts_option_set_negatable(color, true));
+    if (color != NULL)
+    {
+        test_decl_check(clopts_option_set_negatable(color, true));
+    }
     test_decl_attach(root, color);
     build = test_decl_command(root, "build");
     test_decl_check(clopts_command_set_summary(build, "Builds."));
     test_decl_check(clopts_command_set_description(build, "Builds the tree."));
     output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
-    test_decl_check(clopts_option_set_help(output, "Output file."));
-    test_decl_check(clopts_option_set_value_name(output, "FILE"));
-    test_decl_check(clopts_option_set_env(output, "TOOL_OUTPUT"));
-    test_decl_check(clopts_option_set_default(output, "a.out"));
+    if (output != NULL)
+    {
+        test_decl_check(clopts_option_set_help(output, "Output file."));
+    }
+    if (output != NULL)
+    {
+        test_decl_check(clopts_option_set_value_name(output, "FILE"));
+    }
+    if (output != NULL)
+    {
+        test_decl_check(clopts_option_set_env(output, "TOOL_OUTPUT"));
+    }
+    if (output != NULL)
+    {
+        test_decl_check(clopts_option_set_default(output, "a.out"));
+    }
     test_decl_attach(build, output);
     include = test_decl_option(CLOPTS_OPTION_LIST, "include", 'I');
-    test_decl_check(clopts_option_set_delimiter(include, ','));
+    if (include != NULL)
+    {
+        test_decl_check(clopts_option_set_delimiter(include, ','));
+    }
     test_decl_attach(build, include);
     test_decl_add(build, CLOPTS_OPTION_FLAG, "release", '\0');
     src = test_decl_positional("src");
