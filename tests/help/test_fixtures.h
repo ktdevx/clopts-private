@@ -43,6 +43,7 @@
 typedef struct help_fixture_tool
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_command_t *build;
     clopts_command_t *copy;
@@ -65,6 +66,7 @@ void help_fixture_tool_free(help_fixture_tool_t *f);
 typedef struct help_fixture_filt
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_option_t *lines;     /* -n/--lines VALUE <N>, default "10", env FILT_LINES */
     clopts_positional_t *file;  /* FILE required variadic */
@@ -78,6 +80,7 @@ void help_fixture_filt_free(help_fixture_filt_t *f);
 typedef struct help_fixture_bare
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_command_t *run;      /* summary only, no options, no positionals */
 } help_fixture_bare_t;
@@ -102,6 +105,7 @@ void help_fixture_bare_free(help_fixture_bare_t *f);
 typedef struct help_fixture_wide
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_option_t *naive;     /* --naïve FLAG */
     clopts_option_t *nihongo;   /* -j/--日本語 VALUE <値> */

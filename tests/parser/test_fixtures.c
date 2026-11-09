@@ -7,6 +7,7 @@
  */
 
 #include "test_fixtures.h"
+#include "test_decl.h"
 
 #include <assert.h>
 #include <string.h>
@@ -20,76 +21,90 @@ void fixture_tool_init(fixture_tool_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    f->program = clopts_program_new("tool");
+    test_decl_reset();
+    f->program = test_decl_program("tool");
     f->root = clopts_program_root(f->program);
-    clopts_command_set_description(f->root, "A fictional tool with subcommands.");
-    clopts_program_set_version(f->program, "1.2.3");
+    test_decl_check(clopts_command_set_description(f->root, "A fictional tool with subcommands."));
+    test_decl_check(clopts_program_set_version(f->program, "1.2.3"));
 
-    f->verbose = clopts_command_add_count(f->root, "verbose", 'v');
-    clopts_option_set_help(f->verbose, "Increase verbosity.");
+    f->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
+    test_decl_check(clopts_option_set_help(f->verbose, "Increase verbosity."));
+    f->verbose = test_decl_attach(f->root, f->verbose);
 
-    f->color = clopts_command_add_flag(f->root, "color", '\0');
-    clopts_option_set_help(f->color, "Colorize the output.");
-    clopts_option_set_negatable(f->color, true);
+    f->color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
+    test_decl_check(clopts_option_set_help(f->color, "Colorize the output."));
+    test_decl_check(clopts_option_set_negatable(f->color, true));
+    f->color = test_decl_attach(f->root, f->color);
 
-    f->config = clopts_command_add_value(f->root, "config", '\0');
-    clopts_option_set_value_name(f->config, "PATH");
-    clopts_option_set_help(f->config, "Configuration file.");
-    clopts_option_set_env(f->config, "TOOL_CONFIG");
+    f->config = test_decl_option(CLOPTS_OPTION_VALUE, "config", '\0');
+    test_decl_check(clopts_option_set_value_name(f->config, "PATH"));
+    test_decl_check(clopts_option_set_help(f->config, "Configuration file."));
+    test_decl_check(clopts_option_set_env(f->config, "TOOL_CONFIG"));
+    f->config = test_decl_attach(f->root, f->config);
 
     /* build */
-    f->build = clopts_program_add_command(f->program, "build");
-    clopts_command_set_summary(f->build, "Build a source.");
-    clopts_command_set_handler(f->build, fixture_handler, &fixture_build_handler_record);
+    f->build = test_decl_command(f->program, "build");
+    test_decl_check(clopts_command_set_summary(f->build, "Build a source."));
+    test_decl_check(clopts_command_set_handler(f->build, fixture_handler, &fixture_build_handler_record));
 
-    f->output = clopts_command_add_value(f->build, "output", 'o');
-    clopts_option_set_value_name(f->output, "FILE");
-    clopts_option_set_help(f->output, "Output file.");
-    clopts_option_set_required(f->output, true);
+    f->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
+    test_decl_check(clopts_option_set_value_name(f->output, "FILE"));
+    test_decl_check(clopts_option_set_help(f->output, "Output file."));
+    test_decl_check(clopts_option_set_required(f->output, true));
+    f->output = test_decl_attach(f->build, f->output);
 
-    f->keys = clopts_command_add_list(f->build, "keys", 'k');
-    clopts_option_set_value_name(f->keys, "KEY");
-    clopts_option_set_help(f->keys, "Keys to build.");
-    clopts_option_set_delimiter(f->keys, ',');
+    f->keys = test_decl_option(CLOPTS_OPTION_LIST, "keys", 'k');
+    test_decl_check(clopts_option_set_value_name(f->keys, "KEY"));
+    test_decl_check(clopts_option_set_help(f->keys, "Keys to build."));
+    test_decl_check(clopts_option_set_delimiter(f->keys, ','));
+    f->keys = test_decl_attach(f->build, f->keys);
 
-    f->jobs = clopts_command_add_count(f->build, NULL, 'j');
-    clopts_option_set_help(f->jobs, "Add a parallel job.");
-    clopts_option_set_count_max(f->jobs, 8);
+    f->jobs = test_decl_option(CLOPTS_OPTION_COUNT, NULL, 'j');
+    test_decl_check(clopts_option_set_help(f->jobs, "Add a parallel job."));
+    test_decl_check(clopts_option_set_count_max(f->jobs, 8));
+    f->jobs = test_decl_attach(f->build, f->jobs);
 
-    f->build_src = clopts_command_add_positional(f->build, "SRC");
-    clopts_positional_set_help(f->build_src, "Source to build.");
-    clopts_positional_set_required(f->build_src, true);
+    f->build_src = test_decl_positional("SRC");
+    test_decl_check(clopts_positional_set_help(f->build_src, "Source to build."));
+    test_decl_check(clopts_positional_set_required(f->build_src, true));
+    f->build_src = test_decl_attach_positional(f->build, f->build_src);
 
-    f->build_extra = clopts_command_add_positional(f->build, "EXTRA");
-    clopts_positional_set_help(f->build_extra, "Extra inputs.");
-    clopts_positional_set_variadic(f->build_extra, true);
+    f->build_extra = test_decl_positional("EXTRA");
+    test_decl_check(clopts_positional_set_help(f->build_extra, "Extra inputs."));
+    test_decl_check(clopts_positional_set_variadic(f->build_extra, true));
+    f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
 
     /* copy */
-    f->copy = clopts_program_add_command(f->program, "copy");
-    clopts_command_set_summary(f->copy, "Copy a file.");
+    f->copy = test_decl_command(f->program, "copy");
+    test_decl_check(clopts_command_set_summary(f->copy, "Copy a file."));
 
-    f->copy_src = clopts_command_add_positional(f->copy, "SRC");
-    clopts_positional_set_help(f->copy_src, "Source.");
-    clopts_positional_set_required(f->copy_src, true);
+    f->copy_src = test_decl_positional("SRC");
+    test_decl_check(clopts_positional_set_help(f->copy_src, "Source."));
+    test_decl_check(clopts_positional_set_required(f->copy_src, true));
+    f->copy_src = test_decl_attach_positional(f->copy, f->copy_src);
 
-    f->copy_dst = clopts_command_add_positional(f->copy, "DST");
-    clopts_positional_set_help(f->copy_dst, "Destination.");
-    clopts_positional_set_required(f->copy_dst, true);
+    f->copy_dst = test_decl_positional("DST");
+    test_decl_check(clopts_positional_set_help(f->copy_dst, "Destination."));
+    test_decl_check(clopts_positional_set_required(f->copy_dst, true));
+    f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
 
     /* cat */
-    f->cat = clopts_program_add_command(f->program, "cat");
-    clopts_command_set_summary(f->cat, "Show files.");
+    f->cat = test_decl_command(f->program, "cat");
+    test_decl_check(clopts_command_set_summary(f->cat, "Show files."));
 
-    f->tags = clopts_command_add_list(f->cat, "tags", '\0');
-    clopts_option_set_value_name(f->tags, "TAG");
-    clopts_option_set_help(f->tags, "Tags to show.");
-    clopts_option_set_default(f->tags, "a,b");
-    clopts_option_set_env(f->tags, "TOOL_TAGS");
-    clopts_option_set_delimiter(f->tags, ',');
+    f->tags = test_decl_option(CLOPTS_OPTION_LIST, "tags", '\0');
+    test_decl_check(clopts_option_set_value_name(f->tags, "TAG"));
+    test_decl_check(clopts_option_set_help(f->tags, "Tags to show."));
+    test_decl_check(clopts_option_set_default(f->tags, "a,b"));
+    test_decl_check(clopts_option_set_env(f->tags, "TOOL_TAGS"));
+    test_decl_check(clopts_option_set_delimiter(f->tags, ','));
+    f->tags = test_decl_attach(f->cat, f->tags);
 
-    f->cat_file = clopts_command_add_positional(f->cat, "FILE");
-    clopts_positional_set_help(f->cat_file, "Files to show.");
-    clopts_positional_set_variadic(f->cat_file, true);
+    f->cat_file = test_decl_positional("FILE");
+    test_decl_check(clopts_positional_set_help(f->cat_file, "Files to show."));
+    test_decl_check(clopts_positional_set_variadic(f->cat_file, true));
+    f->cat_file = test_decl_attach_positional(f->cat, f->cat_file);
+    f->ok = (test_decl_failures == 0);
 }
 
 void fixture_tool_free(fixture_tool_t *f)
@@ -109,20 +124,24 @@ void fixture_filt_init(fixture_filt_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    f->program = clopts_program_new("filt");
+    test_decl_reset();
+    f->program = test_decl_program("filt");
     f->root = clopts_program_root(f->program);
-    clopts_command_set_description(f->root, "A fictional filter without subcommands.");
-    clopts_command_set_handler(f->root, fixture_handler, &fixture_filt_handler_record);
+    test_decl_check(clopts_command_set_description(f->root, "A fictional filter without subcommands."));
+    test_decl_check(clopts_command_set_handler(f->root, fixture_handler, &fixture_filt_handler_record));
 
-    f->lines = clopts_command_add_value(f->root, "lines", 'n');
-    clopts_option_set_value_name(f->lines, "N");
-    clopts_option_set_help(f->lines, "Number of lines.");
-    clopts_option_set_default(f->lines, "10");
-    clopts_option_set_env(f->lines, "FILT_LINES");
+    f->lines = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
+    test_decl_check(clopts_option_set_value_name(f->lines, "N"));
+    test_decl_check(clopts_option_set_help(f->lines, "Number of lines."));
+    test_decl_check(clopts_option_set_default(f->lines, "10"));
+    test_decl_check(clopts_option_set_env(f->lines, "FILT_LINES"));
+    f->lines = test_decl_attach(f->root, f->lines);
 
-    f->file = clopts_command_add_positional(f->root, "FILE");
-    clopts_positional_set_help(f->file, "Files to filter.");
-    clopts_positional_set_variadic(f->file, true);
+    f->file = test_decl_positional("FILE");
+    test_decl_check(clopts_positional_set_help(f->file, "Files to filter."));
+    test_decl_check(clopts_positional_set_variadic(f->file, true));
+    f->file = test_decl_attach_positional(f->root, f->file);
+    f->ok = (test_decl_failures == 0);
 }
 
 void fixture_filt_free(fixture_filt_t *f)
@@ -140,17 +159,20 @@ void fixture_strict_init(fixture_strict_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    f->program = clopts_program_new("strict");
+    test_decl_reset();
+    f->program = test_decl_program("strict");
     f->root = clopts_program_root(f->program);
-    clopts_command_set_description(f->root, "A fictional program with a required global option.");
+    test_decl_check(clopts_command_set_description(f->root, "A fictional program with a required global option."));
 
-    f->token = clopts_command_add_value(f->root, "token", '\0');
-    clopts_option_set_value_name(f->token, "TOKEN");
-    clopts_option_set_help(f->token, "Access token.");
-    clopts_option_set_required(f->token, true);
+    f->token = test_decl_option(CLOPTS_OPTION_VALUE, "token", '\0');
+    test_decl_check(clopts_option_set_value_name(f->token, "TOKEN"));
+    test_decl_check(clopts_option_set_help(f->token, "Access token."));
+    test_decl_check(clopts_option_set_required(f->token, true));
+    f->token = test_decl_attach(f->root, f->token);
 
-    f->run = clopts_program_add_command(f->program, "run");
-    clopts_command_set_summary(f->run, "Run it.");
+    f->run = test_decl_command(f->program, "run");
+    test_decl_check(clopts_command_set_summary(f->run, "Run it."));
+    f->ok = (test_decl_failures == 0);
 }
 
 void fixture_strict_free(fixture_strict_t *f)

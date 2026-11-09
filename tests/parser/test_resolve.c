@@ -15,6 +15,7 @@
 #include "parser/parser_internal.h"
 #include "test_alloc.h"
 #include "test_fixtures.h"
+#include "test_decl.h"
 
 #include <naos/naos.h>
 
@@ -152,6 +153,7 @@ static clopts_env_status_t counting_getenv(void *ctx, const char *name, const ch
 typedef struct sample
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of sample_build() succeeded */
     clopts_command_t *root;
     clopts_option_t *config;
     clopts_option_t *include;
@@ -168,53 +170,102 @@ typedef struct sample
     clopts_positional_t *files;
 } sample_t;
 
-static void sample_init(sample_t *s)
+#define SURELY_UNSET_NAME "CLOPTS_TEST_SURELY_UNSET_VARIABLE_6_3"
+
+/*
+ * Builds the sample program. With unset_env, every option that has an
+ * environment variable in the root gets SURELY_UNSET_NAME instead (the
+ * variable must be chosen before the option is attached).
+ */
+static void sample_build(sample_t *s, bool unset_env)
 {
-    s->program = clopts_program_new("tool");
+    memset(s, 0, sizeof(*s));
+    test_decl_reset();
+    s->program = test_decl_program("tool");
     if (s->program == NULL)
     {
         return;
     }
     s->root = clopts_program_root(s->program);
-    s->config = clopts_command_add_value(s->root, "config", 'c');
-    clopts_option_set_env(s->config, "TOOL_CONFIG");
-    clopts_option_set_default(s->config, "def.conf");
-    s->include = clopts_command_add_list(s->root, "include", 'I');
-    clopts_option_set_delimiter(s->include, ',');
-    clopts_option_set_env(s->include, "TOOL_INCLUDE");
-    clopts_option_set_default(s->include, "a,b");
-    s->name = clopts_command_add_value(s->root, "name", '\0');
-    s->token = clopts_command_add_value(s->root, "token", '\0');
-    clopts_option_set_required(s->token, true);
-    clopts_option_set_env(s->token, "TOOL_TOKEN");
-    s->tag = clopts_command_add_list(s->root, "tag", '\0');
-    clopts_option_set_env(s->tag, "TOOL_TAG");
-    s->verbose = clopts_command_add_count(s->root, "verbose", 'v');
-    s->build = clopts_program_add_command(s->program, "build");
-    s->output = clopts_command_add_value(s->build, "output", 'o');
-    clopts_option_set_env(s->output, "BUILD_OUTPUT");
-    clopts_option_set_default(s->output, "out");
-    s->mode = clopts_command_add_value(s->build, "mode", '\0');
-    clopts_option_set_required(s->mode, true);
-    s->src = clopts_command_add_positional(s->build, "src");
-    clopts_positional_set_required(s->src, true);
-    s->copy = clopts_program_add_command(s->program, "copy");
-    s->dest = clopts_command_add_value(s->copy, "dest", '\0');
-    clopts_option_set_env(s->dest, "COPY_DEST");
-    s->files = clopts_command_add_positional(s->copy, "files");
-    clopts_positional_set_required(s->files, true);
-    clopts_positional_set_variadic(s->files, true);
+    s->config = test_decl_option(CLOPTS_OPTION_VALUE, "config", 'c');
+    test_decl_check(clopts_option_set_env(s->config, unset_env ? SURELY_UNSET_NAME : "TOOL_CONFIG"));
+    test_decl_check(clopts_option_set_default(s->config, "def.conf"));
+    s->config = test_decl_attach(s->root, s->config);
+    s->include = test_decl_option(CLOPTS_OPTION_LIST, "include", 'I');
+    test_decl_check(clopts_option_set_delimiter(s->include, ','));
+    test_decl_check(clopts_option_set_env(s->include, unset_env ? SURELY_UNSET_NAME : "TOOL_INCLUDE"));
+    test_decl_check(clopts_option_set_default(s->include, "a,b"));
+    s->include = test_decl_attach(s->root, s->include);
+    s->name = test_decl_option(CLOPTS_OPTION_VALUE, "name", '\0');
+    s->name = test_decl_attach(s->root, s->name);
+    s->token = test_decl_option(CLOPTS_OPTION_VALUE, "token", '\0');
+    test_decl_check(clopts_option_set_required(s->token, true));
+    test_decl_check(clopts_option_set_env(s->token, unset_env ? SURELY_UNSET_NAME : "TOOL_TOKEN"));
+    s->token = test_decl_attach(s->root, s->token);
+    s->tag = test_decl_option(CLOPTS_OPTION_LIST, "tag", '\0');
+    test_decl_check(clopts_option_set_env(s->tag, unset_env ? SURELY_UNSET_NAME : "TOOL_TAG"));
+    s->tag = test_decl_attach(s->root, s->tag);
+    s->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
+    s->verbose = test_decl_attach(s->root, s->verbose);
+    s->build = test_decl_command(s->program, "build");
+    s->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
+    test_decl_check(clopts_option_set_env(s->output, "BUILD_OUTPUT"));
+    test_decl_check(clopts_option_set_default(s->output, "out"));
+    s->output = test_decl_attach(s->build, s->output);
+    s->mode = test_decl_option(CLOPTS_OPTION_VALUE, "mode", '\0');
+    test_decl_check(clopts_option_set_required(s->mode, true));
+    s->mode = test_decl_attach(s->build, s->mode);
+    s->src = test_decl_positional("src");
+    test_decl_check(clopts_positional_set_required(s->src, true));
+    s->src = test_decl_attach_positional(s->build, s->src);
+    s->copy = test_decl_command(s->program, "copy");
+    s->dest = test_decl_option(CLOPTS_OPTION_VALUE, "dest", '\0');
+    test_decl_check(clopts_option_set_env(s->dest, "COPY_DEST"));
+    s->dest = test_decl_attach(s->copy, s->dest);
+    s->files = test_decl_positional("files");
+    test_decl_check(clopts_positional_set_required(s->files, true));
+    test_decl_check(clopts_positional_set_variadic(s->files, true));
+    s->files = test_decl_attach_positional(s->copy, s->files);
+    s->ok = (test_decl_failures == 0);
 }
 
-/* Returns the slot of option (in the root or the selected command). */
+static void sample_init(sample_t *s)
+{
+    sample_build(s, false);
+}
+
+/* Sets *index to the position of option in the option vec of scope; false when it is not there. */
+static bool index_in(const clopts_command_t *scope, const clopts_option_t *option, size_t *index)
+{
+    size_t i;
+
+    for (i = 0; i < scope->options.len; i++)
+    {
+        if (*(clopts_option_t *const *)clopts_core_vec_at(&scope->options, i) == option)
+        {
+            *index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * Returns the slot of option (in the root or the selected command), found by
+ * its position in the option vec of its scope.
+ */
 static clopts_parser_slot_t *slot_of(clopts_result_t *result, const clopts_option_t *option)
 {
     clopts_parser_ref_t ref;
 
     ref.option = option;
-    ref.global = (option->scope == &option->program->root);
-    ref.index = option->index;
     ref.negated = false;
+    ref.global = index_in(&result->program->root, option, &ref.index);
+    if (!ref.global)
+    {
+        NAOS_REQUIRE_NOT_NULL(result->command);
+        NAOS_REQUIRE_TRUE(index_in(result->command, option, &ref.index));
+    }
     return clopts_parser_result_slot(result, &ref);
 }
 
@@ -230,7 +281,7 @@ static const char *item_of(const clopts_parser_slot_t *slot, size_t index)
         test_alloc_begin(0);                                                        \
         sample_init(&(s));                                                          \
         NAOS_REQUIRE_NOT_NULL((s).program);                                         \
-        NAOS_REQUIRE_INT_EQ((s).program->error.status, CLOPTS_OK);                  \
+        NAOS_REQUIRE_TRUE((s).ok);                                                  \
         (result) = clopts_parser_result_new((s).program);                           \
         NAOS_REQUIRE_NOT_NULL(result);                                              \
     } while (0)
@@ -243,7 +294,6 @@ static const char *item_of(const clopts_parser_slot_t *slot, size_t index)
         NAOS_CHECK_TRUE(test_alloc_end());                                          \
     } while (0)
 
-#define SURELY_UNSET_NAME "CLOPTS_TEST_SURELY_UNSET_VARIABLE_6_3"
 
 /* ---- sentinel --------------------------------------------------------- */
 
@@ -283,13 +333,9 @@ NAOS_TEST(null_getenv_fn_uses_the_default_lookup)
     clopts_result_t *result;
 
     test_alloc_begin(0);
-    sample_init(&s);
+    sample_build(&s, true);
     NAOS_REQUIRE_NOT_NULL(s.program);
-    clopts_option_set_env(s.config, SURELY_UNSET_NAME);
-    clopts_option_set_env(s.include, SURELY_UNSET_NAME);
-    clopts_option_set_env(s.token, SURELY_UNSET_NAME);
-    clopts_option_set_env(s.tag, SURELY_UNSET_NAME);
-    NAOS_REQUIRE_INT_EQ(s.program->error.status, CLOPTS_OK);
+    NAOS_REQUIRE_TRUE(s.ok);
     result = clopts_parser_result_new(s.program);
     NAOS_REQUIRE_NOT_NULL(result);
 
@@ -838,23 +884,28 @@ NAOS_TEST(program_without_subcommands_checks_root_positionals)
     int calls = 0;
 
     test_alloc_begin(0);
-    program = clopts_program_new("filt");
+    test_decl_reset();
+    program = test_decl_program("filt");
     NAOS_REQUIRE_NOT_NULL(program);
     root = clopts_program_root(program);
-    level = clopts_command_add_value(root, "level", 'n');
-    clopts_option_set_default(level, "1");
-    input = clopts_command_add_positional(root, "input");
-    clopts_positional_set_required(input, true);
-    rest = clopts_command_add_positional(root, "rest");
-    clopts_positional_set_variadic(rest, true);
-    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+    level = test_decl_option(CLOPTS_OPTION_VALUE, "level", 'n');
+    test_decl_check(clopts_option_set_default(level, "1"));
+    level = test_decl_attach(root, level);
+    input = test_decl_positional("input");
+    test_decl_check(clopts_positional_set_required(input, true));
+    input = test_decl_attach_positional(root, input);
+    rest = test_decl_positional("rest");
+    test_decl_check(clopts_positional_set_variadic(rest, true));
+    rest = test_decl_attach_positional(root, rest);
+    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     result = clopts_parser_result_new(program);
     NAOS_REQUIRE_NOT_NULL(result);
 
     NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, program, counting_getenv, &calls, true), 0);
     NAOS_CHECK_INT_EQ(calls, 0);
-    NAOS_CHECK_INT_EQ(result->global_slots[level->index].source, CLOPTS_SOURCE_DEFAULT);
-    NAOS_CHECK_STR_EQ(result->global_slots[level->index].value, "1");
+    /* level is the only root option: slot 0. */
+    NAOS_CHECK_INT_EQ(result->global_slots[0].source, CLOPTS_SOURCE_DEFAULT);
+    NAOS_CHECK_STR_EQ(result->global_slots[0].value, "1");
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, program, true), -1);
     NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
@@ -916,6 +967,7 @@ static void check_missing_common(const clopts_result_t *result, const clopts_com
     {                                                                               \
         fixture_tool_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
+        NAOS_REQUIRE_TRUE((f).ok);                                                  \
     } while (0)
 
 /*
@@ -937,23 +989,24 @@ typedef struct need_decl
 static void need_init(need_decl_t *d)
 {
     clopts_command_t *root;
-    clopts_result_t *validated;
 
-    d->program = clopts_program_new("need");
+    test_decl_reset();
+    d->program = test_decl_program("need");
     NAOS_REQUIRE_NOT_NULL(d->program);
     root = clopts_program_root(d->program);
-    d->key = clopts_command_add_value(root, "key", '\0');
-    clopts_option_set_env(d->key, "NEED_KEY");
-    clopts_option_set_required(d->key, true);
-    d->items = clopts_command_add_list(root, "items", '\0');
-    clopts_option_set_env(d->items, "NEED_ITEMS");
-    clopts_option_set_delimiter(d->items, ',');
-    d->files = clopts_command_add_positional(root, "FILES");
-    clopts_positional_set_required(d->files, true);
-    clopts_positional_set_variadic(d->files, true);
-    validated = clopts_program_validate(d->program);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(validated), CLOPTS_OK);
-    clopts_result_free(validated);
+    d->key = test_decl_option(CLOPTS_OPTION_VALUE, "key", '\0');
+    test_decl_check(clopts_option_set_env(d->key, "NEED_KEY"));
+    test_decl_check(clopts_option_set_required(d->key, true));
+    d->key = test_decl_attach(root, d->key);
+    d->items = test_decl_option(CLOPTS_OPTION_LIST, "items", '\0');
+    test_decl_check(clopts_option_set_env(d->items, "NEED_ITEMS"));
+    test_decl_check(clopts_option_set_delimiter(d->items, ','));
+    d->items = test_decl_attach(root, d->items);
+    d->files = test_decl_positional("FILES");
+    test_decl_check(clopts_positional_set_required(d->files, true));
+    test_decl_check(clopts_positional_set_variadic(d->files, true));
+    d->files = test_decl_attach_positional(root, d->files);
+    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 }
 
 typedef struct order_decl
@@ -967,20 +1020,20 @@ typedef struct order_decl
 
 static void order_init(order_decl_t *d)
 {
-    clopts_result_t *validated;
-
-    d->program = clopts_program_new("order");
+    test_decl_reset();
+    d->program = test_decl_program("order");
     NAOS_REQUIRE_NOT_NULL(d->program);
-    d->global = clopts_command_add_value(clopts_program_root(d->program), "global", '\0');
-    clopts_option_set_required(d->global, true);
-    d->cmd = clopts_program_add_command(d->program, "cmd");
-    d->local = clopts_command_add_value(d->cmd, "local", '\0');
-    clopts_option_set_required(d->local, true);
-    d->arg = clopts_command_add_positional(d->cmd, "ARG");
-    clopts_positional_set_required(d->arg, true);
-    validated = clopts_program_validate(d->program);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(validated), CLOPTS_OK);
-    clopts_result_free(validated);
+    d->global = test_decl_option(CLOPTS_OPTION_VALUE, "global", '\0');
+    test_decl_check(clopts_option_set_required(d->global, true));
+    d->global = test_decl_attach(clopts_program_root(d->program), d->global);
+    d->cmd = test_decl_command(d->program, "cmd");
+    d->local = test_decl_option(CLOPTS_OPTION_VALUE, "local", '\0');
+    test_decl_check(clopts_option_set_required(d->local, true));
+    d->local = test_decl_attach(d->cmd, d->local);
+    d->arg = test_decl_positional("ARG");
+    test_decl_check(clopts_positional_set_required(d->arg, true));
+    d->arg = test_decl_attach_positional(d->cmd, d->arg);
+    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 }
 
 NAOS_TEST(fixture_env_and_defaults_are_as_designed)
@@ -1000,12 +1053,14 @@ NAOS_TEST(fixture_env_and_defaults_are_as_designed)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_STR_EQ(f.lines->env, "FILT_LINES");
     NAOS_CHECK_STR_EQ(f.lines->default_value, "10");
     fixture_filt_free(&f);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_REQUIRE_TRUE(s.ok);
     NAOS_CHECK_NULL(s.token->env);
     fixture_strict_free(&s);
 }
@@ -1117,6 +1172,7 @@ NAOS_TEST(parse_filt_default_points_into_the_declaration)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_env(f.program, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
@@ -1366,6 +1422,7 @@ NAOS_TEST(parse_strict_no_command_with_required_global)
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_REQUIRE_TRUE(s.ok);
     fixture_env_init(&env, NULL, 0);
 
     /* No subcommand: the required global is still checked. */
@@ -1448,6 +1505,7 @@ NAOS_TEST(parse_env_values_survive_clobber_after_parse)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, filt_vars, ARRAY_LEN(filt_vars));
     result = parse_env(f.program, filt_argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);

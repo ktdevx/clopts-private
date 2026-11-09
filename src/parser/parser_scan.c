@@ -1,14 +1,11 @@
 /*
- * Entry points of parsing and validation (clopts_parse,
- * clopts_parse_with_env, clopts_program_validate) and the scanner: the scan
- * before the subcommand, the main scan, the recovery scan and the final
- * status.
+ * Entry points of parsing (clopts_parse, clopts_parse_with_env) and the
+ * scanner: the scan before the subcommand, the main scan, the recovery scan
+ * and the final status.
  *
  * Procedure (design, "解析の全体の流れ" and Scan):
- *   1. the common entry scan_enter(): NULL program, freezing, a recorded
- *      OUT_OF_MEMORY (sentinel), the allocation of the result (sentinel on
- *      failure) and a recorded declaration error (DECL_ERROR without reading
- *      argv);
+ *   1. the entry scan_enter(): NULL program (sentinel), freezing and the
+ *      allocation of the result (sentinel on failure);
  *   2. scan: the pre-command phase with subcommands, the main scan without;
  *   3. a pending usage error ends the parse, unless the recovery scan finds
  *      a HELP / VERSION request from its token on;
@@ -28,44 +25,24 @@
 #include <string.h>
 
 /*
- * Common entry of parsing and validation. Freezes program, then returns the
- * sentinel when program is NULL, has a recorded OUT_OF_MEMORY or the result
- * cannot be allocated. Otherwise returns a new result; when program has a
- * recorded declaration error, the result has status DECL_ERROR with that
- * error copied (the root reported as NULL), and *done is set to true.
+ * Entry of parsing. Freezes program, then returns the sentinel when program
+ * is NULL or the result cannot be allocated, and a new result otherwise.
  */
-static clopts_result_t *scan_enter(clopts_program_t *program, bool *done)
+static clopts_result_t *scan_enter(clopts_program_t *program)
 {
     clopts_result_t *result;
 
-    *done = true;
     if (program == NULL)
     {
         return clopts_parser_result_oom();
     }
     program->frozen = true;
-    if (program->error.status == CLOPTS_OUT_OF_MEMORY)
-    {
-        return clopts_parser_result_oom();
-    }
 
     result = clopts_parser_result_new(program);
     if (result == NULL)
     {
         return clopts_parser_result_oom();
     }
-
-    if (program->error.status == CLOPTS_DECL_ERROR)
-    {
-        result->status = CLOPTS_DECL_ERROR;
-        result->error.decl = program->error.kind;
-        result->error.command = (program->error.command == &program->root) ? NULL : program->error.command;
-        result->error.option = program->error.option;
-        result->error.positional = program->error.positional;
-        return result;
-    }
-
-    *done = false;
     return result;
 }
 
@@ -676,7 +653,6 @@ static void finish(clopts_result_t *result, clopts_status_t status)
 static void store_pending_error(clopts_result_t *result, const scan_error_t *error)
 {
     result->error.usage = error->usage;
-    result->error.decl = CLOPTS_DECL_NONE;
     result->error.command = error->command;
     result->error.option = error->option;
     result->error.positional = error->positional;
@@ -770,19 +746,13 @@ static clopts_result_t *parse(clopts_program_t *program, int argc, char *const *
                               void *env_ctx)
 {
     clopts_result_t *result;
-    bool done;
 
     assert(argc >= 0);
     assert((argc == 0) || (argv != NULL));
 
     /* 1. */
-    result = scan_enter(program, &done);
+    result = scan_enter(program);
     if (result == clopts_parser_result_oom())
-    {
-        return result;
-    }
-    result->parsed = true;
-    if (done)
     {
         return result;
     }
@@ -800,17 +770,4 @@ clopts_result_t *clopts_parse_with_env(clopts_program_t *program, int argc, char
                                        clopts_getenv_fn getenv_fn, void *env_ctx)
 {
     return parse(program, argc, argv, getenv_fn, env_ctx);
-}
-
-clopts_result_t *clopts_program_validate(clopts_program_t *program)
-{
-    clopts_result_t *result;
-    bool done;
-
-    result = scan_enter(program, &done);
-    if (!done)
-    {
-        result->status = CLOPTS_OK;
-    }
-    return result;
 }

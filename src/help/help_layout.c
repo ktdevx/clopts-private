@@ -534,16 +534,6 @@ static void help_write_single_help(clopts_help_out_t *out, const clopts_program_
 
 /* ---- public functions -------------------------------------------------- */
 
-/*
- * Text can be generated for program: no declaration error and no
- * out-of-memory is recorded on it (11.6). Checked before anything else is
- * read, since names may be NULL in a program with a recorded error.
- */
-static bool help_program_available(const clopts_program_t *program)
-{
-    return program->error.status == CLOPTS_OK;
-}
-
 clopts_write_status_t clopts_write_help(const clopts_program_t *program, const clopts_command_t *command,
                                         clopts_write_fn write_fn, void *ctx)
 {
@@ -553,10 +543,6 @@ clopts_write_status_t clopts_write_help(const clopts_program_t *program, const c
     assert(write_fn != NULL);
     assert((command == NULL) || (command->program == program));
 
-    if (!help_program_available(program))
-    {
-        return CLOPTS_WRITE_UNAVAILABLE;
-    }
     if (command == NULL)
     {
         command = &program->root;
@@ -587,10 +573,6 @@ clopts_write_status_t clopts_write_usage(const clopts_program_t *program, const 
     assert(write_fn != NULL);
     assert((command == NULL) || (command->program == program));
 
-    if (!help_program_available(program))
-    {
-        return CLOPTS_WRITE_UNAVAILABLE;
-    }
     if (command == NULL)
     {
         command = &program->root;
@@ -608,7 +590,7 @@ clopts_write_status_t clopts_write_version(const clopts_program_t *program, clop
     assert(program != NULL);
     assert(write_fn != NULL);
 
-    if (!help_program_available(program) || (program->version == NULL))
+    if (program->version == NULL)
     {
         return CLOPTS_WRITE_UNAVAILABLE;
     }
@@ -630,10 +612,6 @@ clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, c
     assert(write_fn != NULL);
     assert((command == NULL) || (command->program == program));
 
-    if (!help_program_available(program))
-    {
-        return CLOPTS_WRITE_UNAVAILABLE;
-    }
 
     clopts_help_out_init(&out, write_fn, ctx);
     clopts_help_out_str(&out, "Run '");

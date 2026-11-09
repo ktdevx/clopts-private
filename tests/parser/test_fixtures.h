@@ -19,7 +19,8 @@
  *     global: --token VALUE required
  *     run:    no options, no positionals
  *
- * Each init function fills a struct of handles. Every allocation of the
+ * Each init function fills a struct of handles and sets ok when every
+ * builder call succeeded. Every allocation of the
  * assembly, clopts_program_new() included, goes through the allocator set
  * with clopts_set_allocator(), so with the fault-injecting allocator of
  * tests/support/test_alloc.h each of them is a fault point. When an
@@ -42,6 +43,7 @@
 typedef struct fixture_tool
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_command_t *build;
     clopts_command_t *copy;
@@ -68,6 +70,7 @@ void fixture_tool_free(fixture_tool_t *f);
 typedef struct fixture_filt
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_option_t *lines;     /* -n/--lines VALUE, default "10", env FILT_LINES */
     clopts_positional_t *file;  /* FILE variadic */
@@ -81,6 +84,7 @@ void fixture_filt_free(fixture_filt_t *f);
 typedef struct fixture_strict
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_command_t *run;
     clopts_option_t *token;     /* root: --token VALUE required */

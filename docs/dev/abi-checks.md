@@ -56,7 +56,7 @@
 - 並び順は自由だが、公開ヘッダごとに `# clopts/<header>.h` の注釈でまとめ、ヘッダの中の宣言順に並べることを推奨する（並び順は検査しない）。
 
 ```text
-# clopts/decl.h
+# clopts/program.h
 clopts_program_new
 clopts_program_free
 ...
@@ -309,9 +309,9 @@ abi-compare: compatible: no incompatible ABI change from v1.0.0 to 1.0.0 (abidif
 
 (b) 公開関数を 1 つ追加。手順どおり 3 つのファイルを同じ変更で更新した。
 
-- `include/clopts/decl.h`: `clopts_positional_set_help` の宣言の後に `CLOPTS_API int clopts_positional_abi_probe(const clopts_positional_t *positional);` を追加
-- `src/parser/parser_build.c`: 定義（`return positional != NULL;`）を追加
-- `abi/clopts.symbols`: `# clopts/decl.h` の組の `clopts_positional_set_help` の次の行に `clopts_positional_abi_probe` を追加
+- `include/clopts/positional.h`: `clopts_positional_set_help` の宣言の後に `CLOPTS_API int clopts_positional_abi_probe(const clopts_positional_t *positional);` を追加
+- `src/parser/parser_positional.c`: 定義（`return positional != NULL;`）を追加
+- `abi/clopts.symbols`: `# clopts/positional.h` の組の `clopts_positional_set_help` の次の行に `clopts_positional_abi_probe` を追加
 
 ```text
 abi-compare: compatible: no incompatible ABI change from v1.0.0 to 1.0.0 (abidiff exit status 4)
@@ -328,7 +328,7 @@ Variables changes summary: 0 Removed, 0 Changed, 0 Added variable
 
 abidiff は追加を ABI の変更（ビット 4）として報告するが、互換のない変更（ビット 8）ではないので `compatible` と判定され、報告もジョブの出力に残る。
 
-(c) 公開関数を 1 つ削除。(b) を戻してから、`include/clopts/decl.h` の `clopts_positional_set_help` の宣言、`src/parser/parser_build.c` の定義、`abi/clopts.symbols` の行を消した（比較のビルドは `CLOPTS_BUILD_TESTING=OFF` なので、この関数を呼ぶテストはビルドされない）。
+(c) 公開関数を 1 つ削除。(b) を戻してから、`include/clopts/positional.h` の `clopts_positional_set_help` の宣言、`src/parser/parser_positional.c` の定義、`abi/clopts.symbols` の行を消した（比較のビルドは `CLOPTS_BUILD_TESTING=OFF` なので、この関数を呼ぶテストはビルドされない）。
 
 ```text
 abi-compare: incompatible: incompatible ABI change from v1.0.0 to 1.0.0 (abidiff exit status 12)

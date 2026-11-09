@@ -63,6 +63,7 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
     fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
+    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -113,6 +114,7 @@ NAOS_TEST(fixture_positionals_are_as_designed)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
+    NAOS_REQUIRE_TRUE(t.ok);
     check_positional(t.build_src, "SRC", true, false);
     check_positional(t.build_extra, "EXTRA", false, true);
     check_positional(t.copy_src, "SRC", true, false);
@@ -122,6 +124,7 @@ NAOS_TEST(fixture_positionals_are_as_designed)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     check_positional(f.file, "FILE", false, true);
     fixture_filt_free(&f);
 }
@@ -133,11 +136,13 @@ NAOS_TEST(fixture_programs_with_commands_have_no_program_positionals)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
+    NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_UINT_EQ(t.root->positionals.len, 0);
     fixture_tool_free(&t);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_REQUIRE_TRUE(s.ok);
     NAOS_CHECK_UINT_EQ(s.root->positionals.len, 0);
     fixture_strict_free(&s);
 }
@@ -259,6 +264,7 @@ NAOS_TEST(filt_without_subcommands_takes_positionals)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     result = parse_checked(f.program, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_NULL(clopts_result_command(result));
@@ -275,6 +281,7 @@ NAOS_TEST(strict_without_tokens_checks_the_global_required_option)
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_REQUIRE_TRUE(s.ok);
     result = parse_checked(s.program, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);

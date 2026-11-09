@@ -6,7 +6,7 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 ## 特徴
 
-- **宣言からの解析と文面の生成**: `clopts_program_new` から始めて、サブコマンド、オプション（フラグ、カウント、単一値、リスト値）、位置引数を関数で足す。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
+- **宣言からの解析と文面の生成**: `clopts_program_new` から始めて、サブコマンドを足し、オプション（フラグ、カウント、単一値、リスト値）と位置引数を単独で作って設定してからコマンドに渡す。宣言の誤りは、誤った呼び出しの戻り値ですぐに返る。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
 - **構造化エラー**: 使い方の誤りは文字列ではなく、種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読めるエラーとして返る。宣言の誤り（名前の重複など）は使い方の誤りと区別して返る。
 - **入出力も `exit` もしない**: ライブラリは標準出力にも標準エラーにも書かず、`exit` も呼ばない。ヘルプやエラーの文面は書き込みのコールバックに渡すので、表示の仕方と終了コードは利用側が決める。`FILE*` に出すなら、公開ヘッダの `clopts_file_write` を渡すだけでよい。
 - **アロケーターの差し替え**: `clopts_set_allocator` で、ライブラリが使う `malloc` / `calloc` / `realloc` / `free` を差し替えられる。ライブラリの確保と解放は、例外なく設定した関数を通る。
@@ -15,41 +15,79 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 ## 最小のサンプル
 
-名前を 1 つ受け取って挨拶するプログラム `hello` を示す。宣言し、UTF-8 の argv を得て解析し、状態に応じて結果を読むかヘルプ・版・エラーの文面を出し、最後に解放する。
+名前を 1 つ受け取って挨拶するプログラム `hello` を示す。宣言し（誤りがあれば最初の 1 つを出して終了コード 1 で終わる）、UTF-8 の argv を得て解析し、状態に応じて結果を読むかヘルプ・版・エラーの文面を出し、最後に解放する。
 
 <!-- clopts-source: tests/docs/readme_minimal.c -->
 ```c
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "clopts/clopts.h"
 
+/* Keeps the first declaration error; once one is kept, later calls are ignored. */
+static bool check(clopts_decl_error_t *first, clopts_decl_error_t error)
+{
+    if (*first == CLOPTS_DECL_NONE)
+    {
+        *first = error;
+    }
+    return *first == CLOPTS_DECL_NONE;
+}
+
+/* Declares: hello [-g TEXT] NAME */
+static clopts_decl_error_t declare(clopts_program_t *program, clopts_option_t **greeting)
+{
+    clopts_decl_error_t e = CLOPTS_DECL_NONE;
+    clopts_command_t *root = clopts_program_root(program);
+    clopts_option_t *option = NULL;
+    clopts_positional_t *name = NULL;
+
+    check(&e, clopts_program_set_version(program, "1.0.0"));
+    check(&e, clopts_command_set_description(root, "Greet someone."));
+
+    check(&e, clopts_option_new(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
+    check(&e, clopts_option_set_value_name(option, "TEXT"));
+    check(&e, clopts_option_set_default(option, "Hello"));
+    check(&e, clopts_option_set_help(option, "Word to greet with"));
+    if (check(&e, clopts_command_add_option(root, option)))
+    {
+        *greeting = option; /* now owned by root */
+    }
+    else
+    {
+        clopts_option_free(option); /* not attached: still ours */
+    }
+
+    check(&e, clopts_positional_new("NAME", &name));
+    check(&e, clopts_positional_set_required(name, true));
+    check(&e, clopts_positional_set_help(name, "Who to greet"));
+    if (!check(&e, clopts_command_add_positional(root, name)))
+    {
+        clopts_positional_free(name);
+    }
+    return e;
+}
+
 int main(int argc, char **argv)
 {
-    clopts_program_t *program = clopts_program_new("hello");
-    clopts_command_t *root;
-    clopts_option_t *greeting;
-    clopts_positional_t *name;
+    clopts_program_t *program;
+    clopts_option_t *greeting = NULL;
     clopts_argv_t *args;
     clopts_result_t *result;
+    clopts_decl_error_t error;
     int code = 0;
 
-    if (program == NULL)
+    error = clopts_program_new("hello", &program);
+    if (error == CLOPTS_DECL_NONE)
     {
-        fputs("hello: error: out of memory\n", stderr);
+        error = declare(program, &greeting);
+    }
+    if (error != CLOPTS_DECL_NONE)
+    {
+        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_decl_error_message(error));
+        clopts_program_free(program);
         return 1;
     }
-    root = clopts_program_root(program);
-
-    /* Declare: hello [-g TEXT] NAME */
-    clopts_program_set_version(program, "1.0.0");
-    clopts_command_set_description(root, "Greet someone.");
-    greeting = clopts_command_add_value(root, "greeting", 'g');
-    clopts_option_set_value_name(greeting, "TEXT");
-    clopts_option_set_default(greeting, "Hello");
-    clopts_option_set_help(greeting, "Word to greet with");
-    name = clopts_command_add_positional(root, "NAME");
-    clopts_positional_set_required(name, true);
-    clopts_positional_set_help(name, "Who to greet");
 
     /* UTF-8 argv on every platform (on Windows, taken from the command line). */
     args = clopts_argv_get(argc, argv);
@@ -86,7 +124,7 @@ int main(int argc, char **argv)
         clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
         code = 2;
         break;
-    default: /* CLOPTS_DECL_ERROR, CLOPTS_OUT_OF_MEMORY */
+    default: /* CLOPTS_OUT_OF_MEMORY */
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
         code = 1;
         break;

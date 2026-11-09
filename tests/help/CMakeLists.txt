@@ -5,4 +5,5 @@ clopts_add_module_tests(help SOURCES
     test_layout.c
     test_option_row.c
     test_message.c
+    ../support/test_decl.c
 )

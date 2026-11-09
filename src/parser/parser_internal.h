@@ -5,12 +5,30 @@
 
 /*
  * Internal contracts of the parser module, shared by the builder
- * (parser_build.c), the name rules and lookups (parser_decl.c), the scanner
+ * (parser_program.c, parser_command.c, parser_option.c,
+ * parser_positional.c), the name rules and lookups (parser_decl.c), the scanner
  * (parser_scan.c), the resolver (parser_resolve.c) and the result handle
  * (parser_result.c). None of these symbols is exported from the shared
  * library. Every allocation goes through the allocation gateway of core
  * (clopts_core_malloc and the others, core/core_internal.h).
  */
+
+/*
+ * Builder helpers shared by parser_program.c and parser_command.c.
+ */
+
+/*
+ * Common check of every call that changes program: changing a frozen program
+ * is a contract violation caught by assert; without assert it gives
+ * CLOPTS_DECL_FROZEN.
+ */
+clopts_decl_error_t clopts_parser_check_frozen(const clopts_program_t *program);
+
+/* Sets the empty state of scope (no texts, options, positionals or handler) for program. */
+void clopts_parser_scope_init(clopts_command_t *scope, clopts_program_t *program);
+
+/* Releases the options, positionals and texts of scope (not its name nor scope itself). */
+void clopts_parser_scope_free(clopts_command_t *scope);
 
 /*
  * Name rules and lookups (parser_decl.c).
@@ -95,12 +113,11 @@ typedef struct clopts_parser_slot
 struct clopts_result
 {
     clopts_status_t status;
-    const clopts_program_t *program;  /* owner check and run; never read by free */
+    const clopts_program_t *program;  /* option lookup and run; never read by free */
     const clopts_command_t *command;  /* selected command / help target, or NULL */
     struct
     {
         clopts_usage_error_t usage;
-        clopts_decl_error_t decl;
         const clopts_command_t *command;
         const clopts_option_t *option;
         const clopts_positional_t *positional;
@@ -109,7 +126,6 @@ struct clopts_result
         size_t name_len;
         char short_name;
     } error;
-    bool parsed;                      /* produced by clopts_parse*() (false for validation) */
     clopts_parser_slot_t *global_slots;   /* one per root option */
     size_t global_count;
     clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */

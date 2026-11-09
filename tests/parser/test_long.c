@@ -63,6 +63,7 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
     fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
+    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -71,6 +72,7 @@ static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
 {
     fixture_filt_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
+    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -84,7 +86,6 @@ static void check_error(const clopts_result_t *result, clopts_usage_error_t usag
 {
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), usage);
-    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NONE);
     NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), command);
     NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), option);
     NAOS_CHECK_NULL(clopts_result_error_positional(result));
@@ -117,6 +118,7 @@ NAOS_TEST(fixture_long_names_and_kinds_are_as_designed)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
+    NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_STR_EQ(t.verbose->long_name, "verbose");
     NAOS_CHECK_INT_EQ(t.verbose->kind, CLOPTS_PARSER_COUNT);
     NAOS_CHECK_STR_EQ(t.color->long_name, "color");
@@ -135,11 +137,13 @@ NAOS_TEST(fixture_long_names_and_kinds_are_as_designed)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_STR_EQ(f.lines->long_name, "lines");
     fixture_filt_free(&f);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_REQUIRE_TRUE(s.ok);
     NAOS_CHECK_STR_EQ(s.token->long_name, "token");
     fixture_strict_free(&s);
 }
@@ -150,6 +154,7 @@ NAOS_TEST(fixture_only_color_is_negatable)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
+    NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_TRUE(t.color->negatable);
     NAOS_CHECK_FALSE(t.verbose->negatable);
     NAOS_CHECK_FALSE(t.config->negatable);

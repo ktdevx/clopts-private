@@ -15,6 +15,7 @@
 
 #include "parser/parser_internal.h"
 #include "test_fixtures.h"
+#include "test_decl.h"
 
 #include <clopts/parse.h>
 
@@ -71,6 +72,7 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
     fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
+    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv, NULL, 0);
 }
 
@@ -80,6 +82,7 @@ static clopts_result_t *parse_tool_env(fixture_tool_t *f, char **argv,
 {
     fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
+    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv, vars, var_count);
 }
 
@@ -132,6 +135,7 @@ NAOS_TEST(fixture_list_delimiters_are_as_designed)
 
     fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_INT_EQ(f.keys->kind, CLOPTS_PARSER_LIST);
     NAOS_CHECK_INT_EQ(f.keys->delimiter, ',');
     NAOS_CHECK_INT_EQ(f.tags->kind, CLOPTS_PARSER_LIST);
@@ -145,6 +149,7 @@ NAOS_TEST(fixture_count_limits_are_as_designed)
 
     fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_INT_EQ(f.jobs->kind, CLOPTS_PARSER_COUNT);
     NAOS_CHECK_UINT_EQ(f.jobs->count_max, 8);
     /* 0 selects the library default (UINT_MAX). */
@@ -460,6 +465,7 @@ NAOS_TEST(parse_cat_tags_explicit_is_split_and_wins)
 typedef struct nosub
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of nosub_init() succeeded */
     clopts_command_t *root;
     clopts_option_t *color;
     clopts_option_t *verbose;
@@ -474,31 +480,40 @@ typedef struct nosub
 static void nosub_init(nosub_t *n)
 {
     memset(n, 0, sizeof(*n));
-    n->program = clopts_program_new("nosub");
-    clopts_program_set_version(n->program, "0.9");
+    test_decl_reset();
+    n->program = test_decl_program("nosub");
+    test_decl_check(clopts_program_set_version(n->program, "0.9"));
     n->root = clopts_program_root(n->program);
 
-    n->color = clopts_command_add_flag(n->root, "color", '\0');
-    clopts_option_set_negatable(n->color, true);
+    n->color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
+    test_decl_check(clopts_option_set_negatable(n->color, true));
+    n->color = test_decl_attach(n->root, n->color);
 
-    n->verbose = clopts_command_add_count(n->root, "verbose", 'v');
-    clopts_option_set_count_max(n->verbose, 3);
+    n->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
+    test_decl_check(clopts_option_set_count_max(n->verbose, 3));
+    n->verbose = test_decl_attach(n->root, n->verbose);
 
-    n->keys = clopts_command_add_list(n->root, "keys", 'k');
-    clopts_option_set_delimiter(n->keys, ',');
+    n->keys = test_decl_option(CLOPTS_OPTION_LIST, "keys", 'k');
+    test_decl_check(clopts_option_set_delimiter(n->keys, ','));
+    n->keys = test_decl_attach(n->root, n->keys);
 
-    n->output = clopts_command_add_value(n->root, "output", 'o');
-    clopts_option_set_required(n->output, true);
+    n->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
+    test_decl_check(clopts_option_set_required(n->output, true));
+    n->output = test_decl_attach(n->root, n->output);
 
-    n->mode = clopts_command_add_value(n->root, "mode", 'm');
-    clopts_option_set_default(n->mode, "fast");
-    clopts_option_set_env(n->mode, "NOSUB_MODE");
+    n->mode = test_decl_option(CLOPTS_OPTION_VALUE, "mode", 'm');
+    test_decl_check(clopts_option_set_default(n->mode, "fast"));
+    test_decl_check(clopts_option_set_env(n->mode, "NOSUB_MODE"));
+    n->mode = test_decl_attach(n->root, n->mode);
 
-    n->src = clopts_command_add_positional(n->root, "SRC");
-    clopts_positional_set_required(n->src, true);
+    n->src = test_decl_positional("SRC");
+    test_decl_check(clopts_positional_set_required(n->src, true));
+    n->src = test_decl_attach_positional(n->root, n->src);
 
-    n->rest = clopts_command_add_positional(n->root, "REST");
-    clopts_positional_set_variadic(n->rest, true);
+    n->rest = test_decl_positional("REST");
+    test_decl_check(clopts_positional_set_variadic(n->rest, true));
+    n->rest = test_decl_attach_positional(n->root, n->rest);
+    n->ok = (test_decl_failures == 0);
 }
 
 /* Releases the program of n and clears it. */
@@ -513,6 +528,7 @@ static clopts_result_t *parse_nosub(nosub_t *n, char **argv, const fixture_env_v
                                     size_t var_count)
 {
     NAOS_REQUIRE_NOT_NULL(n->program);
+    NAOS_REQUIRE_TRUE(n->ok);
     return parse_checked(n->program, argv, vars, var_count);
 }
 
@@ -540,15 +556,12 @@ static void check_nosub_usage(const clopts_result_t *result, char **argv,
 NAOS_TEST(nosub_declaration_is_valid)
 {
     nosub_t n;
-    clopts_result_t *result;
 
     nosub_init(&n);
     NAOS_REQUIRE_NOT_NULL(n.program);
-    result = clopts_program_validate(n.program);
-    NAOS_REQUIRE_NOT_NULL(result);
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NONE);
-    clopts_result_free(result);
+    NAOS_REQUIRE_TRUE(n.ok);
+    NAOS_CHECK_UINT_EQ(n.root->options.len, 5);
+    NAOS_CHECK_UINT_EQ(n.root->positionals.len, 2);
     NAOS_CHECK_UINT_EQ(n.program->commands.len, 0);
     NAOS_REQUIRE_NOT_NULL(n.program->version);
     NAOS_CHECK_STR_EQ(n.program->version, "0.9");

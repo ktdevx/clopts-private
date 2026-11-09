@@ -78,7 +78,5 @@ void clopts_help_write_list(clopts_help_out_t *out, const clopts_help_row_t *row
 
 /* Body template of a usage error kind; NULL for CLOPTS_USAGE_NONE and values outside the enum. */
 const char *clopts_help_usage_text(clopts_usage_error_t kind);
-/* Reason of a declaration error kind; NULL for CLOPTS_DECL_NONE and values outside the enum. */
-const char *clopts_help_decl_reason(clopts_decl_error_t kind);
 
 #endif /* CLOPTS_HELP_INTERNAL_H */

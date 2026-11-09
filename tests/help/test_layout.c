@@ -2,25 +2,27 @@
  * Suite layout: the whole help texts, the Usage line, the version line and
  * the usage hint, compared byte for byte.
  *
- * It also checks that the fixtures it uses (tool, filt, bare) are valid
- * declarations. The expected texts are derived by hand from the rules of the
- * design (HelpLayout): 2 spaces of indentation, descriptions at column
- * 2 + W + 2 where W is the widest left column of the list.
+ * It also checks that the fixtures it uses (tool, filt, bare) are built
+ * without a declaration error. The expected texts are derived by hand from
+ * the rules of the design (HelpLayout): 2 spaces of indentation,
+ * descriptions at column 2 + W + 2 where W is the widest left column of the
+ * list.
  */
 
 #include "test_fixtures.h"
+#include "test_decl.h"
 
 #include <naos/naos.h>
 
 #include <string.h>
 
-NAOS_TEST(fixture_tool_validates_ok)
+NAOS_TEST(fixture_tool_builds_ok)
 {
     help_fixture_tool_t f;
-    clopts_result_t *result;
 
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.build);
     NAOS_CHECK_NOT_NULL(f.copy);
     NAOS_CHECK_NOT_NULL(f.verbose);
@@ -33,44 +35,32 @@ NAOS_TEST(fixture_tool_validates_ok)
     NAOS_CHECK_NOT_NULL(f.copy_src);
     NAOS_CHECK_NOT_NULL(f.copy_dst);
 
-    result = clopts_program_validate(f.program);
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    clopts_result_free(result);
-
     help_fixture_tool_free(&f);
     NAOS_CHECK_NULL(f.program);
 }
 
-NAOS_TEST(fixture_filt_validates_ok)
+NAOS_TEST(fixture_filt_builds_ok)
 {
     help_fixture_filt_t f;
-    clopts_result_t *result;
 
     help_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.lines);
     NAOS_CHECK_NOT_NULL(f.file);
-
-    result = clopts_program_validate(f.program);
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    clopts_result_free(result);
 
     help_fixture_filt_free(&f);
     NAOS_CHECK_NULL(f.program);
 }
 
-NAOS_TEST(fixture_bare_validates_ok)
+NAOS_TEST(fixture_bare_builds_ok)
 {
     help_fixture_bare_t f;
-    clopts_result_t *result;
 
     help_fixture_bare_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.run);
-
-    result = clopts_program_validate(f.program);
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    clopts_result_free(result);
 
     help_fixture_bare_free(&f);
     NAOS_CHECK_NULL(f.program);
@@ -123,14 +113,15 @@ typedef struct layout_nover
 static void layout_nover_init(layout_nover_t *f)
 {
     memset(f, 0, sizeof(*f));
-    f->program = clopts_program_new("nover");
+    f->program = test_decl_program("nover");
     if (f->program == NULL)
     {
         return;
     }
-    f->init = clopts_program_add_command(f->program, "init");
-    f->name = clopts_command_add_positional(f->init, "NAME");
-    clopts_positional_set_help(f->name, "Name to use");
+    f->init = test_decl_command(f->program, "init");
+    f->name = test_decl_positional("NAME");
+    test_decl_check(clopts_positional_set_help(f->name, "Name to use"));
+    f->name = test_decl_attach_positional(f->init, f->name);
 }
 
 /* ---- help -------------------------------------------------------------- */
@@ -516,73 +507,6 @@ NAOS_TEST(usage_hint_with_command)
     help_fixture_tool_free(&f);
 }
 
-/* ---- programs with a recorded error ------------------------------------ */
-
-/*
- * The 4 help functions return UNAVAILABLE for program (command: a handle of
- * it, or NULL) without calling the callback.
- */
-static void check_all_unavailable(const clopts_program_t *program, const clopts_command_t *command)
-{
-    static help_recorder_t rec;
-
-    help_recorder_init(&rec);
-    NAOS_CHECK_INT_EQ(clopts_write_help(program, command, help_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
-    NAOS_CHECK_INT_EQ(clopts_write_usage(program, command, help_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
-    NAOS_CHECK_INT_EQ(clopts_write_version(program, help_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
-    NAOS_CHECK_INT_EQ(clopts_write_usage_hint(program, command, help_recorder_write, &rec),
-                      CLOPTS_WRITE_UNAVAILABLE);
-    NAOS_CHECK_UINT_EQ(rec.calls, 0);
-    NAOS_CHECK_UINT_EQ(rec.len, 0);
-}
-
-/* program has a declaration error recorded. */
-static void require_decl_error(clopts_program_t *program)
-{
-    clopts_result_t *result = clopts_program_validate(program);
-
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_DECL_ERROR);
-    clopts_result_free(result);
-}
-
-NAOS_TEST(error_program_with_an_invalid_name_is_unavailable)
-{
-    clopts_program_t *program = clopts_program_new("bad name");
-
-    NAOS_REQUIRE_NOT_NULL(program);
-    clopts_program_set_version(program, "1.0");
-    check_all_unavailable(program, NULL);
-    check_all_unavailable(program, clopts_program_root(program));
-    require_decl_error(program);
-    clopts_program_free(program);
-}
-
-NAOS_TEST(error_program_without_a_name_is_unavailable)
-{
-    clopts_program_t *program = clopts_program_new(NULL);
-
-    NAOS_REQUIRE_NOT_NULL(program);
-    check_all_unavailable(program, NULL);
-    require_decl_error(program);
-    clopts_program_free(program);
-}
-
-NAOS_TEST(error_program_with_a_later_error_is_unavailable)
-{
-    clopts_program_t *program = clopts_program_new("tool");
-    clopts_command_t *run;
-
-    NAOS_REQUIRE_NOT_NULL(program);
-    clopts_program_set_version(program, "1.0");
-    run = clopts_program_add_command(program, "run");
-    NAOS_REQUIRE_NOT_NULL(run);
-    (void)clopts_command_add_flag(run, "bad name", '\0');
-    check_all_unavailable(program, NULL);
-    check_all_unavailable(program, run);
-    require_decl_error(program);
-    clopts_program_free(program);
-}
-
 /* ---- determinism ------------------------------------------------------- */
 
 /* Every text of command (NULL: the program) of program, concatenated into rec. */
@@ -602,7 +526,6 @@ NAOS_TEST(generation_is_repeatable_and_keeps_the_declaration)
     static help_recorder_t second;
     help_fixture_tool_t f;
     const clopts_command_t *commands[3];
-    clopts_result_t *result;
     size_t i;
 
     help_fixture_tool_init(&f);
@@ -616,10 +539,7 @@ NAOS_TEST(generation_is_repeatable_and_keeps_the_declaration)
         write_all(&second, f.program, commands[i]);
         NAOS_CHECK_MEM_EQ(second.buf, second.len, first.buf, first.len);
     }
-    /* The declaration is still the same valid one, and its help unchanged. */
-    result = clopts_program_validate(f.program);
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    clopts_result_free(result);
+    /* The declaration is unchanged, and so is its help. */
     CHECK_HELP(f.program, NULL, tool_help);
     help_fixture_tool_free(&f);
 }
@@ -803,9 +723,9 @@ NAOS_TEST(every_text_of_the_fixtures_is_well_formed)
 }
 
 NAOS_SUITE(layout,
-    NAOS_ADD_TEST(fixture_tool_validates_ok),
-    NAOS_ADD_TEST(fixture_filt_validates_ok),
-    NAOS_ADD_TEST(fixture_bare_validates_ok),
+    NAOS_ADD_TEST(fixture_tool_builds_ok),
+    NAOS_ADD_TEST(fixture_filt_builds_ok),
+    NAOS_ADD_TEST(fixture_bare_builds_ok),
     NAOS_ADD_TEST(fixture_free_accepts_a_cleared_struct),
     NAOS_ADD_TEST(help_tool_global),
     NAOS_ADD_TEST(help_tool_root_is_the_global_help),
@@ -825,9 +745,6 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(version_line_unavailable_without_version),
     NAOS_ADD_TEST(usage_hint_without_command),
     NAOS_ADD_TEST(usage_hint_with_command),
-    NAOS_ADD_TEST(error_program_with_an_invalid_name_is_unavailable),
-    NAOS_ADD_TEST(error_program_without_a_name_is_unavailable),
-    NAOS_ADD_TEST(error_program_with_a_later_error_is_unavailable),
     NAOS_ADD_TEST(generation_is_repeatable_and_keeps_the_declaration),
     NAOS_ADD_TEST(shape_check_rejects_each_malformed_text),
     NAOS_ADD_TEST(every_text_of_the_fixtures_is_well_formed)

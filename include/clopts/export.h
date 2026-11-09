@@ -15,4 +15,15 @@
 #define CLOPTS_API
 #endif
 
+/*
+ * Placed after CLOPTS_API on functions whose return value must not be
+ * ignored (ignoring it leaks a handle or loses an object). Compilers without
+ * the attribute get nothing.
+ */
+#if defined(__GNUC__) && ((__GNUC__ > 3) || ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 4)))
+#define CLOPTS_NODISCARD __attribute__((warn_unused_result))
+#else
+#define CLOPTS_NODISCARD
+#endif
+
 #endif /* CLOPTS_EXPORT_H */
