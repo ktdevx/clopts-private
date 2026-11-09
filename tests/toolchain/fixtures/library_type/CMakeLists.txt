@@ -110,12 +110,9 @@ if(type STREQUAL "STATIC_LIBRARY")
             "library_type (${CASE}): static clopts COMPILE_DEFINITIONS is '${defs}'; "
             "expected it to contain CLOPTS_STATIC")
     endif()
-    # 12.6: with MSVC the static library must not collide with the import library.
-    if(MSVC)
-        fixture_expect("static clopts OUTPUT_NAME (MSVC)" "${output_name}" "clopts_static")
-    else()
-        fixture_expect("static clopts OUTPUT_NAME" "${output_name}" "")
-    endif()
+    # The output name is the same on every toolchain (also MSVC: clopts.lib),
+    # since a prefix holds one form only.
+    fixture_expect("static clopts OUTPUT_NAME" "${output_name}" "")
 else()
     # 15.1, 15.2: file version and SOVERSION.
     fixture_expect("shared clopts VERSION" "${version}" "${clopts_version}")

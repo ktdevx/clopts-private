@@ -100,10 +100,6 @@ function(clopts_create_library)
         # PUBLIC: both the library itself and its consumers see CLOPTS_STATIC
         # (and it is recorded in the exported target).
         target_compile_definitions(clopts PUBLIC CLOPTS_STATIC)
-        if(MSVC)
-            # Keeps clopts_static.lib apart from the shared import library clopts.lib.
-            set_target_properties(clopts PROPERTIES OUTPUT_NAME clopts_static)
-        endif()
     endif()
 
     # Unit-test link target. clopts_testing is decided by CLOPTS_BUILD_TESTING

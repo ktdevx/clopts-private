@@ -329,10 +329,10 @@ sequenceDiagram
 **Responsibilities & Constraints**
 - 3 通りの手順（4.1）。`add_subdirectory`、`FetchContent`（`GIT_TAG v<版>`、4.2）、install（`cmake --install`）→ `find_package(CLOpts <版> CONFIG REQUIRED)`。どれも `target_link_libraries(app PRIVATE CLOpts::clopts)` で終える。
 - CMake オプションの表（4.3）: `CLOPTS_BUILD_SHARED`（既定は `BUILD_SHARED_LIBS`）、`CLOPTS_BUILD_TESTING`、`CLOPTS_BUILD_EXAMPLES`、`CLOPTS_INSTALL`、`CLOPTS_WERROR`（後ろの 4 つの既定はトップレベルなら ON）。親プロジェクトからは `set(CLOPTS_BUILD_SHARED ON)` を `add_subdirectory` / `FetchContent_MakeAvailable` の前に書いて上書きする。
-- 形式の選択（4.4）: 静的版と共有版を同じ prefix に並べて install できること、`COMPONENTS static` / `COMPONENTS shared`、それがないときの `CLOPTS_SHARED_LIBS` → `BUILD_SHARED_LIBS` → install されている方、という順序、要求した形式が install されていないときに `find_package` が失敗して理由を示すこと。`cmake/CLOptsConfig.cmake.in` の挙動に合わせる。
+- 形式の選択（4.4）: install 経路では 1 つの prefix に 1 つの形式が入り、`find_package` はその形式を提供すること（`CLOpts_LIBRARY_TYPE`）、両方を使うときは別々の prefix に install して `CMAKE_PREFIX_PATH` で選ぶこと、同じ prefix に別の形式を install すると後の方で置き換わり前の形式のライブラリのファイルが残ること。`cmake/CLOptsConfig.cmake.in` の挙動に合わせる。
 - 静的と共有の選び方の目安（4.5）と、`docs/abi.md` へのリンク。
 - MSVC の CRT（4.6）: 利用側の `CMAKE_MSVC_RUNTIME_LIBRARY` を継承すること、install した静的版と利用側で CRT 種別が違えば package config が警告すること。
-- CI での検査（4.7）: `add_subdirectory` と install → `find_package` の経路が、5 環境 × 静的／共有で統合テストに通ることを示す。FetchContent は `add_subdirectory` と同じ取り込み方である（FetchContent は取得したソースを `add_subdirectory` 相当で加える）と説明する。記述例のターゲット名と `find_package` の呼び方は、`tests/integration/fixtures/consumer` と `package_select` と同じにする。
+- CI での検査（4.7）: `add_subdirectory` と install → `find_package` の経路が、5 環境 × 静的／共有で統合テストに通ることを示す。FetchContent は `add_subdirectory` と同じ取り込み方である（FetchContent は取得したソースを `add_subdirectory` 相当で加える）と説明する。記述例のターゲット名と `find_package` の呼び方は、`tests/integration/fixtures/consumer` と同じにする。
 
 #### WindowsDoc（`docs/windows.md`）
 

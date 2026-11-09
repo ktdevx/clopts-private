@@ -106,7 +106,7 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 4. The テスト基盤 shall `tests/integration/` に、Requirement 5.7 の install 経路の検証を持つ。
 5. When `ctest --test-dir build` を実行する, the テスト基盤 shall 上記の検証テストをすべて含めて実行する。
 6. The テスト基盤 shall `tests/integration/` の `add_subdirectory` 経路の検証を、そのビルドツリーの形式（静的版または共有版）で行い、利用側を模したプロジェクトが実行時まで成功することを確認する。
-7. The テスト基盤 shall 静的版と共有版を同じ prefix に install した状態で、package config が Requirement 13 の規則どおりに形式を選ぶこと（形式の指定、指定のないときの既定、両方の指定の拒否、入っていない形式の指定での失敗）を検証するテストを持つ。
+7. （削除）静的版と共有版を同じ prefix に並べて install し、package config で形式を選ぶことの検証。1 つの prefix に 1 つの形式とした（Requirement 13）ため、検証する対象がない。
 8. The テスト基盤 shall 共有版で、公開シンボルの印を付けていない内部関数を利用側から参照するとリンクに失敗すること（内部関数が共有ライブラリから見えないこと）を検証するテストを持つ。
 
 ### Requirement 7: CI ワークフロー
@@ -119,7 +119,7 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 3. If いずれかの環境・形式で構成・ビルド・テストのいずれかが失敗する, then the CI ワークフロー shall そのジョブを失敗として報告し、他のジョブは中断せず完了させる。
 4. When テストが失敗する, the CI ワークフロー shall 失敗したテストの出力をジョブログに含める。
 5. The CI ワークフロー shall リリースの処理（タグの検査、GitHub Release の作成）を含まない。
-6. The CI ワークフロー shall 少なくとも 1 つの環境で、静的版と共有版を同じ prefix に install して Requirement 6.7 の形式選択の検証を実行する。
+6. （削除）静的版と共有版を同じ prefix に install する検証の CI での実行。Requirement 6.7 を削除したため。
 
 ### Requirement 8: 書き込みコールバックと `FILE*` 用の便宜コールバック
 
@@ -180,20 +180,20 @@ CLOpts は C99 で書かれた外部依存ゼロのコマンドライン引数�
 3. When 利用側が `CLOPTS_BUILD_SHARED` をキャッシュ変数または（CLOpts を取り込む前に設定した）通常変数で指定する, the ビルド構成 shall `BUILD_SHARED_LIBS` の値にかかわらずその指定に従う。
 4. While 静的版をビルドしている, the ビルド構成 shall 利用側が自分の共有ライブラリに CLOpts を静的にリンクできるよう、位置独立コードとしてコンパイルする。
 5. While 静的版をビルドしている, the ビルド構成 shall 「静的版を使っている」ことを示すコンパイル定義を、`clopts` ターゲットとそれにリンクする利用側の両方に自動的に伝える。
-6. While MSVC で静的版をビルドしている, the ビルド構成 shall 静的ライブラリのファイル名を、共有版のインポートライブラリのファイル名と異なるものにし、両方を同じディレクトリに install しても上書きし合わないようにする。
+6. （削除）MSVC で静的版のファイル名を共有版のインポートライブラリと変えること。1 つの prefix に 1 つの形式とした（Requirement 13）ため、同じディレクトリで衝突しない。
 7. The ビルド構成 shall 形式によらず、利用側がリンクに使う名前を `CLOpts::clopts` の 1 つにする。
 
-### Requirement 13: package config での形式の選択
+### Requirement 13: install した形式の提供
 
-**Objective:** As a CLOpts をシステムにインストールして使う利用側の開発者, I want 静的版と共有版が同じ prefix に並んで入っていても、`find_package` でどちらを使うかを選べること, so that 1 つのインストール先から用途に応じた形式を使い分けられる
+**Objective:** As a CLOpts をシステムにインストールして使う利用側の開発者, I want 1 つの prefix からは、そこに install した形式の CLOpts が提供されること, so that 形式の選び方を覚えなくても、install 先を選ぶだけで使う形式が決まる
 
 #### Acceptance Criteria
-1. While install が有効である, the ビルド構成 shall 静的版と共有版のターゲット定義を別々のファイルとして install し、別々のビルドツリーから同じ prefix に install しても互いに上書きしないようにする。
-2. When 利用側が `find_package(CLOpts CONFIG COMPONENTS static)` または `COMPONENTS shared` を指定する, the package config shall 指定された形式の `CLOpts::clopts` を提供する。
-3. When 利用側が形式を指定しない, the package config shall `CLOPTS_SHARED_LIBS` が定義されていればその値、なければ `BUILD_SHARED_LIBS` の値に従って形式を選び、選んだ形式が入っていなければ入っている方の形式を提供する。
-4. If 利用側が `static` と `shared` の両方を指定する, then the package config shall 検索を失敗させ、両方は同時に使えないことを示すメッセージを出す。
-5. If 利用側が指定した形式が install されていない, then the package config shall 検索を失敗させ（`CLOpts_FOUND` を偽にし）、どの形式が見つからなかったかを示すメッセージを出す。
-6. The package config shall どちらの形式を提供したかを利用側が CMake の変数で確認できるようにする。
+1. While install が有効である, the ビルド構成 shall ターゲット定義、package config、バージョンファイルを形式によらず同じファイル名で install し、1 つの prefix には 1 つの形式だけが入るようにする（同じ prefix に別の形式を install したら、package config とターゲット定義は後から install した形式のものに置き換わる）。両方の形式を使う利用者は、別々の prefix に install する。
+2. （削除）`COMPONENTS static` / `COMPONENTS shared` による形式の指定。1 つの prefix に 1 つの形式としたため。
+3. （削除）形式を指定しないときの既定（`CLOPTS_SHARED_LIBS`、`BUILD_SHARED_LIBS`）と、入っている方への切り替え。同上。
+4. （削除）`static` と `shared` の両方を指定したときの失敗。同上。
+5. （削除）指定した形式が install されていないときの失敗。同上。
+6. The package config shall どちらの形式を提供したかを利用側が CMake の変数（`CLOpts_LIBRARY_TYPE`）で確認できるようにする。
 
 ### Requirement 14: 公開シンボルの制御
 

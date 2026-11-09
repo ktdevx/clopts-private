@@ -9,8 +9,8 @@
 #                 rules and warnings-as-errors turned off; the form comes from
 #                 CLOPTS_BUILD_SHARED (passed on the command line)
 #   PACKAGE       find_package(CLOpts ${EXPECTED_VERSION} CONFIG REQUIRED)
-#                 from the prefix run_fixture.cmake installed to; the form is
-#                 requested with CLOPTS_SHARED_LIBS (passed on the command line)
+#                 from the prefix run_fixture.cmake installed to; the prefix
+#                 holds the form of the parent build tree only
 #
 # EXPECTED_TYPE (STATIC_LIBRARY or SHARED_LIBRARY) is the form of the parent
 # build tree; CLOpts::clopts must have exactly that TYPE. For a shared

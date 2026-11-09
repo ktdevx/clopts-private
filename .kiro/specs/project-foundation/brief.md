@@ -50,9 +50,9 @@ Monde の `cmake/MondeCompilerOptions.cmake` / `MondeTargets.cmake` / `MondeNaos
 実装済みの本 spec を大きく変えることを前提に、共有ライブラリを範囲に入れる。roadmap.md の「Existing Spec Updates」と「Constraints」を正とする。要点:
 - `add_library(clopts STATIC)` の固定をやめ、`option(CLOPTS_BUILD_SHARED ... ${BUILD_SHARED_LIBS})` で型を明示的に選ぶ。`BUILD_SHARED_LIBS` は設定しない。
 - 公開ヘッダ `clopts/export.h` と `CLOPTS_API`。判定の順は `CLOPTS_STATIC` → `_WIN32 || __CYGWIN__` → `__GNUC__ >= 4`。`C_VISIBILITY_PRESET hidden`。
-- 静的版: `POSITION_INDEPENDENT_CODE ON`、INTERFACE の `CLOPTS_STATIC`、MSVC では出力名を別にする（import library との衝突を避ける）。
+- 静的版: `POSITION_INDEPENDENT_CODE ON`、INTERFACE の `CLOPTS_STATIC`。出力名はどの環境でも変えない（MSVC でも `clopts.lib`。1 つの prefix に 1 つの形式なので衝突しない）。
 - 共有版: VERSION / SOVERSION（0.x は `0.<minor>`、1.0.0 から `1`）、Windows のテストでの DLL の配置（`$<TARGET_RUNTIME_DLLS>`）。
-- install: `CLOptsStaticTargets` / `CLOptsSharedTargets` を並べて置き、`CLOptsConfig.cmake` が `COMPONENTS static|shared` → `CLOPTS_SHARED_LIBS` → `BUILD_SHARED_LIBS` → 入っている方の順で 1 つだけ選ぶ。両方を求められたら失敗させ、求められた形式がなければ `CLOpts_FOUND=FALSE` にして理由を示す。
+- install: 1 つの prefix に 1 つの形式。ターゲット定義は `CLOptsTargets.cmake` の 1 つで、`CLOptsConfig.cmake` に形式（`CLOpts_LIBRARY_TYPE`）と静的版の MSVC の CRT 種別を書き込む。`COMPONENTS` による形式の選択は持たない。両方の形式を使うときは prefix を分ける。（当初は静的版と共有版を同じ prefix に並べ、`COMPONENTS static|shared` で選ばせていたが、package config が複雑になり、pkg-config にも対応しにくいのでやめた。）
 - 書き込みコールバック: `clopts_writer_t` の値渡しと `clopts_writer_file(FILE*)` をやめ、`(clopts_write_fn, void *ctx)` を引数で渡す形にする。`FILE*` 用のコールバックは公開ヘッダの `static inline` で提供し、`FILE*` が DLL の境界を越えないようにする。
 - CI と統合テスト: 各 OS で静的・共有の両方をビルドし、install → `find_package` の利用テストも両方の形式で行う。
 - Non-Goals から「共有ライブラリとしてのビルド。`clopts` は常に STATIC」を外す。

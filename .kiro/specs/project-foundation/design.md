@@ -32,7 +32,7 @@
 - 形式を `CLOPTS_BUILD_SHARED`（既定は `BUILD_SHARED_LIBS`）で選べて、リンクする名前は常に `CLOpts::clopts`（12.1〜12.7）
 - 共有版では `CLOPTS_API` を付けた関数だけが出て、内部関数は利用側から見えない（14.1〜14.6）
 - 共有版に、プロジェクトの版から導いた VERSION / SOVERSION が付く（15.1〜15.6）
-- 静的版と共有版を同じ prefix に install でき、`find_package` で選べる（5.1〜5.7、13.1〜13.6）
+- install した形式が `find_package` でそのまま提供され、形式を `CLOpts_LIBRARY_TYPE` で確かめられる。1 つの prefix に 1 つの形式（5.1〜5.7、13.1、13.6）
 - モジュール追加とテスト登録がそれぞれ 1 つのヘルパ呼び出しで完結し、共有版でも内部関数を単体テストできる（4.1〜4.11）
 - 上記の構成要件がすべて CTest で自動検証される（6.1〜6.8）
 - 書き込みコールバックが、構造体と `FILE*` の受け渡しなしで使える（8.1〜8.8）
@@ -50,20 +50,20 @@
 ### This Spec Owns
 - **ビルド構成**
   - ルート `CMakeLists.txt` と `cmake/Clopts*.cmake` の 5 つのヘルパ（コンパイラオプション、ライブラリの作成、モジュール / テスト登録、Naos 取得、install / export）
-  - package config のテンプレート 2 つ（`CLOptsConfig.cmake.in`、`CLOptsStaticRuntime.cmake.in`）
+  - package config のテンプレート `CLOptsConfig.cmake.in`
 - **ターゲットとオプション**
   - ライブラリターゲット `clopts`（STATIC または SHARED）とエイリアス `CLOpts::clopts`
   - 共有版のビルドでテストのためだけに作る内部ターゲット `clopts_testing`（install も export もしない）
   - オプション `CLOPTS_BUILD_SHARED` / `CLOPTS_BUILD_TESTING` / `CLOPTS_INSTALL` / `CLOPTS_WERROR`
 - **契約**
   - export の契約 `CLOPTS_API` / `CLOPTS_STATIC` / `CLOPTS_BUILDING`（`include/clopts/export.h`）
-  - package config の契約: `COMPONENTS static|shared`、`CLOPTS_SHARED_LIBS`、`CLOpts_LIBRARY_TYPE`
+  - package config の契約: `CLOpts_LIBRARY_TYPE`（コンポーネントは持たない）
   - 公開契約 `clopts_write_fn` / `clopts_file_write()`（`include/clopts/writer.h`）
   - 内部契約 `core_internal.h`: `clopts_core_vec_*`、`clopts_core_size_*`、`clopts_core_write*`
   - 注記（2026-11-09）: `core_internal.h` には、確保の窓口（`clopts_core_malloc` など、`src/core/core_alloc.c`）も置いた。窓口と公開ヘッダ `include/clopts/alloc.h`（`clopts_set_allocator`）の契約は core-parser の design.md の Alloc が定める。vec の再確保と解放も、この窓口を通す
 - **ディレクトリ規約の実体**: `include/clopts/`（傘ヘッダ `clopts.h`、`export.h`、`writer.h`）、`src/<module>/`、`tests/<module>/`、`tests/toolchain/`、`tests/integration/`、`tests/cmake/`
 - **CI とリポジトリ**: `.github/workflows/ci.yml`、`.gitignore`
-- **検証テスト**: ビルド構成の検証テスト（`tests/toolchain/`、`tests/integration/`）と、その共有スクリプト（`tests/cmake/run_fixture.cmake`、`tests/cmake/run_package_selection.cmake`）
+- **検証テスト**: ビルド構成の検証テスト（`tests/toolchain/`、`tests/integration/`）と、その共有スクリプト（`tests/cmake/run_fixture.cmake`）
 - **暫定の変更（core-parser の作り直しまで）**: `include/clopts/parse.h` に `#include "clopts/export.h"` を 1 行足し、公開関数の宣言の先頭に `CLOPTS_API` を付ける。この 2 点に限る（理由は research.md の Decision「core-parser の作り直しまでの間の扱い」）。型・関数・コメントは変えない。
 
 ### Out of Boundary
@@ -99,7 +99,7 @@
 - **`clopts_add_module` / `clopts_add_module_tests` の引数形式、または「共有版の単体テストは `clopts_testing` にリンクする」方式の変更**
   - 影響: すべての `src/<module>/CMakeLists.txt` と `tests/<module>/CMakeLists.txt`
   - 影響: 単体テストが内部関数を呼べるかどうか
-- **package config の契約（`COMPONENTS static|shared`、`CLOPTS_SHARED_LIBS`、`CLOpts_LIBRARY_TYPE`）や export ファイル名の変更**
+- **package config の契約（`CLOpts_LIBRARY_TYPE`）や export ファイル名（`CLOptsTargets.cmake`）の変更**
   - 影響: docs-and-release の取り込み手順と利用側テスト
 - **SOVERSION の規則（`0.<minor>` / major）の変更**: abi-compat の ABI 方針と abidiff の基準、docs-and-release のリリース手順
 - **CTest のラベルやテスト名の形式（`<module>_tests.<suite>.<test>`）の変更**: `tests/docs/`、abi-compat のテスト、CI の `-L` 指定
@@ -116,7 +116,7 @@
 
 この上に足すものは 3 つある。
 1. **形式の選択**: 新しいヘルパ `CloptsLibrary.cmake` に集約する。
-2. **形式ごとの install / config**: `CloptsInstall.cmake` を作り直す。
+2. **install / config**: `CloptsInstall.cmake` を作り直す（1 つの prefix に 1 つの形式）。
 3. **共有版での単体テスト**: `clopts_testing` を新設する。
 
 ### Architecture Pattern & Boundary Map
@@ -183,7 +183,6 @@ graph TB
 - **New components rationale**:
   - `CloptsLibrary.cmake`: 形式の選択と形式ごとのプロパティを、ルートから外して 1 か所にする。
   - `export.h`: 公開ヘッダの共通の印。
-  - `run_package_selection.cmake`: 2 つの形式を並べて install し、選択を検証するための専用スクリプト。
 - **Steering compliance**:
   - グローバル設定なし（2.1〜2.2）
   - `PROJECT_IS_TOP_LEVEL` を既定にしたオプション（2.5〜2.7）
@@ -209,12 +208,11 @@ graph TB
 CMakeLists.txt                          # project(clopts VERSION 0.1.0 LANGUAGES C)、オプション 4 つ、ヘルパの include、clopts_create_library()、add_subdirectory(src)、テストと install の条件付き有効化
 cmake/
 ├── CloptsCompilerOptions.cmake         # （変更なし）clopts_apply_compiler_options(<target>)
-├── CloptsLibrary.cmake                 # 新規: clopts_create_library(): 形式の決定、clopts と CLOpts::clopts、形式ごとのプロパティ（PIC、CLOPTS_STATIC、OUTPUT_NAME、visibility、DEFINE_SYMBOL、VERSION/SOVERSION）、共有版のビルドでの clopts_testing
+├── CloptsLibrary.cmake                 # 新規: clopts_create_library(): 形式の決定、clopts と CLOpts::clopts、形式ごとのプロパティ（PIC、CLOPTS_STATIC、visibility、DEFINE_SYMBOL、VERSION/SOVERSION）、共有版のビルドでの clopts_testing
 ├── CloptsModules.cmake                 # 変更: clopts_add_module は clopts と clopts_testing（あれば）の両方にソースを足す。clopts_add_module_tests はリンク先を選ぶ
 ├── CloptsNaos.cmake                    # （変更なし）clopts_fetch_naos()
-├── CloptsInstall.cmake                 # 変更: 形式ごとの export セット、LIBRARY/RUNTIME の行き先、静的版の CRT 記録ファイル、版の互換規則
-├── CLOptsConfig.cmake.in               # 作り直し: 形式の選択（COMPONENTS / CLOPTS_SHARED_LIBS / BUILD_SHARED_LIBS / 入っている方）、CLOpts_LIBRARY_TYPE、静的版の CRT 警告
-└── CLOptsStaticRuntime.cmake.in        # 新規: 静的版のビルド時の MSVC CRT 種別を記録する断片（静的版の install でのみ置かれる）
+├── CloptsInstall.cmake                 # 変更: 1 つの export セット（CLOptsTargets）、LIBRARY/RUNTIME の行き先、形式と静的版の CRT 種別を config に書き込む、版の互換規則
+└── CLOptsConfig.cmake.in               # 作り直し: CLOptsTargets.cmake を読み込み、書き込まれた形式を CLOpts_LIBRARY_TYPE に、静的版なら CRT の不一致を警告
 include/clopts/
 ├── clopts.h                            # （変更なし）傘ヘッダ。decl.h / parse.h / writer.h を include
 ├── export.h                            # 新規: CLOPTS_API の定義
@@ -232,8 +230,7 @@ src/
 tests/
 ├── CMakeLists.txt                      # （変更なし）
 ├── cmake/
-│   ├── run_fixture.cmake               # 変更: EXPECT=configure_fail、FAIL_REGEX、run_ok の実行ファイル探索で .dll / .so / .dylib を除外
-│   └── run_package_selection.cmake     # 新規: 静的版と共有版を構成・ビルドして同じ prefix に install し、package_select fixture を複数の条件で構成して選択結果を照合
+│   └── run_fixture.cmake               # 変更: EXPECT=configure_fail、FAIL_REGEX、run_ok の実行ファイル探索で .dll / .so / .dylib を除外
 ├── core/
 │   ├── CMakeLists.txt                  # （変更なし）
 │   ├── core_tests_main.c               # （変更なし）
@@ -248,17 +245,15 @@ tests/
 │       ├── warning/{CMakeLists.txt,warning.c} # （変更なし）
 │       └── vla/{CMakeLists.txt,vla.c}         # （変更なし）
 └── integration/
-    ├── CMakeLists.txt                  # 変更: 形式を fixture に渡す。internal_hidden（共有版のみ）と package_selection（install 有効時）を追加
+    ├── CMakeLists.txt                  # 変更: 形式を fixture に渡す。internal_hidden（共有版のみ）を追加
     └── fixtures/
         ├── consumer/
         │   ├── CMakeLists.txt          # 変更: C と C++ を有効化、形式の照合、Windows の共有版で DLL を実行ファイルの横へコピー
         │   ├── main.c                  # 変更: clopts_file_write で 1 行書く
         │   └── consumer_cpp.cpp        # 新規: C++ から <clopts/clopts.h> を include し clopts_file_write を使う
-        ├── internal_symbol/
-        │   ├── CMakeLists.txt          # 新規: CLOpts を add_subdirectory し、内部関数を参照する実行ファイルを作る（リンク失敗が期待値）
-        │   └── main.c                  # 新規: clopts_core_size_mul を extern 宣言して呼ぶ
-        └── package_select/
-            └── CMakeLists.txt          # 新規: find_package(CLOpts CONFIG ${SELECT_ARGS}) の結果（CLOpts_LIBRARY_TYPE と CLOpts::clopts の TYPE）を EXPECTED_TYPE と照合
+        └── internal_symbol/
+            ├── CMakeLists.txt          # 新規: CLOpts を add_subdirectory し、内部関数を参照する実行ファイルを作る（リンク失敗が期待値）
+            └── main.c                  # 新規: clopts_core_size_mul を extern 宣言して呼ぶ
 .github/workflows/
 └── ci.yml                              # 変更: toolchain × library（static / shared）の 10 ジョブ
 .gitignore                              # （変更なし）
@@ -277,7 +272,7 @@ tests/
 - `tests/cmake/run_fixture.cmake`（6.6〜6.8）
 - `tests/toolchain/CMakeLists.txt`、`tests/toolchain/fixtures/no_global_state/CMakeLists.txt`（2.1、6.1、12.x、15.x）
 - `tests/integration/CMakeLists.txt`、`tests/integration/fixtures/consumer/*`（5.7、6.3、6.6、14.3、14.6）
-- `.github/workflows/ci.yml`（1.6、7.1〜7.6）
+- `.github/workflows/ci.yml`（1.6、7.1〜7.5）
 
 ## System Flows
 
@@ -290,7 +285,7 @@ flowchart TD
     Guard -- いいえ --> Options[オプション定義 CLOPTS_BUILD_SHARED の既定は BUILD_SHARED_LIBS 他は PROJECT_IS_TOP_LEVEL]
     Options --> Create[clopts_create_library]
     Create --> Type{CLOPTS_BUILD_SHARED}
-    Type -- OFF --> Static[clopts STATIC PIC CLOPTS_STATIC INTERFACE MSVC は OUTPUT_NAME clopts_static]
+    Type -- OFF --> Static[clopts STATIC PIC CLOPTS_STATIC INTERFACE]
     Type -- ON --> Shared[clopts SHARED DEFINE_SYMBOL CLOPTS_BUILDING visibility hidden VERSION SOVERSION]
     Shared --> TestingQ{CLOPTS_BUILD_TESTING}
     TestingQ -- ON --> Testing[clopts_testing STATIC CLOPTS_STATIC PUBLIC]
@@ -314,32 +309,21 @@ flowchart TD
 - `option()` が既定値を決めるのは、最初の構成のときだけである。後から `BUILD_SHARED_LIBS` を変えても、`CLOPTS_BUILD_SHARED` は変わらない（研究の注意点。docs-and-release で文書化）。
 - `clopts_testing` を作るかどうかは、`CLOPTS_BUILD_TESTING` だけで決める（`BUILD_TESTING` は `include(CTest)` の後でしか分からないため）。`EXCLUDE_FROM_ALL` にして、テストが無効なら作られないようにする。
 
-### package config での形式の選択（13.2〜13.6）
+### package config の読み込み（13.1、13.6）
 
 ```mermaid
 flowchart TD
-    Begin[find_package CLOpts CONFIG] --> Comp{COMPONENTS の指定}
-    Comp -- static と shared の両方 --> FailBoth[CLOpts_FOUND FALSE 両方は使えない]
-    Comp -- 未知の名前 --> FailUnknown[CLOpts_FOUND FALSE 未知のコンポーネント]
-    Comp -- 1 つ --> Want[その形式]
-    Comp -- なし --> Pref{CLOPTS_SHARED_LIBS が定義済みか}
-    Pref -- はい --> PrefVal[その値で形式を決める]
-    Pref -- いいえ --> PrefBSL[BUILD_SHARED_LIBS の値で決める 未定義は static]
-    Want --> Exists{その形式のターゲット定義が入っているか}
-    Exists -- いいえ --> FailMissing[CLOpts_FOUND FALSE どの形式がないかを示す]
-    PrefVal --> Exists2{入っているか}
-    PrefBSL --> Exists2
-    Exists2 -- いいえ --> Other[入っている方の形式]
-    Exists2 -- はい --> Load
-    Exists -- はい --> Load[ターゲット定義を include]
-    Other --> Load
-    Load --> Runtime{静的版か}
-    Runtime -- はい --> CRT[CRT 記録を読み MSVC の不一致を警告]
-    Runtime -- いいえ --> Vars
-    CRT --> Vars[CLOpts_LIBRARY_TYPE を設定 check_required_components]
+    Begin[find_package CLOpts CONFIG] --> Loaded{TARGET CLOpts::clopts があるか}
+    Loaded -- いいえ --> Load[CLOptsTargets.cmake を include]
+    Loaded -- はい --> Type
+    Load --> Type[書き込まれた形式を CLOpts_LIBRARY_TYPE に設定]
+    Type --> Runtime{静的版か}
+    Runtime -- はい --> CRT[書き込まれた CRT 種別と比べ MSVC の不一致を警告]
+    Runtime -- いいえ --> Check
+    CRT --> Check[check_required_components]
 ```
 
-- 両方の形式が入っていないとき（config だけが残っている壊れた install）は、`CLOpts_FOUND` を偽にする。
+- 形式は install した時点で決まっており、config は選ばない。コンポーネントは定義しないので、必須のコンポーネントを指定されたら `check_required_components` が検索を失敗させる。
 
 ### install 経路の検証フロー（共有版、Windows）
 
@@ -391,10 +375,10 @@ sequenceDiagram
 | 4.11 | 共有版でも内部関数を単体テスト | LibraryHelper, ModulesHelper | `clopts_testing`、`CLOPTS_TEST_LINK_TARGET` | 構成フロー |
 | 5.1 | install の内容（実行時ファイル、インポートライブラリ） | InstallHelper | `clopts_install` | — |
 | 5.2 | 内部ヘッダを install しない | InstallHelper | — | — |
-| 5.3 | config がターゲット・include・C99 を提供 | InstallHelper, PackageConfig | `CLOptsConfig.cmake.in` | 形式の選択 |
+| 5.3 | config がターゲット・include・C99 を提供 | InstallHelper, PackageConfig | `CLOptsConfig.cmake.in` | config の読み込み |
 | 5.4 | 版の互換規則 | LibraryHelper, InstallHelper | `CLOPTS_VERSION_COMPATIBILITY` | — |
 | 5.5 | `ARCH_INDEPENDENT` なし | InstallHelper | — | — |
-| 5.6 | 静的版の CRT 記録と警告 | InstallHelper, PackageConfig | `CLOptsStaticRuntime.cmake.in` | 形式の選択 |
+| 5.6 | 静的版の CRT 記録と警告 | InstallHelper, PackageConfig | `CLOptsConfig.cmake.in` | config の読み込み |
 | 5.7 | install → find_package → ビルド・実行（ビルドツリーの形式で） | IntegrationTests, RunFixture | `run_fixture.cmake` | install 検証フロー |
 | 6.1 | グローバル状態なしの検証 | ToolchainTests | fixtures/no_global_state | — |
 | 6.2 | 警告・VLA でビルド失敗の検証 | ToolchainTests | fixtures/warning, fixtures/vla | — |
@@ -402,10 +386,8 @@ sequenceDiagram
 | 6.4 | install 経路の検証 | IntegrationTests | — | install 検証フロー |
 | 6.5 | `ctest` にすべて含まれる | ToolchainTests, IntegrationTests | — | — |
 | 6.6 | add_subdirectory 経路を形式ごとに実行まで | IntegrationTests, RunFixture | fixtures/consumer | — |
-| 6.7 | 並存 install と形式選択の検証 | PackageSelectionTest | `run_package_selection.cmake`、fixtures/package_select | 形式の選択 |
 | 6.8 | 内部関数でリンク失敗（共有版） | IntegrationTests, RunFixture | fixtures/internal_symbol、`FAIL_REGEX` | — |
 | 7.1, 7.2, 7.3, 7.4, 7.5 | CI マトリクス、`-Werror`、独立失敗、出力、リリースなし | CIWorkflow | `ci.yml` | — |
-| 7.6 | 並存 install の検証を少なくとも 1 環境で | CIWorkflow, PackageSelectionTest | — | 形式の選択 |
 | 8.1 | コールバック型 | PublicHeaders | `clopts_write_fn` | — |
 | 8.2 | 組にした構造体を定義しない | PublicHeaders, CoreWriter | `clopts_core_write(fn, ctx, ...)` | — |
 | 8.3, 8.4 | `FILE*` 用の既製コールバック（利用側でコンパイル） | PublicHeaders | `clopts_file_write` | — |
@@ -421,14 +403,9 @@ sequenceDiagram
 | 12.3 | 利用側の指定が優先 | RootCMake, ToolchainTests | — | 構成フロー |
 | 12.4 | 静的版は PIC | LibraryHelper, ToolchainTests | — | — |
 | 12.5 | 静的版の定義を伝える | LibraryHelper, PublicHeaders, ToolchainTests | `CLOPTS_STATIC` | — |
-| 12.6 | MSVC の静的版のファイル名 | LibraryHelper, ToolchainTests, PackageSelectionTest | `OUTPUT_NAME clopts_static` | — |
 | 12.7 | リンク名は `CLOpts::clopts` のみ | LibraryHelper, PackageConfig | — | — |
-| 13.1 | 形式ごとのターゲット定義ファイル | InstallHelper | `CLOptsStaticTargets.cmake` / `CLOptsSharedTargets.cmake` | — |
-| 13.2 | COMPONENTS で選ぶ | PackageConfig, PackageSelectionTest | `COMPONENTS static|shared` | 形式の選択 |
-| 13.3 | 指定なしの既定と代替 | PackageConfig, PackageSelectionTest | `CLOPTS_SHARED_LIBS` | 形式の選択 |
-| 13.4 | 両方の指定を拒否 | PackageConfig, PackageSelectionTest | — | 形式の選択 |
-| 13.5 | 入っていない形式の指定で失敗 | PackageConfig, PackageSelectionTest | `CLOpts_NOT_FOUND_MESSAGE` | 形式の選択 |
-| 13.6 | 選んだ形式を変数で知らせる | PackageConfig | `CLOpts_LIBRARY_TYPE` | 形式の選択 |
+| 13.1 | 1 つの prefix に 1 つの形式（形式によらない同じファイル名） | InstallHelper | `CLOptsTargets.cmake` | config の読み込み |
+| 13.6 | 提供した形式を変数で知らせる | PackageConfig | `CLOpts_LIBRARY_TYPE` | config の読み込み |
 | 14.1 | export マクロの切り替え | PublicHeaders, LibraryHelper | `CLOPTS_API` | — |
 | 14.2 | 印のある関数だけを出す | LibraryHelper, IntegrationTests | `C_VISIBILITY_PRESET`、dllexport | — |
 | 14.3 | Windows の利用側は自動で取り込み | PublicHeaders, IntegrationTests | `CLOPTS_API` | install 検証フロー |
@@ -445,20 +422,19 @@ sequenceDiagram
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | RootCMake | ビルド構成 | オプションと条件付き有効化の入口 | 1.1, 1.5, 1.7, 2.1, 2.5, 2.6, 2.7, 2.8, 2.10, 12.2, 12.3 | LibraryHelper (P0), ModulesHelper (P0), NaosHelper (P1), InstallHelper (P1) | Service |
 | CompilerOptions | ビルド構成 | コンパイラ別フラグをターゲット単位に適用（変更なし） | 2.3, 2.4, 2.9, 3.1〜3.7 | — | Service |
-| LibraryHelper | ビルド構成 | 形式の決定、`clopts` / `clopts_testing` の作成と形式ごとのプロパティ、版 | 1.1〜1.5, 4.11, 5.4, 12.1, 12.4〜12.7, 14.1, 14.2, 15.1〜15.4, 15.6 | CompilerOptions (P0) | Service |
+| LibraryHelper | ビルド構成 | 形式の決定、`clopts` / `clopts_testing` の作成と形式ごとのプロパティ、版 | 1.1〜1.5, 4.11, 5.4, 12.1, 12.4, 12.5, 12.7, 14.1, 14.2, 15.1〜15.4, 15.6 | CompilerOptions (P0) | Service |
 | ModulesHelper | ビルド構成 | モジュール追加とテスト登録 | 1.4, 4.1〜4.5, 4.8, 4.10, 4.11 | LibraryHelper (P0), CompilerOptions (P0), Naos (P0, テスト時) | Service |
 | NaosHelper | ビルド構成 | Naos の固定取得と版照合（変更なし） | 2.10, 4.6, 4.7 | FetchContent (P0) | Service |
-| InstallHelper / PackageConfig | 配布 | 形式ごとの install / export、config での選択、版の互換、CRT 記録 | 5.1〜5.6, 13.1〜13.6, 15.5 | LibraryHelper (P0), CMakePackageConfigHelpers (P0) | Service |
+| InstallHelper / PackageConfig | 配布 | install / export、install した形式を提供する config、版の互換、CRT 記録 | 5.1〜5.6, 13.1, 13.6, 15.5 | LibraryHelper (P0), CMakePackageConfigHelpers (P0) | Service |
 | PublicHeaders | 公開 API | `export.h`、`writer.h`、傘ヘッダ、`parse.h` の暫定の印 | 1.2, 1.3, 8.1〜8.4, 8.6, 8.7, 12.5, 14.1, 14.3〜14.6 | — | Service（C） |
 | CoreWriter | 内部ユーティリティ | コールバックを介して書く内部ヘルパ | 8.2, 8.5, 8.6, 9.8 | PublicHeaders (P0) | Service |
 | CoreVec | 内部ユーティリティ | 可変長配列（変更なし） | 9.1〜9.5, 9.7, 9.8 | CoreSize (P0) | Service |
 | CoreSize | 内部ユーティリティ | サイズ計算の検査（変更なし） | 9.6, 9.8 | — | Service |
 | CoreTests | テスト | `tests/core/` の Naos テスト | 8.7, 8.8, 9.9, 11.1〜11.6 | Naos (P0), ModulesHelper (P0) | — |
 | RunFixture | テスト基盤 | 子 CMake 項目の構成・ビルド・実行・判定 | 5.7, 6.1〜6.4, 6.6, 6.8 | CMake CLI (P0) | Batch |
-| PackageSelectionTest | テスト基盤 | 2 つの形式を並べて install し、選択を検証 | 6.7, 7.6, 12.6, 13.2〜13.5 | CMake CLI (P0), InstallHelper (P0) | Batch |
-| ToolchainTests | テスト | 構成要件の検証 | 2.1, 2.2, 2.9, 3.7, 4.9, 6.1, 6.2, 12.2〜12.6, 15.1〜15.4 | RunFixture (P0) | — |
+| ToolchainTests | テスト | 構成要件の検証 | 2.1, 2.2, 2.9, 3.7, 4.9, 6.1, 6.2, 12.2〜12.5, 15.1〜15.4 | RunFixture (P0) | — |
 | IntegrationTests | テスト | add_subdirectory / install 経路、内部関数の非公開、C++ | 2.4, 4.9, 4.10, 5.7, 6.3, 6.4, 6.6, 6.8, 14.2, 14.3, 14.6 | RunFixture (P0), InstallHelper (P1) | — |
-| CIWorkflow | CI | 5 環境 × 2 形式 | 1.6, 4.5, 7.1〜7.6, 14.4 | GitHub Actions (P0), msys2/setup-msys2 (P0) | Batch |
+| CIWorkflow | CI | 5 環境 × 2 形式 | 1.6, 4.5, 7.1〜7.5, 14.4 | GitHub Actions (P0), msys2/setup-msys2 (P0) | Batch |
 | GitIgnore | リポジトリ | 生成物の除外（変更なし） | 10.1, 10.2 | — | — |
 
 ### ビルド構成
@@ -496,7 +472,7 @@ sequenceDiagram
 | Field | Detail |
 |-------|--------|
 | Intent | `cmake/CloptsLibrary.cmake` の `clopts_create_library()` で、形式を 1 つ決めてターゲットを作り、形式ごとのプロパティを付ける |
-| Requirements | 1.1, 1.2, 1.3, 1.4, 1.5, 4.11, 5.4, 12.1, 12.4, 12.5, 12.6, 12.7, 14.1, 14.2, 15.1, 15.2, 15.3, 15.4, 15.6 |
+| Requirements | 1.1, 1.2, 1.3, 1.4, 1.5, 4.11, 5.4, 12.1, 12.4, 12.5, 12.7, 14.1, 14.2, 15.1, 15.2, 15.3, 15.4, 15.6 |
 
 **Responsibilities & Constraints**
 - **版の計算**（15.2〜15.4、5.4）。親スコープに `CLOPTS_SOVERSION` と `CLOPTS_VERSION_COMPATIBILITY` を設定する（ディレクトリスコープの通常変数。キャッシュには入れない）。
@@ -510,7 +486,7 @@ sequenceDiagram
 - **静的版**
   - `POSITION_INDEPENDENT_CODE ON`（12.4）
   - `target_compile_definitions(clopts PUBLIC CLOPTS_STATIC)`（12.5。PUBLIC なので、ライブラリ自身にも利用側にも伝わり、`install(EXPORT)` にも載る）
-  - `if(MSVC)` のときは `OUTPUT_NAME clopts_static`（12.6）
+  - `OUTPUT_NAME` は付けない。MSVC でも静的ライブラリは `clopts.lib` になる（1 つの prefix に 1 つの形式なので、インポートライブラリと同じディレクトリに並ばない）
 - **共有版**
   - `DEFINE_SYMBOL CLOPTS_BUILDING`（ライブラリ自身のコンパイルにだけ付く）
   - `if(NOT WIN32)` のときは `C_VISIBILITY_PRESET hidden`（14.2）。PE では visibility は効かず、GCC が `-Wattributes` を出す恐れがあるので付けない。PE で export を絞るのは、dllexport の印である。
@@ -577,53 +553,40 @@ clopts_add_module_tests(<module> SOURCES <file>...)
 
 | Field | Detail |
 |-------|--------|
-| Intent | `clopts_install()` で、形式ごとの install 規則、export、config、version file を生成する。config は形式を 1 つ選んで読み込む |
-| Requirements | 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 15.5 |
+| Intent | `clopts_install()` で、install 規則、export、config、version file を生成する。config は、install した形式のターゲット定義を読み込む |
+| Requirements | 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 13.1, 13.6, 15.5 |
 
 **Responsibilities & Constraints**
-- **形式名**: `get_target_property(type clopts TYPE)` で、`Static` か `Shared` を得る（以下 `<Kind>`）。
-- **ターゲットの install**: `install(TARGETS clopts EXPORT CLOpts<Kind>Targets ...)` で、行き先を次のようにする。
+- **形式**: `get_target_property(type clopts TYPE)` から、`STATIC` か `SHARED` を得て config に書き込む。
+- **ターゲットの install**: `install(TARGETS clopts EXPORT CLOptsTargets ...)` で、行き先を次のようにする。
   - `ARCHIVE` → `${CMAKE_INSTALL_LIBDIR}`
   - `LIBRARY` → `${CMAKE_INSTALL_LIBDIR}`（版付きファイルと namelink。15.5）
   - `RUNTIME` → `${CMAKE_INSTALL_BINDIR}`（DLL）
 - **ヘッダ**: `install(DIRECTORY include/clopts ...)` は初版のまま。`src/` は install しない（5.2）。
-- **ターゲット定義のファイル**（13.1）: `install(EXPORT CLOpts<Kind>Targets NAMESPACE CLOpts:: FILE CLOpts<Kind>Targets.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CLOpts)`。
-- **静的版の CRT 記録**（5.6）
-  - 静的版だけが、`configure_file(cmake/CLOptsStaticRuntime.cmake.in <build>/CLOptsStaticRuntime.cmake @ONLY)` を生成して install する。
-  - 記録する値は、MSVC なら `CMAKE_MSVC_RUNTIME_LIBRARY`、それ以外は空。
+- **ターゲット定義のファイル**（13.1）: `install(EXPORT CLOptsTargets NAMESPACE CLOpts:: FILE CLOptsTargets.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CLOpts)`。
+- **静的版の CRT 記録**（5.6）: 静的版で MSVC なら `CMAKE_MSVC_RUNTIME_LIBRARY`、それ以外は空の文字列を、config に書き込む。別のファイルにはしない（同じ prefix に別の形式を上書き install したとき、古い記録だけが残らないように）。
 - **version file**（5.4、5.5）: `write_basic_package_version_file(... VERSION ${PROJECT_VERSION} COMPATIBILITY ${CLOPTS_VERSION_COMPATIBILITY})`。`ARCH_INDEPENDENT` は付けない。
-- **config の生成**: `configure_package_config_file(cmake/CLOptsConfig.cmake.in ...)`。config は形式によらず**同じ内容**にする（並存 install でどちらのビルドが後から上書きしても同じになるように）。
-- **制約**: 同じ prefix に並べる 2 つの形式は、同じ版のソースからビルドする。version file と config を共有するためである。docs-and-release が文書化する。
+- **config の生成**: `configure_package_config_file(cmake/CLOptsConfig.cmake.in ...)`（`@ONLY` で、形式と CRT 種別を埋め込む）。
+- **1 つの prefix に 1 つの形式**（13.1）: package の 3 つのファイルは、形式によらず同じ名前である。同じ prefix に別の形式を install すると、3 つとも後から install した形式のものに置き換わり、一貫した状態になる。前の形式のライブラリのファイルは残るが、ターゲット定義からは参照されない。検出も警告もしない。docs-and-release が文書化する。
 
 **Contracts**: Service [x]
 
 ##### Service Interface（CMake、`CLOptsConfig.cmake.in` の振る舞い）
-- **入力**
-  - `CLOpts_FIND_COMPONENTS`、`CLOpts_FIND_REQUIRED_<c>`
-  - 利用側の `CLOPTS_SHARED_LIBS`（定義されていれば優先）、`BUILD_SHARED_LIBS`
-  - config と同じディレクトリにある `CLOptsStaticTargets.cmake` / `CLOptsSharedTargets.cmake` の存在
+- **入力**: 書き込まれた形式と CRT 種別、利用側の `CMAKE_MSVC_RUNTIME_LIBRARY`
 - **規則**
-  1. コンポーネントは `static` / `shared` だけを受け付ける。未知の名前が必須なら失敗する（メッセージ: `unknown component`）。
-  2. `static` と `shared` の両方が指定されたら失敗する（13.4。メッセージで両方は同時に使えないことを示す）。
-  3. 1 つだけ指定されたら、その形式にする。その形式のファイルがなければ失敗する（13.5。メッセージで欠けている形式名を示す）。
-  4. 指定がなければ、`CLOPTS_SHARED_LIBS` が定義されていればその真偽、なければ `BUILD_SHARED_LIBS` の真偽（未定義は偽）で形式を選ぶ。そのファイルがなければ、入っている方にする。両方なければ失敗する（13.3）。
-  5. 失敗は、`set(CLOpts_FOUND FALSE)` と `set(CLOpts_NOT_FOUND_MESSAGE "...")` を設定して `return()` で表す。
+  1. `if(NOT TARGET CLOpts::clopts)` のときだけ、`CLOptsTargets.cmake` を include する。
+  2. コンポーネントは定義しない。必須のコンポーネントを指定されたら、`check_required_components` が検索を失敗させる。
 - **事後条件（成功時）**
   - `CLOpts::clopts` が IMPORTED ターゲットとして存在する。
   - `CLOpts_LIBRARY_TYPE` が `STATIC` または `SHARED`（13.6）。
-  - `CLOpts_static_FOUND` / `CLOpts_shared_FOUND` のうち、選んだ方が真。
   - `check_required_components(CLOpts)` を最後に呼ぶ。
   - `INTERFACE_INCLUDE_DIRECTORIES` に `<prefix>/include`、`INTERFACE_COMPILE_FEATURES` に `c_std_99` がある。静的版なら `INTERFACE_COMPILE_DEFINITIONS` に `CLOPTS_STATIC` がある（5.3、12.5）。
-- **CRT の警告**: 静的版を選んだときだけ、`CLOptsStaticRuntime.cmake` を include する。初版と同じ条件で `message(WARNING)` を出す。
-- **二重読み込み**: `if(NOT TARGET CLOpts::clopts)` のときだけ、ターゲット定義を include する。2 回目の `find_package` で別の形式を求められたら、既にある形式と比べ、違えば失敗にする。
+- **CRT の警告**: 静的版のときだけ、初版と同じ条件で `message(WARNING)` を出す。
 
 **Implementation Notes**
 - **Validation**
-  - 形式の選択: `tests/integration` の `package_selection`（PackageSelectionTest）
-  - ビルドツリーの形式での install 経路: `install_find_package`
-- **Risks**: `check_required_components` は、`CLOpts_<c>_FOUND` が設定されていない必須コンポーネントを失敗にする。規則 1〜3 で先に `return()` するので、二重のメッセージにはならない。
-
-### 公開 API と内部ユーティリティ（C）
+  - install 経路: `install_find_package`（ビルドツリーの形式を install し、`CLOpts_LIBRARY_TYPE` と `CLOpts::clopts` の `TYPE` を照合する）
+- **Design Decision（2026-11-09）**: 当初は静的版と共有版を同じ prefix に並べて install でき、`COMPONENTS static|shared` → `CLOPTS_SHARED_LIBS` → `BUILD_SHARED_LIBS` → 入っている方、の順で config が形式を選んでいた（形式ごとの `CLOptsStaticTargets.cmake` / `CLOptsSharedTargets.cmake`、静的版だけが置く `CLOptsStaticRuntime.cmake`、MSVC の `OUTPUT_NAME clopts_static`、検証の `integration.package_selection`）。config の大半が形式の選択になり、pkg-config に対応するときにも `.pc` を形式ごとに分ける必要が出る（`--static` では `Cflags` の `-DCLOPTS_STATIC` を切り替えられない）。並存を必要とする利用者は具体的に想定されず、両方を使うなら prefix を分ければ足りるので、1 つの prefix に 1 つの形式とした。
 
 #### PublicHeaders
 
@@ -762,49 +725,12 @@ int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
 - **`run_ok`**: 実行ファイルを探すとき、`\.(dll|so|dylib)` で終わるファイルと版付きの `\.so\.[0-9.]+$` も除外する（Windows の共有版で、DLL が `bin` にコピーされるため）。
 - その他（`MODE=install_find_package`、引き継ぐ変数、`WORK_DIR` の作り直し）は初版のまま。
 
-#### PackageSelectionTest
-
-| Field | Detail |
-|-------|--------|
-| Intent | `tests/cmake/run_package_selection.cmake` と `fixtures/package_select/`: 2 つの形式を同じ prefix に install し、`find_package` の選択規則を検証する |
-| Requirements | 6.7, 7.6, 12.6, 13.2, 13.3, 13.4, 13.5 |
-
-**Contracts**: Batch [x]
-
-##### Batch / Job Contract
-- **Trigger**: `integration.package_selection`（ラベル `integration`）。`CLOPTS_INSTALL` が ON のときだけ登録する。
-- **入力**: `CLOPTS_SOURCE_DIR`、`WORK_DIR`、`GENERATOR`、`GENERATOR_PLATFORM`、`C_COMPILER`、`CONFIG`
-- **処理**
-  1. CLOpts を `-DCLOPTS_BUILD_SHARED=OFF -DCLOPTS_BUILD_TESTING=OFF -DCLOPTS_INSTALL=ON` で構成・ビルドする。`prefix_both` と `prefix_static` に install する。
-  2. 同じく `-DCLOPTS_BUILD_SHARED=ON` で構成・ビルドする。`prefix_both` に install する。MSVC では `clopts_static.lib` と `clopts.lib` が並ぶことを確認する（12.6）。
-  3. `fixtures/package_select` を、次の表の条件で**構成だけ**行い（ビルドしない）、期待と照合する。
-
-| ケース | prefix | 引数 | 期待 |
-|--------|--------|------|------|
-| static_component | both | `COMPONENTS static` | STATIC |
-| shared_component | both | `COMPONENTS shared` | SHARED |
-| prefer_clopts_var | both | `-DCLOPTS_SHARED_LIBS=ON` | SHARED |
-| prefer_build_shared | both | `-DBUILD_SHARED_LIBS=ON` | SHARED |
-| default_static | both | なし | STATIC |
-| both_components | both | `COMPONENTS static shared` | 構成失敗（メッセージに `static` と `shared`） |
-| missing_shared | static | `COMPONENTS shared` | 構成失敗（メッセージに `shared`） |
-| fallback | static | `-DCLOPTS_SHARED_LIBS=ON` | STATIC |
-
-- **fixture**: `find_package(CLOpts CONFIG REQUIRED ${SELECT_ARGS})` の後、`CLOpts_LIBRARY_TYPE` と、`CLOpts::clopts` の `TYPE`（`STATIC_LIBRARY` / `SHARED_LIBRARY`）が `EXPECTED_TYPE` と一致しなければ `FATAL_ERROR` にする。
-- **出力**: 失敗したケース名と、子プロセスの出力を転記して `FATAL_ERROR` にする。
-- **冪等性**: `WORK_DIR` を毎回作り直す。
-
-**Implementation Notes**
-- **Risks**
-  - CLOpts を 2 回ビルドし、8 回構成するので、Windows（Visual Studio ジェネレータ）では数十秒〜1 分程度かかる。CI の実行時間に収まる範囲として受け入れ、全環境で走らせる（7.6 は「少なくとも 1 環境」なので、時間が問題になれば 1 環境に絞れる）。
-  - MinGW と Ninja の組み合わせも、同じスクリプトで動く。
-
 #### ToolchainTests
 
 | Field | Detail |
 |-------|--------|
 | Intent | `tests/toolchain/` のテスト（ラベル `toolchain`） |
-| Requirements | 2.1, 2.2, 2.9, 3.7, 4.9, 6.1, 6.2, 12.2, 12.3, 12.4, 12.5, 12.6, 15.1, 15.2, 15.3, 15.4 |
+| Requirements | 2.1, 2.2, 2.9, 3.7, 4.9, 6.1, 6.2, 12.2, 12.3, 12.4, 12.5, 15.1, 15.2, 15.3, 15.4 |
 
 **Responsibilities & Constraints**
 - **`toolchain.no_global_state`（変更）**
@@ -820,7 +746,7 @@ int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
 | override | `set(BUILD_SHARED_LIBS ON)` と `set(CLOPTS_BUILD_SHARED OFF)` | STATIC_LIBRARY |
 
 - 型ごとの検査
-  - STATIC: `POSITION_INDEPENDENT_CODE` が真（12.4）、`INTERFACE_COMPILE_DEFINITIONS` が `CLOPTS_STATIC`（12.5）、MSVC なら `OUTPUT_NAME` が `clopts_static`（12.6）
+  - STATIC: `POSITION_INDEPENDENT_CODE` が真（12.4）、`INTERFACE_COMPILE_DEFINITIONS` が `CLOPTS_STATIC`（12.5）、`OUTPUT_NAME` が空（MSVC を含む）
   - SHARED: `VERSION` が `PROJECT_VERSION` と一致、`SOVERSION` が規則どおり（0.x なら `0.<minor>`）、`DEFINE_SYMBOL` が `CLOPTS_BUILDING`、WIN32 以外なら `C_VISIBILITY_PRESET` が `hidden`（15.1〜15.3）
 - 両方で、`TARGET CLOpts::clopts` があること（12.7）。
 - 15.3（1.0 以上の規則）は、現在の版では実行時に踏めない。規則の計算を 1 つの関数にしたうえで、fixture が `0.1.0` と、仮の `1.2.3` に対する計算結果を検査する。そのために `CloptsLibrary.cmake` は、版の文字列から値を返す小関数 `clopts_compute_soversion(<version> <out_soversion> <out_compat>)` を持つ（15.4）。
@@ -836,7 +762,6 @@ int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
 **Responsibilities & Constraints**
 - **`tests/integration/CMakeLists.txt`**
   - 全テストの `EXTRA_ARGS` に `-DCLOPTS_BUILD_SHARED=${CLOPTS_BUILD_SHARED}` を足し、ビルドツリーの形式を `EXPECTED_TYPE` として渡す。
-  - PACKAGE モードでは、`-DCLOPTS_SHARED_LIBS=${CLOPTS_BUILD_SHARED}` も渡す。
 - **`fixtures/consumer`**
   - `project(fixture_consumer C CXX)` にし、`add_executable(app main.c consumer_cpp.cpp)`。
   - 構成時に、`CLOpts::clopts` の `TYPE` が `EXPECTED_TYPE` と一致することを確認する。
@@ -862,7 +787,7 @@ int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
 | Field | Detail |
 |-------|--------|
 | Intent | `.github/workflows/ci.yml` |
-| Requirements | 1.6, 4.5, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 14.4 |
+| Requirements | 1.6, 4.5, 7.1, 7.2, 7.3, 7.4, 7.5, 14.4 |
 
 **Contracts**: Batch [x]
 
@@ -877,7 +802,6 @@ int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
   - ビルド: `cmake --build build ...`
   - テスト: `ctest --test-dir build ... --output-on-failure`
 - **ラベル別の再実行**（`-L core` / `toolchain` / `integration`）は、`linux-gcc` の両方の形式で行う（4.5）。
-- **7.6**: `integration.package_selection` は、`CLOPTS_INSTALL` が ON（トップレベルの既定）のすべてのジョブで走る。
 - **MSYS2 の準備**: `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja}` を入れる（g++ を含む）。
 - リリースの処理は含めない（7.5）。
 
@@ -903,7 +827,6 @@ int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
 ### Error Categories and Responses
 - 確保失敗 / オーバーフロー → `-1`。状態は変えない。
 - 書き込み失敗 → コールバックの非 0 をそのまま返す。
-- 形式の選択の失敗 → `find_package` の失敗と理由のメッセージ。
 - 構成時の契約違反 → `FATAL_ERROR`。
 
 ### Monitoring
@@ -917,12 +840,11 @@ CI のジョブログと、`ctest --output-on-failure` だけで見る。
 
 ### Integration Tests（`tests/toolchain/`、`tests/integration/`、`cmake -P`）
 - `toolchain.no_global_state`: グローバル変数とディレクトリプロパティを汚さないこと、`INTERFACE_*` が形式どおりであること（2.1、2.2、2.4、2.5、2.9、6.1）
-- `toolchain.library_type.{default,build_shared_libs,override}`: 形式の決定と、形式ごとのプロパティ、SOVERSION の計算（12.2〜12.7、15.1〜15.4）
+- `toolchain.library_type.{default,build_shared_libs,override}`: 形式の決定と、形式ごとのプロパティ、SOVERSION の計算（12.2〜12.5、12.7、15.1〜15.4）
 - `toolchain.warning_fails`、`toolchain.vla_fails`: 初版のまま（3.2、3.4、3.7、6.2）
 - `integration.subdirectory`: ビルドツリーの形式で、`add_subdirectory` → ビルド → 実行。C++ の翻訳単位を含み、Windows の共有版では DLL をコピーする（2.4、4.10、6.3、6.6、14.3、14.6）
-- `integration.install_find_package`: ビルドツリーの形式で、install → `find_package` → ビルド → 実行（5.1〜5.5、5.7、6.4、15.5）
+- `integration.install_find_package`: ビルドツリーの形式で、install → `find_package` → ビルド → 実行。`CLOpts_LIBRARY_TYPE` が形式どおり（5.1〜5.5、5.7、6.4、13.6、15.5）
 - `integration.internal_hidden`（共有版のみ）: 内部関数の参照がリンクエラーになる（6.8、14.2）
-- `integration.package_selection`: 並存 install と、8 ケースの選択（6.7、12.6、13.2〜13.5）
 
 ### CI（E2E 相当）
 - 5 環境 × 2 形式で、`cmake` / `cmake --build` / `ctest` が `-Werror` 付きで通る（1.6、7.1〜7.4、14.4）。
@@ -936,4 +858,4 @@ CI のジョブログと、`ctest --output-on-failure` だけで見る。
   - Naos v0.4.0 の API の詳細
   - 初版の設計判断
   - Gap Analysis（2026-11-08）
-  - 改訂の Design Decisions（単体テストの扱い、core-parser の作り直しまでの間の扱い、visibility を PE で付けない理由、config の形式選択）
+  - 改訂の Design Decisions（単体テストの扱い、core-parser の作り直しまでの間の扱い、visibility を PE で付けない理由、config の形式選択。形式選択は 2026-11-09 にやめた。InstallHelper の Design Decision を参照）
