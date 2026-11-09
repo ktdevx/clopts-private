@@ -12,13 +12,6 @@
 
 #include <assert.h>
 
-void clopts_parser_positional_release(clopts_positional_t *positional)
-{
-    clopts_core_free(positional->name);
-    clopts_core_free(positional->help);
-    clopts_core_free(positional);
-}
-
 clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
 {
     clopts_positional_t *positional;
@@ -58,12 +51,17 @@ void clopts_positional_destroy(clopts_positional_t *positional)
     {
         return;
     }
+    /* Contract: an attached positional must not be passed. Its command clears
+     * attached before releasing it. The early return is hardening, not a
+     * guarantee. */
     assert(!positional->attached && "an attached positional is owned by its command");
     if (positional->attached)
     {
         return;
     }
-    clopts_parser_positional_release(positional);
+    clopts_core_free(positional->name);
+    clopts_core_free(positional->help);
+    clopts_core_free(positional);
 }
 
 /* Common checks of a positional setter. */

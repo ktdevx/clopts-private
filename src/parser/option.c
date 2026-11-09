@@ -23,16 +23,6 @@ static bool option_takes_no_value(clopts_option_kind_t kind)
     return ((kind == CLOPTS_OPTION_FLAG) || (kind == CLOPTS_OPTION_COUNT));
 }
 
-void clopts_parser_option_release(clopts_option_t *option)
-{
-    clopts_core_free(option->long_name);
-    clopts_core_free(option->help);
-    clopts_core_free(option->value_name);
-    clopts_core_free(option->default_value);
-    clopts_core_free(option->env);
-    clopts_core_free(option);
-}
-
 /* True for the values of clopts_option_kind_t. */
 static bool option_valid_kind(clopts_option_kind_t kind)
 {
@@ -41,20 +31,23 @@ static bool option_valid_kind(clopts_option_kind_t kind)
 }
 
 /* Checks of clopts_option_create(kind, l, s), in order. */
-static clopts_decl_error_t option_check_new(clopts_option_kind_t kind, const char *l, char s)
+static clopts_decl_error_t option_check_create(clopts_option_kind_t kind, const char *l, char s)
 {
     if (!option_valid_kind(kind))
     {
         return CLOPTS_DECL_INVALID_KIND;
     }
+
     if ((l == NULL) && (s == '\0'))
     {
         return CLOPTS_DECL_NO_NAME;
     }
+
     if (((l != NULL) && (!clopts_parser_valid_long_name(l))) || ((s != '\0') && (!clopts_parser_valid_short_name(s))))
     {
         return CLOPTS_DECL_INVALID_NAME;
     }
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -68,8 +61,10 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
+
     *out = NULL;
-    error = option_check_new(kind, long_name, short_name);
+
+    error = option_check_create(kind, long_name, short_name);
     if (error != CLOPTS_DECL_NONE)
     {
         return error;
@@ -80,6 +75,7 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
+
     option->attached = false;
     option->kind = kind;
     option->long_name = clopts_core_strdup(long_name);
@@ -99,7 +95,9 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
     option->negatable = false;
     option->terminal = false;
     option->index = 0;
+
     *out = option;
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -109,12 +107,22 @@ void clopts_option_destroy(clopts_option_t *option)
     {
         return;
     }
+
+    /* Contract: an attached option must not be passed. Its command clears
+     * attached before releasing it. The early return is hardening, not a
+     * guarantee. */
     assert(!option->attached && "an attached option is owned by its command");
     if (option->attached)
     {
         return;
     }
-    clopts_parser_option_release(option);
+
+    clopts_core_free(option->long_name);
+    clopts_core_free(option->help);
+    clopts_core_free(option->value_name);
+    clopts_core_free(option->default_value);
+    clopts_core_free(option->env);
+    clopts_core_free(option);
 }
 
 /* Common checks of an option setter. */

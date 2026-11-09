@@ -36,7 +36,4 @@ struct clopts_option
     size_t index;               /* attached: position in the options of its command */
 };
 
-/* Releases option and its strings, attached or not (used when its command is released). */
-void clopts_parser_option_release(clopts_option_t *option);
-
 #endif /* CLOPTS_PARSER_OPTION_INTERNAL_H */

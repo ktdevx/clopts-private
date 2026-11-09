@@ -340,11 +340,12 @@ NAOS_TEST(unattached_objects_are_released_by_their_free)
 }
 
 /*
- * Releasing a handle owned by a command or a program is a contract violation:
- * caught by assert, and without assert the call does nothing (the owner still
- * releases it).
+ * Releasing a handle owned by a command or a program is a contract violation
+ * caught by assert. Without assert, the implementation hardens against it and
+ * the call does nothing (the owner still releases it). This is not part of the
+ * contract: the test guards the hardening, not a promise to callers.
  */
-NAOS_TEST(free_of_an_owned_handle_does_nothing)
+NAOS_TEST(free_of_an_owned_handle_is_hardened)
 {
 #ifdef NDEBUG
     clopts_command_t *root;
@@ -2382,7 +2383,7 @@ NAOS_SUITE(build,
     NAOS_ADD_TEST(command_new_checks_name_and_out),
     NAOS_ADD_TEST(new_option_and_positional_start_reset_and_unattached),
     NAOS_ADD_TEST(unattached_objects_are_released_by_their_free),
-    NAOS_ADD_TEST(free_of_an_owned_handle_does_nothing),
+    NAOS_ADD_TEST(free_of_an_owned_handle_is_hardened),
     NAOS_ADD_TEST(attach_links_objects_in_order),
     NAOS_ADD_TEST(root_takes_positionals),
     NAOS_ADD_TEST(program_new_takes_root_and_commands),

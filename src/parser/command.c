@@ -64,19 +64,41 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
     return CLOPTS_DECL_NONE;
 }
 
-void clopts_parser_command_release(clopts_command_t *command)
+void clopts_command_destroy(clopts_command_t *command)
 {
     size_t i;
 
+    if (command == NULL)
+    {
+        return;
+    }
+
+    /* Contract: a command owned by a program must not be passed. Its program
+     * clears attached before releasing it. The early return is hardening,
+     * not a guarantee. */
+    assert(!command->attached && "a command handed to a program is owned by it");
+    if (command->attached)
+    {
+        return;
+    }
+
+    /* The command owns what is attached to it: hand each one back, then
+     * release it through its own destroy. */
     for (i = 0; i < command->options.len; i++)
     {
-        clopts_parser_option_release(*(clopts_option_t **)clopts_core_vec_at(&command->options, i));
+        clopts_option_t *option = *(clopts_option_t **)clopts_core_vec_at(&command->options, i);
+
+        option->attached = false;
+        clopts_option_destroy(option);
     }
     clopts_core_vec_free(&command->options);
 
     for (i = 0; i < command->positionals.len; i++)
     {
-        clopts_parser_positional_release(*(clopts_positional_t **)clopts_core_vec_at(&command->positionals, i));
+        clopts_positional_t *positional = *(clopts_positional_t **)clopts_core_vec_at(&command->positionals, i);
+
+        positional->attached = false;
+        clopts_positional_destroy(positional);
     }
     clopts_core_vec_free(&command->positionals);
 
@@ -84,22 +106,6 @@ void clopts_parser_command_release(clopts_command_t *command)
     clopts_core_free(command->summary);
     clopts_core_free(command->description);
     clopts_core_free(command);
-}
-
-void clopts_command_destroy(clopts_command_t *command)
-{
-    if (command == NULL)
-    {
-        return;
-    }
-
-    assert(!command->attached && "a command handed to a program is owned by it");
-    if (command->attached)
-    {
-        return;
-    }
-
-    clopts_parser_command_release(command);
 }
 
 /* Common checks of a call that changes command. */

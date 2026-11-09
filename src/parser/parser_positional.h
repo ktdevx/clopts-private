@@ -24,7 +24,4 @@ struct clopts_positional
     bool variadic;              /* true for the last positional of a command only */
 };
 
-/* Releases positional and its strings, attached or not (used when its command is released). */
-void clopts_parser_positional_release(clopts_positional_t *positional);
-
 #endif /* CLOPTS_PARSER_POSITIONAL_H */

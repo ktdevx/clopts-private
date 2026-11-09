@@ -27,7 +27,4 @@ struct clopts_command
     clopts_core_vec_t positionals;  /* clopts_positional_t * elements, in order of attachment */
 };
 
-/* Releases command with its options, positionals and texts, attached or not. */
-void clopts_parser_command_release(clopts_command_t *command);
-
 #endif /* CLOPTS_PARSER_COMMAND_INTERNAL_H */
