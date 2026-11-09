@@ -24,6 +24,24 @@
 #include <assert.h>
 #include <string.h>
 
+/*
+ * A command, the root included. A command does not point to the program it
+ * is attached to. Attached, it is owned by that program and read-only.
+ * Everything outside this file reads it through the public read functions.
+ */
+struct clopts_command
+{
+    char *name;                         /* owned copy */
+    char *summary;                      /* may be NULL; owned copy */
+    char *description;                  /* may be NULL; owned copy */
+    clopts_option_t **options;          /* option_count in order of attachment; NULL when option_cap == 0 */
+    size_t option_count;
+    size_t option_cap;                  /* elements allocated */
+    clopts_positional_t **positionals;  /* positional_count in order of attachment; NULL when positional_cap == 0 */
+    size_t positional_count;
+    size_t positional_cap;              /* elements allocated */
+};
+
 clopts_error_t clopts_command_create(const char *name, clopts_command_t **out)
 {
     clopts_command_t *command;

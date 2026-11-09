@@ -359,7 +359,7 @@ static void scan_option(scan_state_t *state)
 static void main_positional(scan_state_t *state)
 {
     const clopts_command_t *scope = (state->command != NULL) ? state->command : state->program->root;
-    const size_t declared = scope->positional_count;
+    const size_t declared = clopts_command_positional_count(scope);
     const size_t taken = state->result->positionals.len;
     const clopts_positional_t *last;
 
@@ -367,7 +367,7 @@ static void main_positional(scan_state_t *state)
     {
         last = (declared == 0)
                    ? NULL
-                   : scope->positionals[declared - 1];
+                   : clopts_command_positional_at(scope, declared - 1);
         if ((last == NULL) || !clopts_positional_variadic(last))
         {
             (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, state->pos);

@@ -117,10 +117,10 @@ static int resolve_scope(clopts_parser_slot_t *slots, size_t slot_count,
 {
     size_t i;
 
-    assert(slot_count == scope->option_count);
+    assert(slot_count == clopts_command_option_count(scope));
     for (i = 0; i < slot_count; i++)
     {
-        const clopts_option_t *option = scope->options[i];
+        const clopts_option_t *option = clopts_command_option_at(scope, i);
 
         if (resolve_slot(&slots[i], option, getenv_fn, env_ctx) != 0)
         {
@@ -187,10 +187,10 @@ static const clopts_option_t *first_missing_option(const clopts_parser_slot_t *s
 {
     size_t i;
 
-    assert(slot_count == scope->option_count);
+    assert(slot_count == clopts_command_option_count(scope));
     for (i = 0; i < slot_count; i++)
     {
-        const clopts_option_t *option = scope->options[i];
+        const clopts_option_t *option = clopts_command_option_at(scope, i);
 
         if (clopts_option_required(option) && !slot_given(&slots[i]))
         {
@@ -251,10 +251,10 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
      * required variadic positional therefore needs at least one token.
      */
     recorded = result->positionals.len;
-    for (i = 0; i < positional_scope->positional_count; i++)
+    for (i = 0; i < clopts_command_positional_count(positional_scope); i++)
     {
         const clopts_positional_t *positional =
-            positional_scope->positionals[i];
+            clopts_command_positional_at(positional_scope, i);
 
         if (clopts_positional_required(positional) && (i >= recorded))
         {

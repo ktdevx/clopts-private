@@ -32,18 +32,6 @@
 /* Maximum number of argv elements the helpers below handle. */
 #define MAX_ARGV 8
 
-/* Returns option index of scope. */
-static const clopts_option_t *option_at(const clopts_command_t *scope, size_t index)
-{
-    return scope->options[index];
-}
-
-/* Returns positional index of scope. */
-static const clopts_positional_t *positional_at(const clopts_command_t *scope, size_t index)
-{
-    return scope->positionals[index];
-}
-
 /*
  * Copies of argv[0..argc-1]: the pointers and the strings they point to, so
  * that a parse can be checked not to modify either.
@@ -171,40 +159,40 @@ NAOS_TEST(fixture_commands_are_shaped_as_designed)
     NAOS_CHECK_PTR_EQ(t.program->commands[3], t.help_command);
 
     /* Root: the global options, then the terminal options of clopts/help.h. */
-    NAOS_REQUIRE_UINT_EQ(t.root->option_count, 5);
-    NAOS_CHECK_PTR_EQ(option_at(t.root, 0), t.verbose);
-    NAOS_CHECK_PTR_EQ(option_at(t.root, 1), t.color);
-    NAOS_CHECK_PTR_EQ(option_at(t.root, 2), t.config);
-    NAOS_CHECK_PTR_EQ(option_at(t.root, 3), t.help);
-    NAOS_CHECK_PTR_EQ(option_at(t.root, 4), t.version);
+    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(t.root), 5);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 0), t.verbose);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 1), t.color);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 2), t.config);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 3), t.help);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 4), t.version);
     NAOS_CHECK_TRUE(clopts_option_terminal(t.help));
     NAOS_CHECK_TRUE(clopts_option_terminal(t.version));
     NAOS_CHECK_FALSE(clopts_option_terminal(t.verbose));
 
-    NAOS_CHECK_STR_EQ(t.build->name, "build");
-    NAOS_REQUIRE_UINT_EQ(t.build->option_count, 3);
-    NAOS_CHECK_PTR_EQ(option_at(t.build, 0), t.output);
-    NAOS_CHECK_PTR_EQ(option_at(t.build, 1), t.keys);
-    NAOS_CHECK_PTR_EQ(option_at(t.build, 2), t.jobs);
-    NAOS_REQUIRE_UINT_EQ(t.build->positional_count, 2);
-    NAOS_CHECK_PTR_EQ(positional_at(t.build, 0), t.build_src);
-    NAOS_CHECK_PTR_EQ(positional_at(t.build, 1), t.build_extra);
+    NAOS_CHECK_STR_EQ(clopts_command_name(t.build), "build");
+    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(t.build), 3);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.build, 0), t.output);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.build, 1), t.keys);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.build, 2), t.jobs);
+    NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(t.build), 2);
+    NAOS_CHECK_PTR_EQ(clopts_command_positional_at(t.build, 0), t.build_src);
+    NAOS_CHECK_PTR_EQ(clopts_command_positional_at(t.build, 1), t.build_extra);
 
-    NAOS_CHECK_STR_EQ(t.copy->name, "copy");
-    NAOS_CHECK_UINT_EQ(t.copy->option_count, 0);
-    NAOS_CHECK_UINT_EQ(t.copy->positional_count, 2);
+    NAOS_CHECK_STR_EQ(clopts_command_name(t.copy), "copy");
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(t.copy), 0);
+    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(t.copy), 2);
 
-    NAOS_CHECK_STR_EQ(t.cat->name, "cat");
-    NAOS_REQUIRE_UINT_EQ(t.cat->option_count, 1);
-    NAOS_CHECK_PTR_EQ(option_at(t.cat, 0), t.tags);
-    NAOS_CHECK_UINT_EQ(t.cat->positional_count, 1);
+    NAOS_CHECK_STR_EQ(clopts_command_name(t.cat), "cat");
+    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(t.cat), 1);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.cat, 0), t.tags);
+    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(t.cat), 1);
 
     /* help [COMMAND]: no options, one optional positional. */
-    NAOS_CHECK_STR_EQ(t.help_command->name, "help");
-    NAOS_CHECK_UINT_EQ(t.help_command->option_count, 0);
-    NAOS_REQUIRE_UINT_EQ(t.help_command->positional_count, 1);
-    NAOS_CHECK_FALSE(clopts_positional_required(positional_at(t.help_command, 0)));
-    NAOS_CHECK_FALSE(clopts_positional_variadic(positional_at(t.help_command, 0)));
+    NAOS_CHECK_STR_EQ(clopts_command_name(t.help_command), "help");
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(t.help_command), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(t.help_command), 1);
+    NAOS_CHECK_FALSE(clopts_positional_required(clopts_command_positional_at(t.help_command, 0)));
+    NAOS_CHECK_FALSE(clopts_positional_variadic(clopts_command_positional_at(t.help_command, 0)));
     fixture_tool_free(&t);
 }
 
@@ -217,12 +205,12 @@ NAOS_TEST(fixture_filt_has_no_commands_and_a_help_option)
     NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_UINT_EQ(f.program->command_count, 0);
     NAOS_CHECK_NULL(f.program->commands);
-    NAOS_REQUIRE_UINT_EQ(f.root->option_count, 2);
-    NAOS_CHECK_PTR_EQ(option_at(f.root, 0), f.lines);
-    NAOS_CHECK_PTR_EQ(option_at(f.root, 1), f.help);
+    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(f.root), 2);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(f.root, 0), f.lines);
+    NAOS_CHECK_PTR_EQ(clopts_command_option_at(f.root, 1), f.help);
     NAOS_CHECK_TRUE(clopts_option_terminal(f.help));
-    NAOS_REQUIRE_UINT_EQ(f.root->positional_count, 1);
-    NAOS_CHECK_PTR_EQ(positional_at(f.root, 0), f.file);
+    NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(f.root), 1);
+    NAOS_CHECK_PTR_EQ(clopts_command_positional_at(f.root, 0), f.file);
     fixture_filt_free(&f);
 }
 
@@ -260,8 +248,8 @@ NAOS_TEST(parse_leaves_the_program_unchanged)
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_PTR_EQ(t.program->root, t.root);
     NAOS_CHECK_UINT_EQ(t.program->command_count, 4);
-    NAOS_CHECK_UINT_EQ(t.root->option_count, 5);
-    NAOS_CHECK_UINT_EQ(t.build->option_count, 3);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(t.root), 5);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(t.build), 3);
     NAOS_CHECK_NULL(clopts_option_default(t.output));
     NAOS_CHECK_PTR_EQ(result->command, t.build);
     NAOS_CHECK_NULL(result->terminal);

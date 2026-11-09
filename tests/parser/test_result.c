@@ -108,9 +108,9 @@ static bool index_in(const clopts_command_t *scope, const clopts_option_t *optio
 {
     size_t i;
 
-    for (i = 0; i < scope->option_count; i++)
+    for (i = 0; i < clopts_command_option_count(scope); i++)
     {
-        if (scope->options[i] == option)
+        if (clopts_command_option_at(scope, i) == option)
         {
             *index = i;
             return true;
@@ -201,7 +201,7 @@ NAOS_TEST(new_allocates_one_slot_per_root_option)
     {
         /* Slot i records option i of the root. */
         NAOS_CHECK_PTR_EQ(result->global_slots[i].option,
-                          s.root->options[i]);
+                          clopts_command_option_at(s.root, i));
         NAOS_CHECK_INT_EQ(result->global_slots[i].source, CLOPTS_SOURCE_NONE);
         NAOS_CHECK_NULL(result->global_slots[i].value);
         NAOS_CHECK_NULL(result->global_slots[i].owned);

@@ -60,7 +60,7 @@ bool clopts_parser_valid_short_name(char c)
 /* Returns option index of scope. */
 static const clopts_option_t *decl_option_at(const clopts_command_t *scope, size_t index)
 {
-    return scope->options[index];
+    return clopts_command_option_at(scope, index);
 }
 
 /* True when long_name is exactly the name_len bytes at name. */
@@ -87,19 +87,19 @@ static bool decl_matches(const clopts_option_t *option, const decl_query_t *quer
     return ((query->short_name != '\0') && (clopts_option_short_name(option) == query->short_name));
 }
 
-/* Returns the index in scope of the first option matching query, or scope->option_count. */
+/* Returns the index in scope of the first option matching query, or clopts_command_option_count(scope). */
 static size_t decl_index_in(const clopts_command_t *scope, const decl_query_t *query)
 {
     size_t i;
 
-    for (i = 0; i < scope->option_count; i++)
+    for (i = 0; i < clopts_command_option_count(scope); i++)
     {
         if (decl_matches(decl_option_at(scope, i), query))
         {
             return i;
         }
     }
-    return scope->option_count;
+    return clopts_command_option_count(scope);
 }
 
 /* Returns the first option matching query in scope, or NULL. */
@@ -107,7 +107,7 @@ static const clopts_option_t *decl_find_in(const clopts_command_t *scope, const 
 {
     size_t index = decl_index_in(scope, query);
 
-    return (index < scope->option_count) ? decl_option_at(scope, index) : NULL;
+    return (index < clopts_command_option_count(scope)) ? decl_option_at(scope, index) : NULL;
 }
 
 const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *command, const char *l, char s)
@@ -152,7 +152,7 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
     size_t index;
 
     index = decl_index_in(scope, query);
-    if (index < scope->option_count)
+    if (index < clopts_command_option_count(scope))
     {
         ref.option = decl_option_at(scope, index);
         ref.global = global;
@@ -167,7 +167,7 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
     negation.long_len = query->long_len - 3;
     negation.short_name = '\0';
     index = decl_index_in(scope, &negation);
-    if (index < scope->option_count)
+    if (index < clopts_command_option_count(scope))
     {
         const clopts_option_t *option = decl_option_at(scope, index);
 
@@ -209,7 +209,7 @@ const clopts_command_t *clopts_parser_find_command(const clopts_program_t *progr
     assert((program != NULL) && (name != NULL));
     for (i = 0; i < program->command_count; i++)
     {
-        if (strcmp(program->commands[i]->name, name) == 0)
+        if (strcmp(clopts_command_name(program->commands[i]), name) == 0)
         {
             return program->commands[i];
         }
