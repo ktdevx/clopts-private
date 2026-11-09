@@ -128,7 +128,7 @@ void fixture_tool_init(fixture_tool_t *f)
     }
     if (f->build_src != NULL)
     {
-        test_decl_check(clopts_positional_set_required(f->build_src, true));
+        clopts_positional_set_required(f->build_src, true);
     }
     f->build_src = test_decl_attach_positional(f->build, f->build_src);
 
@@ -139,7 +139,7 @@ void fixture_tool_init(fixture_tool_t *f)
     }
     if (f->build_extra != NULL)
     {
-        test_decl_check(clopts_positional_set_variadic(f->build_extra, true));
+        clopts_positional_set_variadic(f->build_extra, true);
     }
     f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
 
@@ -157,7 +157,7 @@ void fixture_tool_init(fixture_tool_t *f)
     }
     if (f->copy_src != NULL)
     {
-        test_decl_check(clopts_positional_set_required(f->copy_src, true));
+        clopts_positional_set_required(f->copy_src, true);
     }
     f->copy_src = test_decl_attach_positional(f->copy, f->copy_src);
 
@@ -168,7 +168,7 @@ void fixture_tool_init(fixture_tool_t *f)
     }
     if (f->copy_dst != NULL)
     {
-        test_decl_check(clopts_positional_set_required(f->copy_dst, true));
+        clopts_positional_set_required(f->copy_dst, true);
     }
     f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
 
@@ -209,7 +209,7 @@ void fixture_tool_init(fixture_tool_t *f)
     }
     if (f->cat_file != NULL)
     {
-        test_decl_check(clopts_positional_set_variadic(f->cat_file, true));
+        clopts_positional_set_variadic(f->cat_file, true);
     }
     f->cat_file = test_decl_attach_positional(f->cat, f->cat_file);
 
@@ -277,7 +277,7 @@ void fixture_filt_init(fixture_filt_t *f)
     }
     if (f->file != NULL)
     {
-        test_decl_check(clopts_positional_set_variadic(f->file, true));
+        clopts_positional_set_variadic(f->file, true);
     }
     f->file = test_decl_attach_positional(f->root, f->file);
 

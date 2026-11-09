@@ -205,13 +205,13 @@ static clopts_error_t command_check_attach_positional(const clopts_command_t *co
     }
 
     last = *(clopts_positional_t *const *)clopts_core_vec_at(&command->positionals, command->positionals.len - 1);
-    if (last->variadic)
+    if (clopts_positional_variadic(last))
     {
         return CLOPTS_ERROR_VARIADIC_POSITION;
     }
 
     /* The attached ones are in order, so checking the last one is enough. */
-    if (positional->required && !last->required)
+    if (clopts_positional_required(positional) && !clopts_positional_required(last))
     {
         return CLOPTS_ERROR_POSITIONAL_ORDER;
     }

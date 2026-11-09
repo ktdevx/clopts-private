@@ -172,7 +172,7 @@ static clopts_error_t declare(clopts_program_t **out, struct taskbook_options *o
     opts->priority = option;
     option = NULL; /* now owned by add */
     CHECK(clopts_positional_create("TITLE", &positional));
-    CHECK(clopts_positional_set_required(positional, true));
+    clopts_positional_set_required(positional, true);
     CHECK(clopts_positional_set_help(positional, "Title of the task"));
     CHECK(clopts_command_add_positional(add, positional));
     positional = NULL; /* now owned by add */
@@ -198,8 +198,8 @@ static clopts_error_t declare(clopts_program_t **out, struct taskbook_options *o
     CHECK(clopts_command_set_summary(done, "Mark tasks as finished"));
     CHECK(clopts_command_set_description(done, "Mark the given tasks as finished."));
     CHECK(clopts_positional_create("ID", &positional));
-    CHECK(clopts_positional_set_required(positional, true));
-    CHECK(clopts_positional_set_variadic(positional, true));
+    clopts_positional_set_required(positional, true);
+    clopts_positional_set_variadic(positional, true);
     CHECK(clopts_positional_set_help(positional, "Numbers of the tasks"));
     CHECK(clopts_command_add_positional(done, positional));
     positional = NULL; /* now owned by done */

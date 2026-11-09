@@ -256,7 +256,7 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
         const clopts_positional_t *positional =
             *(clopts_positional_t *const *)clopts_core_vec_at(&positional_scope->positionals, i);
 
-        if (positional->required && (i >= recorded))
+        if (clopts_positional_required(positional) && (i >= recorded))
         {
             set_missing(result, command, NULL, positional);
             return -1;

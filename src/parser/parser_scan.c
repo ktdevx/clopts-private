@@ -368,7 +368,7 @@ static void main_positional(scan_state_t *state)
         last = (declared == 0)
                    ? NULL
                    : *(clopts_positional_t *const *)clopts_core_vec_at(&scope->positionals, declared - 1);
-        if ((last == NULL) || !last->variadic)
+        if ((last == NULL) || !clopts_positional_variadic(last))
         {
             (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, state->pos);
             state->pos++;

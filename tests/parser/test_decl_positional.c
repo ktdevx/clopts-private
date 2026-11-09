@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite decl_positional: the checks of a positional alone, made by
- * clopts_positional_create() and the positional setters (parser_positional.c).
+ * clopts_positional_create() and the positional setters (positional.c).
  * None of these tests creates a program or a command. The order of the
  * positionals is checked when one is attached (decl suite).
  */
@@ -19,7 +19,8 @@
 #define EXPECT_OK(call) NAOS_CHECK_INT_EQ((call), CLOPTS_ERROR_NONE)
 
 /* An object whose address an out pointer holds before a call; never read or written. */
-static clopts_positional_t sentinel_positional;
+static char sentinel_positional_storage;
+#define SENTINEL_POSITIONAL ((clopts_positional_t *)&sentinel_positional_storage)
 
 /* A new unattached positional; the test stops when it cannot be made. */
 static clopts_positional_t *make_positional(const char *name)
@@ -36,18 +37,18 @@ NAOS_TEST(positional_name_invalid)
 {
     clopts_positional_t *positional;
 
-    positional = &sentinel_positional;
+    positional = SENTINEL_POSITIONAL;
     NAOS_CHECK_INT_EQ(clopts_positional_create(NULL, &positional), CLOPTS_ERROR_INVALID_NAME);
     NAOS_CHECK_NULL(positional);
 
-    positional = &sentinel_positional;
+    positional = SENTINEL_POSITIONAL;
     NAOS_CHECK_INT_EQ(clopts_positional_create("", &positional), CLOPTS_ERROR_INVALID_NAME);
     NAOS_CHECK_NULL(positional);
 
     positional = NULL;
     EXPECT_OK(clopts_positional_create("FILE", &positional));
     NAOS_REQUIRE_NOT_NULL(positional);
-    NAOS_CHECK_STR_EQ(positional->name, "FILE");
+    NAOS_CHECK_STR_EQ(clopts_positional_name(positional), "FILE");
     clopts_positional_destroy(positional);
 }
 
@@ -58,15 +59,15 @@ NAOS_TEST(positional_setters_before_attach_never_fail)
 {
     clopts_positional_t *positional = make_positional("file");
 
-    EXPECT_OK(clopts_positional_set_variadic(positional, true));
-    EXPECT_OK(clopts_positional_set_required(positional, true));
-    EXPECT_OK(clopts_positional_set_variadic(positional, false));
-    EXPECT_OK(clopts_positional_set_required(positional, false));
+    clopts_positional_set_variadic(positional, true);
+    clopts_positional_set_required(positional, true);
+    clopts_positional_set_variadic(positional, false);
+    clopts_positional_set_required(positional, false);
     EXPECT_OK(clopts_positional_set_help(positional, "File."));
     EXPECT_OK(clopts_positional_set_help(positional, NULL));
-    NAOS_CHECK_FALSE(positional->required);
-    NAOS_CHECK_FALSE(positional->variadic);
-    NAOS_CHECK_NULL(positional->help);
+    NAOS_CHECK_FALSE(clopts_positional_required(positional));
+    NAOS_CHECK_FALSE(clopts_positional_variadic(positional));
+    NAOS_CHECK_NULL(clopts_positional_help(positional));
     clopts_positional_destroy(positional);
 }
 

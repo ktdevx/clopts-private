@@ -214,15 +214,15 @@ static void sample_build(sample_t *s, bool unset_env)
     test_decl_check(clopts_option_set_required(s->mode, true));
     s->mode = test_decl_attach(s->build, s->mode);
     s->src = test_decl_positional("src");
-    test_decl_check(clopts_positional_set_required(s->src, true));
+    clopts_positional_set_required(s->src, true);
     s->src = test_decl_attach_positional(s->build, s->src);
     s->copy = test_decl_command(s->root, "copy");
     s->dest = test_decl_option(CLOPTS_OPTION_VALUE, "dest", '\0');
     test_decl_check(clopts_option_set_env(s->dest, "COPY_DEST"));
     s->dest = test_decl_attach(s->copy, s->dest);
     s->files = test_decl_positional("files");
-    test_decl_check(clopts_positional_set_required(s->files, true));
-    test_decl_check(clopts_positional_set_variadic(s->files, true));
+    clopts_positional_set_required(s->files, true);
+    clopts_positional_set_variadic(s->files, true);
     s->files = test_decl_attach_positional(s->copy, s->files);
     s->program = test_decl_finish(s->root);
     if (s->program == NULL)
@@ -883,10 +883,10 @@ NAOS_TEST(program_without_subcommands_checks_root_positionals)
     test_decl_check(clopts_option_set_default(level, "1"));
     level = test_decl_attach(root, level);
     input = test_decl_positional("input");
-    test_decl_check(clopts_positional_set_required(input, true));
+    clopts_positional_set_required(input, true);
     input = test_decl_attach_positional(root, input);
     rest = test_decl_positional("rest");
-    test_decl_check(clopts_positional_set_variadic(rest, true));
+    clopts_positional_set_variadic(rest, true);
     rest = test_decl_attach_positional(root, rest);
     program = test_decl_finish(root);
     NAOS_REQUIRE_NOT_NULL(program);
@@ -994,8 +994,8 @@ static void need_init(need_decl_t *d)
     test_decl_check(clopts_option_set_delimiter(d->items, ','));
     d->items = test_decl_attach(root, d->items);
     d->files = test_decl_positional("FILES");
-    test_decl_check(clopts_positional_set_required(d->files, true));
-    test_decl_check(clopts_positional_set_variadic(d->files, true));
+    clopts_positional_set_required(d->files, true);
+    clopts_positional_set_variadic(d->files, true);
     d->files = test_decl_attach_positional(root, d->files);
     d->program = test_decl_finish(root);
     NAOS_REQUIRE_NOT_NULL(d->program);
@@ -1025,7 +1025,7 @@ static void order_init(order_decl_t *d)
     test_decl_check(clopts_option_set_required(d->local, true));
     d->local = test_decl_attach(d->cmd, d->local);
     d->arg = test_decl_positional("ARG");
-    test_decl_check(clopts_positional_set_required(d->arg, true));
+    clopts_positional_set_required(d->arg, true);
     d->arg = test_decl_attach_positional(d->cmd, d->arg);
     d->program = test_decl_finish(root);
     NAOS_REQUIRE_NOT_NULL(d->program);

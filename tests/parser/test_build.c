@@ -41,7 +41,8 @@ static clopts_program_t sentinel_program;
 static clopts_command_t sentinel_command;
 static char sentinel_option_storage;
 #define SENTINEL_OPTION ((clopts_option_t *)&sentinel_option_storage)
-static clopts_positional_t sentinel_positional;
+static char sentinel_positional_storage;
+#define SENTINEL_POSITIONAL ((clopts_positional_t *)&sentinel_positional_storage)
 
 /* Returns option index of scope (an element of scope->options). */
 static clopts_option_t *option_at(const clopts_command_t *scope, size_t index)
@@ -260,15 +261,15 @@ NAOS_TEST(new_option_and_positional_start_reset_and_unattached)
     NAOS_CHECK_INT_EQ(clopts_option_short_name(option), '\0');
     clopts_option_destroy(option);
 
-    positional = &sentinel_positional;
+    positional = SENTINEL_POSITIONAL;
     EXPECT_OK(clopts_positional_create(pos_name, &positional));
     NAOS_REQUIRE_NOT_NULL(positional);
-    NAOS_REQUIRE_TRUE(positional != &sentinel_positional);
+    NAOS_REQUIRE_TRUE(positional != SENTINEL_POSITIONAL);
     pos_name[0] = 'X';
-    NAOS_CHECK_STR_EQ(positional->name, "src");
-    NAOS_CHECK_NULL(positional->help);
-    NAOS_CHECK_FALSE(positional->required);
-    NAOS_CHECK_FALSE(positional->variadic);
+    NAOS_CHECK_STR_EQ(clopts_positional_name(positional), "src");
+    NAOS_CHECK_NULL(clopts_positional_help(positional));
+    NAOS_CHECK_FALSE(clopts_positional_required(positional));
+    NAOS_CHECK_FALSE(clopts_positional_variadic(positional));
     clopts_positional_destroy(positional);
 }
 
@@ -394,8 +395,8 @@ NAOS_TEST(attach_links_objects_in_order)
     NAOS_REQUIRE_UINT_EQ(copy->positionals.len, 2);
     NAOS_CHECK_PTR_EQ(positional_at(copy, 0), src);
     NAOS_CHECK_PTR_EQ(positional_at(copy, 1), dst);
-    NAOS_REQUIRE_NOT_NULL(src->name);
-    NAOS_CHECK_STR_EQ(src->name, "src");
+    NAOS_REQUIRE_NOT_NULL(clopts_positional_name(src));
+    NAOS_CHECK_STR_EQ(clopts_positional_name(src), "src");
     NAOS_CHECK_UINT_EQ(copy->options.len, 0);
 
     clopts_program_destroy(program);
@@ -816,9 +817,9 @@ NAOS_TEST(positional_read_functions)
     root = make_command("tool");
     src = make_positional("SRC");
     EXPECT_OK(clopts_positional_set_help(src, "Source."));
-    EXPECT_OK(clopts_positional_set_required(src, true));
+    clopts_positional_set_required(src, true);
     rest = make_positional("REST");
-    EXPECT_OK(clopts_positional_set_variadic(rest, true));
+    clopts_positional_set_variadic(rest, true);
 
     program = NULL;
     for (pass = 0; pass < 2; pass++)
@@ -840,11 +841,6 @@ NAOS_TEST(positional_read_functions)
         }
     }
     clopts_program_destroy(program);
-
-    NAOS_CHECK_NULL(clopts_positional_name(NULL));
-    NAOS_CHECK_NULL(clopts_positional_help(NULL));
-    NAOS_CHECK_FALSE(clopts_positional_required(NULL));
-    NAOS_CHECK_FALSE(clopts_positional_variadic(NULL));
 }
 
 /* ---- terminal ------------------------------------------------------------------ */
@@ -952,7 +948,7 @@ NAOS_TEST(strings_are_copied)
     NAOS_CHECK_STR_EQ(root->name, "tool");
     NAOS_CHECK_STR_EQ(build->name, "build");
     NAOS_CHECK_STR_EQ(clopts_option_long_name(output), "output");
-    NAOS_CHECK_STR_EQ(src->name, "src");
+    NAOS_CHECK_STR_EQ(clopts_positional_name(src), "src");
     NAOS_REQUIRE_NOT_NULL(build->summary);
     NAOS_CHECK_STR_EQ(build->summary, "Builds.");
     NAOS_REQUIRE_NOT_NULL(build->description);
@@ -967,8 +963,8 @@ NAOS_TEST(strings_are_copied)
     NAOS_CHECK_STR_EQ(clopts_option_env(output), "TOOL_OUTPUT");
     NAOS_REQUIRE_NOT_NULL(clopts_option_default(output));
     NAOS_CHECK_STR_EQ(clopts_option_default(output), "a.out");
-    NAOS_REQUIRE_NOT_NULL(src->help);
-    NAOS_CHECK_STR_EQ(src->help, "Source.");
+    NAOS_REQUIRE_NOT_NULL(clopts_positional_help(src));
+    NAOS_CHECK_STR_EQ(clopts_positional_help(src), "Source.");
 
     clopts_program_destroy(program);
 }
@@ -1037,8 +1033,8 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     EXPECT_OK(clopts_option_set_required(list, true));
     EXPECT_OK(clopts_positional_set_help(src, "first"));
     EXPECT_OK(clopts_positional_set_help(src, "second"));
-    EXPECT_OK(clopts_positional_set_required(src, true));
-    EXPECT_OK(clopts_positional_set_variadic(src, true));
+    clopts_positional_set_required(src, true);
+    clopts_positional_set_variadic(src, true);
 
     NAOS_CHECK_STR_EQ(build->summary, "second");
     NAOS_CHECK_STR_EQ(build->description, "second");
@@ -1051,9 +1047,9 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     NAOS_CHECK_TRUE(clopts_option_negatable(flag));
     NAOS_CHECK_TRUE(clopts_option_terminal(flag));
     NAOS_CHECK_TRUE(clopts_option_required(list));
-    NAOS_CHECK_STR_EQ(src->help, "second");
-    NAOS_CHECK_TRUE(src->required);
-    NAOS_CHECK_TRUE(src->variadic);
+    NAOS_CHECK_STR_EQ(clopts_positional_help(src), "second");
+    NAOS_CHECK_TRUE(clopts_positional_required(src));
+    NAOS_CHECK_TRUE(clopts_positional_variadic(src));
 
     /* NULL, false, '\0' and 0 reset */
     EXPECT_OK(clopts_command_set_summary(build, NULL));
@@ -1068,8 +1064,8 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     EXPECT_OK(clopts_option_set_terminal(flag, false));
     EXPECT_OK(clopts_option_set_required(list, false));
     EXPECT_OK(clopts_positional_set_help(src, NULL));
-    EXPECT_OK(clopts_positional_set_variadic(src, false));
-    EXPECT_OK(clopts_positional_set_required(src, false));
+    clopts_positional_set_variadic(src, false);
+    clopts_positional_set_required(src, false);
 
     NAOS_CHECK_NULL(build->summary);
     NAOS_CHECK_NULL(build->description);
@@ -1082,9 +1078,9 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     NAOS_CHECK_FALSE(clopts_option_negatable(flag));
     NAOS_CHECK_FALSE(clopts_option_terminal(flag));
     NAOS_CHECK_FALSE(clopts_option_required(list));
-    NAOS_CHECK_NULL(src->help);
-    NAOS_CHECK_FALSE(src->variadic);
-    NAOS_CHECK_FALSE(src->required);
+    NAOS_CHECK_NULL(clopts_positional_help(src));
+    NAOS_CHECK_FALSE(clopts_positional_variadic(src));
+    NAOS_CHECK_FALSE(clopts_positional_required(src));
 
     /* the attach and the program keep the attributes as they are */
     NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, value));
@@ -1096,7 +1092,7 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     NAOS_CHECK_NULL(clopts_option_help(value));
     NAOS_CHECK_INT_EQ(clopts_option_delimiter(list), '\0');
     NAOS_CHECK_FALSE(clopts_option_terminal(flag));
-    NAOS_CHECK_FALSE(src->required);
+    NAOS_CHECK_FALSE(clopts_positional_required(src));
     NAOS_CHECK_NULL(build->summary);
 
     clopts_program_destroy(program);
@@ -1145,7 +1141,7 @@ NAOS_TEST(hundred_options_keep_the_first_handle)
     NAOS_CHECK_INT_EQ(clopts_option_short_name(first), 'a');
     NAOS_CHECK_STR_EQ(clopts_option_help(first), "first help");
     NAOS_CHECK_STR_EQ(clopts_option_long_name(option_at(root, 99)), "o99");
-    NAOS_CHECK_STR_EQ(positional_at(root, 99)->name, "p99");
+    NAOS_CHECK_STR_EQ(clopts_positional_name(positional_at(root, 99)), "p99");
 
     clopts_program_destroy(program);
 }
@@ -1322,7 +1318,7 @@ static void oom_add_option_unchanged(oom_call_t *c)
 
 static clopts_error_t oom_positional_new(oom_call_t *c)
 {
-    c->positional_out = &sentinel_positional;
+    c->positional_out = SENTINEL_POSITIONAL;
     return clopts_positional_create("src", &c->positional_out);
 }
 
@@ -1338,7 +1334,7 @@ static clopts_error_t oom_positional_help(oom_call_t *c)
 
 static void oom_positional_help_unchanged(oom_call_t *c)
 {
-    NAOS_CHECK_STR_EQ(c->positional->help, "old");
+    NAOS_CHECK_STR_EQ(clopts_positional_help(c->positional), "old");
 }
 
 static clopts_error_t oom_add_positional(oom_call_t *c)
@@ -1436,14 +1432,14 @@ NAOS_TEST(out_of_memory_changes_nothing)
     c.unchanged = oom_positional_new_unchanged;
     NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
     NAOS_REQUIRE_NOT_NULL(c.positional_out);
-    NAOS_REQUIRE_TRUE(c.positional_out != &sentinel_positional);
+    NAOS_REQUIRE_TRUE(c.positional_out != SENTINEL_POSITIONAL);
     c.positional = c.positional_out;
 
     EXPECT_OK(clopts_positional_set_help(c.positional, "old"));
     c.call = oom_positional_help;
     c.unchanged = oom_positional_help_unchanged;
     NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
-    NAOS_CHECK_STR_EQ(c.positional->help, "new");
+    NAOS_CHECK_STR_EQ(clopts_positional_help(c.positional), "new");
 
     c.call = oom_add_positional;
     c.unchanged = oom_add_positional_unchanged;
@@ -1694,10 +1690,10 @@ static void check_positional(const clopts_positional_t *positional, const clopts
     NAOS_REQUIRE_NOT_NULL(positional);
     NAOS_REQUIRE_UINT_GT(scope->positionals.len, index);
     NAOS_CHECK_PTR_EQ(positional_at(scope, index), positional);
-    NAOS_CHECK_STR_EQ(positional->name, name);
-    NAOS_CHECK_STR_EQ(positional->help, help);
-    NAOS_CHECK_INT_EQ(positional->required, required);
-    NAOS_CHECK_INT_EQ(positional->variadic, variadic);
+    NAOS_CHECK_STR_EQ(clopts_positional_name(positional), name);
+    NAOS_CHECK_STR_EQ(clopts_positional_help(positional), help);
+    NAOS_CHECK_INT_EQ(clopts_positional_required(positional), required);
+    NAOS_CHECK_INT_EQ(clopts_positional_variadic(positional), variadic);
 }
 
 /* Checks a subcommand: its place in program, its name and summary, and no description. */
