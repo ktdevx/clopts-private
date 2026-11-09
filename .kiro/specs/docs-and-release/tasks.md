@@ -91,7 +91,7 @@
   - _Depends: 2.1, 3.1, 3.2_
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 6.3, 8.3_
 
-- [ ] 4.3 (P) 取り込み手順の章を書く
+- [x] 4.3 (P) 取り込み手順の章を書く
   - 設計の IntegrationDoc どおりに書く。3 通りの手順（FetchContent は版のタグを指定）、CMake オプションの表と親からの上書き、形式の選択（並べて install、`COMPONENTS`、既定の順序、失敗の扱い）、静的と共有の目安、MSVC の CRT、CI で検査している経路
   - 記述例のターゲット名と `find_package` の呼び方を、`tests/integration/fixtures/consumer` と `package_select`、`cmake/CLOptsConfig.cmake.in` の挙動と突き合わせる
   - 完了条件: 記述例と統合テストの fixture の対応（経路ごとに、どの fixture の何行と同じ形か）を確かめた結果を示せる。links を直接呼ぶと、この章のリンク（`docs/abi.md` を含む）が解決する
@@ -160,3 +160,4 @@
 - 3.2: textcount（0.4.0）の報告は `files:` から始まり、宣言順に続く。`-q` に上限はなく、`--total` に既定値はない。3.5 の上限の例と 3.7 の `help <cmd>` は taskbook（`-vvvv`）で示す。3.8 の数値でない値の例には、数値らしい引数を持つ taskbook（`done abc` など）を使う。
 - 3.3: 共通の規約は README の最小サンプルにも適用される（例外は環境変数の行だけ）。hello も `clopts_argv_get` を使い、到達しない NO_COMMAND の分岐（終了コード 2）を持つ。ヘルプと使い方の案内には `clopts_result_command` / `clopts_result_error_command` を渡す。ファイルは 78 行で、README には 1 バイトも変えずに載せる。
 - 4.1: api_coverage は `` `name` `` か `` `name()` `` だけを数えるので、引数付きで書くときは `` `name`（`args`）`` の形にする。docs/api.md は parsing.md と windows.md へリンクしているので、links の検査は 4.2 と 4.4 が済むまで通らない。
+- 4.3: docs/integration.md の FetchContent の例は、設計の ReadmeDoc どおり `ktdevx/clopts-private.git` と `GIT_TAG v0.1.0` を使う（タグはリリースまで存在しない）。Windows の DLL のコピーは共有版のときだけ行う（静的版では `$<TARGET_RUNTIME_DLLS>` が空になり、`copy_if_different` が失敗する）。README の記述例もこの形に合わせること。
