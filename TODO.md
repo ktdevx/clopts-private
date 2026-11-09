@@ -27,52 +27,54 @@
 /* include/clopts/alloc.h（新規） */
 typedef struct clopts_allocator
 {
-    void *(*malloc_fn)(size_t size);
-    void *(*calloc_fn)(size_t count, size_t size);
-    void *(*realloc_fn)(void *ptr, size_t size);
-    void (*free_fn)(void *ptr);
+    void *(*malloc)(size_t size);
+    void *(*calloc)(size_t count, size_t size);
+    void *(*realloc)(void *ptr, size_t size);
+    void (*free)(void *ptr);
 } clopts_allocator_t;  /* 凍結: メンバーの追加・削除・並べ替え・型の変更をしない */
 
 /* allocator の 4 つの関数を写して使う。NULL なら malloc / calloc / realloc / free に戻す */
 CLOPTS_API void clopts_set_allocator(const clopts_allocator_t *allocator);
-/* いま使っている 4 つの関数を *out に書く（既定なら標準関数のアドレス） */
-CLOPTS_API void clopts_get_allocator(clopts_allocator_t *out);
 ```
 
 - 各関数の引数と意味は、標準の `malloc` / `calloc` / `realloc` / `free` と同じにする。`ctx` は持たない。
-- メンバー名に `_fn` を付けるのは、利用側が `malloc` などをマクロで置き換えていても壊れないようにするため。
+- 既定に戻すときは `clopts_set_allocator(NULL)` を呼ぶ。いまの設定を読む関数（`clopts_get_allocator`）は持たない。
 - 構造体はポインタで渡し、ライブラリは値を写して持つ。呼び出しの後に利用側の構造体を変えても、解放しても影響しない。
 - 4 つすべてが非 NULL であること。1 つでも NULL なら、契約違反として `assert` で捕まえる。混ぜて使うと、ある関数で確保したものを別の系統の関数で解放することになるため、項目ごとに既定へ戻すことはしない。
 - ライブラリが関数をどう使うか:
-  - `malloc_fn`: 1 ブロックの確保と文字列の複製（`strdup` / `strndup` はライブラリの中で `malloc_fn` と `memcpy` で作る）。
-  - `calloc_fn`: いま `calloc` を使っているところ（スロットの配列など）。`count * size` のオーバーフローは、呼ぶ前にライブラリが検査する。
-  - `realloc_fn`: vec を伸ばすときだけ。失敗したときは、元のブロックが残っている前提で扱う（標準の `realloc` と同じ）。
-  - `free_fn`: NULL を渡さない。
+  - `malloc`: 1 ブロックの確保と文字列の複製（`strdup` / `strndup` はライブラリの中で `malloc` と `memcpy` で作る）。
+  - `calloc`: いま `calloc` を使っているところ（スロットの配列など）。`count * size` のオーバーフローは、呼ぶ前にライブラリが検査する。
+  - `realloc`: vec を伸ばすときだけ。失敗したときは、元のブロックが残っている前提で扱う（標準の `realloc` と同じ）。
+  - `free`: NULL を渡さない。
   - サイズ 0 では呼ばない（ライブラリが 1 に丸める）。そのため NULL は必ず失敗を意味する。
 - **設定してよい時機**: ライブラリが確保したもの（プログラム、結果、argv のハンドル、環境変数の文脈）が 1 つも生きていないときだけ。生きている間に変えると、別のアロケーターで解放されてしまうので、契約違反とする。通常は `main` の最初で 1 回呼ぶ。
 - **スレッド**: `clopts_set_allocator` は同期しない。ほかのスレッドがライブラリを使っていない間に呼ぶ。設定した関数そのものは、利用側でスレッド安全にする。
 - 番兵（メモリ不足の結果、argv の番兵）はこれまでどおり静的オブジェクトとし、アロケーターとは関係しない。
-- CRT の境界の規則（「ライブラリが確保したものはライブラリの関数で解放する」）は変わらない。ライブラリは、設定された `free_fn` で解放する。
+- CRT の境界の規則（「ライブラリが確保したものはライブラリの関数で解放する」）は変わらない。ライブラリは、設定された `free` で解放する。
 
 ### 公開ヘッダの構造体の扱い
 
-`clopts_allocator_t` は、tech.md の「公開ヘッダに構造体の定義を置かない」の例外とする。
+tech.md の「公開ヘッダに構造体の定義を置かない」という規則は廃止する。代わりに、次の規則にする。
 
-- 凍結の条件: 定義した後は、メンバーの追加・削除・並べ替え・型の変更をしない。拡張が必要になったら、別の型と別の設定関数（例: `clopts_allocator2_t` と `clopts_set_allocator2`）を足す。
-- 例外は、名前を挙げた型だけに限る。ほかの構造体の定義は、これまでどおり禁止する。
+- 公開ヘッダに定義した構造体は凍結する。定義した後は、メンバーの追加・削除・並べ替え・型の変更をしない。拡張が必要になったら、別の型と別の関数（例: `clopts_allocator2_t` と `clopts_set_allocator2`）を足す。
+- 既存の公開構造体の配置を変えることは、互換を壊す変更とする。新しい構造体を足すことは、互換を保つ変更とする。
 - 1.0.0 以降は、abidiff が配置の変化を検出する（既存の abi-compat の検査）。
+- 「構造体を値で受け渡さない」は残す（`clopts_set_allocator` もポインタで受け取る）。
 
 ### 内部
 
-- `src/core/core_alloc.c` に、現在のアロケーター（`static clopts_allocator_t`、初期値は標準関数）と、`clopts_set_allocator` / `clopts_get_allocator` を置く。
+- `src/core/core_alloc.c` に、現在のアロケーター（`static clopts_allocator_t`、初期値は標準関数）と、`clopts_set_allocator` を置く。
 - `core_internal.h` に窓口を宣言する: `clopts_core_malloc`、`clopts_core_calloc`、`clopts_core_realloc`、`clopts_core_strdup`、`clopts_core_strndup`、`clopts_core_free`、`clopts_core_malloc_array`。窓口でサイズ 0 の丸めとオーバーフローの検査を行う。
 - 窓口は引数を増やさない（`clopts_core_malloc(size)` の形）。ハンドルにアロケーターを持たせる必要もない。
+- メンバーの呼び出しは `(current.malloc)(size)` のように括弧で囲んで書く。MSVC の `_CRTDBG_MAP_ALLOC` などで `malloc` が関数形式のマクロになっていても、展開されないようにするため（ヘッダの宣言 `void *(*malloc)(size_t size);` は、名前の後が `(` ではないので、もともと展開されない）。
 
-## 未決事項
+## 決定事項
 
-- [ ] 生きているハンドルがある間の `clopts_set_allocator` の呼び出しを、デバッグビルドで検出するか（案: しない。生きているハンドルを数えるには、グローバルな計数器を、スレッドを考えて更新しなければならないため。文書の契約にとどめる）。
-- [ ] `clopts_get_allocator` を公開するか（案: 公開する。テストや利用側が、元に戻すために使える）。
-- [ ] ヘッダの置き場所: 新しい `alloc.h` にするか、`clopts.h` に置くか（案: `alloc.h` を新しく作り、`clopts.h` から取り込む）。
+- 生きているハンドルがある間の `clopts_set_allocator` の呼び出しは、デバッグビルドでも検出しない。生きているハンドルを数えるには、グローバルな計数器をスレッドを考えて更新しなければならないため。文書の契約にとどめる。
+- `clopts_get_allocator` は持たない。既定に戻すには `clopts_set_allocator(NULL)` を使う。
+- ヘッダは新しく `include/clopts/alloc.h` を作り、`clopts.h` から取り込む。
+- メンバー名は `malloc` / `calloc` / `realloc` / `free`（`_fn` を付けない）。
+- 「公開ヘッダに構造体の定義を置かない」は廃止し、「公開構造体は凍結する」に置き換える。
 
 ## TODO
 
@@ -80,24 +82,27 @@ CLOPTS_API void clopts_get_allocator(clopts_allocator_t *out);
 
 - [ ] `.kiro/steering/tech.md`:
   - 64 行目の「`malloc` / `calloc` / `realloc` / `free` を直接使い」を、「確保は core の窓口を通す（窓口が、設定されたアロケーターを呼ぶ）」に改める。
-  - 「公開ヘッダに構造体の定義を置かない」に、凍結した構造体 `clopts_allocator_t` の例外を書き足す。
+  - 「公開ヘッダに構造体の定義を置かない」を削除し、「公開ヘッダに定義した構造体は凍結する（拡張は別の型を足す）」に置き換える。「構造体を値で受け渡さない」は残す。
 - [ ] `.kiro/specs/core-parser/`（requirements / design / tasks）: 確保プローブの記述をアロケーターに置き換える（design.md の 29, 41, 58, 127, 137, 547, 568–591 行あたり、requirements の 1.8, 13.5, 13.7, 15.7 に関わる箇所）。
 - [ ] `.kiro/specs/platform-argv/`: プローブと窓口の記述を置き換える。
-- [ ] `.kiro/specs/abi-compat/`: requirements の 4.2（構造体の定義があれば失敗）と、壊す変更の一覧（requirements 7）に、凍結した構造体の例外を書き足す。
+- [ ] `.kiro/specs/abi-compat/`（brief / requirements / design / tasks）:
+  - requirements 4.2 と 4.3（構造体・共用体の定義があれば失敗、前方宣言は許す）を削除する。ヘッダの検査は `CLOPTS_API` の付け漏れと、C / C++ でのコンパイルだけにする。
+  - 壊す変更の一覧（requirements 7）の「公開ヘッダへの構造体・共用体の定義の追加」を、「既存の公開構造体・共用体の配置の変更（メンバーの追加・削除・並べ替え・型の変更）」に置き換える。
+  - brief と requirements の冒頭の概要にある、構造体の定義の検査の記述も直す。
 - [ ] `.kiro/specs/project-foundation/` に core のファイル構成の記述があれば、`core_alloc.c` を書き足す。
 - [ ] 各 spec の `spec.json` の `updated_at` を更新する。
 
 ### 1. 公開ヘッダ
 
-- [ ] `include/clopts/alloc.h` を新しく作り、`clopts_allocator_t`、`clopts_set_allocator`、`clopts_get_allocator` を宣言する。`clopts.h` から取り込む。
-- [ ] `tests/abi/check_header_rules.cmake`: 許す構造体の定義の一覧（いまは `clopts_allocator` だけ）を持たせ、それ以外の定義はこれまでどおり失敗させる。
+- [ ] `include/clopts/alloc.h` を新しく作り、`clopts_allocator_t` と `clopts_set_allocator` を宣言する。`clopts.h` から取り込む。
+- [ ] `tests/abi/check_header_rules.cmake`: 構造体・共用体の定義の検査を削除する（ファイル冒頭の説明、155–156 行の判定、263 行の報告文）。この検査のための例 `tests/abi/fixtures/header_rules/bad/struct_def/` と、それを使う `tests/abi/CMakeLists.txt` のテストを削除する。構造体の定義を含むヘッダが通ることを、`good/` に例を足して確かめる。
 - [ ] ヘッダの C99 / C++ のコンパイル検査が通ることを確かめる。
 
 ### 2. core
 
 - [ ] `src/core/core_alloc.c` を追加し、`src/core/CMakeLists.txt` に登録する。
 - [ ] `core_vec.c` の `realloc` / `free` を、`clopts_core_realloc` / `clopts_core_free` に置き換える。vec の関数の引数は変えない。
-- [ ] `tests/core/` に窓口のテスト（サイズ 0 の丸め、オーバーフローの検査、`strndup` の終端、設定と取得、NULL で既定に戻ること）を追加する。
+- [ ] `tests/core/` に窓口のテスト（サイズ 0 の丸め、オーバーフローの検査、`strndup` の終端、設定した関数が呼ばれること、NULL で既定に戻ること）を追加する。
 
 ### 3. parser
 
@@ -128,8 +133,8 @@ CLOPTS_API void clopts_get_allocator(clopts_allocator_t *out);
 
 ### 6. ABI・文書・変更履歴
 
-- [ ] `abi/clopts.symbols` に `clopts_set_allocator`、`clopts_get_allocator` を追加する。
-- [ ] `docs/abi.md`: 74 行目（構造体の定義の追加は互換を壊す）に、凍結した `clopts_allocator_t` の例外と、拡張するときは別の型を足すという規則を書き足す。
+- [ ] `abi/clopts.symbols` に `clopts_set_allocator` を追加する。
+- [ ] `docs/abi.md`: 74 行目（構造体の定義の追加は互換を壊す）を、「既存の公開構造体の配置の変更は互換を壊す。拡張するときは別の型を足す」に置き換える。ヘッダの検査の説明があれば、構造体の検査を削除する。
 - [ ] `docs/api.md`: アロケーターの節を追加する（4 つの関数の契約、設定してよい時機、スレッド、サイズ 0 と NULL の扱い、番兵との関係）。519 行目の「解放」の規則に、アロケーターとの関係を書き足す。
 - [ ] 文書の検査（ラベル `docs`、`tests/docs/check_docs.cmake`）が、シンボルの一覧と文書を照合するので、新しいシンボルが文書に載っていることを確かめる。
 - [ ] `CHANGELOG.md` の `## [Unreleased]` / `### 追加` に、アロケーターの API を書く。0.1.0 は未リリースなので、互換性のない変更の節は要らない。
@@ -147,5 +152,5 @@ CLOPTS_API void clopts_get_allocator(clopts_allocator_t *out);
 - `src/` に、テスト専用の型、フィールド、関数、引数がない。
 - ライブラリのすべての確保と解放が、設定されたアロケーターを通る。
 - これまでの OOM の網羅試験（すべての失敗位置で、エラーを返し、生存ブロックが 0 になる）を、公開 API とテスト側のアロケーターで同じ以上に満たす。
-- 凍結した構造体の例外が、steering、abi-compat の spec、`docs/abi.md`、ヘッダの検査で一貫している。
+- 「公開構造体は凍結する」という規則が、steering、abi-compat の spec、`docs/abi.md`、ヘッダの検査で一貫している。
 - 公開シンボルの一覧、文書、変更履歴が更新され、すべてのテストが通る。
