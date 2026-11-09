@@ -276,7 +276,7 @@ root は `clopts_program_create` の最初の引数に渡すコマンドで、�
 
 root にするコマンドに渡したオプションはグローバルオプションに、サブコマンドに渡したオプションはそのコマンドのオプションになる。コマンドに渡す関数が検査するのは、そのコマンドの中の関係だけである。root とサブコマンドの間で名前が重なってもよく、そのときはサブコマンドの名前が root の名前を隠す（「[名前の規則](#名前の規則)」）。
 
-読み取りの関数（`clopts_command_name` などの、`clopts_command_`・`clopts_program_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のハンドルは空（NULL、0、false、`'\0'`）として読まれる（オプションを除く。「[オプションの属性](#オプションの属性)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/help.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
+読み取りの関数（`clopts_command_name` などの、`clopts_command_`・`clopts_program_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のハンドルは空（NULL、0、false、`'\0'`）として読まれる（オプションと位置引数を除く。「[オプションの属性](#オプションの属性)」と「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/help.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
 
 ### オプション
 
@@ -334,6 +334,8 @@ root にするコマンドに渡したオプションはグローバルオプシ
 | `clopts_positional_set_variadic`（`positional, variadic`） | 残りのトークンをすべて受け取る。可変長の位置引数の後ろには、位置引数を渡せない（渡すときに検査される）。失敗しないので戻り値はない |
 | `clopts_positional_name`、`clopts_positional_help`（`positional`） | 名前と、ヘルプの説明（設定していなければ NULL） |
 | `clopts_positional_required`、`clopts_positional_variadic`（`positional`） | 必須か、可変長か |
+
+NULL の位置引数を読み取りの関数に渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
 
 ### 名前の規則
 

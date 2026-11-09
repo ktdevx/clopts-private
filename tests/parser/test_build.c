@@ -841,11 +841,6 @@ NAOS_TEST(positional_read_functions)
         }
     }
     clopts_program_destroy(program);
-
-    NAOS_CHECK_NULL(clopts_positional_name(NULL));
-    NAOS_CHECK_NULL(clopts_positional_help(NULL));
-    NAOS_CHECK_FALSE(clopts_positional_required(NULL));
-    NAOS_CHECK_FALSE(clopts_positional_variadic(NULL));
 }
 
 /* ---- terminal ------------------------------------------------------------------ */

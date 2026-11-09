@@ -95,20 +95,24 @@ void clopts_positional_set_variadic(clopts_positional_t *positional, bool variad
 
 const char *clopts_positional_name(const clopts_positional_t *positional)
 {
-    return (positional != NULL) ? positional->name : NULL;
+    assert(positional != NULL);
+    return positional->name;
 }
 
 const char *clopts_positional_help(const clopts_positional_t *positional)
 {
-    return (positional != NULL) ? positional->help : NULL;
+    assert(positional != NULL);
+    return positional->help;
 }
 
 bool clopts_positional_required(const clopts_positional_t *positional)
 {
-    return (positional != NULL) && positional->required;
+    assert(positional != NULL);
+    return positional->required;
 }
 
 bool clopts_positional_variadic(const clopts_positional_t *positional)
 {
-    return (positional != NULL) && positional->variadic;
+    assert(positional != NULL);
+    return positional->variadic;
 }
