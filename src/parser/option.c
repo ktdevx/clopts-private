@@ -7,9 +7,11 @@
  * program. The checks against the other options of the same command are
  * made when the option is attached (command.c).
  *
- * Every function checks its arguments and the rules that belong to it, in a
- * fixed order, and returns the first rule that fails, changing nothing.
- * Resetting an attribute (NULL, false, '\0' or 0) is not checked.
+ * Every function checks the rules that belong to it, in a fixed order, and
+ * returns the first rule that fails, changing nothing. Resetting an attribute
+ * (NULL, false, '\0' or 0) is not checked. A NULL option passed to a setter or
+ * a read function is a contract violation (assert); only the output pointer
+ * of clopts_option_create() is reported as CLOPTS_DECL_INVALID_ARGUMENT.
  */
 
 #include "clopts/option.h"
@@ -70,18 +72,22 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
         return error;
     }
 
-    option = (clopts_option_t *)clopts_core_calloc(1, sizeof(*option));
+    option = (clopts_option_t *)clopts_core_malloc(sizeof(*option));
     if (option == NULL)
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
 
     option->kind = kind;
-    option->long_name = clopts_core_strdup(long_name);
-    if ((long_name != NULL) && (option->long_name == NULL))
+    option->long_name = NULL;
+    if (long_name != NULL)
     {
-        clopts_core_free(option);
-        return CLOPTS_DECL_OUT_OF_MEMORY;
+        option->long_name = clopts_core_strdup(long_name);
+        if (option->long_name == NULL)
+        {
+            clopts_core_free(option);
+            return CLOPTS_DECL_OUT_OF_MEMORY;
+        }
     }
     option->short_name = short_name;
     option->help = NULL;
@@ -131,14 +137,17 @@ clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *e
 {
     assert(option != NULL);
 
-    if ((env != NULL) && option_takes_no_value(option->kind))
+    if (env != NULL)
     {
-        return CLOPTS_DECL_ENV_NOT_ALLOWED;
-    }
+        if (option_takes_no_value(option->kind))
+        {
+            return CLOPTS_DECL_ENV_NOT_ALLOWED;
+        }
 
-    if ((env != NULL) && (env[0] == '\0'))
-    {
-        return CLOPTS_DECL_INVALID_NAME;
+        if (env[0] == '\0')
+        {
+            return CLOPTS_DECL_INVALID_NAME;
+        }
     }
 
     return (clopts_core_replace_string(&option->env, env) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
@@ -148,14 +157,17 @@ clopts_decl_error_t clopts_option_set_default(clopts_option_t *option, const cha
 {
     assert(option != NULL);
 
-    if ((default_value != NULL) && option_takes_no_value(option->kind))
+    if (default_value != NULL)
     {
-        return CLOPTS_DECL_DEFAULT_NOT_ALLOWED;
-    }
+        if (option_takes_no_value(option->kind))
+        {
+            return CLOPTS_DECL_DEFAULT_NOT_ALLOWED;
+        }
 
-    if ((default_value != NULL) && option->required)
-    {
-        return CLOPTS_DECL_REQUIRED_WITH_DEFAULT;
+        if (option->required)
+        {
+            return CLOPTS_DECL_REQUIRED_WITH_DEFAULT;
+        }
     }
 
     return (clopts_core_replace_string(&option->default_value, default_value) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
