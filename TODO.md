@@ -67,7 +67,7 @@ classDiagram
 | `clopts_program_root(p)` + `clopts_command_option_at(root, i)` | `clopts_program_option_count/at`、`clopts_program_positional_count/at`、`clopts_program_name`、`clopts_program_description` |
 | `clopts_program_command_count/at/find_command` | そのまま |
 | `clopts_write_help(p, command)`：command が NULL か root ならプログラムのヘルプ | NULL ならプログラムのヘルプ（「root」という値がなくなる） |
-| `clopts_help_add_help_option(command, &out)`：作って渡す | `clopts_help_option_create(&out)` は作るだけ。渡す先（program か command か）は呼び出し側が決める。version も同じ |
+| `clopts_help_add_help_option(command, &out)` / `clopts_help_add_version_option(command, &out)`：作って渡す | 削除する。利用者がオプションの API で作り、program か command に渡す（下のコード例） |
 | `clopts_result_command` / `error_command`：NULL ならルート | 変わらない（NULL ならプログラムの範囲） |
 
 使う側のコードは次のようになる。
@@ -79,7 +79,11 @@ clopts_option_t *help;
 
 CHECK(clopts_program_create("taskbook", &p));
 CHECK(clopts_program_set_description(p, "Manage tasks."));
-CHECK(clopts_help_option_create(&help));
+
+/* -h / --help は普通の終端オプションとして作る */
+CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "help", 'h', &help));
+CHECK(clopts_option_set_terminal(help, true));
+CHECK(clopts_option_set_help(help, "Show this help"));
 CHECK(clopts_program_add_option(p, help));   /* グローバルオプション */
 
 CHECK(clopts_command_create("add", &add));
@@ -119,18 +123,17 @@ const clopts_scope_t *clopts_command_scope(const clopts_command_t *);
 - パーサーの引数を、(program, command) の組から (グローバルの scope, 選ばれた scope) の組に変える。`decl_lookup` の `command != root` の判定も、`resolve_scope` や `alloc_slots` に root を渡しているところも、scope を受け取る形にそろえる。
 - 公開の `clopts_command_option_at` などは、scope の読み取りに処理を任せるだけの薄い関数にする。
 
-### 未決事項
+### 決定事項
 
-- [ ] **プログラムの凍結の時点。** 今は「1 回の呼び出しで作り、その後は変わらない」ので、凍結の時点がはっきりしている。A 案では Program が組み立て途中にも存在するので、どこで凍結するかを決める必要がある。
-  - (a) 契約にする（推奨）。最初の `clopts_parse` / `clopts_write_*` より後でビルダー関数を呼ぶのは契約違反とし、検出はしない。今の「渡した後のハンドルは読み取り専用」と同じ扱い。複数スレッドからの同時解析も、この契約の下で今まで通り安全になる。
-  - (b) `clopts_program_seal(p)` で明示的に凍結する。凍結の後のビルダー呼び出しは assert で検出できる。ただし呼ぶべき関数が 1 つ増え、seal 前に解析したときの扱いも決める必要がある。
-- [ ] **help のオプションを「作るだけ」に変えてよいか。** `clopts_help_add_help_option` / `clopts_help_add_version_option` を `clopts_help_option_create` / `clopts_help_version_option_create` にする。
+- [x] **プログラムの凍結の時点：契約にして、利用者側の責務とする。** 最初の `clopts_parse` / `clopts_write_*` より後で、program か、program が持つハンドルにビルダー関数を呼ぶのは契約違反とする。動作は未定義で、検出はしない（今の「渡した後のハンドルは読み取り専用」と同じ扱い）。`clopts_program_seal` のような関数は足さない。複数スレッドからの同時解析は、この契約の下で今まで通り安全である。ヘッダ（`clopts/program.h`、`clopts/decl_types.h`）と docs/api.md の「作った後は変わらない」の記述を、この契約に書き換える。
+- [x] **help・version のオプションを作る関数は削除する。** `clopts_help_add_help_option` / `clopts_help_add_version_option` は、`clopts_option_create(FLAG)` → `clopts_option_set_terminal` → `clopts_option_set_help` → 渡す、の 4 手順をまとめているだけで、利用者がオプションの API で簡単に書ける。program と command のどちらに渡すかで関数を分ける必要もなくなる。代わりに、docs/api.md の「ヘルプのための宣言」と README・examples に、上のコード例の書き方を載せる。
+  - `clopts_help_command_create`（help サブコマンド）と `clopts_help_target` は残す。ただし同じ理由で要らないかどうかは、ステップ 3 のときに改めて検討する。
 
 ### 進め方
 
 1. [ ] **scope の切り出し（公開 API は変えない）。** command.c の配列と検査を scope.c に移す。テストはそのまま通るはず。
 2. [ ] **パーサーとヘルプを scope ベースにする。** まだ root の Command の scope を使う。この時点でも公開 API は変えない。
-3. [ ] **公開 API の切り替え。** Program が自分の scope と name/description を持つようにし、`clopts_program_create(name)` と `clopts_program_add_*` を足し、`clopts_program_root` を削除する。help のオプションは作るだけにする。テスト・examples・docs・`abi/clopts.symbols`・CHANGELOG も、このコミットでまとめて直す。
+3. [ ] **公開 API の切り替え。** Program が自分の scope と name/description を持つようにし、`clopts_program_create(name)` と `clopts_program_add_*` を足し、`clopts_program_root` を削除する。`clopts_help_add_help_option` / `clopts_help_add_version_option` を削除する。テスト・examples・docs・`abi/clopts.symbols`・CHANGELOG も、このコミットでまとめて直す。
 4. [ ] **残った「root」という言葉を整理する。** コメント、エラーメッセージ、ヘルプの内部名が対象。
 
 1 と 2 はそれだけでも価値がある（公開 API を変えずに内部を整える）ので、先に入れておけば、3 をやめることになっても無駄にならない。
