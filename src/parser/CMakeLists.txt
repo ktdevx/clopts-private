@@ -2,4 +2,4 @@
 # SPDX-License-Identifier: MIT
 
 clopts_add_module(parser SOURCES program.c command.c option.c positional.c scope.c
-    parser_decl.c parser_scan.c parser_resolve.c parser_result.c)
+    names.c scan.c resolve.c result.c)
