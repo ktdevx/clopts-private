@@ -160,7 +160,6 @@ static void set_missing(clopts_result_t *result, const clopts_command_t *command
                         const clopts_option_t *option, const clopts_positional_t *positional)
 {
     result->error.usage = (option != NULL) ? CLOPTS_USAGE_MISSING_OPTION : CLOPTS_USAGE_MISSING_ARGUMENT;
-    result->error.decl = CLOPTS_DECL_NONE;
     result->error.command = command;
     result->error.option = option;
     result->error.positional = positional;

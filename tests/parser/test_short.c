@@ -62,6 +62,7 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
     fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
+    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -70,6 +71,7 @@ static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
 {
     fixture_filt_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
+    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -84,7 +86,6 @@ static void check_short_error(const clopts_result_t *result, clopts_usage_error_
 {
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), usage);
-    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NONE);
     NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), command);
     NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), option);
     NAOS_CHECK_NULL(clopts_result_error_positional(result));
@@ -117,6 +118,7 @@ NAOS_TEST(fixture_short_names_are_as_designed)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
+    NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_INT_EQ(t.verbose->short_name, 'v');
     NAOS_CHECK_INT_EQ(t.color->short_name, '\0');
     NAOS_CHECK_INT_EQ(t.config->short_name, '\0');
@@ -132,11 +134,13 @@ NAOS_TEST(fixture_short_names_are_as_designed)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_INT_EQ(f.lines->short_name, 'n');
     fixture_filt_free(&f);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_REQUIRE_TRUE(s.ok);
     NAOS_CHECK_INT_EQ(s.token->short_name, '\0');
     fixture_strict_free(&s);
 }

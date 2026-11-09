@@ -9,30 +9,26 @@
  * by the builder functions (parser_build.c). help-and-messages reads it
  * through const pointers and never writes to it.
  *
- * Invariants, guaranteed by the builder for a program whose
- * error.status == CLOPTS_OK:
- *   - Names and attributes satisfy every rule of the immediate check.
+ * Invariants, guaranteed by the builder:
+ *   - Everything attached to a program satisfies every declaration rule:
+ *     a builder call that would break one fails and changes nothing.
  *   - The address of every handle stays the same until clopts_program_free():
  *     children are allocated one by one and the vecs hold pointers only.
- *   - index equals the position of the object in its scope's vec.
- * A program with a recorded error may break them: readers must accept NULL
- * names there.
+ *   - An option or positional does not point to its command. Its index is its
+ *     position in the vec of the command it is attached to.
  */
 
-/* Kind of an option. */
-typedef enum clopts_parser_kind
-{
-    CLOPTS_PARSER_FLAG,
-    CLOPTS_PARSER_COUNT,
-    CLOPTS_PARSER_VALUE,
-    CLOPTS_PARSER_LIST
-} clopts_parser_kind_t;
+/* Kind of an option: the public kind. */
+typedef clopts_option_kind_t clopts_parser_kind_t;
+
+#define CLOPTS_PARSER_FLAG CLOPTS_OPTION_FLAG
+#define CLOPTS_PARSER_COUNT CLOPTS_OPTION_COUNT
+#define CLOPTS_PARSER_VALUE CLOPTS_OPTION_VALUE
+#define CLOPTS_PARSER_LIST CLOPTS_OPTION_LIST
 
 struct clopts_option
 {
-    clopts_program_t *program;  /* owner; checked by the value accessors */
-    clopts_command_t *scope;    /* scope it belongs to (the root included) */
-    size_t index;               /* index in scope->options = index of its slot */
+    bool attached;              /* attached to a command: owned by it and read-only */
     clopts_parser_kind_t kind;
     char *long_name;            /* may be NULL */
     char short_name;            /* '\0' for none */
@@ -48,13 +44,11 @@ struct clopts_option
 
 struct clopts_positional
 {
-    clopts_program_t *program;
-    clopts_command_t *scope;
-    size_t index;               /* index in scope->positionals */
+    bool attached;              /* attached to a command: owned by it and read-only */
     char *name;                 /* not empty; owned copy */
     char *help;                 /* may be NULL; owned copy */
     bool required;
-    bool variadic;              /* true for the last positional of scope only */
+    bool variadic;              /* true for the last positional of a command only */
 };
 
 struct clopts_command
@@ -63,8 +57,8 @@ struct clopts_command
     const char *name;               /* root: the program name (in the program's block); otherwise an owned copy */
     char *summary;                  /* may be NULL; owned copy */
     char *description;              /* may be NULL; owned copy */
-    clopts_core_vec_t options;      /* clopts_option_t * elements, in order of addition */
-    clopts_core_vec_t positionals;  /* clopts_positional_t * elements, in order of addition */
+    clopts_core_vec_t options;      /* clopts_option_t * elements, in order of attachment */
+    clopts_core_vec_t positionals;  /* clopts_positional_t * elements, in order of attachment */
     clopts_handler_fn handler;      /* may be NULL */
     void *userdata;
 };
@@ -74,15 +68,7 @@ struct clopts_program
     clopts_command_t root;          /* the root scope; &program->root is its handle */
     char *version;                  /* may be NULL; owned copy */
     clopts_core_vec_t commands;     /* clopts_command_t * elements, in order of addition; empty: no subcommands */
-    bool frozen;                    /* set by the first parse / validation; never cleared */
-    struct
-    {
-        clopts_status_t status;     /* OK / DECL_ERROR / OUT_OF_MEMORY; changes at most once */
-        clopts_decl_error_t kind;
-        clopts_command_t *command;  /* scope of the offending handle; reported as NULL for the root */
-        clopts_option_t *option;
-        clopts_positional_t *positional;
-    } error;
+    bool frozen;                    /* set by the first parse; never cleared */
 };
 
 #endif /* CLOPTS_PARSER_MODEL_H */

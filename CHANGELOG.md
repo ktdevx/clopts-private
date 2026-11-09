@@ -13,9 +13,10 @@ CLOpts の版ごとの変更をこのファイルに記録する。版番号は 
 
 ### 追加
 
-- サブコマンド、オプション（フラグ、カウント、単一値、リスト値）、位置引数を関数で宣言する API（`clopts_program_new`、`clopts_command_add_value`、`clopts_command_add_positional` など）。
+- サブコマンド、オプション（フラグ、カウント、単一値、リスト値）、位置引数を関数で宣言する API（`clopts_program_new`、`clopts_program_add_command` など）。オプションと位置引数は単独で作って設定し（`clopts_option_new`、`clopts_positional_new`）、コマンドに渡す（`clopts_command_add_option`、`clopts_command_add_positional`）。所有権は渡すのに成功したときだけ移る。オプションと位置引数は自分を渡したコマンドを知らず、渡した後は読み取り専用になる。
+- 宣言の誤りは、誤った呼び出しの戻り値（`clopts_decl_error_t`）としてすぐに返り、失敗した呼び出しは何も変えない。そのため、組み立てたプログラムはつねに正しく、解析が宣言の誤りを返すことはない。宣言の誤りの説明は `clopts_decl_error_message` で得られる。
 - 宣言に従った argv の解析（`clopts_parse`）。`--` と `-` 単体、オプションと位置引数の並べ替え、`--no-<name>`、カウント、環境変数と既定値を含む値の優先順位、値の出所の取得を扱う。
-- 種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読める構造化エラー。宣言の誤りは使い方の誤りと区別して返す。
+- 種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読める、使い方の誤りの構造化エラー。
 - 宣言から作るヘルプ、使い方、版、エラーの文面の出力（`clopts_write_help`、`clopts_write_usage`、`clopts_write_version`、`clopts_write_error`、`clopts_write_usage_hint`）。ライブラリ自身は入出力も `exit` もせず、文面は書き込みのコールバックに渡す。`FILE*` に出すための `clopts_file_write` を公開ヘッダに置く。
 - ライブラリ全体で使うアロケーターを差し替える `clopts_set_allocator` と、その 4 つの関数（`malloc_fn`、`calloc_fn`、`realloc_fn`、`free_fn`）をまとめる構造体 `clopts_allocator_t`（`clopts/alloc.h`）。ライブラリの確保と解放は、すべてこのアロケーターを通る。`clopts_allocator_t` の配置は凍結し、拡張するときは別の型と関数を足す。
 - Windows のコマンドラインから UTF-8 の argv を得る `clopts_argv_get`（他の OS では変換しない）と、`wmain` 向けの `clopts_argv_from_wide`。環境変数を UTF-8 で引く `clopts_env_new` と `clopts_env_lookup`。

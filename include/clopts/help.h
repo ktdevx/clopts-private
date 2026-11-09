@@ -59,9 +59,16 @@ CLOPTS_API clopts_write_status_t clopts_write_version(const clopts_program_t *pr
 CLOPTS_API clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program,
                                                          const clopts_command_t *command, clopts_write_fn write_fn,
                                                          void *ctx);
-/* One line for a USAGE_ERROR / DECL_ERROR / OUT_OF_MEMORY result of program. UNAVAILABLE otherwise. */
+/* One line for a USAGE_ERROR / OUT_OF_MEMORY result of program. UNAVAILABLE otherwise. */
 CLOPTS_API clopts_write_status_t clopts_write_error(const clopts_program_t *program, const clopts_result_t *result,
                                                     unsigned flags, clopts_write_fn write_fn, void *ctx);
+
+/*
+ * Returns a static English description of error (for example "duplicate
+ * option name"), for the messages of the program that declares the options.
+ * NULL for CLOPTS_DECL_NONE and for values outside clopts_decl_error_t.
+ */
+CLOPTS_API const char *clopts_decl_error_message(clopts_decl_error_t error);
 
 #ifdef __cplusplus
 }

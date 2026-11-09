@@ -6,7 +6,7 @@
  * The allocations are counted and made to fail by the fault-injecting
  * allocator of tests/support/test_alloc.h, installed with
  * clopts_set_allocator(): each malloc, calloc or realloc call of the library
- * is one fault point (clopts_program_new() included), and every block must
+ * is one fault point (test_decl_program() included), and every block must
  * have been released through it at the end of each run. The allocation
  * gateway itself (clopts_core_malloc and the others, the overflow checks and
  * the vec growth) is tested in the core suite.
@@ -15,6 +15,7 @@
 #include "parser/parser_internal.h"
 #include "test_alloc.h"
 #include "test_fixtures.h"
+#include "test_decl.h"
 
 #include <naos/naos.h>
 
@@ -302,7 +303,7 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
 
 /*
  * Scenario (a): building tool, then validating and parsing it. fail_at counts
- * from clopts_program_new(), which is the first fault point: fail_at = 1
+ * from test_decl_program(), which is the first fault point: fail_at = 1
  * leaves the fixture without a program.
  */
 NAOS_TEST(sweep_tool_build_then_validate_and_parse)
@@ -332,7 +333,7 @@ NAOS_TEST(sweep_tool_build_then_validate_and_parse)
 
         if (t.program == NULL)
         {
-            /* clopts_program_new() failed; every later builder call got NULL. */
+            /* test_decl_program() failed; every later builder call got NULL. */
             new_oom_runs++;
             NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
             NAOS_CHECK_NULL(t.root);

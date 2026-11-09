@@ -24,7 +24,6 @@ static const struct clopts_result parser_result_sentinel = {
     .command = NULL,
     .error = {
         .usage = CLOPTS_USAGE_NONE,
-        .decl = CLOPTS_DECL_NONE,
         .command = NULL,
         .option = NULL,
         .positional = NULL,
@@ -33,7 +32,6 @@ static const struct clopts_result parser_result_sentinel = {
         .name_len = 0,
         .short_name = '\0'
     },
-    .parsed = false,
     .global_slots = NULL,
     .global_count = 0,
     .command_slots = NULL,
@@ -121,7 +119,6 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     result->program = program;
     result->command = NULL;
     result->error.usage = CLOPTS_USAGE_NONE;
-    result->error.decl = CLOPTS_DECL_NONE;
     result->error.command = NULL;
     result->error.option = NULL;
     result->error.positional = NULL;
@@ -129,7 +126,6 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     result->error.argv_index = -1;
     result->error.name_len = 0;
     result->error.short_name = '\0';
-    result->parsed = false;
     result->global_slots = global_slots;
     result->global_count = program->root.options.len;
     result->command_slots = NULL;
@@ -174,12 +170,10 @@ clopts_parser_slot_t *clopts_parser_result_slot(clopts_result_t *result, const c
     if (ref->global)
     {
         assert(ref->index < result->global_count);
-        assert(ref->option->scope == &result->program->root);
         return &result->global_slots[ref->index];
     }
     assert(result->command != NULL);
     assert(ref->index < result->command_count);
-    assert(ref->option->scope == result->command);
     return &result->command_slots[ref->index];
 }
 
@@ -308,11 +302,10 @@ static const clopts_result_t *result_or_sentinel(const clopts_result_t *result)
     return (result == NULL) ? &parser_result_sentinel : result;
 }
 
-/* Returns true when result carries an error (status USAGE_ERROR or DECL_ERROR). */
+/* Returns true when result carries an error (status USAGE_ERROR). */
 static bool result_has_error(const clopts_result_t *result)
 {
-    return ((result != NULL) &&
-            ((result->status == CLOPTS_USAGE_ERROR) || (result->status == CLOPTS_DECL_ERROR)));
+    return ((result != NULL) && (result->status == CLOPTS_USAGE_ERROR));
 }
 
 /* Returns true when the value accessors of result are meaningful (status OK or NO_COMMAND). */
@@ -321,34 +314,50 @@ static bool result_has_values(const clopts_result_t *result)
     return ((result->status == CLOPTS_OK) || (result->status == CLOPTS_NO_COMMAND));
 }
 
+/* Returns the position of option in the options of scope, or scope->options.len. */
+static size_t option_index_in(const clopts_command_t *scope, const clopts_option_t *option)
+{
+    size_t i;
+
+    for (i = 0; i < scope->options.len; i++)
+    {
+        if (*(clopts_option_t *const *)clopts_core_vec_at(&scope->options, i) == option)
+        {
+            return i;
+        }
+    }
+    return scope->options.len;
+}
+
 /*
  * Returns the slot of option in result, or NULL when the accessors must
  * return the unset value: a NULL result (read as the sentinel), the
  * sentinel, a NULL option, a status other than OK / NO_COMMAND, or an option
- * of a command that was not selected (with NO_COMMAND, any command's
- * option). An option of another program is a contract violation.
+ * that is attached neither to the root nor to the selected command (an
+ * option of another command or program, or an unattached one). The option is
+ * looked up by its address.
  */
 static const clopts_parser_slot_t *find_slot(const clopts_result_t *result, const clopts_option_t *option)
 {
+    size_t index;
+
     result = result_or_sentinel(result);
-    if ((result == &parser_result_sentinel) || (option == NULL))
+    if ((result == &parser_result_sentinel) || (option == NULL) || (!result_has_values(result)))
     {
         return NULL;
     }
-    assert((option->program == result->program) && "option does not belong to the program of this result");
-    if (!result_has_values(result))
+    index = option_index_in(&result->program->root, option);
+    if (index < result->global_count)
     {
-        return NULL;
+        return &result->global_slots[index];
     }
-    if (option->scope == &result->program->root)
+    if ((result->status == CLOPTS_OK) && (result->command != NULL))
     {
-        assert(option->index < result->global_count);
-        return &result->global_slots[option->index];
-    }
-    if ((result->status == CLOPTS_OK) && (result->command != NULL) && (option->scope == result->command))
-    {
-        assert(option->index < result->command_count);
-        return &result->command_slots[option->index];
+        index = option_index_in(result->command, option);
+        if (index < result->command_count)
+        {
+            return &result->command_slots[index];
+        }
     }
     return NULL;
 }
@@ -370,15 +379,6 @@ clopts_usage_error_t clopts_result_usage_error(const clopts_result_t *result)
         return CLOPTS_USAGE_NONE;
     }
     return result->error.usage;
-}
-
-clopts_decl_error_t clopts_result_decl_error(const clopts_result_t *result)
-{
-    if (!result_has_error(result))
-    {
-        return CLOPTS_DECL_NONE;
-    }
-    return result->error.decl;
 }
 
 const clopts_command_t *clopts_result_error_command(const clopts_result_t *result)
@@ -520,7 +520,6 @@ int clopts_result_run(const clopts_result_t *result)
 
     assert(result != NULL);
     assert(result != &parser_result_sentinel);
-    assert(result->parsed && "clopts_result_run needs a result of a parse function");
     assert(result->status == CLOPTS_OK);
 
     scope = (result->command != NULL) ? result->command : &result->program->root;

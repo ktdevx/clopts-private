@@ -491,28 +491,18 @@ NAOS_TEST(write_error_stops_after_a_write_failure)
 {
     char *argv[] = { "tool", "build", "--bad=1", NULL };
     help_fixture_tool_t tool;
-    clopts_program_t *broken;
     clopts_result_t *usage_result;
-    clopts_result_t *decl_result;
     size_t i;
 
     help_fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
     usage_result = clopts_parse_with_env(tool.program, 3, argv, out_env_unset, NULL);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(usage_result), CLOPTS_USAGE_ERROR);
-
-    broken = clopts_program_new("tool");
-    NAOS_REQUIRE_NOT_NULL(broken);
-    (void)clopts_command_add_flag(clopts_program_root(broken), "bad name", '\0');
-    decl_result = clopts_program_validate(broken);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(decl_result), CLOPTS_DECL_ERROR);
     {
         const unsigned both = CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR;
         const out_case_t cases[] = {
             { "usage error", OUT_ERROR, tool.program, NULL, usage_result, 0u },
             { "usage error with prefixes", OUT_ERROR, tool.program, NULL, usage_result, both },
-            { "declaration error", OUT_ERROR, broken, NULL, decl_result, 0u },
-            { "declaration error with prefixes", OUT_ERROR, broken, NULL, decl_result, both },
             { "out of memory", OUT_ERROR, tool.program, NULL, NULL, 0u },
             { "out of memory with prefixes", OUT_ERROR, tool.program, NULL, NULL, both },
         };
@@ -524,8 +514,6 @@ NAOS_TEST(write_error_stops_after_a_write_failure)
             NAOS_TRACE_POP();
         }
     }
-    clopts_result_free(decl_result);
-    clopts_program_free(broken);
     clopts_result_free(usage_result);
     help_fixture_tool_free(&tool);
 }

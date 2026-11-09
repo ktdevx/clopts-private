@@ -10,7 +10,7 @@
  *
  * consumer_parse_check() runs declaration -> parse -> lookup -> release with
  * public functions only. consumer_help_check() calls the five text writers
- * of clopts/help.h through the umbrella header (in a shared build, each call
+ * and clopts_decl_error_message() of clopts/help.h through the umbrella header (in a shared build, each call
  * must resolve against an exported symbol). consumer_platform_check() calls
  * every function of clopts/platform.h (clopts_argv_from_wide only on Windows)
  * through the umbrella header and checks the results against the contract.
@@ -44,14 +44,18 @@ static int consumer_parse_check(void)
     const char *value;
     int failed = 0;
 
-    program = clopts_program_new("consumer");
-    if (program == NULL)
+    if (clopts_program_new("consumer", &program) != CLOPTS_DECL_NONE)
     {
         return 1;
     }
-    name = clopts_command_add_value(clopts_program_root(program), "name", '\0');
-    if (name == NULL)
+    if (clopts_option_new(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_DECL_NONE)
     {
+        clopts_program_free(program);
+        return 1;
+    }
+    if (clopts_command_add_option(clopts_program_root(program), name) != CLOPTS_DECL_NONE)
+    {
+        clopts_option_free(name);
         clopts_program_free(program);
         return 1;
     }
@@ -99,18 +103,18 @@ static int consumer_help_check(void)
     clopts_result_t *result;
     int failed = 0;
 
-    program = clopts_program_new("consumer");
-    if (program == NULL)
+    if (clopts_program_new("consumer", &program) != CLOPTS_DECL_NONE)
     {
         return 1;
     }
-    result = clopts_program_validate(program);
+    result = clopts_parse(program, 0, NULL);
     if (!consumer_write_status_valid(clopts_write_help(program, NULL, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_usage(program, NULL, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_version(program, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_usage_hint(program, NULL, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR,
-                                                        consumer_discard, NULL)))
+                                                        consumer_discard, NULL)) ||
+        (clopts_decl_error_message(CLOPTS_DECL_DUPLICATE_OPTION) == NULL))
     {
         failed = 1;
     }

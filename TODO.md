@@ -2,7 +2,7 @@
 
 ## オプションを単独で作り、コマンドにアタッチする API へ変更する（破壊的変更）
 
-状態: 検討中（未実装）。API・ABI の互換は考えず、親子関係として綺麗な形を前提に検討する。
+状態: 実装済み。API・ABI の互換は考えず、親子関係として綺麗な形を前提に検討した。下の「未決」は実装で決めた内容に置き換えた。
 
 ### 動機
 
@@ -135,23 +135,27 @@ if (clopts_command_add_option(root, verbose) != CLOPTS_DECL_NONE)
    - 位置引数: 揃える（`clopts_positional_new` + `clopts_command_add_positional(cmd, pos)`）。親を持たない点も同じ。
    - コマンド: 方針 2 の即時エラーは `clopts_program_add_command` などにも適用する。`clopts_command_new` + アタッチの形にし、コマンドからも `program` を外すかは別途判断（root の扱い、`MIXED_LAYOUT`、`clopts_write_help` などが program からコマンドをたどる作りとの関係を見る）。
 
-### 未決
+### 実装で決めたこと（旧「未決」）
 
-- [ ] 宣言 API の戻り値の型: `clopts_decl_error_t` に OOM を足すか、`clopts_decl_status_t` のような別の enum を作るか。
-- [ ] `CLOPTS_NODISCARD` をどの API に付けるか（全 setter か、new とアタッチだけか）。
-- [ ] 宣言エラーの文面（今の `clopts_write_error` の `invalid declaration: ...`）を残すか。残すなら `clopts_decl_error_name(kind)` のような、種別から文面を引く関数にする。
-- [ ] 結果のスロットの引き方: 線形探索で足りるか、ポインタの表を作るか。
+- [x] 宣言 API の戻り値の型: `clopts_decl_error_t` をそのまま使い、`decl.h` へ移した（ビルダー関数が返すため）。値を 5 つ足した: `CLOPTS_DECL_INVALID_KIND`（16）、`CLOPTS_DECL_ALREADY_ATTACHED`（17）、`CLOPTS_DECL_INVALID_ARGUMENT`（18、NULL のハンドルか out）、`CLOPTS_DECL_FROZEN`（19、凍結後の変更。assert が無効なときだけ返る）、`CLOPTS_DECL_OUT_OF_MEMORY`（20）。
+- [x] `CLOPTS_NODISCARD`（GCC / Clang の `warn_unused_result`）は、ハンドルを作る関数とアタッチの関数（`clopts_program_new`、`clopts_program_add_command`、`clopts_option_new`、`clopts_positional_new`、`clopts_command_add_option`、`clopts_command_add_positional`）だけに付けた。setter には付けない。
+- [x] 宣言エラーの文面: `clopts_decl_error_message(kind)`（`help.h`）として残した。`clopts_write_error` の `invalid declaration: ...` は削除。
+- [x] 結果のスロットの引き方: 線形探索（`find_slot`）。
+- [x] アタッチ後の setter と二重アタッチは assert にせず、`CLOPTS_DECL_ALREADY_ATTACHED` を返すだけにした。
+- [x] コマンドは今回は `clopts_program_add_command(program, name, &out)` のまま（program が作る）。`program` を持つのもそのまま。
+- [x] NULL のハンドルを渡した呼び出しは何もせず `CLOPTS_DECL_INVALID_ARGUMENT` を返す。これを使うと「最初のエラーを 1 つ残し、後の呼び出しの結果は無視する」書き方ができる（examples の `check`）。
+- [x] `CLOPTS_DECL_ERROR` を除いた `clopts_status_t` は値を詰めた（`CLOPTS_OUT_OF_MEMORY` は 5）。
 
 ### 影響範囲
 
-- [ ] `src/parser/parser_build.c`: new とアタッチの分離、setter の戻り値化、関係の検査をアタッチへ集約、`build_begin` / `build_record_*` の整理
-- [ ] `src/parser/parser_model.h`: `struct clopts_option` / `struct clopts_positional` から `program` / `scope` / `index` を外して `attached` を足す、`program->error` の削除、`clopts_parser_kind_t` を公開 enum に置き換え
-- [ ] `src/parser/parser_result.c`: `find_slot` をポインタでの探索に変える
-- [ ] `src/parser/parser_scan.c`: 宣言エラーを結果で返す経路の削除
-- [ ] `src/help/help_message.c`・`help_layout.c`: `CLOPTS_DECL_ERROR` の文面と `program->error.status` 参照の削除
-- [ ] `include/clopts/decl.h`・`parse.h`・`help.h`: API の差し替え、`clopts_option_kind_t` の追加、`CLOPTS_DECL_ERROR` / `clopts_validate` の削除
-- [ ] `abi/clopts.symbols`
-- [ ] `docs/api.md`: 宣言、メモリの所有と寿命、宣言エラーの表
-- [ ] `README.md`、`examples/taskbook/taskbook.c`、`examples/textcount/textcount.c`
-- [ ] `tests/parser/`（`test_build.c`、`test_decl_check.c`、`test_errors.c`、`test_oom.c`、`test_result.c` など）、`tests/help/`
-- [ ] `CHANGELOG.md`: 破壊的変更として記載する
+- [x] `src/parser/parser_build.c`: new とアタッチの分離、setter の戻り値化、関係の検査をアタッチへ集約、`build_begin` / `build_record_*` の整理
+- [x] `src/parser/parser_model.h`: `struct clopts_option` / `struct clopts_positional` から `program` / `scope` / `index` を外して `attached` を足す、`program->error` の削除、`clopts_parser_kind_t` を公開 enum に置き換え
+- [x] `src/parser/parser_result.c`: `find_slot` をポインタでの探索に変える
+- [x] `src/parser/parser_scan.c`: 宣言エラーを結果で返す経路の削除
+- [x] `src/help/help_message.c`・`help_layout.c`: `CLOPTS_DECL_ERROR` の文面と `program->error.status` 参照の削除
+- [x] `include/clopts/decl.h`・`parse.h`・`help.h`: API の差し替え、`clopts_option_kind_t` の追加、`CLOPTS_DECL_ERROR` / `clopts_validate` の削除
+- [x] `abi/clopts.symbols`
+- [x] `docs/api.md`: 宣言、メモリの所有と寿命、宣言エラーの表
+- [x] `README.md`、`examples/taskbook/taskbook.c`、`examples/textcount/textcount.c`
+- [x] `tests/parser/`（`test_build.c`、`test_decl_check.c`、`test_errors.c`、`test_oom.c`、`test_result.c` など）、`tests/help/`
+- [x] `CHANGELOG.md`: まだリリースしていないので、「追加」の節の記述を新しい API に書き換えた

@@ -2,8 +2,8 @@
  * HelpMessage: error line of a result, its prefix, and the message tables.
  *
  * The line is [prefix] + body + "\n". The status of the result selects the
- * body (usage error text, declaration error reason, out of memory); for any
- * other status nothing is written. The prefix is written only once the body
+ * body (usage error text, out of memory); for any other status nothing is
+ * written. The prefix is written only once the body
  * is known, so an unavailable line never calls write_fn. No usage hint is
  * part of the line.
  *
@@ -204,53 +204,6 @@ static void message_write_usage_body(clopts_help_out_t *out, const clopts_result
     }
 }
 
-/* Writes " in command '<name>'" when command is a subcommand with a name. */
-static void message_write_in_command(clopts_help_out_t *out, const clopts_command_t *command)
-{
-    if ((command != NULL) && message_has_text(command->name))
-    {
-        clopts_help_out_str(out, " in command '");
-        clopts_help_out_str(out, command->name);
-        clopts_help_out_char(out, '\'');
-    }
-}
-
-/*
- * Writes the subject of a declaration error, " (<subject>)", from the first
- * of these that has a name: the option, the positional, the command. An
- * option or a positional of a subcommand is followed by the command. Nothing
- * is written when none has a name.
- */
-static void message_write_decl_subject(clopts_help_out_t *out, const clopts_result_t *result)
-{
-    const clopts_command_t *command = clopts_result_error_command(result);
-    const clopts_option_t *option = clopts_result_error_option(result);
-    const clopts_positional_t *positional = clopts_result_error_positional(result);
-
-    if ((option != NULL) && (message_has_text(option->long_name) || (option->short_name != '\0')))
-    {
-        clopts_help_out_str(out, " (option '");
-        message_write_option_name(out, option);
-        clopts_help_out_char(out, '\'');
-        message_write_in_command(out, command);
-        clopts_help_out_char(out, ')');
-    }
-    else if ((positional != NULL) && message_has_text(positional->name))
-    {
-        clopts_help_out_str(out, " (argument <");
-        clopts_help_out_str(out, positional->name);
-        clopts_help_out_char(out, '>');
-        message_write_in_command(out, command);
-        clopts_help_out_char(out, ')');
-    }
-    else if ((command != NULL) && message_has_text(command->name))
-    {
-        clopts_help_out_str(out, " (command '");
-        clopts_help_out_str(out, command->name);
-        clopts_help_out_str(out, "')");
-    }
-}
-
 /*
  * Writes the prefix selected by the defined bits of flags:
  * "<program>: " or "<program> <command>: " (PROGRAM), then "error: " (ERROR).
@@ -310,18 +263,6 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
         message_write_prefix(&out, program, NULL, flags);
         clopts_help_out_str(&out, "out of memory");
         break;
-    case CLOPTS_DECL_ERROR:
-        text = clopts_help_decl_reason(clopts_result_decl_error(result));
-        if (text == NULL)
-        {
-            return CLOPTS_WRITE_UNAVAILABLE;
-        }
-        clopts_help_out_init(&out, write_fn, ctx);
-        message_write_prefix(&out, program, command, flags);
-        clopts_help_out_str(&out, "invalid declaration: ");
-        clopts_help_out_str(&out, text);
-        message_write_decl_subject(&out, result);
-        break;
     default:
         /* OK / HELP / VERSION / NO_COMMAND: no error to describe. */
         return CLOPTS_WRITE_UNAVAILABLE;
@@ -354,9 +295,9 @@ const char *clopts_help_usage_text(clopts_usage_error_t kind)
     return NULL;
 }
 
-const char *clopts_help_decl_reason(clopts_decl_error_t kind)
+const char *clopts_decl_error_message(clopts_decl_error_t error)
 {
-    switch (kind)
+    switch (error)
     {
     case CLOPTS_DECL_NONE:
         return NULL;
@@ -390,6 +331,16 @@ const char *clopts_help_decl_reason(clopts_decl_error_t kind)
         return "attribute does not apply to this kind of option";
     case CLOPTS_DECL_MIXED_LAYOUT:
         return "a program with subcommands cannot have root arguments or a root handler";
+    case CLOPTS_DECL_INVALID_KIND:
+        return "invalid option kind";
+    case CLOPTS_DECL_ALREADY_ATTACHED:
+        return "already attached to a command";
+    case CLOPTS_DECL_INVALID_ARGUMENT:
+        return "invalid argument";
+    case CLOPTS_DECL_FROZEN:
+        return "the program is frozen";
+    case CLOPTS_DECL_OUT_OF_MEMORY:
+        return "out of memory";
     }
     return NULL;
 }

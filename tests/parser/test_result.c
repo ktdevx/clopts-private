@@ -13,6 +13,7 @@
 #include "parser/parser_internal.h"
 #include "test_alloc.h"
 #include "test_fixtures.h"
+#include "test_decl.h"
 
 #include <naos/naos.h>
 
@@ -79,28 +80,37 @@ static int build_userdata;
 /* Builds the sample program. */
 static void sample_init(sample_t *s)
 {
-    s->program = clopts_program_new("tool");
+    s->program = test_decl_program("tool");
     if (s->program == NULL)
     {
         return;
     }
     s->root = clopts_program_root(s->program);
-    s->force = clopts_command_add_flag(s->root, "force", 'f');
-    clopts_option_set_negatable(s->force, true);
-    s->verbose = clopts_command_add_count(s->root, "verbose", 'v');
-    s->jobs = clopts_command_add_count(s->root, "jobs", 'j');
-    clopts_option_set_count_max(s->jobs, 8);
-    s->config = clopts_command_add_value(s->root, "config", 'c');
-    s->include = clopts_command_add_list(s->root, "include", 'I');
-    clopts_option_set_delimiter(s->include, ',');
-    s->tag = clopts_command_add_list(s->root, "tag", 't');
-    s->build = clopts_program_add_command(s->program, "build");
-    s->release = clopts_command_add_flag(s->build, "release", '\0');
-    s->build_output = clopts_command_add_value(s->build, "output", 'o');
-    clopts_command_set_handler(s->build, record_handler, &build_userdata);
-    s->copy = clopts_program_add_command(s->program, "copy");
-    s->copy_output = clopts_command_add_value(s->copy, "output", '\0');
-    s->empty = clopts_program_add_command(s->program, "empty");
+    s->force = test_decl_option(CLOPTS_OPTION_FLAG, "force", 'f');
+    test_decl_check(clopts_option_set_negatable(s->force, true));
+    s->force = test_decl_attach(s->root, s->force);
+    s->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
+    s->verbose = test_decl_attach(s->root, s->verbose);
+    s->jobs = test_decl_option(CLOPTS_OPTION_COUNT, "jobs", 'j');
+    test_decl_check(clopts_option_set_count_max(s->jobs, 8));
+    s->jobs = test_decl_attach(s->root, s->jobs);
+    s->config = test_decl_option(CLOPTS_OPTION_VALUE, "config", 'c');
+    s->config = test_decl_attach(s->root, s->config);
+    s->include = test_decl_option(CLOPTS_OPTION_LIST, "include", 'I');
+    test_decl_check(clopts_option_set_delimiter(s->include, ','));
+    s->include = test_decl_attach(s->root, s->include);
+    s->tag = test_decl_option(CLOPTS_OPTION_LIST, "tag", 't');
+    s->tag = test_decl_attach(s->root, s->tag);
+    s->build = test_decl_command(s->program, "build");
+    s->release = test_decl_option(CLOPTS_OPTION_FLAG, "release", '\0');
+    s->release = test_decl_attach(s->build, s->release);
+    s->build_output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
+    s->build_output = test_decl_attach(s->build, s->build_output);
+    test_decl_check(clopts_command_set_handler(s->build, record_handler, &build_userdata));
+    s->copy = test_decl_command(s->program, "copy");
+    s->copy_output = test_decl_option(CLOPTS_OPTION_VALUE, "output", '\0');
+    s->copy_output = test_decl_attach(s->copy, s->copy_output);
+    s->empty = test_decl_command(s->program, "empty");
 }
 
 /* Returns the slot of option (in the root or the selected command). */
@@ -200,7 +210,7 @@ NAOS_TEST(new_without_root_options_has_no_slots)
     long live;
 
     test_alloc_begin(0);
-    program = clopts_program_new("tool");
+    program = test_decl_program("tool");
     NAOS_REQUIRE_NOT_NULL(program);
     calls = test_alloc.calls;
     live = test_alloc.live;
@@ -613,6 +623,7 @@ NAOS_TEST(option_of_another_program_reads_as_unset_with_ndebug)
     SAMPLE_BEGIN(s, result);
     sample_init(&other);
     NAOS_REQUIRE_NOT_NULL(other.program);
+    NAOS_REQUIRE_TRUE(other.ok);
     clopts_parser_slot_set_flag(slot_of(result, s.force), true, CLOPTS_SOURCE_EXPLICIT);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     CHECK_UNSET(result, other.force);
@@ -832,10 +843,10 @@ NAOS_TEST(run_calls_the_root_handler_without_subcommands)
     clopts_result_t *result;
     int userdata;
 
-    program = clopts_program_new("filt");
+    program = test_decl_program("filt");
     NAOS_REQUIRE_NOT_NULL(program);
-    (void)clopts_command_add_flag(clopts_program_root(program), "all", 'a');
-    clopts_command_set_handler(clopts_program_root(program), other_handler, &userdata);
+    test_decl_add(clopts_program_root(program), CLOPTS_OPTION_FLAG, "all", 'a');
+    test_decl_check(clopts_command_set_handler(clopts_program_root(program), other_handler, &userdata));
     result = clopts_parser_result_new(program);
     NAOS_REQUIRE_NOT_NULL(result);
     result->parsed = true;
@@ -887,6 +898,7 @@ NAOS_TEST(failing_result_new_leaks_nothing)
     test_alloc_begin(0);
     sample_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
+    NAOS_REQUIRE_TRUE(s.ok);
     live = test_alloc.live;
     for (n = 1; n < 10; n++)
     {
@@ -1045,6 +1057,7 @@ static clopts_result_t *parse_env(clopts_program_t *program, char **argv, fixtur
     {                                                                               \
         fixture_tool_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
+        NAOS_REQUIRE_TRUE((f).ok);                                                  \
     } while (0)
 
 /* Checks that every option of the tool fixture reads as unset and that there are no positionals. */
@@ -1153,6 +1166,7 @@ NAOS_TEST(parse_result_without_subcommands_has_no_command)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_env(f.program, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
@@ -1176,6 +1190,7 @@ NAOS_TEST(parse_then_run_calls_the_filt_handler)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     fixture_handler_reset(&fixture_filt_handler_record, 42);
     fixture_handler_reset(&fixture_build_handler_record, 0);
@@ -1241,6 +1256,7 @@ NAOS_TEST(parse_out_of_memory_result_is_freed_once)
     test_alloc_begin(0);
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
+    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     env.fail_next = true;
     result = parse_env(t.program, argv, &env);
@@ -1273,6 +1289,7 @@ NAOS_TEST(parse_twice_gives_independent_results)
     test_alloc_begin(0);
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
+    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     first = parse_env(t.program, first_argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(first), CLOPTS_OK);
@@ -1323,6 +1340,7 @@ NAOS_TEST(parse_after_an_error_gives_an_independent_result)
     TOOL_BEGIN(t);
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
+    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     error_result = parse_env(t.program, bad, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(error_result), CLOPTS_USAGE_ERROR);
@@ -1391,7 +1409,6 @@ NAOS_TEST(parse_usage_error_result_has_unset_values)
     result = parse_env(t.program, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_UNKNOWN_OPTION);
-    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NONE);
     NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), t.build);
     NAOS_CHECK_NULL(clopts_result_error_option(result));
     NAOS_CHECK_NULL(clopts_result_error_positional(result));
@@ -1414,11 +1431,13 @@ NAOS_TEST(parse_decl_error_result_has_no_usage_error_and_unset_values)
     fixture_env_t env;
     clopts_result_t *result;
 
-    program = clopts_program_new("broken");
+    program = test_decl_program("broken");
     NAOS_REQUIRE_NOT_NULL(program);
-    fine = clopts_command_add_flag(clopts_program_root(program), "fine", '\0');
-    (void)clopts_command_add_positional(clopts_program_root(program), "ARG");
-    broken = clopts_command_add_flag(clopts_program_root(program), NULL, '\0');
+    fine = test_decl_option(CLOPTS_OPTION_FLAG, "fine", '\0');
+    fine = test_decl_attach(clopts_program_root(program), fine);
+    test_decl_add_positional(clopts_program_root(program), "ARG");
+    broken = test_decl_option(CLOPTS_OPTION_FLAG, NULL, '\0');
+    broken = test_decl_attach(clopts_program_root(program), broken);
     NAOS_REQUIRE_NOT_NULL(fine);
     NAOS_REQUIRE_NOT_NULL(broken);
     fixture_env_init(&env, NULL, 0);

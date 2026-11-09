@@ -95,12 +95,11 @@ typedef struct clopts_parser_slot
 struct clopts_result
 {
     clopts_status_t status;
-    const clopts_program_t *program;  /* owner check and run; never read by free */
+    const clopts_program_t *program;  /* option lookup and run; never read by free */
     const clopts_command_t *command;  /* selected command / help target, or NULL */
     struct
     {
         clopts_usage_error_t usage;
-        clopts_decl_error_t decl;
         const clopts_command_t *command;
         const clopts_option_t *option;
         const clopts_positional_t *positional;
@@ -109,7 +108,6 @@ struct clopts_result
         size_t name_len;
         char short_name;
     } error;
-    bool parsed;                      /* produced by clopts_parse*() (false for validation) */
     clopts_parser_slot_t *global_slots;   /* one per root option */
     size_t global_count;
     clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */

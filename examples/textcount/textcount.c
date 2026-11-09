@@ -7,6 +7,7 @@
  * It does not read any file: it reports which files it would count, and with
  * which settings, as "<key>: <value> (<source>)" lines on stdout.
  */
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "clopts/clopts.h"
@@ -77,39 +78,76 @@ static int run(const clopts_result_t *result, void *userdata)
     return 0;
 }
 
-/* Declares the program. Errors are recorded in it and reported by the parse. */
-static void declare(clopts_program_t *program, struct textcount_options *opts)
+/*
+ * Keeps the first declaration error. Once one is kept, the rest of the
+ * declaration is skipped: every later call fails or is ignored.
+ */
+static bool check(clopts_decl_error_t *first, clopts_decl_error_t error)
 {
+    if (*first == CLOPTS_DECL_NONE)
+    {
+        *first = error;
+    }
+    return *first == CLOPTS_DECL_NONE;
+}
+
+/* Attaches option to command and returns it, or releases it and returns NULL. */
+static clopts_option_t *attach_option(clopts_decl_error_t *first, clopts_command_t *command, clopts_option_t *option)
+{
+    if ((*first != CLOPTS_DECL_NONE) || !check(first, clopts_command_add_option(command, option)))
+    {
+        clopts_option_free(option);
+        return NULL;
+    }
+    return option;
+}
+
+/* Declares the program. Returns the first declaration error, or CLOPTS_DECL_NONE. */
+static clopts_decl_error_t declare(clopts_program_t *program, struct textcount_options *opts)
+{
+    clopts_decl_error_t e = CLOPTS_DECL_NONE;
     clopts_command_t *root = clopts_program_root(program);
-    clopts_positional_t *positional;
+    clopts_option_t *option = NULL;
+    clopts_positional_t *positional = NULL;
 
-    clopts_program_set_version(program, "0.4.0");
-    clopts_command_set_description(root, "Count the lines and words of text files.");
-    clopts_command_set_handler(root, run, opts);
+    check(&e, clopts_program_set_version(program, "0.4.0"));
+    check(&e, clopts_command_set_description(root, "Count the lines and words of text files."));
+    check(&e, clopts_command_set_handler(root, run, opts));
 
-    opts->lines = clopts_command_add_flag(root, "lines", 'l');
-    clopts_option_set_help(opts->lines, "Count lines");
-    opts->words = clopts_command_add_flag(root, "words", 'w');
-    clopts_option_set_help(opts->words, "Count words");
-    opts->total = clopts_command_add_flag(root, "total", '\0');
-    clopts_option_set_negatable(opts->total, true);
-    clopts_option_set_help(opts->total, "Print a total line");
-    opts->quiet = clopts_command_add_count(root, "quiet", 'q');
-    clopts_option_set_help(opts->quiet, "Print less (repeat for even less)");
-    opts->encoding = clopts_command_add_value(root, "encoding", 'e');
-    clopts_option_set_value_name(opts->encoding, "NAME");
-    clopts_option_set_env(opts->encoding, "TEXTCOUNT_ENCODING");
-    clopts_option_set_default(opts->encoding, "utf-8");
-    clopts_option_set_help(opts->encoding, "Text encoding of the files");
-    opts->exclude = clopts_command_add_list(root, "exclude", 'x');
-    clopts_option_set_value_name(opts->exclude, "PATTERN");
-    clopts_option_set_delimiter(opts->exclude, ',');
-    clopts_option_set_help(opts->exclude, "Skip files matching the patterns");
+    check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "lines", 'l', &option));
+    check(&e, clopts_option_set_help(option, "Count lines"));
+    opts->lines = attach_option(&e, root, option);
+    check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "words", 'w', &option));
+    check(&e, clopts_option_set_help(option, "Count words"));
+    opts->words = attach_option(&e, root, option);
+    check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "total", '\0', &option));
+    check(&e, clopts_option_set_negatable(option, true));
+    check(&e, clopts_option_set_help(option, "Print a total line"));
+    opts->total = attach_option(&e, root, option);
+    check(&e, clopts_option_new(CLOPTS_OPTION_COUNT, "quiet", 'q', &option));
+    check(&e, clopts_option_set_help(option, "Print less (repeat for even less)"));
+    opts->quiet = attach_option(&e, root, option);
+    check(&e, clopts_option_new(CLOPTS_OPTION_VALUE, "encoding", 'e', &option));
+    check(&e, clopts_option_set_value_name(option, "NAME"));
+    check(&e, clopts_option_set_env(option, "TEXTCOUNT_ENCODING"));
+    check(&e, clopts_option_set_default(option, "utf-8"));
+    check(&e, clopts_option_set_help(option, "Text encoding of the files"));
+    opts->encoding = attach_option(&e, root, option);
+    check(&e, clopts_option_new(CLOPTS_OPTION_LIST, "exclude", 'x', &option));
+    check(&e, clopts_option_set_value_name(option, "PATTERN"));
+    check(&e, clopts_option_set_delimiter(option, ','));
+    check(&e, clopts_option_set_help(option, "Skip files matching the patterns"));
+    opts->exclude = attach_option(&e, root, option);
 
-    positional = clopts_command_add_positional(root, "FILE");
-    clopts_positional_set_required(positional, true);
-    clopts_positional_set_variadic(positional, true);
-    clopts_positional_set_help(positional, "Files to count (- for standard input)");
+    check(&e, clopts_positional_new("FILE", &positional));
+    check(&e, clopts_positional_set_required(positional, true));
+    check(&e, clopts_positional_set_variadic(positional, true));
+    check(&e, clopts_positional_set_help(positional, "Files to count (- for standard input)"));
+    if ((e != CLOPTS_DECL_NONE) || !check(&e, clopts_command_add_positional(root, positional)))
+    {
+        clopts_positional_free(positional);
+    }
+    return e;
 }
 
 /* Writes the text for result and returns the exit code (0, 1 or 2). */
@@ -135,7 +173,7 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
         clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
         return 2;
     default:
-        /* CLOPTS_DECL_ERROR and CLOPTS_OUT_OF_MEMORY */
+        /* CLOPTS_OUT_OF_MEMORY */
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
         return 1;
     }
@@ -148,15 +186,20 @@ int main(int argc, char **argv)
     clopts_argv_t *args;
     clopts_env_t *env;
     clopts_result_t *result;
+    clopts_decl_error_t error;
     int code;
 
-    program = clopts_program_new("textcount");
-    if (program == NULL)
+    error = clopts_program_new("textcount", &program);
+    if (error == CLOPTS_DECL_NONE)
     {
-        fputs("textcount: error: out of memory\n", stderr);
+        error = declare(program, &opts);
+    }
+    if (error != CLOPTS_DECL_NONE)
+    {
+        fprintf(stderr, "textcount: error: invalid declaration: %s\n", clopts_decl_error_message(error));
+        clopts_program_free(program);
         return 1;
     }
-    declare(program, &opts);
 
     /* UTF-8 argv on every platform (on Windows, taken from the command line). */
     args = clopts_argv_get(argc, argv);

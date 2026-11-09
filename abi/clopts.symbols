@@ -37,11 +37,10 @@ clopts_program_add_command
 clopts_command_set_summary
 clopts_command_set_description
 clopts_command_set_handler
-clopts_command_add_flag
-clopts_command_add_count
-clopts_command_add_value
-clopts_command_add_list
+clopts_command_add_option
 clopts_command_add_positional
+clopts_option_new
+clopts_option_free
 clopts_option_set_help
 clopts_option_set_value_name
 clopts_option_set_env
@@ -50,6 +49,8 @@ clopts_option_set_required
 clopts_option_set_negatable
 clopts_option_set_delimiter
 clopts_option_set_count_max
+clopts_positional_new
+clopts_positional_free
 clopts_positional_set_help
 clopts_positional_set_required
 clopts_positional_set_variadic
@@ -60,15 +61,14 @@ clopts_write_usage
 clopts_write_version
 clopts_write_usage_hint
 clopts_write_error
+clopts_decl_error_message
 
 # clopts/parse.h
 clopts_parse
 clopts_parse_with_env
-clopts_program_validate
 clopts_result_status
 clopts_result_command
 clopts_result_usage_error
-clopts_result_decl_error
 clopts_result_error_command
 clopts_result_error_option
 clopts_result_error_positional

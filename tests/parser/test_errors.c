@@ -10,6 +10,7 @@
 
 #include "parser/parser_internal.h"
 #include "test_fixtures.h"
+#include "test_decl.h"
 
 #include <clopts/parse.h>
 
@@ -74,7 +75,6 @@ static void check_error(const clopts_result_t *result, char **argv, const expect
 {
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), expected->usage);
-    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NONE);
     NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), expected->command);
     NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), expected->option);
     NAOS_CHECK_PTR_EQ(clopts_result_error_positional(result), expected->positional);
@@ -95,7 +95,6 @@ static void check_error(const clopts_result_t *result, char **argv, const expect
 static void check_no_error(const clopts_result_t *result)
 {
     NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_NONE);
-    NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NONE);
     NAOS_CHECK_NULL(clopts_result_error_command(result));
     NAOS_CHECK_NULL(clopts_result_error_option(result));
     NAOS_CHECK_NULL(clopts_result_error_positional(result));
@@ -144,6 +143,7 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
     {                                                                               \
         fixture_tool_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
+        NAOS_REQUIRE_TRUE((f).ok);                                                  \
     } while (0)
 
 /* Builds the filt fixture into f. */
@@ -152,6 +152,7 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
     {                                                                               \
         fixture_filt_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
+        NAOS_REQUIRE_TRUE((f).ok);                                                  \
     } while (0)
 
 /* Builds the strict fixture into f. */
@@ -160,6 +161,7 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
     {                                                                               \
         fixture_strict_init(&(f));                                                  \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
+        NAOS_REQUIRE_TRUE((f).ok);                                                  \
     } while (0)
 
 /* ---- sentinel ----------------------------------------------------------- */
@@ -512,48 +514,6 @@ NAOS_TEST(help_command_followed_by_dashdash_does_not_recover)
     fixture_tool_free(&t);
 }
 
-/* ---- declaration errors always win (10.11) ------------------------------ */
-
-NAOS_TEST(declaration_error_wins_over_help_and_version)
-{
-    char *argv_help[] = { "broken", "--help", NULL };
-    char *argv_version[] = { "broken", "--version", NULL };
-    char *argv_recover[] = { "broken", "--bad", "-h", NULL };
-    char **cases[3];
-    clopts_program_t *program;
-    clopts_option_t *broken;
-    clopts_result_t *result;
-    size_t i;
-
-    cases[0] = argv_help;
-    cases[1] = argv_version;
-    cases[2] = argv_recover;
-
-    /* An invalid declaration: its second option has neither a long nor a short name. */
-    program = clopts_program_new("broken");
-    NAOS_REQUIRE_NOT_NULL(program);
-    clopts_program_set_version(program, "0.1");
-    (void)clopts_command_add_flag(clopts_program_root(program), "fine", '\0');
-    broken = clopts_command_add_flag(clopts_program_root(program), NULL, '\0');
-    NAOS_REQUIRE_NOT_NULL(broken);
-
-    for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
-    {
-        result = parse_checked(program, cases[i]);
-        NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_DECL_ERROR);
-        NAOS_CHECK_INT_EQ(clopts_result_decl_error(result), CLOPTS_DECL_NO_NAME);
-        NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_NONE);
-        NAOS_CHECK_NULL(clopts_result_error_command(result));
-        NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), broken);
-        NAOS_CHECK_NULL(clopts_result_error_positional(result));
-        NAOS_CHECK_NULL(clopts_result_error_token(result));
-        NAOS_CHECK_INT_EQ(clopts_result_error_argv_index(result), -1);
-        NAOS_CHECK_NULL(clopts_result_command(result));
-        clopts_result_free(result);
-    }
-    clopts_program_free(program);
-}
-
 /* ---- fields of each usage error kind (11.3, 11.4) ----------------------- */
 
 NAOS_TEST(unknown_command_fields)
@@ -722,7 +682,6 @@ NAOS_SUITE(errors,
     NAOS_ADD_TEST(help_command_followed_by_version_is_version),
     NAOS_ADD_TEST(help_command_errors_recover_on_later_tokens),
     NAOS_ADD_TEST(help_command_followed_by_dashdash_does_not_recover),
-    NAOS_ADD_TEST(declaration_error_wins_over_help_and_version),
     NAOS_ADD_TEST(unknown_command_fields),
     NAOS_ADD_TEST(unknown_option_fields_long_form),
     NAOS_ADD_TEST(unknown_option_fields_short_form),
