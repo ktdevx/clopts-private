@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "clopts/decl.h"
+#include "clopts/decl_types.h"
 #include "clopts/export.h"
 
 #ifdef __cplusplus

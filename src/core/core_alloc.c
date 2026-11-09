@@ -107,6 +107,22 @@ char *clopts_core_strdup(const char *s)
     return clopts_core_strndup(s, strlen(s));
 }
 
+int clopts_core_replace_string(char **field, const char *value)
+{
+    char *copy;
+
+    assert(field != NULL);
+
+    copy = clopts_core_strdup(value);
+    if ((value != NULL) && (copy == NULL))
+    {
+        return -1;
+    }
+    clopts_core_free(*field);
+    *field = copy;
+    return 0;
+}
+
 char *clopts_core_strndup(const char *s, size_t len)
 {
     size_t bytes;

@@ -28,17 +28,22 @@
 # clopts/alloc.h
 clopts_set_allocator
 
-# clopts/decl.h
-clopts_program_new
-clopts_program_free
-clopts_program_set_version
-clopts_program_root
-clopts_program_add_command
+# clopts/command.h
 clopts_command_set_summary
 clopts_command_set_description
 clopts_command_set_handler
 clopts_command_add_option
 clopts_command_add_positional
+
+# clopts/help.h
+clopts_write_help
+clopts_write_usage
+clopts_write_version
+clopts_write_usage_hint
+clopts_write_error
+clopts_decl_error_message
+
+# clopts/option.h
 clopts_option_new
 clopts_option_free
 clopts_option_set_help
@@ -49,19 +54,6 @@ clopts_option_set_required
 clopts_option_set_negatable
 clopts_option_set_delimiter
 clopts_option_set_count_max
-clopts_positional_new
-clopts_positional_free
-clopts_positional_set_help
-clopts_positional_set_required
-clopts_positional_set_variadic
-
-# clopts/help.h
-clopts_write_help
-clopts_write_usage
-clopts_write_version
-clopts_write_usage_hint
-clopts_write_error
-clopts_decl_error_message
 
 # clopts/parse.h
 clopts_parse
@@ -100,3 +92,17 @@ clopts_env_free
 clopts_env_lookup
 clopts_env_error
 clopts_env_error_name
+
+# clopts/positional.h
+clopts_positional_new
+clopts_positional_free
+clopts_positional_set_help
+clopts_positional_set_required
+clopts_positional_set_variadic
+
+# clopts/program.h
+clopts_program_new
+clopts_program_free
+clopts_program_set_version
+clopts_program_root
+clopts_program_add_command

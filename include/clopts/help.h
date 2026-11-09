@@ -1,7 +1,7 @@
 #ifndef CLOPTS_HELP_H
 #define CLOPTS_HELP_H
 
-#include "clopts/decl.h"
+#include "clopts/decl_types.h"
 #include "clopts/export.h"
 #include "clopts/parse.h"
 #include "clopts/writer.h"

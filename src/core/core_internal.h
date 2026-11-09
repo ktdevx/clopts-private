@@ -44,6 +44,13 @@ void *clopts_core_realloc(void *ptr, size_t size);
 char *clopts_core_strdup(const char *s);
 
 /*
+ * Replaces the owned string *field with a copy of value (NULL resets it to
+ * NULL), releasing the old one. Returns 0, or -1 when the copy cannot be
+ * allocated, leaving *field unchanged.
+ */
+int clopts_core_replace_string(char **field, const char *value);
+
+/*
  * Returns a NUL-terminated copy of the len bytes at s, or NULL. s must not be
  * NULL and must point to at least len bytes.
  */

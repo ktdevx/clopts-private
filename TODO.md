@@ -159,3 +159,12 @@ if (clopts_command_add_option(root, verbose) != CLOPTS_DECL_NONE)
 - [x] `README.md`、`examples/taskbook/taskbook.c`、`examples/textcount/textcount.c`
 - [x] `tests/parser/`（`test_build.c`、`test_decl_check.c`、`test_errors.c`、`test_oom.c`、`test_result.c` など）、`tests/help/`
 - [x] `CHANGELOG.md`: まだリリースしていないので、「追加」の節の記述を新しい API に書き換えた
+
+### 後続: ファイルの分割（実装済み）
+
+親を知らなくなったことで責務が分かれたので、メンテしやすいようにハンドルごとにファイルを分けた。
+
+- 公開ヘッダ: `clopts/decl.h` を、`decl_types.h`（ハンドルの型、`clopts_decl_error_t`、`clopts_handler_fn`、共通の規則）、`program.h`、`command.h`、`option.h`（`clopts_option_kind_t` を含む）、`positional.h` に分けた。`decl.h` はこの 5 つをまとめて取り込むだけのヘッダとして残し、`parse.h` と `help.h` は `decl_types.h` だけを取り込む。`abi/clopts.symbols` の組もヘッダごとにした。
+- 内部モデル: `parser_model.h` から `struct clopts_option` を `parser_option.h` に、`struct clopts_positional` を `parser_positional.h` に分けた。`parser_model.h` には program と command だけが残る。
+- 実装: `parser_build.c` を `parser_program.c`、`parser_command.c`（アタッチと兄弟との検査を含む）、`parser_option.c`、`parser_positional.c` に分けた。option と positional のファイルは program と command を読まない。文字列の差し替えは `clopts_core_replace_string`（core）に移した。
+- テスト: オプション単体・位置引数単体の規則を `test_decl_option.c`（suite `decl_option`）と `test_decl_positional.c`（suite `decl_positional`）に分けた。どちらも program を作らない。

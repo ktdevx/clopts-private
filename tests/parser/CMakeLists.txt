@@ -3,6 +3,8 @@ clopts_add_module_tests(parser SOURCES
     test_fixtures.c
     test_build.c
     test_decl_check.c
+    test_decl_option.c
+    test_decl_positional.c
     test_dispatch.c
     test_long.c
     test_short.c

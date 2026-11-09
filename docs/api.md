@@ -6,7 +6,12 @@
 
 | ヘッダ | 内容 |
 |--------|------|
-| `clopts/decl.h` | ハンドルの型と、宣言（ビルダー）の関数 |
+| `clopts/decl.h` | 宣言の API 全体（次の 5 つのヘッダをまとめて取り込む） |
+| `clopts/decl_types.h` | ハンドルの型、ビルダー関数の結果（`clopts_decl_error_t`）、処理の型（`clopts_handler_fn`） |
+| `clopts/program.h` | プログラムの関数（作成と解放、版、root、サブコマンドの追加） |
+| `clopts/command.h` | コマンド（root を含む）の関数（説明、処理、オプションと位置引数を渡す関数） |
+| `clopts/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（作成、解放、属性） |
+| `clopts/positional.h` | 位置引数の関数（作成、解放、属性） |
 | `clopts/parse.h` | 解析の関数、状態とエラー種別の列挙、結果とエラーのアクセサ |
 | `clopts/help.h` | ヘルプ・使い方・版・エラーの文面を出す関数 |
 | `clopts/writer.h` | 書き込みコールバックの型と、`FILE*` へ書く便宜関数 |
@@ -174,7 +179,7 @@ root は `clopts_program_root` で得る特別なコマンドで、グローバ�
 
 ## 宣言
 
-宣言は、実行時にビルダー関数を呼んで組み立てる。宣言の関数は `clopts/decl.h` にある。プログラムとサブコマンドはプログラムが作り、オプションと位置引数は単独で作って設定してからコマンドに渡す。
+宣言は、実行時にビルダー関数を呼んで組み立てる。宣言の関数は、ハンドルごとに `clopts/program.h`、`clopts/command.h`、`clopts/option.h`、`clopts/positional.h` に分かれており、`clopts/decl.h` で全部を取り込める。プログラムとサブコマンドはプログラムが作り、オプションと位置引数は単独で作って設定してからコマンドに渡す。
 
 ビルダー関数（`clopts_program_free`、`clopts_program_root`、`clopts_option_free`、`clopts_positional_free` を除く）は、どれも `clopts_decl_error_t` を返す。成功なら `CLOPTS_DECL_NONE`、失敗ならその理由である（「[失敗の扱い](#失敗の扱い)」）。ハンドルを作る関数は、作ったハンドルを最後の引数 `out` に入れる。
 

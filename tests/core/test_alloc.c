@@ -1,6 +1,7 @@
 /*
  * Suite alloc: the allocation gateway (clopts_core_malloc / malloc_array /
- * calloc / realloc / strdup / strndup / free) and clopts_set_allocator().
+ * calloc / realloc / strdup / strndup / free), clopts_core_replace_string()
+ * and clopts_set_allocator().
  *
  * Checked here: the gateway with the standard functions, that it calls the
  * functions set with clopts_set_allocator() and only them, that NULL
@@ -307,6 +308,37 @@ NAOS_TEST(strndup_copies_len_bytes_and_terminates)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
+NAOS_TEST(replace_string_replaces_resets_and_keeps_on_failure)
+{
+    char *field = NULL;
+
+    test_alloc_begin(0);
+
+    NAOS_CHECK_INT_EQ(clopts_core_replace_string(&field, "first"), 0);
+    NAOS_REQUIRE_NOT_NULL(field);
+    NAOS_CHECK_STR_EQ(field, "first");
+    NAOS_CHECK_INT_EQ(clopts_core_replace_string(&field, "second"), 0);
+    NAOS_CHECK_STR_EQ(field, "second");
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
+
+    /* a failed copy keeps the old string */
+    test_alloc_set_fail_at(test_alloc.calls + 1);
+    NAOS_CHECK_INT_EQ(clopts_core_replace_string(&field, "third"), -1);
+    NAOS_CHECK_STR_EQ(field, "second");
+    test_alloc_set_fail_at(0);
+
+    /* replacing with its own current copy works (the copy is made first) */
+    NAOS_CHECK_INT_EQ(clopts_core_replace_string(&field, field), 0);
+    NAOS_CHECK_STR_EQ(field, "second");
+
+    /* NULL resets without allocating */
+    NAOS_CHECK_INT_EQ(clopts_core_replace_string(&field, NULL), 0);
+    NAOS_CHECK_NULL(field);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 0);
+
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
 /* ---- failures ---------------------------------------------------------- */
 
 NAOS_TEST(failures_return_null)
@@ -392,6 +424,7 @@ NAOS_SUITE(alloc,
     NAOS_ADD_TEST(overflow_allocates_nothing),
     NAOS_ADD_TEST(strdup_of_null_allocates_nothing),
     NAOS_ADD_TEST(strndup_copies_len_bytes_and_terminates),
+    NAOS_ADD_TEST(replace_string_replaces_resets_and_keeps_on_failure),
     NAOS_ADD_TEST(failures_return_null),
     NAOS_ADD_TEST(vec_allocates_only_when_it_grows),
     NAOS_ADD_TEST(vec_push_failure_keeps_the_elements)
