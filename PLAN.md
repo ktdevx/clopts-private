@@ -69,7 +69,7 @@
 
 4. `parser_internal.h` の `struct clopts_result` の前に、「読むのは parser の中とテストのどこからでもよいが、`src/` から書くのは `parser_result.c` の関数だけ」と書く。テスト（`tests/parser/test_result.c` など）は読み取り関数の検査の準備として `status` や `error` に直接書いているが、白箱のテストなのでそのままにする（新しい関数に書き換えてもよい）。
 
-構造体を `parser_result.c` に隠す（不透明にする）ことはしない。テストが `global_slots` などを直接読んでおり、隠すと検査のための読み取り関数をいくつも足すことになるため。
+この規則を決まりで守るか、構造体を隠して守らせるかは E で決める。
 
 ### C. 解析の入口と手順を `parse.c` に分ける
 
@@ -115,6 +115,52 @@ clopts_parser_scan_status_t clopts_parser_scan(clopts_result_t *result, const cl
 
 B と C の後なら 60 行ほどの移動だけで済む。小さすぎると判断するなら、ファイルは分けずに `parser_resolve.c` の冒頭の説明だけ直す。
 
+### E. `struct clopts_result` を隠すか（未決定）
+
+B で「`src/` から書くのは `parser_result.c` の関数だけ」と決めるが、`struct clopts_result` が `parser_internal.h` にある限り、ほかのファイルから書けてしまう。守り方は次の 2 案のどちらかにする。
+
+どちらの案でも、`clopts_parser_slot_t` の定義は `parser_internal.h` に残す。スロットは `parser_resolve.c` / `parser_check.c` とテストが中身（`source`、`value`、`items` など）を読んでおり、書き込みは既に `clopts_parser_slot_*` を通しているため。隠す対象は `struct clopts_result` だけである。
+
+#### 案 1：定義を `parser_result.c` に移す（コンパイラが守る）
+
+`struct clopts_result` の定義を `parser_result.c` に移す。`parser_internal.h` には不完全型（`clopts/parse.h` の `typedef`）だけが残り、ほかのファイルで `result->` と書くとコンパイルが通らなくなる。
+
+B の後で `parser_result.c` の外に残る直接の読み取りと、その置き換え:
+
+| 使う場所 | 読んでいるもの | 置き換え |
+|---|---|---|
+| `parser_resolve.c`、`parser_check.c` | `global_slots` / `global_count`、`command_slots` / `command_count` | 新しい内部関数 `clopts_parser_slot_t *clopts_parser_result_slots(clopts_result_t *result, bool global, size_t *count)` |
+| `parser_check.c` | `positionals.len` | 新しい内部関数 `size_t clopts_parser_result_positional_count(const clopts_result_t *result)`。公開の `clopts_result_get_positional_count()` は status が OK / TERMINATED / NO_COMMAND でないと 0 を返し、必須の検査の時点では status がまだ決まっていないので使えない |
+| `parser_scan.c`、`parser_resolve.c`、`parser_check.c`、`parse.c` | `command` | 公開の `clopts_result_get_command()`。status を見ずに返すのでそのまま使える |
+
+テストは `result->` を `test_result.c` で 59 か所、`test_resolve.c` で 41 か所、`test_dispatch.c` で 9 か所、`test_long.c` で 2 か所使っている。公開の読み取り関数は status によって値を隠すので、そのままでは置き換えられない所がある（status を決める前の `error` など）。テストのために次の内部関数を足す。
+
+| 関数 | 置き換える使い方 |
+|---|---|
+| `clopts_parser_slot_t *clopts_parser_result_find_slot(clopts_result_t *result, const clopts_option_t *option)` | テストが自分で持っている `slot_of`（`global_slots` / `command_slots` の線形探索）。`parser_result.c` の `find_slot` と違い、status を見ない |
+| `const clopts_parser_error_t *clopts_parser_result_get_error(const clopts_result_t *result)` | `result->error.*` の読み取り |
+| `const clopts_option_t *clopts_parser_result_get_terminal(const clopts_result_t *result)` | `result->terminal` の読み取り（status を見ない） |
+| `clopts_parser_result_slots`、`clopts_parser_result_positional_count`（上と同じ） | `global_slots[i]`、`global_count`、`command_count`、`positionals.len` |
+| B の `clopts_parser_result_set_error`、`set_terminal`、`finish` | テストの `result->status = ...`、`result->error.* = ...`、`result->terminal = ...` |
+
+`result->status` の読み取りは公開の `clopts_result_get_status()`、`result->command` は `clopts_result_get_command()` に置き換える。`result->positionals.data` を読んでいる 1 か所（`test_result.c`）は、`clopts_parser_result_positional_count` と、status を OK にしてからの公開の `clopts_result_get_positional_at()` で書き直す。
+
+- 良い点：規則をコンパイラが守る。結果の内部の配置を変えてもテストを直さなくてよくなる
+- 悪い点：内部関数が 5〜6 個増え、テストの約 110 か所を書き換える（大半は機械的な置き換え）
+
+#### 案 2：定義を専用のヘッダに分ける（決まりで守る）
+
+`struct clopts_result` の定義を `src/parser/parser_result_layout.h` に移し、インクルードしてよいのは `parser_result.c` とテストだけにする。`parser_internal.h` からは定義を消す。
+
+決まりを守っていることは、`src/` の中で `parser_result.c` 以外が `parser_result_layout.h` をインクルードしていないことを `grep` で確かめるテスト（`docs` や `abi` と同じくラベルを付ける）で検査する。
+
+- 良い点：`src/` の内部関数は案 1 の表の 2 つ（`clopts_parser_result_slots`、`clopts_parser_result_positional_count`）だけで済み、テストは `#include` を 1 行足すだけでほぼ変わらない
+- 悪い点：コンパイラは止めないので、検査のテストに頼る。テストは引き続き結果の内部の配置に依存する
+
+#### どちらにするか
+
+書き込む場所を 1 つにすることが目的なら案 2 で足りる。テストを結果の内部の配置から切り離したいなら案 1 にする。決めたら、この節を選んだ案だけに書き換える。
+
 ## やらないこと
 
 | 案 | やらない理由 |
@@ -122,12 +168,11 @@ B と C の後なら 60 行ほどの移動だけで済む。小さすぎると�
 | `parser_` を外したファイル名にそろえる | 「ファイル名の規則」のとおり、今の名前は他のモジュールと同じ規則に合っている |
 | `parser_decl.c` を名前の規則と検索に分ける | 両方とも「名前をどう比べるか」という同じ知識に基づいており、221 行と小さい。テストも `decl` の組で一緒に検査している |
 | `parser_result.c` を記録と公開の読み取り関数に分ける | B で書き込みの関数が増えても 600 行に届かない。大きくなったら `parse.c` と同じ規則で検討する |
-| `struct clopts_result` を不透明にする | B の 4 に書いたとおり |
 
 ## 影響範囲
 
-- `src/parser/`：`parser_internal.h`、`parser_scan.c`、`parser_resolve.c`、`parser_result.c`、新しい `parse.c`（と D をするなら `parser_check.c`）、`CMakeLists.txt`
-- `tests/parser/`：`clopts_parser_slot_own` を使っている `test_result.c` を `clopts_parser_slot_set_owned_value` に書き換える。ほかは変えずに通るはず
+- `src/parser/`：`parser_internal.h`、`parser_scan.c`、`parser_resolve.c`、`parser_result.c`、新しい `parse.c`（と D をするなら `parser_check.c`、E を案 2 にするなら `parser_result_layout.h`）、`CMakeLists.txt`
+- `tests/parser/`：`clopts_parser_slot_own` を使っている `test_result.c` を `clopts_parser_slot_set_owned_value` に書き換える。E が案 1 なら `test_result.c`、`test_resolve.c`、`test_dispatch.c`、`test_long.c` の `result->` を内部関数に置き換える。案 2 なら `parser_result_layout.h` のインクルードを足し、インクルードの検査のテストを足す
 - `docs/dev/architecture.md`：「構造体の置き場所」の `clopts_result_t` の行（書き込みは `parser_result.c` の関数だけ）、「解析の流れ」の `clopts_parse`（`parser_scan.c`）を `parse.c` に、`parser_decl.c` の説明はそのまま
 - 公開ヘッダ、`abi/clopts.symbols`、`CHANGELOG.md`：変えない（内部の整理だけ）
 - `docs/dev/abi-checks.md` の `src/parser/parser_positional.c`：過去に行った確認の記録なので変えない
@@ -140,5 +185,6 @@ B と C の後なら 60 行ほどの移動だけで済む。小さすぎると�
 2. B：`clopts_parser_error_t` と書き込みの関数を足し、`parser_scan.c` と `parser_resolve.c` の直接の書き込みを置き換える。`clopts_parser_slot_set_owned_value` を足して `clopts_parser_slot_own` を消し、テストを直す。最後に `grep -nE 'result->(status|error|terminal)[^=]*=[^=]' src/` で `parser_result.c` の外に書き込みが残っていないことを確かめる
 3. C：`parse.c` を作り、入口と手順を移す。`parser_scan.c` に `clopts_parser_scan` を足す
 4. D：必須の検査を `parser_check.c` に移す
-5. `docs/dev/architecture.md` を直す
-6. 静的版と共有版の両方でビルドし、全テスト（`docs`、`abi` のラベルを含む）を通す。`abi` の検査で公開シンボルが変わっていないことを確かめる
+5. E：選んだ案で `struct clopts_result` を移す。案 1 ならテストの書き換えを別のコミットに分ける
+6. `docs/dev/architecture.md` を直す。E の結果に合わせて「構造体の置き場所」の `clopts_result_t` の行も直す
+7. 静的版と共有版の両方でビルドし、全テスト（`docs`、`abi` のラベルを含む）を通す。`abi` の検査で公開シンボルが変わっていないことを確かめる
