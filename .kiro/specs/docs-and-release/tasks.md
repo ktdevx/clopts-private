@@ -113,7 +113,7 @@
   - _Depends: 2.2, 3.3, 4.1, 4.2, 4.3, 4.4_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 5. リリース
+- [x] 5. リリース
 - [x] 5.1 (P) CHANGELOG を作る
   - 設計の Changelog どおりに、冒頭の説明（semver と書式の説明）と `## [Unreleased]` の節を書く。`### 追加` には、初版で入る機能（宣言と解析、文面、Windows の UTF-8、静的／共有と ABI の検査、文書とサンプル）を列挙する
   - 完了条件: `check_changelog.cmake` の format を直接呼ぶと、`changelog: 0 release section(s)` を出して成功する
@@ -129,7 +129,7 @@
   - _Depends: 2.3_
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 10.5_
 
-- [ ] 5.3 (P) リリースのワークフローとアーカイブから除くパスを用意する
+- [x] 5.3 (P) リリースのワークフローとアーカイブから除くパスを用意する
   - `.gitattributes` に `ref export-ignore` と `.gitmodules export-ignore` を書く
   - 設計の ReleaseWorkflow の契約どおりに `.github/workflows/release.yml` を書く。起動はタグ `v[0-9]+.[0-9]+.[0-9]+`、権限はジョブ単位の `contents: write`、タグは環境変数で渡す。手順は、タグの形式、CHANGELOG とタグと版の検査、`git archive` による tar.gz と zip、展開して `ref` と `.gitmodules` がないことの確認、`-DBUILD_TESTING=OFF -DFETCHCONTENT_FULLY_DISCONNECTED=ON` での構成とビルド、`SHA256SUMS`、`gh release create --verify-tag --notes-file`。`ci.yml` は変えない
   - 完了条件: ワークフローの手順 3〜6 を、手元で同じコマンドで再現する。手順 3 は、`## [0.1.0] - <日付>` の節を持つ仮の CHANGELOG を `CHANGELOG=` で渡し、`TAG=v0.1.0` で実行する。手順 4 は、未コミットの `.gitattributes` が効くよう `git archive --worktree-attributes HEAD` で作る（ワークフローでは、コミット済みの `.gitattributes` がタグの木から読まれる）。そのうえで、アーカイブに `ref/` と `.gitmodules` がないこと、展開したものがオフラインの構成でビルドできることを示す。リモートに仮のタグを push して全体を試すのは、ユーザーの承認を得た場合だけ行う。承認がなければ、未実施であることと、試す手順を記録する
@@ -162,3 +162,4 @@
 - 4.1: api_coverage は `` `name` `` か `` `name()` `` だけを数えるので、引数付きで書くときは `` `name`（`args`）`` の形にする。docs/api.md は parsing.md と windows.md へリンクしているので、links の検査は 4.2 と 4.4 が済むまで通らない。
 - 4.3: docs/integration.md の FetchContent の例は、設計の ReadmeDoc どおり `ktdevx/clopts-private.git` と `GIT_TAG v0.1.0` を使う（タグはリリースまで存在しない）。Windows の DLL のコピーは共有版のときだけ行う（静的版では `$<TARGET_RUNTIME_DLLS>` が空になり、`copy_if_different` が失敗する）。README の記述例もこの形に合わせること。
 - 5.2: リリース手順書は、リリースのワークフローを「タイトル `CLOpts X.Y.Z`、添付は `clopts-X.Y.Z.tar.gz`、`clopts-X.Y.Z.zip`、`SHA256SUMS`、ノートは `$RUNNER_TEMP` に書く」と記述している。5.3 の `release.yml` はこれに合わせる。手順書の FetchContent の URL（`ktdevx/clopts-private.git`）は、公開先が決まったら README と docs/integration.md と一緒に直す。
+- 5.3: リリースのワークフローの手順 3〜6 は手元で再現した（`git archive --worktree-attributes`、ネットワークなしの構成とビルド、`SHA256SUMS` の検証）。リモートに仮のタグを push して全体を試すことは、ユーザーの承認がないので未実施。試す手順は docs/dev/release.md の「リリースのワークフローを試す方法」にある。`git archive` は同名のブランチとの曖昧さを避けるため `refs/tags/$TAG` を指定する。

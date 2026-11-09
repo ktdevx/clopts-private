@@ -1,0 +1,115 @@
+# Creates a GitHub Release from a version tag vX.Y.Z (docs/dev/release.md).
+# Independent of ci.yml: it neither changes nor waits for the regular CI;
+# the maintainer checks main's CI before pushing the tag.
+# Steps 1-6 must all succeed before step 7 creates the Release, so a failed
+# check never leaves a partial Release behind. Only source archives are
+# attached; no prebuilt binaries.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+# Runs for the same tag never overlap.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # The tag is passed only through the environment and never interpolated
+    # into a script, so a crafted tag name cannot inject shell commands.
+    env:
+      TAG: ${{ github.ref_name }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # 1. The tagged commit with full history; the reference submodule
+      #    (ref/) is not fetched.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      # 2. The trigger filter is a glob; enforce the exact vX.Y.Z form.
+      - name: Check tag format
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "tag '$TAG' is not of the form vX.Y.Z" >&2
+            exit 1
+          fi
+
+      # 3. CHANGELOG format, tag vs project(VERSION), non-empty section for
+      #    the version; writes the release notes. stdout is "version X.Y.Z".
+      - name: Check CHANGELOG, tag and version
+        id: version
+        run: |
+          out=$(cmake -DMODE=release -DTAG="$TAG" -DSOURCE_DIR="$PWD" \
+                      -DOUTPUT="$RUNNER_TEMP/notes.md" \
+                      -P tests/docs/check_changelog.cmake)
+          printf '%s\n' "$out"
+          if [[ ! "$out" =~ ^version\ ([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "unexpected output from check_changelog.cmake: $out" >&2
+            exit 1
+          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      # 4. Source archives; .gitattributes export-ignore drops ref and
+      #    .gitmodules.
+      - name: Create source archives
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git archive --format=tar.gz --prefix="clopts-$VERSION/" \
+              -o "clopts-$VERSION.tar.gz" "refs/tags/$TAG"
+          git archive --format=zip --prefix="clopts-$VERSION/" \
+              -o "clopts-$VERSION.zip" "refs/tags/$TAG"
+
+      # 5. The extracted archive has no ref or .gitmodules and builds
+      #    without network access, with tests off.
+      - name: Verify the archive builds offline
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          work="$RUNNER_TEMP/archive-check"
+          mkdir -p "$work"
+          tar -xzf "clopts-$VERSION.tar.gz" -C "$work"
+          src="$work/clopts-$VERSION"
+          for path in ref .gitmodules; do
+            if [[ -e "$src/$path" ]]; then
+              echo "source archive contains $path" >&2
+              exit 1
+            fi
+          done
+          cmake -S "$src" -B "$work/build" \
+                -DBUILD_TESTING=OFF -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+          cmake --build "$work/build"
+
+      # 6. Checksums of the attached archives.
+      - name: Create SHA256SUMS
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sha256sum "clopts-$VERSION.tar.gz" "clopts-$VERSION.zip" > SHA256SUMS
+          cat SHA256SUMS
+
+      # 7. Fails (without overwriting) if a Release for the tag already
+      #    exists.
+      - name: Create GitHub Release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" --verify-tag \
+              --title "CLOpts $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md" \
+              "clopts-$VERSION.tar.gz" "clopts-$VERSION.zip" SHA256SUMS
