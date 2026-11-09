@@ -1,7 +1,8 @@
 /*
  * Suite convert (Windows only; built only on Windows): clopts_argv_from_wide,
  * conversion from a command line, non-ASCII elements and the index of the
- * first invalid UTF-16 element.
+ * first invalid UTF-16 element. The allocations are counted with the test
+ * allocator (tests/support/test_alloc.h).
  *
  * It also checks that the helpers of test_util give the same code units as
  * wide string literals, which the inputs of this suite mix.
@@ -10,6 +11,8 @@
 #include "test_util.h"
 
 #include "platform/platform_internal.h"
+
+#include "test_alloc.h"
 
 #include <naos/naos.h>
 
@@ -94,9 +97,11 @@ NAOS_TEST(from_wide_converts_japanese_to_utf8)
     wargv[1] = platform_test_u16_from_units(&a1, convert_test_txt_u16, CONVERT_COUNT(convert_test_txt_u16));
     wargv[2] = platform_test_u16_from_units(&a2, emoji, CONVERT_COUNT(emoji));
     wargv[3] = NULL;
+    test_alloc_begin(0);
     args = clopts_argv_from_wide(3, wargv);
     convert_check_ok(args, expected);
     clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
     /* wargv is not written */
     NAOS_CHECK_INT_EQ(wcscmp(wargv[1], L"\u30c6\u30b9\u30c8.txt"), 0);
 }
@@ -114,9 +119,11 @@ NAOS_TEST(from_wide_keeps_empty_elements)
     wargv[1] = e1;
     wargv[2] = e2;
     wargv[3] = NULL;
+    test_alloc_begin(0);
     args = clopts_argv_from_wide(3, wargv);
     convert_check_ok(args, expected);
     clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(from_wide_with_argc_zero)
@@ -125,9 +132,11 @@ NAOS_TEST(from_wide_with_argc_zero)
     static const char *const expected[] = {NULL};
     clopts_argv_t *args;
 
+    test_alloc_begin(0);
     args = clopts_argv_from_wide(0, wargv);
     convert_check_ok(args, expected);
     clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /* The handle, the pointer array and the strings are one allocation. */
@@ -137,34 +146,39 @@ NAOS_TEST(convert_allocates_one_block)
     platform_test_u16_t a1;
     const wchar_t *wargs[2];
     static const char *const expected[] = {"tool", convert_test_txt_u8, NULL};
-    clopts_platform_probe_t probe = { 0, 0, 0 };
     clopts_argv_t *args;
 
     wargs[0] = platform_test_u16_from_ascii(&a0, "tool");
     wargs[1] = platform_test_u16_from_units(&a1, convert_test_txt_u16, CONVERT_COUNT(convert_test_txt_u16));
-    args = clopts_platform_argv_convert(&probe, 2, wargs);
+    test_alloc_begin(0);
+    args = clopts_platform_argv_convert(2, wargs);
     convert_check_ok(args, expected);
-    NAOS_CHECK_UINT_EQ(probe.calls, 1);
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
-    clopts_platform_argv_free(&probe, args);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
+    clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-/* Converts the single element units[0..count-1] (after "tool") and expects INVALID_UTF16 at index 1. */
+/*
+ * Converts the single element units[0..count-1] (after "tool") and expects
+ * INVALID_UTF16 at index 1. The failure handle is the only allocation: the
+ * invalid element is found before the block is allocated.
+ */
 static void convert_check_single_invalid(const uint16_t *units, size_t count)
 {
     platform_test_u16_t a0;
     platform_test_u16_t a1;
     const wchar_t *wargs[2];
-    clopts_platform_probe_t probe = { 0, 0, 0 };
     clopts_argv_t *args;
 
     wargs[0] = platform_test_u16_from_ascii(&a0, "tool");
     wargs[1] = platform_test_u16_from_units(&a1, units, count);
-    args = clopts_platform_argv_convert(&probe, 2, wargs);
+    test_alloc_begin(0);
+    args = clopts_platform_argv_convert(2, wargs);
     convert_check_invalid(args, 1);
-    clopts_platform_argv_free(&probe, args);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
+    clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(lone_high_surrogate_is_invalid)
@@ -204,6 +218,7 @@ NAOS_TEST(smallest_invalid_index_is_reported)
     wargv[3] = platform_test_u16_from_units(&a[3], low, CONVERT_COUNT(low));
     wargv[4] = platform_test_u16_from_ascii(&a[4], "");
     wargv[5] = NULL;
+    test_alloc_begin(0);
     args = clopts_argv_from_wide(5, wargv);
     convert_check_invalid(args, 1);
     clopts_argv_free(args);
@@ -213,6 +228,7 @@ NAOS_TEST(smallest_invalid_index_is_reported)
     args = clopts_argv_from_wide(5, wargv);
     convert_check_invalid(args, 3);
     clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(invalid_argv0_reports_index_zero)
@@ -224,9 +240,11 @@ NAOS_TEST(invalid_argv0_reports_index_zero)
 
     wargv[0] = platform_test_u16_from_units(&a0, high, CONVERT_COUNT(high));
     wargv[1] = NULL;
+    test_alloc_begin(0);
     args = clopts_argv_from_wide(1, wargv);
     convert_check_invalid(args, 0);
     clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /* ---- clopts_platform_argv_from_cmdline ------------------------------------- */
@@ -241,17 +259,17 @@ NAOS_TEST(from_cmdline_splits_and_converts_non_ascii)
     static const char *const expected[] = {
         "tool", "\xe3\x83\x86\xe3\x82\xb9\xe3\x83\x88.txt x", "-n", convert_test_txt_u8, NULL};
     platform_test_u16_t cmdline;
-    clopts_platform_probe_t probe = { 0, 0, 0 };
     clopts_argv_t *args;
 
     platform_test_u16_from_units(&cmdline, cmdline_units, CONVERT_COUNT(cmdline_units));
-    args = clopts_platform_argv_from_cmdline(&probe, cmdline.units);
+    test_alloc_begin(0);
+    args = clopts_platform_argv_from_cmdline(cmdline.units);
     convert_check_ok(args, expected);
-    /* the work buffer is released: only the handle stays */
-    NAOS_CHECK_UINT_EQ(probe.calls, 2);
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
-    clopts_platform_argv_free(&probe, args);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    /* the work block, then the handle block; the work block is released: only the handle stays */
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
+    clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(from_cmdline_follows_the_crt_rules)
@@ -261,9 +279,11 @@ NAOS_TEST(from_cmdline_follows_the_crt_rules)
     clopts_argv_t *args;
 
     platform_test_u16_from_ascii(&cmdline, "\"C:\\Program Files\\x\" a\\\\\\\"b \"\" \"foo\"\"bar\"  ");
-    args = clopts_platform_argv_from_cmdline(NULL, cmdline.units);
+    test_alloc_begin(0);
+    args = clopts_platform_argv_from_cmdline(cmdline.units);
     convert_check_ok(args, expected);
     clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(from_cmdline_reports_the_invalid_element)
@@ -273,16 +293,17 @@ NAOS_TEST(from_cmdline_reports_the_invalid_element)
         0x0074, 0x006F, 0x006F, 0x006C, 0x0020, 0x0061, 0x0020, 0x0022, 0x0062, 0xD800, 0x0063, 0x0022,
         0x0020, 0xDC00};
     platform_test_u16_t cmdline;
-    clopts_platform_probe_t probe = { 0, 0, 0 };
     clopts_argv_t *args;
 
     platform_test_u16_from_units(&cmdline, cmdline_units, CONVERT_COUNT(cmdline_units));
-    args = clopts_platform_argv_from_cmdline(&probe, cmdline.units);
+    test_alloc_begin(0);
+    args = clopts_platform_argv_from_cmdline(cmdline.units);
     convert_check_invalid(args, 2);
-    /* the failure handle stays; the work buffer is released */
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
-    clopts_platform_argv_free(&probe, args);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    /* the work block, then the failure handle; the handle stays, the work block is released */
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
+    clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(from_cmdline_empty_gives_one_empty_element)
@@ -290,18 +311,20 @@ NAOS_TEST(from_cmdline_empty_gives_one_empty_element)
     static const char *const expected[] = {"", NULL};
     clopts_argv_t *args;
 
-    args = clopts_platform_argv_from_cmdline(NULL, L"");
+    test_alloc_begin(0);
+    args = clopts_platform_argv_from_cmdline(L"");
     convert_check_ok(args, expected);
     clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(from_cmdline_null_is_cmdline_unavailable)
 {
-    clopts_platform_probe_t probe = { 0, 0, 0 };
     clopts_argv_t *args;
     char *const *values;
 
-    args = clopts_platform_argv_from_cmdline(&probe, NULL);
+    test_alloc_begin(0);
+    args = clopts_platform_argv_from_cmdline(NULL);
     NAOS_REQUIRE_TRUE(args != clopts_platform_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_CMDLINE_UNAVAILABLE);
     NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
@@ -309,9 +332,11 @@ NAOS_TEST(from_cmdline_null_is_cmdline_unavailable)
     values = clopts_argv_values(args);
     NAOS_REQUIRE_NOT_NULL(values);
     NAOS_CHECK_NULL(values[0]);
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
-    clopts_platform_argv_free(&probe, args);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    /* only the failure handle is allocated */
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
+    clopts_argv_free(args);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_SUITE(convert,

@@ -15,7 +15,6 @@
 #include "parser/parser_internal.h"
 
 #include <assert.h>
-#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -79,13 +78,13 @@ static void build_replace_string(clopts_program_t *program, char **field, const 
 {
     char *copy;
 
-    copy = clopts_parser_strdup(program->probe, value);
+    copy = clopts_core_strdup(value);
     if ((value != NULL) && (copy == NULL))
     {
         build_record_oom(program);
         return;
     }
-    clopts_parser_free(program->probe, *field);
+    clopts_core_free(*field);
     *field = copy;
 }
 
@@ -112,7 +111,7 @@ static void build_init_scope(clopts_command_t *scope, clopts_program_t *program)
 }
 
 /* Releases the options, positionals and strings of scope (not its name). */
-static void build_free_scope(clopts_parser_probe_t *probe, clopts_command_t *scope)
+static void build_free_scope(clopts_command_t *scope)
 {
     size_t i;
 
@@ -120,27 +119,27 @@ static void build_free_scope(clopts_parser_probe_t *probe, clopts_command_t *sco
     {
         clopts_option_t *option = *(clopts_option_t **)clopts_core_vec_at(&scope->options, i);
 
-        clopts_parser_free(probe, option->long_name);
-        clopts_parser_free(probe, option->help);
-        clopts_parser_free(probe, option->value_name);
-        clopts_parser_free(probe, option->default_value);
-        clopts_parser_free(probe, option->env);
-        clopts_parser_free(probe, option);
+        clopts_core_free(option->long_name);
+        clopts_core_free(option->help);
+        clopts_core_free(option->value_name);
+        clopts_core_free(option->default_value);
+        clopts_core_free(option->env);
+        clopts_core_free(option);
     }
-    clopts_parser_vec_free(probe, &scope->options);
+    clopts_core_vec_free(&scope->options);
 
     for (i = 0; i < scope->positionals.len; i++)
     {
         clopts_positional_t *positional = *(clopts_positional_t **)clopts_core_vec_at(&scope->positionals, i);
 
-        clopts_parser_free(probe, positional->name);
-        clopts_parser_free(probe, positional->help);
-        clopts_parser_free(probe, positional);
+        clopts_core_free(positional->name);
+        clopts_core_free(positional->help);
+        clopts_core_free(positional);
     }
-    clopts_parser_vec_free(probe, &scope->positionals);
+    clopts_core_vec_free(&scope->positionals);
 
-    clopts_parser_free(probe, scope->summary);
-    clopts_parser_free(probe, scope->description);
+    clopts_core_free(scope->summary);
+    clopts_core_free(scope->description);
 }
 
 /*
@@ -224,7 +223,7 @@ static clopts_option_t *build_add_option(clopts_command_t *scope, clopts_parser_
     /* Checked before linking, so that the new option does not match itself. */
     error = build_check_option(scope, long_name, short_name);
 
-    option = (clopts_option_t *)clopts_parser_calloc(program->probe, 1, sizeof(*option));
+    option = (clopts_option_t *)clopts_core_calloc(1, sizeof(*option));
     if (option == NULL)
     {
         build_record_oom(program);
@@ -245,14 +244,14 @@ static clopts_option_t *build_add_option(clopts_command_t *scope, clopts_parser_
     option->required = false;
     option->negatable = false;
 
-    if (clopts_parser_vec_push(program->probe, &scope->options, &option) != 0)
+    if (clopts_core_vec_push(&scope->options, &option) != 0)
     {
-        clopts_parser_free(program->probe, option);
+        clopts_core_free(option);
         build_record_oom(program);
         return NULL;
     }
 
-    option->long_name = clopts_parser_strdup(program->probe, long_name);
+    option->long_name = clopts_core_strdup(long_name);
     if ((long_name != NULL) && (option->long_name == NULL))
     {
         build_record_oom(program);
@@ -277,13 +276,6 @@ static bool build_begin_positional(const clopts_positional_t *positional)
     return ((positional != NULL) && build_begin(positional->program));
 }
 
-void clopts_parser_set_probe(clopts_program_t *program, clopts_parser_probe_t *probe)
-{
-    assert(program != NULL);
-
-    program->probe = probe;
-}
-
 /* ---- program ---- */
 
 clopts_program_t *clopts_program_new(const char *name)
@@ -305,8 +297,8 @@ clopts_program_t *clopts_program_new(const char *name)
         return NULL;
     }
 
-    /* The struct and the copy of the name are one block, released with free(). */
-    program = (clopts_program_t *)malloc(bytes);
+    /* The struct and the copy of the name are one block, released with clopts_core_free(). */
+    program = (clopts_program_t *)clopts_core_malloc(bytes);
     if (program == NULL)
     {
         return NULL;
@@ -327,7 +319,6 @@ clopts_program_t *clopts_program_new(const char *name)
     program->error.command = NULL;
     program->error.option = NULL;
     program->error.positional = NULL;
-    program->probe = NULL;
     if (!clopts_parser_valid_command_name(name))
     {
         build_record_decl(program, CLOPTS_DECL_INVALID_NAME, NULL, NULL, NULL);
@@ -337,28 +328,26 @@ clopts_program_t *clopts_program_new(const char *name)
 
 void clopts_program_free(clopts_program_t *program)
 {
-    clopts_parser_probe_t *probe;
     size_t i;
 
     if (program == NULL)
     {
         return;
     }
-    probe = program->probe;
 
     for (i = 0; i < program->commands.len; i++)
     {
         clopts_command_t *command = *(clopts_command_t **)clopts_core_vec_at(&program->commands, i);
 
-        build_free_scope(probe, command);
-        clopts_parser_free(probe, (void *)command->name);
-        clopts_parser_free(probe, command);
+        build_free_scope(command);
+        clopts_core_free((void *)command->name);
+        clopts_core_free(command);
     }
-    clopts_parser_vec_free(probe, &program->commands);
+    clopts_core_vec_free(&program->commands);
 
-    build_free_scope(probe, &program->root);
-    clopts_parser_free(probe, program->version);
-    free(program);
+    build_free_scope(&program->root);
+    clopts_core_free(program->version);
+    clopts_core_free(program);
 }
 
 void clopts_program_set_version(clopts_program_t *program, const char *version)
@@ -424,7 +413,7 @@ clopts_command_t *clopts_program_add_command(clopts_program_t *program, const ch
     }
     error = build_check_command(program, name);
 
-    command = (clopts_command_t *)clopts_parser_calloc(program->probe, 1, sizeof(*command));
+    command = (clopts_command_t *)clopts_core_calloc(1, sizeof(*command));
     if (command == NULL)
     {
         build_record_oom(program);
@@ -433,14 +422,14 @@ clopts_command_t *clopts_program_add_command(clopts_program_t *program, const ch
     build_init_scope(command, program);
     command->name = NULL;
 
-    if (clopts_parser_vec_push(program->probe, &program->commands, &command) != 0)
+    if (clopts_core_vec_push(&program->commands, &command) != 0)
     {
-        clopts_parser_free(program->probe, command);
+        clopts_core_free(command);
         build_record_oom(program);
         return NULL;
     }
 
-    name_copy = clopts_parser_strdup(program->probe, name);
+    name_copy = clopts_core_strdup(name);
     if ((name != NULL) && (name_copy == NULL))
     {
         build_record_oom(program);
@@ -552,7 +541,7 @@ clopts_positional_t *clopts_command_add_positional(clopts_command_t *scope, cons
     }
     error = build_check_positional(scope, name);
 
-    positional = (clopts_positional_t *)clopts_parser_calloc(program->probe, 1, sizeof(*positional));
+    positional = (clopts_positional_t *)clopts_core_calloc(1, sizeof(*positional));
     if (positional == NULL)
     {
         build_record_oom(program);
@@ -566,14 +555,14 @@ clopts_positional_t *clopts_command_add_positional(clopts_command_t *scope, cons
     positional->required = false;
     positional->variadic = false;
 
-    if (clopts_parser_vec_push(program->probe, &scope->positionals, &positional) != 0)
+    if (clopts_core_vec_push(&scope->positionals, &positional) != 0)
     {
-        clopts_parser_free(program->probe, positional);
+        clopts_core_free(positional);
         build_record_oom(program);
         return NULL;
     }
 
-    positional->name = clopts_parser_strdup(program->probe, name);
+    positional->name = clopts_core_strdup(name);
     if ((name != NULL) && (positional->name == NULL))
     {
         build_record_oom(program);
@@ -687,7 +676,7 @@ static int build_has_negation_name(clopts_option_t *option)
         build_record_oom(program);
         return -1;
     }
-    name = (char *)clopts_parser_malloc(program->probe, size);
+    name = (char *)clopts_core_malloc(size);
     if (name == NULL)
     {
         build_record_oom(program);
@@ -696,7 +685,7 @@ static int build_has_negation_name(clopts_option_t *option)
     memcpy(name, "no-", 3);
     memcpy(name + 3, option->long_name, len + 1);
     found = (clopts_parser_find_named(option->scope, name, len + 3) != NULL) ? 1 : 0;
-    clopts_parser_free(program->probe, name);
+    clopts_core_free(name);
     return found;
 }
 

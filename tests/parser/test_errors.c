@@ -142,7 +142,7 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
 #define TOOL_BEGIN(f)                                                               \
     do                                                                              \
     {                                                                               \
-        fixture_tool_init(&(f), NULL);                                              \
+        fixture_tool_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
     } while (0)
 
@@ -150,7 +150,7 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
 #define FILT_BEGIN(f)                                                               \
     do                                                                              \
     {                                                                               \
-        fixture_filt_init(&(f), NULL);                                              \
+        fixture_filt_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
     } while (0)
 
@@ -158,7 +158,7 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
 #define STRICT_BEGIN(f)                                                             \
     do                                                                              \
     {                                                                               \
-        fixture_strict_init(&(f), NULL);                                            \
+        fixture_strict_init(&(f));                                                  \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
     } while (0)
 

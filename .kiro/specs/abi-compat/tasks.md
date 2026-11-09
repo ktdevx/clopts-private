@@ -34,6 +34,7 @@
   - 設計の分類表どおりに判定する: 構造体・共用体の定義（`typedef` の有無によらない）は違反、前方宣言・`typedef` の列挙・関数ポインタ型は許可、`static` の文は `CLOPTS_API` の検査の対象外、それ以外の関数の宣言は先頭が `CLOPTS_API` でなければ違反（名前は最初の `(` の直前の識別子）。違反をすべて集めて `<file>:<line>: <reason>` で出してから失敗し、なければヘッダと関数の数を表示して成功する。扱わない構文をスクリプトの先頭の注釈に書く
   - `tests/abi/fixtures/header_rules/good/`（前方宣言、`typedef enum`、関数ポインタ型、`static inline` の定義、`extern "C"`、コメント中の `struct x { }`、引数が次の行に続く `CLOPTS_API` 付きの宣言）と、`bad/<case>/<case>.h`（`struct_def`、`union_def`、`missing_api`、`missing_api_multiline`）を用意する
   - 完了条件: `cmake -DHEADER_DIR=... -P check_header_rules.cmake` が、実際の `include/clopts` と `good` で成功し、`bad` の各ケースで期待するファイル・行・理由を出して失敗する
+  - 注記（2026-11-09）: 要件 4.2・4.3 の廃止（steering の「公開構造体は凍結する」への変更）に合わせて、構造体・共用体の定義の判定をスクリプトから削除した。`typedef` で始まる文はすべて許可し、`typedef` のない構造体・共用体の定義は判定しない。`bad/struct_def`・`bad/union_def` は `good/struct_def.h`・`good/union_def.h` に移し、自己テスト `abi.header_rules_selftest.struct_def` / `.union_def` はなくなった
   - _Boundary: HeaderRulesCheck_
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.8_
 
@@ -106,6 +107,7 @@
 - [x] 5.1 検査が実際の違反を捕まえることを Linux で確かめる
   - 一時的な変更で、(a) 内部関数に `CLOPTS_API` を付けると共有ビルドの `abi.exports` が余分として報告する、(b) 一覧から 1 つ消すと余分として、export されない名前を一覧に足すと不足として報告する、(c) 公開ヘッダに構造体の定義を足すと `abi.header_rules` が報告する、(d) 公開関数の `CLOPTS_API` を外すと `abi.header_rules` と `abi.exports` が報告する、ことを確かめ、すべての変更を戻す
   - 完了条件: 各ケースの失敗の出力（該当する名前・ファイル・行を含む）を記録し、変更を戻した後に静的・共有の両方で `ctest` 全体が通る
+  - 注記（2026-11-09）: (c) は要件 4.2 の廃止で当てはまらなくなった。いまは公開ヘッダに構造体の定義を足しても `abi.header_rules` は報告しない（既存の公開構造体の配置の変化は、1.0.0 以降の `abi-compare` が検出する）
   - _Depends: 3.1_
   - _Requirements: 3.5, 3.6, 4.2, 4.4_
 

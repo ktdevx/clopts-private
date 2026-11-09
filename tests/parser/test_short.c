@@ -60,7 +60,7 @@ static clopts_result_t *parse_checked(clopts_program_t *program, char **argv)
 /* Builds the tool fixture into f and parses argv with it. */
 static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
-    fixture_tool_init(f, NULL);
+    fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
     return parse_checked(f->program, argv);
 }
@@ -68,7 +68,7 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 /* Builds the filt fixture into f and parses argv with it. */
 static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
 {
-    fixture_filt_init(f, NULL);
+    fixture_filt_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
     return parse_checked(f->program, argv);
 }
@@ -115,7 +115,7 @@ NAOS_TEST(fixture_short_names_are_as_designed)
     fixture_filt_t f;
     fixture_strict_t s;
 
-    fixture_tool_init(&t, NULL);
+    fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_CHECK_INT_EQ(t.verbose->short_name, 'v');
     NAOS_CHECK_INT_EQ(t.color->short_name, '\0');
@@ -130,12 +130,12 @@ NAOS_TEST(fixture_short_names_are_as_designed)
     NAOS_CHECK_INT_EQ(t.tags->short_name, '\0');
     fixture_tool_free(&t);
 
-    fixture_filt_init(&f, NULL);
+    fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_INT_EQ(f.lines->short_name, 'n');
     fixture_filt_free(&f);
 
-    fixture_strict_init(&s, NULL);
+    fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_CHECK_INT_EQ(s.token->short_name, '\0');
     fixture_strict_free(&s);

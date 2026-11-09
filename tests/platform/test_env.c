@@ -4,7 +4,8 @@
  * Windows, the UTF-16 environment and UTF-8 conversion on Windows), and
  * clopts_parse_with_env() with clopts_env_lookup and a context: the value of
  * an environment fallback and a failed lookup (OUT_OF_MEMORY, the reason
- * kept in the context).
+ * kept in the context). The allocations are counted (and made to fail) with
+ * the test allocator (tests/support/test_alloc.h).
  *
  * It also checks the code unit array helper of test_util.
  */
@@ -18,6 +19,8 @@
 #include "test_util.h"
 
 #include "platform/platform_internal.h"
+
+#include "test_alloc.h"
 
 #include "clopts/decl.h"
 #include "clopts/parse.h"
@@ -87,39 +90,30 @@ NAOS_TEST(u16_eq_ascii_does_not_match_non_ascii_units)
 
 NAOS_TEST(env_new_starts_without_failure_and_free_releases_it)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
-    NAOS_CHECK_PTR_EQ(env->probe, &probe);
     NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
     NAOS_CHECK_NULL(clopts_env_error_name(env));
     NAOS_CHECK_NULL(env->value);
     NAOS_CHECK_UINT_EQ(env->value_cap, 0);
     NAOS_CHECK_NULL(env->wide);
     NAOS_CHECK_UINT_EQ(env->wide_cap, 0);
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    /* only the context is allocated; the buffers come with the first lookup that needs them */
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
-}
-
-NAOS_TEST(public_env_new_has_no_probe)
-{
-    clopts_env_t *env;
-
-    env = clopts_env_new();
-    PLATFORM_ENV_REQUIRE(env);
-    NAOS_CHECK_NULL(env->probe);
-    NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
-    NAOS_CHECK_NULL(clopts_env_error_name(env));
-    clopts_env_free(env);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_free_ignores_null)
 {
+    test_alloc_begin(0);
     clopts_env_free(NULL);
-    NAOS_CHECK_TRUE(1);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_accessors_of_null_read_as_out_of_memory)
@@ -130,20 +124,19 @@ NAOS_TEST(env_accessors_of_null_read_as_out_of_memory)
 
 NAOS_TEST(env_new_returns_null_when_the_allocation_fails)
 {
-    clopts_platform_probe_t probe = {1, 0, 0};
-
-    NAOS_CHECK_NULL(clopts_platform_env_new(&probe));
-    NAOS_CHECK_UINT_EQ(probe.calls, 1);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    test_alloc_begin(1);
+    NAOS_CHECK_NULL(clopts_env_new());
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_fail_records_kind_and_a_copy_of_name_and_clear_drops_it)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     char name[] = "CLOPTS_NAME";
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
 
     clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_INVALID_UTF16, name);
@@ -151,7 +144,7 @@ NAOS_TEST(env_fail_records_kind_and_a_copy_of_name_and_clear_drops_it)
     PLATFORM_ENV_REQUIRE(clopts_env_error_name(env));
     NAOS_CHECK_TRUE(clopts_env_error_name(env) != name);
     NAOS_CHECK_STR_EQ(clopts_env_error_name(env), "CLOPTS_NAME");
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
     /* the record is a copy: changing the caller's string does not change it */
     name[0] = 'X';
@@ -161,12 +154,12 @@ NAOS_TEST(env_fail_records_kind_and_a_copy_of_name_and_clear_drops_it)
     clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_INVALID_NAME, "");
     NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_NAME);
     NAOS_CHECK_STR_EQ(clopts_env_error_name(env), "");
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
     clopts_platform_env_clear(env);
     NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
     NAOS_CHECK_NULL(clopts_env_error_name(env));
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
 
     /* clearing a clear record changes nothing */
     clopts_platform_env_clear(env);
@@ -175,40 +168,41 @@ NAOS_TEST(env_fail_records_kind_and_a_copy_of_name_and_clear_drops_it)
 
     /* free releases a recorded name */
     clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, "N");
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_fail_records_out_of_memory_without_name_when_the_copy_fails)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
     clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_INVALID_UTF16, "OLD");
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
-    probe.fail_at = probe.calls + 1;
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_INVALID_NAME, "CLOPTS_NAME");
     NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_OUT_OF_MEMORY);
     NAOS_CHECK_NULL(clopts_env_error_name(env));
     /* the earlier name is released, not leaked */
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
 
-    probe.fail_at = 0;
+    test_alloc_set_fail_at(0);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_reserve_value_grows_and_never_shrinks)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     char *first;
+    size_t calls;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
 
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 0), 0);
@@ -218,69 +212,70 @@ NAOS_TEST(env_reserve_value_grows_and_never_shrinks)
     PLATFORM_ENV_REQUIRE(env->value);
     NAOS_CHECK_UINT_GE(env->value_cap, 16);
     memset(env->value, 'v', 16);
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
     /* a smaller or equal request keeps the buffer and allocates nothing */
     first = env->value;
-    probe.calls = 0;
+    calls = test_alloc.calls;
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 4), 0);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 16), 0);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 0), 0);
     NAOS_CHECK_PTR_EQ(env->value, first);
     NAOS_CHECK_UINT_GE(env->value_cap, 16);
-    NAOS_CHECK_UINT_EQ(probe.calls, 0);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
 
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 4096), 0);
     PLATFORM_ENV_REQUIRE(env->value);
     NAOS_CHECK_UINT_GE(env->value_cap, 4096);
     memset(env->value, 'w', 4096);
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_reserve_value_keeps_the_old_buffer_when_the_allocation_fails)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     char *first;
     size_t cap;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
 
     /* no buffer yet */
-    probe.fail_at = probe.calls + 1;
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 8), -1);
     NAOS_CHECK_NULL(env->value);
     NAOS_CHECK_UINT_EQ(env->value_cap, 0);
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
 
-    probe.fail_at = 0;
+    test_alloc_set_fail_at(0);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 8), 0);
     first = env->value;
     cap = env->value_cap;
-    probe.fail_at = probe.calls + 1;
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 64), -1);
     NAOS_CHECK_PTR_EQ(env->value, first);
     NAOS_CHECK_UINT_EQ(env->value_cap, cap);
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
-    probe.fail_at = 0;
+    test_alloc_set_fail_at(0);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_reserve_wide_grows_and_never_shrinks)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     clopts_platform_u16_t *units;
     void *first;
+    size_t calls;
     size_t i;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
 
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, 0), 0);
@@ -294,15 +289,15 @@ NAOS_TEST(env_reserve_wide_grows_and_never_shrinks)
     {
         units[i] = (clopts_platform_u16_t)0xFFFF;
     }
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
     first = env->wide;
-    probe.calls = 0;
+    calls = test_alloc.calls;
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, 1), 0);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, 32), 0);
     NAOS_CHECK_PTR_EQ(env->wide, first);
     NAOS_CHECK_UINT_GE(env->wide_cap, 32);
-    NAOS_CHECK_UINT_EQ(probe.calls, 0);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
 
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, 2048), 0);
     PLATFORM_ENV_REQUIRE(env->wide);
@@ -312,28 +307,30 @@ NAOS_TEST(env_reserve_wide_grows_and_never_shrinks)
     {
         units[i] = (clopts_platform_u16_t)i;
     }
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_reserve_wide_fails_on_size_overflow_and_keeps_the_old_buffer)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     void *first;
     size_t cap;
     size_t calls;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
 
-    /* SIZE_MAX units do not fit in size_t bytes */
+    /* SIZE_MAX units do not fit in size_t bytes; nothing reaches the allocator */
+    calls = test_alloc.calls;
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, SIZE_MAX), -1);
     NAOS_CHECK_NULL(env->wide);
     NAOS_CHECK_UINT_EQ(env->wide_cap, 0);
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
 
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, 4), 0);
     first = env->wide;
@@ -341,56 +338,64 @@ NAOS_TEST(env_reserve_wide_fails_on_size_overflow_and_keeps_the_old_buffer)
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, SIZE_MAX / 2 + 1), -1);
     NAOS_CHECK_PTR_EQ(env->wide, first);
     NAOS_CHECK_UINT_EQ(env->wide_cap, cap);
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
     /* an allocation failure keeps it too */
-    calls = probe.calls;
-    probe.fail_at = calls + 1;
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, 64), -1);
     NAOS_CHECK_PTR_EQ(env->wide, first);
     NAOS_CHECK_UINT_EQ(env->wide_cap, cap);
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 2);
 
-    probe.fail_at = 0;
+    test_alloc_set_fail_at(0);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_free_releases_name_and_both_buffers)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_value(env, 10), 0);
     NAOS_CHECK_INT_EQ(clopts_platform_env_reserve_wide(env, 10), 0);
     clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_INVALID_UTF16, "CLOPTS_NAME");
-    NAOS_CHECK_UINT_EQ(probe.live, 4);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 4);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-/* Every fault point of a create / reserve / fail sequence leaves live == 0 after the release. */
+/*
+ * Every fault point of a create / reserve / fail sequence leaves no block
+ * alive after the release. The sequence has four fault points: the context,
+ * the value buffer, the work buffer and the copy of the name.
+ */
 NAOS_TEST(env_every_fault_point_leaves_no_live_block)
 {
     size_t fail_at;
+    size_t oom_runs = 0;
+    int succeeded = 0;
 
-    for (fail_at = 1; fail_at <= 5; ++fail_at)
+    for (fail_at = 1; (fail_at <= 16) && (!succeeded); ++fail_at)
     {
-        clopts_platform_probe_t probe = {0, 0, 0};
         clopts_env_t *env;
+        int value_rc;
+        int wide_rc;
 
-        probe.fail_at = fail_at;
-        env = clopts_platform_env_new(&probe);
+        NAOS_NOTE("env fault point %u", (unsigned)fail_at);
+        test_alloc_begin(fail_at);
+        env = clopts_env_new();
         if (env == NULL)
         {
+            oom_runs++;
             NAOS_CHECK_UINT_EQ(fail_at, 1);
-            NAOS_CHECK_UINT_EQ(probe.live, 0);
+            NAOS_CHECK_TRUE(test_alloc_end());
             continue;
         }
-        (void)clopts_platform_env_reserve_value(env, 8);
-        (void)clopts_platform_env_reserve_wide(env, 8);
+        value_rc = clopts_platform_env_reserve_value(env, 8);
+        wide_rc = clopts_platform_env_reserve_wide(env, 8);
         clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_INVALID_NAME, "N");
         if (clopts_env_error_name(env) == NULL)
         {
@@ -400,9 +405,22 @@ NAOS_TEST(env_every_fault_point_leaves_no_live_block)
         {
             NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_INVALID_NAME);
         }
+        if (test_alloc.calls < fail_at)
+        {
+            succeeded = 1;
+            NAOS_CHECK_INT_EQ(value_rc, 0);
+            NAOS_CHECK_INT_EQ(wide_rc, 0);
+            NAOS_CHECK_NOT_NULL(clopts_env_error_name(env));
+        }
+        else
+        {
+            oom_runs++;
+        }
         clopts_env_free(env);
-        NAOS_CHECK_UINT_EQ(probe.live, 0);
+        NAOS_CHECK_TRUE(test_alloc_end());
     }
+    NAOS_CHECK_TRUE(succeeded);
+    NAOS_CHECK_UINT_EQ(oom_runs, 4);
 }
 
 /* ---- the parser with clopts_env_lookup, on every OS ---------------------- */
@@ -467,6 +485,7 @@ NAOS_TEST(parse_with_env_takes_a_utf8_value_from_the_environment)
     clopts_result_t *result;
 
     NAOS_REQUIRE_INT_EQ(platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", expected), 0);
+    test_alloc_begin(0);
     platform_env_tool_init(&tool, "CLOPTS_TEST_TOOL_OUTPUT");
     NAOS_REQUIRE_NOT_NULL(tool.program);
     NAOS_REQUIRE_NOT_NULL(tool.output);
@@ -492,6 +511,7 @@ NAOS_TEST(parse_with_env_takes_a_utf8_value_from_the_environment)
 
     clopts_result_free(result);
     clopts_program_free(tool.program);
+    NAOS_CHECK_TRUE(test_alloc_end());
     platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", NULL);
 }
 
@@ -503,6 +523,7 @@ NAOS_TEST(parse_with_env_leaves_an_unset_variable_unset)
 
     NAOS_REQUIRE_INT_EQ(platform_env_put("CLOPTS_TEST_TOOL_UNSET", "x"), 0);
     NAOS_REQUIRE_INT_EQ(platform_env_put("CLOPTS_TEST_TOOL_UNSET", NULL), 0);
+    test_alloc_begin(0);
     platform_env_tool_init(&tool, "CLOPTS_TEST_TOOL_UNSET");
     NAOS_REQUIRE_NOT_NULL(tool.program);
     env = clopts_env_new();
@@ -517,6 +538,7 @@ NAOS_TEST(parse_with_env_leaves_an_unset_variable_unset)
     clopts_result_free(result);
     clopts_env_free(env);
     clopts_program_free(tool.program);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /* A NULL context makes the lookup fail, so the parse ends with OUT_OF_MEMORY. */
@@ -526,6 +548,7 @@ NAOS_TEST(parse_with_env_null_context_ends_with_out_of_memory)
     clopts_result_t *result;
 
     NAOS_REQUIRE_INT_EQ(platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", "v"), 0);
+    test_alloc_begin(0);
     platform_env_tool_init(&tool, "CLOPTS_TEST_TOOL_OUTPUT");
     NAOS_REQUIRE_NOT_NULL(tool.program);
 
@@ -535,6 +558,7 @@ NAOS_TEST(parse_with_env_null_context_ends_with_out_of_memory)
 
     clopts_result_free(result);
     clopts_program_free(tool.program);
+    NAOS_CHECK_TRUE(test_alloc_end());
     platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", NULL);
 }
 
@@ -558,6 +582,7 @@ NAOS_TEST(env_lookup_finds_a_set_variable_and_borrows_getenvs_pointer)
     clopts_env_t *env;
     const char *value = NULL;
 
+    test_alloc_begin(0);
     env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
     PLATFORM_ENV_SET("CLOPTS_TEST_FOUND", "value \xe3\x83\x86");
@@ -568,11 +593,13 @@ NAOS_TEST(env_lookup_finds_a_set_variable_and_borrows_getenvs_pointer)
     NAOS_CHECK_PTR_EQ(value, getenv("CLOPTS_TEST_FOUND"));
     NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
     NAOS_CHECK_NULL(clopts_env_error_name(env));
-    /* nothing is allocated in the context */
+    /* nothing is allocated in the context: the only allocation is the context itself */
     NAOS_CHECK_NULL(env->value);
     NAOS_CHECK_NULL(env->wide);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     unsetenv("CLOPTS_TEST_FOUND");
     clopts_env_free(env);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_lookup_reports_an_unset_variable)
@@ -610,11 +637,11 @@ NAOS_TEST(env_lookup_finds_an_empty_value)
 /* A successful lookup clears a failure recorded earlier in the same context. */
 NAOS_TEST(env_lookup_clears_an_earlier_failure)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     const char *value = NULL;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
 
     clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_INVALID_UTF16, "CLOPTS_TEST_OLD");
@@ -624,17 +651,17 @@ NAOS_TEST(env_lookup_clears_an_earlier_failure)
     NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
     NAOS_CHECK_NULL(clopts_env_error_name(env));
     /* the recorded name is released, not leaked */
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
 
     clopts_platform_env_fail(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, "CLOPTS_TEST_OLD");
     NAOS_CHECK_INT_EQ(unsetenv("CLOPTS_TEST_FOUND"), 0);
     NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_UNSET);
     NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
     NAOS_CHECK_NULL(clopts_env_error_name(env));
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
 
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_lookup_with_null_ctx_fails)
@@ -665,11 +692,11 @@ NAOS_TEST(env_lookup_with_null_ctx_fails)
 
 NAOS_TEST(env_lookup_finds_a_set_variable_in_the_context_buffer)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     const char *value = NULL;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
     PLATFORM_ENV_SET_W(L"CLOPTS_TEST_FOUND", L"value");
     NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value), CLOPTS_ENV_FOUND);
@@ -681,7 +708,7 @@ NAOS_TEST(env_lookup_finds_a_set_variable_in_the_context_buffer)
     NAOS_CHECK_NULL(clopts_env_error_name(env));
     SetEnvironmentVariableW(L"CLOPTS_TEST_FOUND", NULL);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_lookup_reports_an_unset_variable)
@@ -766,15 +793,16 @@ NAOS_TEST(env_lookup_converts_a_non_ascii_name)
 NAOS_TEST(env_lookup_grows_the_buffers_for_a_long_value)
 {
     enum { LONG_UNITS = 6000 };
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     const char *value = NULL;
     wchar_t *wide;
     size_t wide_cap;
+    size_t calls;
     size_t i;
     size_t mismatch;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
     PLATFORM_ENV_SET_W(L"CLOPTS_TEST_LONG", L"short");
     NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_LONG", &value), CLOPTS_ENV_FOUND);
@@ -820,14 +848,14 @@ NAOS_TEST(env_lookup_grows_the_buffers_for_a_long_value)
 
     /* a short value again reuses the grown buffers */
     PLATFORM_ENV_SET_W(L"CLOPTS_TEST_LONG", L"x");
-    probe.calls = 0;
+    calls = test_alloc.calls;
     NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_LONG", &value), CLOPTS_ENV_FOUND);
     NAOS_CHECK_STR_EQ(value, "x");
-    NAOS_CHECK_UINT_EQ(probe.calls, 0);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
 
     SetEnvironmentVariableW(L"CLOPTS_TEST_LONG", NULL);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_lookup_reports_invalid_utf16_with_the_name)
@@ -835,11 +863,11 @@ NAOS_TEST(env_lookup_reports_invalid_utf16_with_the_name)
     /* a lone low surrogate, then a lone high surrogate at the end */
     static const wchar_t bad_low[] = {L'a', 0xDC00, L'b', 0};
     static const wchar_t bad_high[] = {L'a', 0xD800, 0};
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     const char *value = NULL;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
     PLATFORM_ENV_SET_W(L"CLOPTS_TEST_BAD", bad_low);
     NAOS_CHECK_INT_EQ(clopts_env_lookup(env, "CLOPTS_TEST_BAD", &value), CLOPTS_ENV_FAILED);
@@ -856,7 +884,7 @@ NAOS_TEST(env_lookup_reports_invalid_utf16_with_the_name)
 
     SetEnvironmentVariableW(L"CLOPTS_TEST_BAD", NULL);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_lookup_reports_an_invalid_utf8_name)
@@ -883,11 +911,11 @@ NAOS_TEST(env_lookup_reports_an_invalid_utf8_name)
 NAOS_TEST(env_lookup_clears_an_earlier_failure)
 {
     static const wchar_t bad[] = {0xDFFF, 0};
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     const char *value = NULL;
 
-    env = clopts_platform_env_new(&probe);
+    test_alloc_begin(0);
+    env = clopts_env_new();
     PLATFORM_ENV_REQUIRE(env);
 
     PLATFORM_ENV_SET_W(L"CLOPTS_TEST_BAD", bad);
@@ -908,7 +936,7 @@ NAOS_TEST(env_lookup_clears_an_earlier_failure)
 
     SetEnvironmentVariableW(L"CLOPTS_TEST_BAD", NULL);
     clopts_env_free(env);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(env_lookup_with_null_ctx_fails)
@@ -925,32 +953,39 @@ NAOS_TEST(env_lookup_with_null_ctx_fails)
 
 /*
  * Sanity check of the allocation failures (the exhaustive sweep is task
- * 4.1): every failing allocation of a lookup that has to grow both buffers
- * gives FAILED with OUT_OF_MEMORY and leaks nothing.
+ * 4.1): every failing allocation of a lookup in a new context gives FAILED
+ * with OUT_OF_MEMORY and leaks nothing. The lookup has two fault points: the
+ * work buffer (the name and 256 code units, which the value fits) and the
+ * value buffer.
  */
 NAOS_TEST(env_lookup_reports_out_of_memory_when_an_allocation_fails)
 {
-    clopts_platform_probe_t probe = {0, 0, 0};
     clopts_env_t *env;
     const char *value;
-    size_t fail_at;
-    size_t base;
+    size_t offset;
+    size_t start;
+    size_t oom_runs = 0;
+    int succeeded = 0;
     clopts_env_status_t status;
 
     PLATFORM_ENV_SET_W(L"CLOPTS_TEST_FOUND", L"\x3042\x3044\x3046");
-    status = CLOPTS_ENV_FAILED;
-    for (fail_at = 1; (fail_at <= 16) && (status == CLOPTS_ENV_FAILED); ++fail_at)
+    for (offset = 1; (offset <= 16) && (!succeeded); ++offset)
     {
-        probe.fail_at = 0;
-        env = clopts_platform_env_new(&probe);
+        NAOS_NOTE("env lookup fault point %u", (unsigned)offset);
+        /* The context is created without failures; the sweep starts after it. */
+        test_alloc_begin(0);
+        env = clopts_env_new();
         PLATFORM_ENV_REQUIRE(env);
-        base = probe.live;
-        probe.fail_at = probe.calls + fail_at;
+        start = test_alloc.calls;
+        test_alloc_set_fail_at(start + offset);
         value = NULL;
         status = clopts_env_lookup(env, "CLOPTS_TEST_FOUND", &value);
         if (status == CLOPTS_ENV_FAILED)
         {
+            oom_runs++;
+            NAOS_CHECK_UINT_GE(test_alloc.calls, start + offset);
             NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_OUT_OF_MEMORY);
+            NAOS_CHECK_NULL(clopts_env_error_name(env));
             NAOS_CHECK_NULL(value);
         }
         else
@@ -958,16 +993,20 @@ NAOS_TEST(env_lookup_reports_out_of_memory_when_an_allocation_fails)
             NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
             NAOS_CHECK_STR_EQ(value, "\xe3\x81\x82\xe3\x81\x84\xe3\x81\x86");
         }
-        NAOS_CHECK_UINT_GE(probe.live, base);
-        probe.fail_at = 0;
+        if (test_alloc.calls < start + offset)
+        {
+            succeeded = 1;
+            NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
+        }
+        test_alloc_set_fail_at(0);
         clopts_env_free(env);
-        NAOS_CHECK_UINT_EQ(probe.live, 0);
+        NAOS_CHECK_TRUE(test_alloc_end());
     }
-    /* the lookup succeeded within the bound, after at least one failing point */
-    NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
-    NAOS_CHECK_UINT_GT(fail_at, 2);
+    NAOS_CHECK_TRUE(succeeded);
+    NAOS_CHECK_UINT_EQ(oom_runs, 2);
     SetEnvironmentVariableW(L"CLOPTS_TEST_FOUND", NULL);
 }
+
 /*
  * The option's variable name is not valid UTF-8, so the lookup fails: the
  * parse ends with OUT_OF_MEMORY, and the context keeps the real reason.
@@ -978,6 +1017,7 @@ NAOS_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reas
     clopts_env_t *env;
     clopts_result_t *result;
 
+    test_alloc_begin(0);
     platform_env_tool_init(&tool, "\xff");
     NAOS_REQUIRE_NOT_NULL(tool.program);
     NAOS_REQUIRE_NOT_NULL(tool.output);
@@ -996,6 +1036,7 @@ NAOS_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reas
     clopts_result_free(result);
     clopts_env_free(env);
     clopts_program_free(tool.program);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 #endif /* _WIN32 */
 
@@ -1006,7 +1047,6 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(u16_from_units_accepts_an_empty_sequence),
     NAOS_ADD_TEST(u16_eq_ascii_does_not_match_non_ascii_units),
     NAOS_ADD_TEST(env_new_starts_without_failure_and_free_releases_it),
-    NAOS_ADD_TEST(public_env_new_has_no_probe),
     NAOS_ADD_TEST(env_free_ignores_null),
     NAOS_ADD_TEST(env_accessors_of_null_read_as_out_of_memory),
     NAOS_ADD_TEST(env_new_returns_null_when_the_allocation_fails),
@@ -1033,7 +1073,6 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(u16_from_units_accepts_an_empty_sequence),
     NAOS_ADD_TEST(u16_eq_ascii_does_not_match_non_ascii_units),
     NAOS_ADD_TEST(env_new_starts_without_failure_and_free_releases_it),
-    NAOS_ADD_TEST(public_env_new_has_no_probe),
     NAOS_ADD_TEST(env_free_ignores_null),
     NAOS_ADD_TEST(env_accessors_of_null_read_as_out_of_memory),
     NAOS_ADD_TEST(env_new_returns_null_when_the_allocation_fails),

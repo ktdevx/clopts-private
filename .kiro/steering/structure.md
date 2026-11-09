@@ -10,13 +10,13 @@
 
 ### 公開ヘッダ
 **Location**: `include/clopts/`  
-**Purpose**: 利用者が include するヘッダ。`clopts/clopts.h` を入口（傘ヘッダ）とし、必要なら責務ごとに分けたヘッダ（例: `clopts/argv.h`）をそこから include する。公開ヘッダは内部モジュールのヘッダを include しない。export の印 `CLOPTS_API` は `clopts/export.h` で定め、各公開ヘッダがこれを include する。公開ヘッダには構造体の定義を置かない（不透明型、列挙、関数ポインタ型、関数、`static inline` の便宜関数だけ）。  
+**Purpose**: 利用者が include するヘッダ。`clopts/clopts.h` を入口（傘ヘッダ）とし、必要なら責務ごとに分けたヘッダ（例: `clopts/argv.h`）をそこから include する。公開ヘッダは内部モジュールのヘッダを include しない。export の印 `CLOPTS_API` は `clopts/export.h` で定め、各公開ヘッダがこれを include する。公開ヘッダに置くのは、不透明型、列挙、関数ポインタ型、関数、`static inline` の便宜関数と、配置を凍結した構造体（いまは `clopts_allocator_t` だけ）である。  
 **Example**: `#include <clopts/clopts.h>`
 
 ### 内部モジュールのソース
 **Location**: `src/<module>/`  
 **Purpose**: 1 つの責務の実装と内部ヘッダ。別々のライブラリターゲットにはせず、`clopts` ターゲットに `target_sources` で加える（ヘルパ関数 `clopts_add_module` 相当で統一する）。モジュール間で共有する内部ヘッダは `<module>_internal.h` と名付け、install しない。  
-**Example**: `src/core/`（可変長配列、書き込みコールバック）、`src/parser/`（ビルダーと宣言モデル、宣言検査、走査器、結果ストア）、`src/help/`（文面生成）、`src/platform/`（Windows の argv と環境変数）
+**Example**: `src/core/`（確保の窓口とアロケーター、可変長配列、書き込みコールバック）、`src/parser/`（ビルダーと宣言モデル、宣言検査、走査器、結果ストア）、`src/help/`（文面生成）、`src/platform/`（Windows の argv と環境変数）
 
 ### モジュールのテスト
 **Location**: `tests/<module>/`  
@@ -26,7 +26,9 @@
 - `tests/toolchain/`: ビルド構成そのもの（警告のエラー化、VLA の禁止、グローバル設定を置いていないこと）を検証する。ラベルは `toolchain`。
 - `tests/integration/`: 利用側を模したプロジェクトで `add_subdirectory` / `FetchContent` と install → `find_package(CLOpts CONFIG)` の両経路を検証する。ラベルは `integration`。
 - `tests/docs/`: README と `docs/` のサンプル出力をビルドしたサンプルプログラムと照合する。Naos を使わず `cmake -P` で起動する。ラベルは `docs`。
-- `tests/abi/`: 公開シンボル一覧との照合、公開ヘッダの静的検査（構造体定義がないこと、`CLOPTS_API` の付け漏れ、C/C++ の両方でコンパイルできること）を行う。Naos を使わず `cmake -P` で起動する。ラベルは `abi`。照合の基準となる公開シンボル一覧はリポジトリ直下の `abi/clopts.symbols`（下の「公開 ABI の基準」）。保守者向けの説明は `docs/dev/abi-checks.md`。
+- `tests/abi/`: 公開シンボル一覧との照合、公開ヘッダの静的検査（`CLOPTS_API` の付け漏れ、C/C++ の両方でコンパイルできること）を行う。Naos を使わず `cmake -P` で起動する。ラベルは `abi`。照合の基準となる公開シンボル一覧はリポジトリ直下の `abi/clopts.symbols`（下の「公開 ABI の基準」）。保守者向けの説明は `docs/dev/abi-checks.md`。
+
+テストではなく、複数のモジュールのテストが共有する支援コードは `tests/support/` に置く（例: 確保の失敗を注入し、生存ブロックを数えるアロケーター `tests/support/test_alloc.{h,c}`）。CTest には登録せず、各モジュールのテスト実行ファイルに組み込む。
 
 ### 公開 ABI の基準
 **Location**: `abi/`  
@@ -88,7 +90,7 @@
 ## Code Organization Principles
 
 - **依存は一方向**: core ← parser ← help、core ← platform。`help` は、`parser` が用意する読み取り専用の宣言モデル（内部ヘッダ `src/parser/parser_model.h`。`parser_internal.h` は include しない）と結果のアクセサに依存するが、走査器の実装には依存しない。`platform` は `parser` を知らず、`parser` は環境変数の取得関数を差し替え口として受け取る。
-- **公開ヘッダに置くのは契約だけ**: 不透明ハンドル型、状態とエラー種別の列挙、コールバックの関数ポインタ型、公開関数。構造体の中身（宣言モデル、結果ストア、エラー、可変長配列）は公開ヘッダに出さない。
+- **公開ヘッダに置くのは契約だけ**: 不透明ハンドル型、状態とエラー種別の列挙、コールバックの関数ポインタ型、公開関数、配置を凍結した契約の構造体（アロケーター）。内部の構造体の中身（宣言モデル、結果ストア、エラー、可変長配列）は公開ヘッダに出さない。
 - **I/O は境界の外**: ライブラリは stdout / stderr に書かず `exit` しない。文面は書き込みコールバックへ、エラーは構造体で返し、表示と終了コードの決定は利用側が行う。ライブラリ本体は `stdio` に依存しない。`FILE*` 用のコールバックは公開ヘッダの `static inline` で提供する。
 - **宣言はライブラリが所有する**: ビルダーに渡された文字列は複製して宣言モデルに持つ。argv は書き換えない。宣言の解放は `clopts_program_free` で行う。
 - **テストは架空の宣言で**: 実在のツールの宣言をテストに持ち込まず、ライブラリの機能ごとに架空のプログラム宣言を用意する。

@@ -124,6 +124,7 @@
   - 初版のコードはまだ書き換えない（この時点では窓口を誰も使わない）。窓口の新しいソースをモジュールの一覧に足す。プローブの型と窓口の関数は現在の内部ヘッダに宣言し、5.2 の書き直しでもそのまま残す。program にプローブを取り付ける関数は、新しいモデルが要るので 5.2（スタブ）と 5.3（本実装）が担当する
   - oom スイートをここで登録し（テストのエントリと CMake）、窓口単体のテストを置く
   - 完了条件: 静的版・共有版の両方のビルドで、メモリ不足のスイートが通る。そこでは、n 回目以降の失敗、計数が 0 に戻ること、オーバーフローで失敗することを確かめる。既存の `ctest -L parser` も全件通ったままである
+  - 注記（2026-11-09）: この窓口と確保プローブは 9.1・9.2 で撤去した。窓口は core の `clopts_core_*`（`src/core/core_alloc.c`）に、失敗の注入と計数はテスト用のアロケーター（`tests/support/test_alloc`）に置き換え、窓口単体のテストは `tests/core/test_alloc.c` に移した
   - _Requirements: 13.5_
 
 - [x] 5.2 公開ヘッダと内部モデルを新しい契約に置き換え、モジュールとテストの骨格を切り替える
@@ -259,6 +260,7 @@
     - 結果と program を解放した後に、生存ブロックが 0 になる
     - ビルダーで失敗した場合は、解析が番兵を返す
   - 完了条件: `ctest -L parser -R oom` が両形式で通る。各場面で、少なくとも 1 回は OUT_OF_MEMORY に、最後の 1 回は成功になる
+  - 注記（2026-11-09）: 9.3 で、確保プローブの代わりにテスト用のアロケーターを公開 API（`clopts_set_allocator`）で組み込む形に書き直した。組み立ての場面は `clopts_program_new` の確保も対象になった
   - _Requirements: 4.7, 4.8, 13.6, 13.7, 15.7_
 
 - [x] 8.2 統合テストの利用側コードで、宣言から解放までを公開関数だけで通す
@@ -278,10 +280,33 @@
     - 構造体の定義がない
     - すべての関数宣言に `CLOPTS_API` が付いている
   - 共有版のライブラリの公開シンボルを nm / objdump で調べ、内部関数（確保プローブ、`clopts_parser_` で始まるもの）が出ていないことを確かめる
+  - 注記（2026-11-09）: 公開ヘッダの「構造体の定義がない」は、steering の「公開構造体は凍結する」への変更で、凍結した `clopts_allocator_t`（`include/clopts/alloc.h`）だけを許す形になった。確保プローブは 9.2 で撤去した
   - 状態 7 つ、使い方エラー 7 種別、宣言エラー 15 種別のそれぞれが、テストから到達していることを確かめる
   - roadmap の Existing Spec Updates の core-parser に、完了の印を付ける
   - 完了条件: 上記がすべて満たされ、作業ツリーに初版の API を参照するコードが残っていない
   - _Requirements: 14.1, 14.2, 14.5, 15.1, 15.3, 15.4, 15.8_
+
+## 改訂（2026-11-09: グローバルアロケーターの導入と確保プローブの撤去）
+
+design.md（2026-11-09 改訂）の Alloc と TestAlloc に従って、ライブラリ全体で 1 つの差し替えられるアロケーターを公開 API に加え、`src/` からテスト専用の確保プローブをなくす。platform-argv の同じ変更（同 spec の tasks.md）と合わせて行った。
+
+- [x] 9. 基盤: グローバルアロケーターへの切り替え
+- [x] 9.1 公開ヘッダにアロケーターを置き、core に確保の窓口を移す
+  - `include/clopts/alloc.h` に、配置を凍結した `clopts_allocator_t`（`malloc_fn` / `calloc_fn` / `realloc_fn` / `free_fn`）と `clopts_set_allocator` を宣言し、傘ヘッダから取り込む。公開シンボル一覧に `clopts_set_allocator` を足す
+  - `src/core/core_alloc.c` に、現在のアロケーター（初期値は標準関数）と、窓口 `clopts_core_malloc` / `malloc_array` / `calloc` / `realloc` / `strdup` / `strndup` / `free` を置く。サイズ 0 は 1 バイトに丸め、`count * size` と `len + 1` のオーバーフローを検査する。vec の再確保と解放も窓口を通す
+  - 窓口のテスト（サイズ 0 の丸め、オーバーフロー、`strndup` の終端、設定した関数が呼ばれること、NULL で既定に戻ること、失敗した `realloc` で元のブロックが残ること、vec が伸ばすときだけ確保点になること）を `tests/core/test_alloc.c` に置く
+  - _Requirements: 13.5, 13.8_
+
+- [x] 9.2 parser から確保プローブを撤去し、すべての確保を core の窓口に通す
+  - `parser_alloc.c` を削除し、`clopts_parser_probe_t`、`clopts_parser_set_probe`、`clopts_parser_*` の窓口の宣言、`program->probe` / `result->probe` のフィールドと番兵の `.probe` を取り除く。内部関数から `probe` の引数をなくす
+  - `clopts_program_new` の 1 ブロックも `clopts_core_malloc` / `clopts_core_free` で確保・解放する
+  - _Requirements: 1.8, 13.5, 13.7, 13.8_
+
+- [x] 9.3 メモリ不足の網羅試験をテスト用のアロケーターに移す
+  - `tests/support/test_alloc.{h,c}`（`fail_at` / `calls` / `live` / `bad_frees` / `zero_sizes`、`test_alloc_begin` / `test_alloc_set_fail_at` / `test_alloc_end`）を、parser・platform・core のテストで共有する
+  - oom スイートのスイープを、公開 API と `test_alloc_begin` を使う形に書き直す。確保点の数は固定せず、`fail_at = n` で最後まで成功し、かつ `calls < n` になったら終える。窓口を直接試すテストは core に移す。フィクスチャと各スイートから `set_probe` / `probe_t` の利用を取り除く
+  - 完了条件: 静的版・共有版の両方で `ctest -L parser` と `ctest -L core` が通り、各場面で少なくとも 1 回は OUT_OF_MEMORY に、最後の 1 回は成功になり、解放の後に生存ブロックが 0 で不正な解放がない
+  - _Requirements: 2.4, 15.7_
 
 ## Implementation Notes
 - 1.2: フィクスチャは `tests/parser/test_fixtures.{h,c}`。`strict` のサブコマンド名は `run`。`build` にもハンドラ `fixture_handler`（userdata `&fixture_build_handler_record`）を付けてある。オプション・コマンドの添字は enum 定数で公開。モック環境変数は `fixture_env_t` / `fixture_env_init` / `fixture_env_getenv` / `fixture_env_was_queried`、`fail_next` は 1 回だけ FAILED を返す
@@ -312,3 +337,4 @@
 - 8.1: 網羅試験 4 件（組み立て 81 回、build の解析 9 回、環境変数の LIST 13 回、既定値の LIST 10 回）。漏れやクラッシュは見つからず src は変更なし。組み立てで OOM になった回は `fail_at = 0` に戻してから validate / parse を呼び、確保点を通らずに番兵が返ることを確かめる。ASan+UBSan でも parser 全体が通る（このコンテナの Clang にはサニタイザの実行時ライブラリがないので GCC で確認）
 - 8.3: `legacy/` を削除。parser のテストは 390 件（初版 294。確保の窓口の単体 17 件を除いても 373）。GCC / Clang × 静的 / 共有の 4 構成で全件通過。共有版の公開シンボルは公開ヘッダの 48 関数と一致。NDEBUG 専用のテストは 2 件（`build.builder_after_validation_does_nothing`、`result.option_of_another_program_reads_as_unset_with_ndebug`）で、Debug では Skipped になる
 - 最終検証（/kiro-validate-impl）: GO。指摘を受けて文書だけを直した。design.md の「vec のフィールドを読むのは alloc だけ」を「`data` / `cap` を読むのは alloc だけ（`len` はどこでも可）」に、`commands.count` を `len` に、走査の Implementation Notes を「エラーはフィールドへ直接書く」に改めた。requirements.md 12.3 に、リリースビルドでは未指定の値を返すことを明記した。steering の structure.md で、help-and-messages が読むのは `parser_model.h` だけと改め、3 つの steering の冒頭の同期注記を実装済みに更新した。要件 2.4（`clopts_program_new` の確保失敗で NULL）は、プローブの対象外のため自動テストがない（コードレビューで確認済み。受け入れる）
+- 9.3（2026-11-09）: `clopts_program_new` の確保もアロケーターを通るようになったので、要件 2.4 は組み立てのスイープで自動テストの対象になった。確保点は `malloc_fn` / `calloc_fn` / `realloc_fn` の呼び出しで数えるので、伸ばさない `vec_push` と `strdup(NULL)` は確保点にならず、5.1・6.1・6.2・8.1 に書いた確保点の数は当てはまらない

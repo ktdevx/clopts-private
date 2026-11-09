@@ -253,6 +253,8 @@
   - 確保回数の上限によるカウンタ方式
 
   `clopts_testing` は共有ビルドでもテスト用の静的コピーとして存在する（project-foundation 7.2）ので、ここにだけ差し替え口を入れれば、公開 API と ABI に影響しない。
+
+  注記（2026-11-09）: 最終的には、公開 API のグローバルなアロケーター（`clopts_set_allocator`）とテスト側のアロケーターで行う形にした（下の「設計判断（2026-11-08 改訂）」の確保プローブの判断に付けた注記を参照）。
 - **番兵の結果オブジェクト**: `const` な静的オブジェクトを、非 const のハンドルとして返す場合の扱い。C99 で未定義動作にならない形（書き込まないことの保証）を確認する。
 - **統合テストの追従**: `consumer_cpp.cpp` の `decltype(&clopts_parse)` は、名前を保てばそのまま通る。名前を変えるなら fixture の修正が要る（requirements の In scope で、本 spec が直すと決めてある）。
 
@@ -321,6 +323,7 @@
 - **Selected Approach**: 4。parser のすべての確保を `parser_alloc.c` の窓口に通す。プローブが NULL のときは、`malloc` などを直接呼ぶだけ。
 - **Rationale**: グローバル状態がなく、全 OS・両形式で同じテストが動く。窓口は `malloc` / `free` を直接呼ぶので、tech.md の規約の範囲に収まる。
 - **Trade-offs**: 確保点は「呼び出し」の単位で数えるので、実際には確保しない `vec_push` も確保点に含まれる。網羅のためには十分である。`clopts_program_new` は 1 ブロックで確保し、プローブの対象外にする。
+- 注記（2026-11-09）: この判断は置き換えた。製品コードにテスト用の口と `probe` の引数が混ざること、プローブを通らない確保（`clopts_program_new`、vec の `realloc`）が残ることを理由に、上の案 1（グローバルな確保関数の差し替え）を公開 API として採った。ライブラリ全体で 1 つのアロケーター（`include/clopts/alloc.h` の `clopts_allocator_t` と `clopts_set_allocator`）を持ち、すべての確保を core の窓口（`src/core/core_alloc.c`）に通す。失敗の注入と生存ブロックの計数は、テスト側のアロケーター（`tests/support/test_alloc`）で行う。`parser_alloc.c` と確保プローブは削除した。現在の設計は design.md の Alloc と TestAlloc を参照。
 
 ### Decision: 環境変数のコールバックは `const char **value` に借用を返す 3 値の形にする
 - **Context**: 8.6〜8.8、10。platform-argv の brief。

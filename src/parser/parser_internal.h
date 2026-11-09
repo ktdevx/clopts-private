@@ -4,70 +4,13 @@
 #include "parser/parser_model.h"
 
 /*
- * Internal contracts of the parser module, shared by the allocation gateway
- * (parser_alloc.c), the builder (parser_build.c), the name rules and lookups
- * (parser_decl.c), the scanner (parser_scan.c), the resolver
- * (parser_resolve.c) and the result handle (parser_result.c). None of these
- * symbols is exported from the shared library.
+ * Internal contracts of the parser module, shared by the builder
+ * (parser_build.c), the name rules and lookups (parser_decl.c), the scanner
+ * (parser_scan.c), the resolver (parser_resolve.c) and the result handle
+ * (parser_result.c). None of these symbols is exported from the shared
+ * library. Every allocation goes through the allocation gateway of core
+ * (clopts_core_malloc and the others, core/core_internal.h).
  */
-
-/*
- * Allocation gateway and allocation probe (parser_alloc.c).
- *
- * Every allocation of the parser goes through these functions. When probe is
- * NULL they only call malloc / calloc / free / clopts_core_vec_push /
- * clopts_core_vec_free. When probe is not NULL, each call to malloc, calloc,
- * strdup, strndup or vec_push is one fault point: it increments probe->calls
- * and, when fail_at != 0 and calls >= fail_at, fails without allocating.
- * probe->live counts the live blocks: +1 for each successful object or
- * string allocation and -1 for each free of a non-NULL pointer; a vec counts
- * +1 when its buffer goes from NULL to non-NULL and -1 when vec_free releases
- * a non-NULL buffer.
- */
-typedef struct clopts_parser_probe
-{
-    size_t fail_at;  /* 0: never fail. n: the n-th and every later fault point fail */
-    size_t calls;    /* number of fault points passed */
-    long live;       /* live blocks (objects, strings and vecs that own a buffer) */
-} clopts_parser_probe_t;
-
-/* Returns a block of size bytes, or NULL. */
-void *clopts_parser_malloc(clopts_parser_probe_t *probe, size_t size);
-
-/*
- * Returns a zero-filled block of count * size bytes, or NULL. The product is
- * checked with clopts_core_size_mul; on overflow nothing is allocated.
- */
-void *clopts_parser_calloc(clopts_parser_probe_t *probe, size_t count, size_t size);
-
-/*
- * Returns a copy of s, or NULL on failure. When s is NULL it returns NULL
- * without counting a fault point.
- */
-char *clopts_parser_strdup(clopts_parser_probe_t *probe, const char *s);
-
-/*
- * Returns a NUL-terminated copy of the len bytes at s, or NULL. s must not be
- * NULL and must point to at least len bytes. len + 1 is checked with
- * clopts_core_size_add; on overflow nothing is allocated.
- */
-char *clopts_parser_strndup(clopts_parser_probe_t *probe, const char *s, size_t len);
-
-/* Appends elem to vec as clopts_core_vec_push does. Returns 0 or -1. */
-int clopts_parser_vec_push(clopts_parser_probe_t *probe, clopts_core_vec_t *vec, const void *elem);
-
-/* Releases the buffer of vec as clopts_core_vec_free does. */
-void clopts_parser_vec_free(clopts_parser_probe_t *probe, clopts_core_vec_t *vec);
-
-/* Releases ptr (which may be NULL), allocated by the functions above. */
-void clopts_parser_free(clopts_parser_probe_t *probe, void *ptr);
-
-/*
- * Attaches probe to program (parser_build.c). Call it right after
- * clopts_program_new(): allocations before that are not counted. A result
- * inherits the probe of the program it was parsed from.
- */
-void clopts_parser_set_probe(clopts_program_t *program, clopts_parser_probe_t *probe);
 
 /*
  * Name rules and lookups (parser_decl.c).
@@ -172,7 +115,6 @@ struct clopts_result
     clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */
     size_t command_count;
     clopts_core_vec_t positionals;    /* const char * elements pointing into argv */
-    clopts_parser_probe_t *probe;     /* inherited from the program */
 };
 
 /*
@@ -201,7 +143,7 @@ void clopts_parser_slot_set_flag(clopts_parser_slot_t *slot, bool value, clopts_
 void clopts_parser_slot_add_count(clopts_parser_slot_t *slot, unsigned count_max);
 
 /* VALUE: replaces the value (releasing a previous owned copy) and records source; the last one wins. */
-void clopts_parser_slot_set_value(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *value,
+void clopts_parser_slot_set_value(clopts_parser_slot_t *slot, const char *value,
                                   clopts_source_t source);
 
 /*
@@ -209,11 +151,11 @@ void clopts_parser_slot_set_value(clopts_parser_probe_t *probe, clopts_parser_sl
  * items included; with delimiter '\0' value is a single item. Records source.
  * Returns 0, or -1 keeping the items appended so far.
  */
-int clopts_parser_slot_append_list(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *value,
+int clopts_parser_slot_append_list(clopts_parser_slot_t *slot, const char *value,
                                    char delimiter, clopts_source_t source);
 
 /* VALUE: moves ownership of owned (an environment value copy) to slot, releasing the previous owned copy. */
-void clopts_parser_slot_own(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, char *owned);
+void clopts_parser_slot_own(clopts_parser_slot_t *slot, char *owned);
 
 /* Appends token (an argv element) as a positional. Returns 0 or -1. */
 int clopts_parser_result_add_positional(clopts_result_t *result, const char *token);

@@ -1,7 +1,6 @@
 #include "core/core_internal.h"
 
 #include <assert.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* Capacity of the first allocation, in elements. */
@@ -42,7 +41,7 @@ static int core_vec_grow(clopts_core_vec_t *vec)
         return -1;
     }
 
-    new_data = realloc(vec->data, new_bytes);
+    new_data = clopts_core_realloc(vec->data, new_bytes);
     if (new_data == NULL)
     {
         return -1;
@@ -85,7 +84,7 @@ void clopts_core_vec_free(clopts_core_vec_t *vec)
 {
     assert(vec != NULL);
 
-    free(vec->data);
+    clopts_core_free(vec->data);
     vec->data = NULL;
     vec->len = 0;
     vec->cap = 0;

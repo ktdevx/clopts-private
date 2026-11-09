@@ -12,4 +12,5 @@ clopts_add_module_tests(parser SOURCES
     test_errors.c
     test_result.c
     test_oom.c
+    ../support/test_alloc.c
 )

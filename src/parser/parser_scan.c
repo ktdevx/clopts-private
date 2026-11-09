@@ -255,9 +255,9 @@ static scan_error_t *scan_option_value(scan_state_t *state, const clopts_parser_
     }
     if (ref->option->kind == CLOPTS_PARSER_VALUE)
     {
-        clopts_parser_slot_set_value(state->result->probe, slot, value, CLOPTS_SOURCE_EXPLICIT);
+        clopts_parser_slot_set_value(slot, value, CLOPTS_SOURCE_EXPLICIT);
     }
-    else if (clopts_parser_slot_append_list(state->result->probe, slot, value, ref->option->delimiter,
+    else if (clopts_parser_slot_append_list(slot, value, ref->option->delimiter,
                                             CLOPTS_SOURCE_EXPLICIT) != 0)
     {
         state->out_of_memory = true;

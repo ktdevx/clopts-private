@@ -127,6 +127,7 @@
 - **Rationale**: 後続 spec の結果ストアが OOM 途中でも 1 つの `free` 関数で解放できる。
 - **Trade-offs**: `elem_size == 0` の vec に `push` すると契約違反（`assert`）。
 - **Follow-up**: `tests/core/` で、確保失敗を再現するため `realloc` を差し替え可能にするか（内部リンクのフック）、または上限値（`SIZE_MAX` 付近）の `elem_size` でオーバーフロー経路を踏ませるかを実装時に選ぶ。設計では後者（フックなし）を既定とし、OOM 経路は巨大な `elem_size` による `realloc` 失敗で踏む。
+- 注記（2026-11-09）: その後、ライブラリ全体で 1 つの差し替えられるアロケーター（`clopts_set_allocator`、`include/clopts/alloc.h`）を公開 API に置き、vec の再確保と解放も core の確保の窓口（`src/core/core_alloc.c`）を通すようにした。`realloc` の失敗経路は、テスト用のアロケーター（`tests/support/test_alloc`）で直接テストしている（core-parser の design.md の Alloc と TestAlloc）。
 
 ### Synthesis: 一般化・採用・単純化の結果
 - **一般化**: 「ターゲットにコンパイルオプションを当てる」はライブラリとテスト実行ファイルの両方に必要 → `clopts_apply_compiler_options(<target>)` 1 つに集約（要件 3.6）。「子プロセスで CMake 項目を構成・ビルドし結果を判定する」は toolchain と integration の両方に必要 → `tests/cmake/run_fixture.cmake` 1 本に集約。

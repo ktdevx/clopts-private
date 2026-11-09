@@ -10,7 +10,7 @@
 
 ### Goals
 - 全 5 環境の共有ビルドで、export されたシンボルが公開シンボル一覧と過不足なく一致することを CTest で検査する。
-- 公開ヘッダに構造体・共用体の定義がなく、公開関数に `CLOPTS_API` が付き、C99 と C++ の両方からコンパイルでき、C++ から C のリンケージで参照できることを検査する。
+- 公開関数に `CLOPTS_API` が付き、C99 と C++ の両方からコンパイルでき、C++ から C のリンケージで参照できることを検査する（2026-11-09 に、構造体・共用体の定義がないことの検査を外した。公開構造体は定義してよく、配置を凍結する。配置の変化は abidiff が検出する）。
 - 1.0.0 以降、Linux の CI で直近のリリースとの ABI を abidiff で比べ、互換のない変更だけで失敗させる。
 - ABI の方針、SOVERSION と macOS の版の規則、変更の分類と手順を文書にする。
 
@@ -25,7 +25,7 @@
 ### This Spec Owns
 - 公開シンボル一覧 `abi/clopts.symbols` の形式と、初期の内容（本 spec の実装時点の全公開関数）。
 - シンボル照合（一覧の形式検査、export の読み出しと正規化、過不足の報告）と、その自己テスト。
-- 公開ヘッダの静的検査（構造体・共用体の定義、`CLOPTS_API` の付け漏れ）と、その自己テスト。
+- 公開ヘッダの静的検査（`CLOPTS_API` の付け漏れ）と、その自己テスト。
 - 公開ヘッダの C99 / C++ のコンパイル検査と、C++ からのリンク検査。
 - abidiff による版の間の比較スクリプト、基準の選択と終了コードの判定の規則、CI の `abi-compare` ジョブ。
 - ABI 方針の文書（`docs/abi.md`）と保守者向けの検査・手順の文書（`docs/dev/abi-checks.md`）。
@@ -130,9 +130,9 @@ tests/abi/
     ├── headers/
     │   └── CMakeLists.txt          # C99 / C++ のコンパイル検査の子プロジェクト
     ├── header_rules/
-    │   ├── good/                   # 違反のない例（前方宣言、static inline、関数ポインタ型、コメント中の struct）
+    │   ├── good/                   # 違反のない例（前方宣言、static inline、関数ポインタ型、コメント中の struct、構造体・共用体の定義）
     │   │   └── *.h
-    │   └── bad/                    # 違反ごとに 1 ディレクトリ（struct_def、union_def、missing_api、missing_api_multiline）
+    │   └── bad/                    # 違反ごとに 1 ディレクトリ（missing_api、missing_api_multiline。struct_def・union_def は 2026-11-09 に good/ へ移した）
     │       └── <case>/<case>.h
     └── exports/                    # 各形式のツール出力の記録と、それに対応する一覧
         ├── nm-elf.txt
@@ -208,7 +208,7 @@ flowchart TB
 | 3.3, 3.4 | 5 環境、正規化と除外 | SymbolCheck, AbiTestRegistration | FORMAT ごとの規則 | シンボル照合 |
 | 3.5–3.7, 3.9 | 不足・余分の報告、案内、成功 | SymbolCheck | 報告の形式 | シンボル照合 |
 | 3.8 | ツールの欠如・失敗で失敗 | SymbolCheck | エラーの形式 | シンボル照合 |
-| 4.1–4.6, 4.8 | ヘッダの走査と判定 | HeaderRulesCheck | `abi.header_rules` | — |
+| 4.1, 4.4–4.6, 4.8 | ヘッダの走査と判定（4.2、4.3 は 2026-11-09 に廃止） | HeaderRulesCheck | `abi.header_rules` | — |
 | 4.7 | 両形式で登録 | AbiTestRegistration | — | — |
 | 5.1, 5.2, 5.4, 5.7 | 各ヘッダを C99 / C++ で単独コンパイル、同じ警告 | HeaderCompileFixture | `abi.headers_c`, `abi.headers_cxx` | — |
 | 5.3 | C のリンケージ | HeaderCompileFixture | C++ のリンク検査 | — |
@@ -225,7 +225,7 @@ flowchart TB
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | SymbolList | Data | 公開シンボルの唯一の基準 | 2.1, 2.2, 2.4 | — | State |
 | SymbolCheck | Test script | 一覧の形式検査と export との照合 | 2.3, 3.3–3.9 | SymbolList (P0), 各 OS のツール (P0) | Batch |
-| HeaderRulesCheck | Test script | 公開ヘッダの静的検査 | 4.1–4.6, 4.8 | 公開ヘッダ (P0) | Batch |
+| HeaderRulesCheck | Test script | 公開ヘッダの静的検査 | 4.1, 4.4–4.6, 4.8 | 公開ヘッダ (P0) | Batch |
 | HeaderCompileFixture | Test fixture | C99 / C++ のコンパイルと C++ からのリンク | 5.1–5.4, 5.7 | run_fixture.cmake (P0), CloptsCompilerOptions (P0), SymbolList (P1) | Batch |
 | AbiTestRegistration | Test registration | `abi.*` の登録、形式とツールの選択、C++ の有無 | 3.1–3.3, 4.7, 5.5, 5.6, 5.8 | 上の 3 つと AbiCompareScript (P0) | Service |
 | AbiCompareScript | Test script | 基準の選択、両版のビルド、abidiff、判定 | 6.2–6.8 | git (P0), abidiff (P0) | Batch |
@@ -322,8 +322,8 @@ flowchart TB
 
 | Field | Detail |
 |-------|--------|
-| Intent | 公開ヘッダに構造体・共用体の定義がなく、関数の宣言に `CLOPTS_API` が付いていることを検査する |
-| Requirements | 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.8 |
+| Intent | 公開ヘッダの関数の宣言に `CLOPTS_API` が付いていることを検査する（2026-11-09 に、構造体・共用体の定義の検査を外した） |
+| Requirements | 4.1, 4.4, 4.5, 4.6, 4.8 |
 
 **Responsibilities & Constraints**
 - `HEADER_DIR` の直下の `*.h` を毎回列挙して対象にする（4.1）。名前順に処理し、結果を決定的にする。
@@ -332,17 +332,18 @@ flowchart TB
   2. 前処理指令の行（先頭の空白の後に `#` で始まる行と、その `\` による継続行）を除く。
 - 正規化した内容を、波括弧の深さを追いながら最上位の文に区切る。
   - `extern "C" {` とそれに対応する `}` は透過的に扱う（中を最上位として扱う）。
-  - 深さ 0 の `;` で文が終わる。`static` で始まる文は、本体の `{ ... }` が閉じたところで終わる。
+  - 深さ 0 の `;` で文が終わる。`static` で始まる文と、本体の前に `(` を含む文（関数の定義）は、本体の `{ ... }` が閉じたところで終わる。
 - 文の分類と判定:
 
 | 文の形 | 判定 |
 |--------|------|
-| `struct` / `union` の後にタグ名（任意）と `{` がある（`typedef` の有無によらない） | 違反: `struct or union definition`（4.2） |
-| `typedef struct <tag> <name>;` などの前方宣言 | 許可（4.3） |
-| `typedef` で始まるその他の文（列挙、関数ポインタ型） | 許可（4.5） |
+| `typedef` で始まる文（前方宣言、構造体・共用体・列挙の定義、関数ポインタ型） | 許可（4.5） |
 | `static` で始まる文（`static inline` の関数定義） | `CLOPTS_API` の検査の対象外（4.5） |
 | 上のどれでもなく、`<識別子> (` を含む文（関数の宣言） | 先頭の語が `CLOPTS_API` でなければ違反: `function '<name>' lacks CLOPTS_API`（4.4）。名前は最初の `(` の直前の識別子 |
-| それ以外 | 判定しない |
+| それ以外（`typedef` のない構造体・共用体・列挙の定義、構造体の前方宣言） | 判定しない |
+
+- 文の分類には、文の頭（最初の `{` より前の部分。本体がなければ文全体）を使う。
+- 2026-11-09 に、構造体・共用体の定義を違反とする行（旧 4.2）と、前方宣言を許す行（旧 4.3）を削除した。公開構造体は steering の「公開構造体は凍結する」に従って定義してよく、既存の公開構造体の配置の変化は、1.0.0 以降の AbiCompare（abidiff）が検出する。
 
 - 違反をすべて集めてから、`<file>:<line>: <reason>` の形で出して失敗する。行は文の開始行。違反がなければ、検査したヘッダと関数の数を表示して成功する（4.8）。
 - 扱わない構文（関数を返す関数、`extern` 変数、マクロで包んだ宣言）は、スクリプトの先頭の注釈と `docs/dev/abi-checks.md` に書く。公開ヘッダに現れたら走査器を広げる。
@@ -520,8 +521,8 @@ flowchart TB
   - 版と SOVERSION: 0.x は `0.<minor>`、1.0.0 以降は `<major>`。Linux のファイル名（`libclopts.so.<SOVERSION>`）の例（1.3）。
   - Windows: DLL のファイル名は `clopts.dll`（MinGW では CMake の既定で `libclopts.dll`）で版が入らず、版の取り違えをファイル名で防げない。利用側の実行ファイルの横に、ビルドに使った版と同じ SOVERSION の DLL を置くこと（1.4）。
   - macOS: compatibility version は SOVERSION から（0.x は `0.<minor>.0`、1.x は `1.0.0`）、current version は `project(VERSION)` から作る。minor ごとには上げない。そのため、新しい minor に対してビルドした利用側を古い minor のライブラリで動かすと、読み込み時ではなく足りない関数を解決するときに失敗する（前方互換は保証しない）（1.5）。
-  - 互換を保つ変更: 公開関数の追加、列挙の末尾への値の追加、不透明型の内部の変更、公開関数の内部の挙動の修正（契約の範囲内）（1.6）。
-  - 互換を壊す変更: 公開関数の削除・改名、引数・戻り値の型や数の変更、既存の列挙値の変更・並べ替え・途中への挿入、公開ヘッダへの構造体・共用体の定義の追加、関数ポインタ型のシグネチャの変更（1.7）。
+  - 互換を保つ変更: 公開関数の追加、列挙の末尾への値の追加、新しい公開構造体の追加（追加した後は配置を凍結する）、不透明型の内部の変更、公開関数の内部の挙動の修正（契約の範囲内）（1.6）。
+  - 互換を壊す変更: 公開関数の削除・改名、引数・戻り値の型や数の変更、既存の列挙値の変更・並べ替え・途中への挿入、既存の公開構造体・共用体の配置の変更（メンバーの追加・削除・並べ替え・型の変更）、関数ポインタ型のシグネチャの変更（1.7）。公開構造体を拡張するときは、別の型と別の関数を足す（例: `clopts_allocator2_t` と `clopts_set_allocator2`）。
   - 壊すときは major（0.x は minor）を上げ、SOVERSION が変わる（1.8）。
 - `docs/dev/abi-checks.md`（保守者向け）:
   - 公開関数を足す・消すときの手順: 宣言に `CLOPTS_API` を付け、同じ変更で `abi/clopts.symbols` を更新する。一覧の形式と推奨する並べ方（1.9）。
@@ -550,7 +551,7 @@ CI のジョブの結果とログで確認する。`abi-compare` の最初の行
 - `abi.symbols_selftest.<format>`: 4 形式それぞれの記録した出力から、除外リストの名前（`nm-elf` の `_init` など）を取り除き、`nm-macho` の先頭の `_` を外し、`dumpbin` の表と `objdump-pe` の節から名前を取り出して、`expected.symbols` と一致すること（3.4、3.9）。`expected.symbols` は注記 `windows` の付いた名前を 1 つ含み、その名前は Windows の 2 形式の記録にだけ現れる。
 - `abi.symbols_selftest.mismatch`: 1 つ欠けて 1 つ余分な一覧に対し、不足と余分の両方の名前と一覧の場所・案内が報告されること（3.5、3.6、3.7）。
 - `abi.symbols_selftest.bad_list`: 重複と接頭辞のない名前と未知の OS の注記がそれぞれ行番号付きで報告されること。空行と注釈の行は誤りにならないこと（2.3、2.4）。
-- `abi.header_rules_selftest.*`: `good` に置いた前方宣言・`typedef enum`・関数ポインタ型・`static inline` の定義・コメント中の `struct x { }` が違反にならないこと。`bad` の構造体定義・共用体定義・`CLOPTS_API` のない関数宣言（引数が次の行に続く形を含む）が、ファイルと行と理由付きで報告されること（4.2〜4.6）。
+- `abi.header_rules_selftest.*`: `good` に置いた前方宣言・`typedef enum`・関数ポインタ型・`static inline` の定義・コメント中の `struct x { }`・構造体と共用体の定義（`struct_def.h`、`union_def.h`。2026-11-09 に `bad` から移した）が違反にならないこと。`bad` の `CLOPTS_API` のない関数宣言（引数が次の行に続く形を含む）が、ファイルと行と理由付きで報告されること（4.4〜4.6）。
 - `abi.compare_selftest`: 基準の選択（0.x は空、同じ major の最大、`v1.10.0` と `v1.9.0` の数値比較、現在より新しいタグと別の major と `-rc` の除外、候補なし）と、終了コードの判定（0 → compatible、4 → compatible、12 → incompatible、1・2・3・13 → tool_error、16 → tool_error）（6.2、6.3、6.6〜6.8）。
 
 ### 本物の成果物に対する検査

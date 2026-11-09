@@ -1,4 +1,4 @@
-/* Allowed: opaque types declared without a body (requirement 4.3). */
+/* Allowed: opaque types declared without a body. */
 #ifndef GOOD_FORWARD_DECL_H
 #define GOOD_FORWARD_DECL_H
 

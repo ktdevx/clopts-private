@@ -9,23 +9,13 @@
  */
 
 #include "parser/parser_internal.h"
+#include "test_alloc.h"
 #include "test_fixtures.h"
 
 #include <naos/naos.h>
 
 #include <stdio.h>
 #include <string.h>
-
-/* Returns a probe with the given fail_at and zero counters. */
-static clopts_parser_probe_t make_probe(size_t fail_at)
-{
-    clopts_parser_probe_t probe;
-
-    probe.fail_at = fail_at;
-    probe.calls = 0;
-    probe.live = 0;
-    return probe;
-}
 
 /* Returns option index of scope (an element of scope->options). */
 static clopts_option_t *option_at(const clopts_command_t *scope, size_t index)
@@ -125,7 +115,6 @@ NAOS_TEST(program_new_embeds_root_and_copies_name)
     NAOS_CHECK_FALSE(program->frozen);
     NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OK);
     NAOS_CHECK_INT_EQ(program->error.kind, CLOPTS_DECL_NONE);
-    NAOS_CHECK_NULL(program->probe);
 
     clopts_program_free(program);
 }
@@ -505,30 +494,30 @@ NAOS_TEST(hundred_options_keep_the_first_handle)
 
 NAOS_TEST(first_out_of_memory_stops_the_builder)
 {
-    clopts_parser_probe_t probe;
     clopts_program_t *program;
     clopts_command_t *root;
     clopts_result_t *result;
+    size_t calls;
 
-    probe = make_probe(1);
+    test_alloc_begin(0);
     program = clopts_program_new("tool");
     NAOS_REQUIRE_NOT_NULL(program);
-    clopts_parser_set_probe(program, &probe);
-    NAOS_CHECK_PTR_EQ(program->probe, &probe);
     root = clopts_program_root(program);
 
+    /* the allocation of the option is the next fault point */
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     NAOS_CHECK_NULL(clopts_command_add_flag(root, "force", 'f'));
     NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OUT_OF_MEMORY);
 
     /* later calls do nothing, even when allocation would succeed again */
-    probe.fail_at = 0;
-    probe.calls = 0;
+    test_alloc_set_fail_at(0);
+    calls = test_alloc.calls;
     NAOS_CHECK_NULL(clopts_command_add_value(root, "output", 'o'));
     NAOS_CHECK_NULL(clopts_program_add_command(program, "build"));
     NAOS_CHECK_NULL(clopts_command_add_positional(root, "file"));
     clopts_program_set_version(program, "1.0");
     clopts_command_set_description(root, "text");
-    NAOS_CHECK_UINT_EQ(probe.calls, 0);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
     NAOS_CHECK_UINT_EQ(root->options.len, 0);
     NAOS_CHECK_UINT_EQ(program->commands.len, 0);
     NAOS_CHECK_NULL(program->version);
@@ -543,34 +532,33 @@ NAOS_TEST(first_out_of_memory_stops_the_builder)
     NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OUT_OF_MEMORY);
     NAOS_CHECK_TRUE(program->frozen);
     clopts_result_free(result);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
 
     clopts_program_free(program);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(setter_out_of_memory_keeps_the_old_copy)
 {
-    clopts_parser_probe_t probe;
     clopts_program_t *program;
     clopts_option_t *output;
 
-    probe = make_probe(0);
+    test_alloc_begin(0);
     program = clopts_program_new("tool");
     NAOS_REQUIRE_NOT_NULL(program);
-    clopts_parser_set_probe(program, &probe);
     output = clopts_command_add_value(clopts_program_root(program), "output", 'o');
     NAOS_REQUIRE_NOT_NULL(output);
     clopts_option_set_help(output, "old");
     NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
 
-    probe.fail_at = probe.calls + 1;
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     clopts_option_set_help(output, "new");
     NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OUT_OF_MEMORY);
     NAOS_REQUIRE_NOT_NULL(output->help);
     NAOS_CHECK_STR_EQ(output->help, "old");
 
     clopts_program_free(program);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /* Builds a small program through every allocating builder function. */
@@ -601,9 +589,14 @@ static void build_sample(clopts_program_t *program)
     clopts_positional_set_help(src, "Source.");
 }
 
+/*
+ * Moves the failing fault point fail_at = 1, 2, ... over clopts_program_new()
+ * and build_sample() until a run passes no failing fault point
+ * (test_alloc.calls < fail_at). fail_at = 1 fails clopts_program_new()
+ * itself, which then returns NULL.
+ */
 NAOS_TEST(every_failure_point_is_released)
 {
-    clopts_parser_probe_t probe;
     clopts_program_t *program;
     size_t fail_at;
     bool succeeded = false;
@@ -611,13 +604,19 @@ NAOS_TEST(every_failure_point_is_released)
     for (fail_at = 1; (fail_at < 200) && (!succeeded); fail_at++)
     {
         NAOS_NOTE("fail_at=%u", (unsigned)fail_at);
-        probe = make_probe(fail_at);
+        test_alloc_begin(fail_at);
         program = clopts_program_new("tool");
-        NAOS_REQUIRE_NOT_NULL(program);
-        clopts_parser_set_probe(program, &probe);
+        if (program == NULL)
+        {
+            /* Only the first fault point is in clopts_program_new(). */
+            NAOS_CHECK_UINT_EQ(fail_at, 1);
+            NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
+            NAOS_CHECK_TRUE(test_alloc_end());
+            continue;
+        }
 
         build_sample(program);
-        if (probe.calls < fail_at)
+        if (test_alloc.calls < fail_at)
         {
             NAOS_CHECK_INT_EQ(program->error.status, CLOPTS_OK);
             succeeded = true;
@@ -628,7 +627,7 @@ NAOS_TEST(every_failure_point_is_released)
         }
 
         clopts_program_free(program);
-        NAOS_CHECK_INT_EQ(probe.live, 0);
+        NAOS_CHECK_TRUE(test_alloc_end());
     }
     NAOS_CHECK_TRUE(succeeded);
     NAOS_CHECK_UINT_GT(fail_at, 2);
@@ -650,14 +649,12 @@ NAOS_TEST(validate_null_program_returns_sentinel)
 
 NAOS_TEST(validate_fresh_program_returns_ok)
 {
-    clopts_parser_probe_t probe;
     clopts_program_t *program;
     clopts_result_t *result;
 
-    probe = make_probe(0);
+    test_alloc_begin(0);
     program = clopts_program_new("tool");
     NAOS_REQUIRE_NOT_NULL(program);
-    clopts_parser_set_probe(program, &probe);
     build_sample(program);
     NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
 
@@ -670,7 +667,6 @@ NAOS_TEST(validate_fresh_program_returns_ok)
     NAOS_CHECK_NULL(clopts_result_error_option(result));
     NAOS_CHECK_NULL(clopts_result_error_positional(result));
     NAOS_CHECK_PTR_EQ(result->program, program);
-    NAOS_CHECK_PTR_EQ(result->probe, &probe);
     NAOS_CHECK_FALSE(result->parsed);
     NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
     NAOS_CHECK_TRUE(program->frozen);
@@ -678,30 +674,56 @@ NAOS_TEST(validate_fresh_program_returns_ok)
 
     clopts_result_free(result);
     clopts_program_free(program);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/*
+ * The result is allocated through the allocator too, and may be released
+ * after the program: its blocks are then the only live ones.
+ */
+NAOS_TEST(validate_result_outlives_the_program)
+{
+    clopts_program_t *program;
+    clopts_result_t *result;
+    long program_live;
+
+    test_alloc_begin(0);
+    program = clopts_program_new("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    build_sample(program);
+    NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
+    program_live = test_alloc.live;
+
+    result = clopts_program_validate(program);
+    NAOS_REQUIRE_NOT_NULL(result);
+    NAOS_REQUIRE_TRUE(result != clopts_parser_result_oom());
+    NAOS_CHECK_INT_GT(test_alloc.live, program_live);
+
+    clopts_program_free(program);
+    NAOS_CHECK_INT_GT(test_alloc.live, 0);
+    clopts_result_free(result);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(validate_result_allocation_failure_returns_sentinel)
 {
-    clopts_parser_probe_t probe;
     clopts_program_t *program;
     clopts_result_t *result;
 
-    probe = make_probe(0);
+    test_alloc_begin(0);
     program = clopts_program_new("tool");
     NAOS_REQUIRE_NOT_NULL(program);
-    clopts_parser_set_probe(program, &probe);
     (void)clopts_command_add_flag(clopts_program_root(program), "force", 'f');
     NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
 
-    probe.fail_at = probe.calls + 1;
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     result = clopts_program_validate(program);
     NAOS_CHECK_PTR_EQ(result, clopts_parser_result_oom());
     NAOS_CHECK_TRUE(program->frozen);
     clopts_result_free(result);
 
     clopts_program_free(program);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /*
@@ -916,17 +938,17 @@ NAOS_TEST(fixtures_validate_ok)
     fixture_filt_t filt;
     fixture_strict_t strict;
 
-    fixture_tool_init(&tool, NULL);
+    fixture_tool_init(&tool);
     check_validates_ok(tool.program);
     fixture_tool_free(&tool);
     NAOS_CHECK_NULL(tool.program);
 
-    fixture_filt_init(&filt, NULL);
+    fixture_filt_init(&filt);
     check_validates_ok(filt.program);
     fixture_filt_free(&filt);
     NAOS_CHECK_NULL(filt.program);
 
-    fixture_strict_init(&strict, NULL);
+    fixture_strict_init(&strict);
     check_validates_ok(strict.program);
     fixture_strict_free(&strict);
     NAOS_CHECK_NULL(strict.program);
@@ -938,11 +960,10 @@ NAOS_TEST(fixture_tool_declaration)
     clopts_program_t *program;
     clopts_command_t *root;
 
-    fixture_tool_init(&f, NULL);
+    fixture_tool_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
-    NAOS_CHECK_PTR_EQ(program->probe, NULL);
 
     root = f.root;
     NAOS_REQUIRE_PTR_EQ(root, &program->root);
@@ -1014,7 +1035,7 @@ NAOS_TEST(fixture_filt_declaration)
     clopts_program_t *program;
     clopts_command_t *root;
 
-    fixture_filt_init(&f, NULL);
+    fixture_filt_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
@@ -1046,7 +1067,7 @@ NAOS_TEST(fixture_strict_declaration)
     clopts_program_t *program;
     clopts_command_t *root;
 
-    fixture_strict_init(&f, NULL);
+    fixture_strict_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_INT_EQ(program->error.status, CLOPTS_OK);
@@ -1076,67 +1097,76 @@ NAOS_TEST(fixture_strict_declaration)
 
 NAOS_TEST(fixtures_release_every_block)
 {
-    clopts_parser_probe_t probe;
     fixture_tool_t tool;
     fixture_filt_t filt;
     fixture_strict_t strict;
 
-    probe = make_probe(0);
-    fixture_tool_init(&tool, &probe);
+    test_alloc_begin(0);
+    fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
-    NAOS_CHECK_PTR_EQ(tool.program->probe, &probe);
-    NAOS_CHECK_UINT_GT(probe.calls, 0);
-    NAOS_CHECK_INT_GT(probe.live, 0);
+    NAOS_CHECK_UINT_GT(test_alloc.calls, 0);
+    NAOS_CHECK_INT_GT(test_alloc.live, 0);
     check_validates_ok(tool.program);
     fixture_tool_free(&tool);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 
-    probe = make_probe(0);
-    fixture_filt_init(&filt, &probe);
+    test_alloc_begin(0);
+    fixture_filt_init(&filt);
     NAOS_REQUIRE_NOT_NULL(filt.program);
-    NAOS_CHECK_PTR_EQ(filt.program->probe, &probe);
-    NAOS_CHECK_INT_GT(probe.live, 0);
+    NAOS_CHECK_INT_GT(test_alloc.live, 0);
     check_validates_ok(filt.program);
     fixture_filt_free(&filt);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 
-    probe = make_probe(0);
-    fixture_strict_init(&strict, &probe);
+    test_alloc_begin(0);
+    fixture_strict_init(&strict);
     NAOS_REQUIRE_NOT_NULL(strict.program);
-    NAOS_CHECK_PTR_EQ(strict.program->probe, &probe);
-    NAOS_CHECK_INT_GT(probe.live, 0);
+    NAOS_CHECK_INT_GT(test_alloc.live, 0);
     check_validates_ok(strict.program);
     fixture_strict_free(&strict);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(fixture_out_of_memory_is_recorded_and_released)
 {
-    clopts_parser_probe_t probe;
     fixture_tool_t tool;
     size_t total;
 
-    /* number of fault points of a full assembly */
-    probe = make_probe(0);
-    fixture_tool_init(&tool, &probe);
+    /* number of fault points of a full assembly, clopts_program_new() included */
+    test_alloc_begin(0);
+    fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
-    total = probe.calls;
+    NAOS_REQUIRE_INT_EQ(tool.program->error.status, CLOPTS_OK);
+    total = test_alloc.calls;
     fixture_tool_free(&tool);
+    NAOS_CHECK_TRUE(test_alloc_end());
+    NAOS_REQUIRE_UINT_GT(total, 2);
 
-    /* the first and the last fault point fail */
-    probe = make_probe(1);
-    fixture_tool_init(&tool, &probe);
+    /* the first fault point is clopts_program_new() itself */
+    test_alloc_begin(1);
+    fixture_tool_init(&tool);
+    NAOS_CHECK_NULL(tool.program);
+    NAOS_CHECK_NULL(tool.root);
+    NAOS_CHECK_NULL(tool.build);
+    NAOS_CHECK_NULL(tool.verbose);
+    fixture_tool_free(&tool);
+    NAOS_CHECK_TRUE(test_alloc_end());
+
+    /* the first fault point after it and the last one fail */
+    test_alloc_begin(2);
+    fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
     NAOS_CHECK_INT_EQ(tool.program->error.status, CLOPTS_OUT_OF_MEMORY);
     fixture_tool_free(&tool);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 
-    probe = make_probe(total);
-    fixture_tool_init(&tool, &probe);
+    test_alloc_begin(total);
+    fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
     NAOS_CHECK_INT_EQ(tool.program->error.status, CLOPTS_OUT_OF_MEMORY);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, total);
     fixture_tool_free(&tool);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(fixture_handler_records_calls)
@@ -1251,6 +1281,7 @@ NAOS_SUITE(build,
     NAOS_ADD_TEST(every_failure_point_is_released),
     NAOS_ADD_TEST(validate_null_program_returns_sentinel),
     NAOS_ADD_TEST(validate_fresh_program_returns_ok),
+    NAOS_ADD_TEST(validate_result_outlives_the_program),
     NAOS_ADD_TEST(validate_result_allocation_failure_returns_sentinel),
     NAOS_ADD_TEST(validate_copies_a_recorded_declaration_error),
     NAOS_ADD_TEST(builder_after_validation_does_nothing),

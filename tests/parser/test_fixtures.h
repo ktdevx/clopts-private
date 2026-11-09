@@ -19,13 +19,14 @@
  *     global: --token VALUE required
  *     run:    no options, no positionals
  *
- * Each init function fills a struct of handles. When probe is not NULL it is
- * attached with clopts_parser_set_probe() right after clopts_program_new(), so
- * every later allocation of the assembly is a fault point. When an allocation
- * fails, the remaining builder calls get NULL handles and do nothing; the
- * struct then holds NULL for the handles that could not be created (program
- * itself is NULL when clopts_program_new() failed). The free function
- * releases the program (NULL is fine) and clears the struct.
+ * Each init function fills a struct of handles. Every allocation of the
+ * assembly, clopts_program_new() included, goes through the allocator set
+ * with clopts_set_allocator(), so with the fault-injecting allocator of
+ * tests/support/test_alloc.h each of them is a fault point. When an
+ * allocation fails, the remaining builder calls get NULL handles and do
+ * nothing; the struct then holds NULL for the handles that could not be
+ * created (program itself is NULL when clopts_program_new() failed). The free
+ * function releases the program (NULL is fine) and clears the struct.
  */
 
 #ifndef CLOPTS_TESTS_PARSER_TEST_FIXTURES_H
@@ -59,7 +60,7 @@ typedef struct fixture_tool
     clopts_positional_t *cat_file;     /* cat:   FILE variadic */
 } fixture_tool_t;
 
-void fixture_tool_init(fixture_tool_t *f, clopts_parser_probe_t *probe);
+void fixture_tool_init(fixture_tool_t *f);
 void fixture_tool_free(fixture_tool_t *f);
 
 /* ---- filt -------------------------------------------------------------- */
@@ -72,7 +73,7 @@ typedef struct fixture_filt
     clopts_positional_t *file;  /* FILE variadic */
 } fixture_filt_t;
 
-void fixture_filt_init(fixture_filt_t *f, clopts_parser_probe_t *probe);
+void fixture_filt_init(fixture_filt_t *f);
 void fixture_filt_free(fixture_filt_t *f);
 
 /* ---- strict ------------------------------------------------------------ */
@@ -85,7 +86,7 @@ typedef struct fixture_strict
     clopts_option_t *token;     /* root: --token VALUE required */
 } fixture_strict_t;
 
-void fixture_strict_init(fixture_strict_t *f, clopts_parser_probe_t *probe);
+void fixture_strict_init(fixture_strict_t *f);
 void fixture_strict_free(fixture_strict_t *f);
 
 /* ---- handler ----------------------------------------------------------- */

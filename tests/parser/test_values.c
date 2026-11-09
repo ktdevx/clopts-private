@@ -69,7 +69,7 @@ static clopts_result_t *parse_checked(clopts_program_t *program, char **argv,
 /* Builds the tool fixture into f and parses argv with an empty environment. */
 static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
-    fixture_tool_init(f, NULL);
+    fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
     return parse_checked(f->program, argv, NULL, 0);
 }
@@ -78,7 +78,7 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 static clopts_result_t *parse_tool_env(fixture_tool_t *f, char **argv,
                                        const fixture_env_var_t *vars, size_t var_count)
 {
-    fixture_tool_init(f, NULL);
+    fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
     return parse_checked(f->program, argv, vars, var_count);
 }
@@ -130,7 +130,7 @@ NAOS_TEST(fixture_list_delimiters_are_as_designed)
 {
     fixture_tool_t f;
 
-    fixture_tool_init(&f, NULL);
+    fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_INT_EQ(f.keys->kind, CLOPTS_PARSER_LIST);
     NAOS_CHECK_INT_EQ(f.keys->delimiter, ',');
@@ -143,7 +143,7 @@ NAOS_TEST(fixture_count_limits_are_as_designed)
 {
     fixture_tool_t f;
 
-    fixture_tool_init(&f, NULL);
+    fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_INT_EQ(f.jobs->kind, CLOPTS_PARSER_COUNT);
     NAOS_CHECK_UINT_EQ(f.jobs->count_max, 8);

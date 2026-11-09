@@ -1,4 +1,4 @@
-set(clopts_platform_sources platform_alloc.c platform_split.c platform_argv.c platform_env.c)
+set(clopts_platform_sources platform_split.c platform_argv.c platform_env.c)
 if(WIN32)
     list(APPEND clopts_platform_sources platform_win32.c)
 else()

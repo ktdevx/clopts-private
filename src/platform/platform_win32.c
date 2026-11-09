@@ -50,7 +50,7 @@ static platform_win32_measure_t platform_win32_measure(const wchar_t *s, int len
     return PLATFORM_WIN32_MEASURE_OK;
 }
 
-clopts_argv_t *clopts_platform_argv_convert(clopts_platform_probe_t *probe, int argc, const wchar_t *const *wargs)
+clopts_argv_t *clopts_platform_argv_convert(int argc, const wchar_t *const *wargs)
 {
     size_t total;
     size_t bytes;
@@ -89,7 +89,7 @@ clopts_argv_t *clopts_platform_argv_convert(clopts_platform_probe_t *probe, int 
             case PLATFORM_WIN32_MEASURE_OK:
                 break;
             case PLATFORM_WIN32_MEASURE_INVALID:
-                return clopts_platform_argv_failure(probe, CLOPTS_ARGV_INVALID_UTF16, i);
+                return clopts_platform_argv_failure(CLOPTS_ARGV_INVALID_UTF16, i);
             default:
                 return clopts_platform_argv_sentinel();
             }
@@ -108,7 +108,7 @@ clopts_argv_t *clopts_platform_argv_convert(clopts_platform_probe_t *probe, int 
     {
         return clopts_platform_argv_sentinel();
     }
-    args = (clopts_argv_t *)clopts_platform_malloc(probe, total);
+    args = (clopts_argv_t *)clopts_core_malloc(total);
     if (args == NULL)
     {
         return clopts_platform_argv_sentinel();
@@ -128,7 +128,7 @@ clopts_argv_t *clopts_platform_argv_convert(clopts_platform_probe_t *probe, int 
                                     (left > (size_t)INT_MAX) ? INT_MAX : (int)left, NULL, NULL);
             if (n <= 0)
             {
-                clopts_platform_free(probe, args);
+                clopts_core_free(args);
                 return clopts_platform_argv_sentinel();
             }
         }
@@ -147,7 +147,7 @@ clopts_argv_t *clopts_platform_argv_convert(clopts_platform_probe_t *probe, int 
     return args;
 }
 
-clopts_argv_t *clopts_platform_argv_from_cmdline(clopts_platform_probe_t *probe, const wchar_t *cmdline)
+clopts_argv_t *clopts_platform_argv_from_cmdline(const wchar_t *cmdline)
 {
     size_t argc;
     size_t units;
@@ -160,7 +160,7 @@ clopts_argv_t *clopts_platform_argv_from_cmdline(clopts_platform_probe_t *probe,
 
     if (cmdline == NULL)
     {
-        return clopts_platform_argv_failure(probe, CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1);
+        return clopts_platform_argv_failure(CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1);
     }
 
     /* Count, then split into one work block: the pointer array followed by the code units. */
@@ -175,7 +175,7 @@ clopts_argv_t *clopts_platform_argv_from_cmdline(clopts_platform_probe_t *probe,
     {
         return clopts_platform_argv_sentinel();
     }
-    work = clopts_platform_malloc(probe, bytes);
+    work = clopts_core_malloc(bytes);
     if (work == NULL)
     {
         return clopts_platform_argv_sentinel();
@@ -184,8 +184,8 @@ clopts_argv_t *clopts_platform_argv_from_cmdline(clopts_platform_probe_t *probe,
     buf = (wchar_t *)(void *)(wargs + argc);
     clopts_platform_split(cmdline, buf, wargs, &argc, &units);
 
-    args = clopts_platform_argv_convert(probe, (int)argc, (const wchar_t *const *)wargs);
-    clopts_platform_free(probe, work);
+    args = clopts_platform_argv_convert((int)argc, (const wchar_t *const *)wargs);
+    clopts_core_free(work);
     return args;
 }
 
@@ -194,14 +194,14 @@ clopts_argv_t *clopts_argv_get(int argc, char *const *argv)
     /* argc and argv are not read: the process command line is the source on Windows. */
     (void)argc;
     (void)argv;
-    return clopts_platform_argv_from_cmdline(NULL, GetCommandLineW());
+    return clopts_platform_argv_from_cmdline(GetCommandLineW());
 }
 
 clopts_argv_t *clopts_argv_from_wide(int argc, wchar_t *const *wargv)
 {
     assert(argc >= 0);
     assert(wargv != NULL);
-    return clopts_platform_argv_convert(NULL, argc, (const wchar_t *const *)wargv);
+    return clopts_platform_argv_convert(argc, (const wchar_t *const *)wargv);
 }
 
 /* Code units for the value when the context has no larger work buffer yet. */

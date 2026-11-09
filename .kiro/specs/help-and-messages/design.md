@@ -77,7 +77,7 @@ graph TB
 - Domain boundaries: HelpLayout（ヘルプ・Usage・バージョン・案内）と HelpMessage（エラーの 1 行）は互いを参照せず、どちらも HelpOut だけを共有する。そのため、2 つは並行して実装できる。
 - Existing patterns preserved: Monde のレイアウトと文面、`clopts_add_module`、ファイル名の `help_` 接頭辞、Allman スタイル、契約違反は `assert`。
 - New components rationale: HelpOut は、桁揃えのための計測と、失敗後に書かない規則を 1 か所に集める（research.md の Decision「計測と書き込みを 1 つの出力器で行う」）。
-- Steering compliance: I/O をしない、`FILE*` を受け取らない、構造体を値で渡さない、公開ヘッダに構造体の定義を置かない。
+- Steering compliance: I/O をしない、`FILE*` を受け取らない、構造体を値で渡さない、`help.h` に構造体を定義しない（steering の「公開構造体は凍結する」の範囲内。2026-11-09 に「公開ヘッダに構造体の定義を置かない」から変わった）。
 
 ### Technology Stack
 

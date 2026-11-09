@@ -2,10 +2,10 @@
  * Result handle: allocation, the out-of-memory sentinel, recording into
  * slots, the accessors, run and release.
  *
- * Every allocation goes through the gateway with the probe inherited from
- * the program. Whatever was allocated is linked to the result at once, so
- * clopts_result_free() releases it even after a failure. clopts_result_free()
- * never reads the program, so the result may be released after it.
+ * Every allocation goes through the allocation gateway of core. Whatever
+ * was allocated is linked to the result at once, so clopts_result_free()
+ * releases it even after a failure. clopts_result_free() never reads the
+ * program, so the result may be released after it.
  */
 
 #include "parser/parser_internal.h"
@@ -38,8 +38,7 @@ static const struct clopts_result parser_result_sentinel = {
     .global_count = 0,
     .command_slots = NULL,
     .command_count = 0,
-    .positionals = { .data = NULL, .len = 0, .cap = 0, .elem_size = 0 },
-    .probe = NULL
+    .positionals = { .data = NULL, .len = 0, .cap = 0, .elem_size = 0 }
 };
 
 /* ---- internal API ---- */
@@ -48,7 +47,7 @@ static const struct clopts_result parser_result_sentinel = {
  * Allocates count slots in the unset state through the gateway. count == 0
  * gives NULL without allocating. Returns 0, or -1 leaving *out unchanged.
  */
-static int alloc_slots(clopts_parser_probe_t *probe, size_t count, clopts_parser_slot_t **out)
+static int alloc_slots(size_t count, clopts_parser_slot_t **out)
 {
     clopts_parser_slot_t *slots;
     size_t i;
@@ -58,7 +57,7 @@ static int alloc_slots(clopts_parser_probe_t *probe, size_t count, clopts_parser
         *out = NULL;
         return 0;
     }
-    slots = (clopts_parser_slot_t *)clopts_parser_calloc(probe, count, sizeof(*slots));
+    slots = (clopts_parser_slot_t *)clopts_core_calloc(count, sizeof(*slots));
     if (slots == NULL)
     {
         return -1;
@@ -80,7 +79,7 @@ static int alloc_slots(clopts_parser_probe_t *probe, size_t count, clopts_parser
  * Releases what the slots own (environment copies, list items and the item
  * buffers) and the slot array itself. slots may be NULL.
  */
-static void free_slots(clopts_parser_probe_t *probe, clopts_parser_slot_t *slots, size_t count)
+static void free_slots(clopts_parser_slot_t *slots, size_t count)
 {
     size_t i;
     size_t j;
@@ -93,12 +92,12 @@ static void free_slots(clopts_parser_probe_t *probe, clopts_parser_slot_t *slots
     {
         for (j = 0; j < slots[i].items.len; j++)
         {
-            clopts_parser_free(probe, *(char **)clopts_core_vec_at(&slots[i].items, j));
+            clopts_core_free(*(char **)clopts_core_vec_at(&slots[i].items, j));
         }
-        clopts_parser_vec_free(probe, &slots[i].items);
-        clopts_parser_free(probe, slots[i].owned);
+        clopts_core_vec_free(&slots[i].items);
+        clopts_core_free(slots[i].owned);
     }
-    clopts_parser_free(probe, slots);
+    clopts_core_free(slots);
 }
 
 clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
@@ -108,14 +107,14 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
 
     assert(program != NULL);
 
-    result = (clopts_result_t *)clopts_parser_calloc(program->probe, 1, sizeof(*result));
+    result = (clopts_result_t *)clopts_core_calloc(1, sizeof(*result));
     if (result == NULL)
     {
         return NULL;
     }
-    if (alloc_slots(program->probe, program->root.options.len, &global_slots) != 0)
+    if (alloc_slots(program->root.options.len, &global_slots) != 0)
     {
-        clopts_parser_free(program->probe, result);
+        clopts_core_free(result);
         return NULL;
     }
     result->status = CLOPTS_OK;
@@ -136,7 +135,6 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     result->command_slots = NULL;
     result->command_count = 0;
     clopts_core_vec_init(&result->positionals, sizeof(const char *));
-    result->probe = program->probe;
     return result;
 }
 
@@ -156,7 +154,7 @@ int clopts_parser_result_select(clopts_result_t *result, const clopts_command_t 
     assert(command != &result->program->root);
     assert((result->command == NULL) && (result->command_slots == NULL));
 
-    if (alloc_slots(result->probe, command->options.len, &command_slots) != 0)
+    if (alloc_slots(command->options.len, &command_slots) != 0)
     {
         return -1;
     }
@@ -207,7 +205,7 @@ void clopts_parser_slot_add_count(clopts_parser_slot_t *slot, unsigned count_max
     slot->source = CLOPTS_SOURCE_EXPLICIT;
 }
 
-void clopts_parser_slot_set_value(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *value,
+void clopts_parser_slot_set_value(clopts_parser_slot_t *slot, const char *value,
                                   clopts_source_t source)
 {
     assert(slot != NULL);
@@ -215,7 +213,7 @@ void clopts_parser_slot_set_value(clopts_parser_probe_t *probe, clopts_parser_sl
     /* Keep value == owned: an owned copy that is no longer the value is released. */
     if ((slot->owned != NULL) && (slot->owned != value))
     {
-        clopts_parser_free(probe, slot->owned);
+        clopts_core_free(slot->owned);
         slot->owned = NULL;
     }
     slot->value = value;
@@ -223,24 +221,24 @@ void clopts_parser_slot_set_value(clopts_parser_probe_t *probe, clopts_parser_sl
 }
 
 /* Appends a copy of the len bytes at item. Returns 0, or -1 leaving the items unchanged. */
-static int append_item(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *item, size_t len)
+static int append_item(clopts_parser_slot_t *slot, const char *item, size_t len)
 {
     char *copy;
 
-    copy = clopts_parser_strndup(probe, item, len);
+    copy = clopts_core_strndup(item, len);
     if (copy == NULL)
     {
         return -1;
     }
-    if (clopts_parser_vec_push(probe, &slot->items, &copy) != 0)
+    if (clopts_core_vec_push(&slot->items, &copy) != 0)
     {
-        clopts_parser_free(probe, copy);
+        clopts_core_free(copy);
         return -1;
     }
     return 0;
 }
 
-int clopts_parser_slot_append_list(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *value,
+int clopts_parser_slot_append_list(clopts_parser_slot_t *slot, const char *value,
                                    char delimiter, clopts_source_t source)
 {
     const char *start;
@@ -265,7 +263,7 @@ int clopts_parser_slot_append_list(clopts_parser_probe_t *probe, clopts_parser_s
             end = start + strlen(start);
         }
 
-        if (append_item(probe, slot, start, (size_t)(end - start)) != 0)
+        if (append_item(slot, start, (size_t)(end - start)) != 0)
         {
             return -1;
         }
@@ -280,14 +278,14 @@ int clopts_parser_slot_append_list(clopts_parser_probe_t *probe, clopts_parser_s
     }
 }
 
-void clopts_parser_slot_own(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, char *owned)
+void clopts_parser_slot_own(clopts_parser_slot_t *slot, char *owned)
 {
     assert(slot != NULL);
     assert(owned != NULL);
 
     if (slot->owned != owned)
     {
-        clopts_parser_free(probe, slot->owned);
+        clopts_core_free(slot->owned);
     }
     slot->owned = owned;
     slot->value = owned;
@@ -299,7 +297,7 @@ int clopts_parser_result_add_positional(clopts_result_t *result, const char *tok
     assert(result != &parser_result_sentinel);
     assert(token != NULL);
 
-    return clopts_parser_vec_push(result->probe, &result->positionals, &token);
+    return clopts_core_vec_push(&result->positionals, &token);
 }
 
 /* ---- public accessors ---- */
@@ -536,15 +534,12 @@ int clopts_result_run(const clopts_result_t *result)
 
 void clopts_result_free(clopts_result_t *result)
 {
-    clopts_parser_probe_t *probe;
-
     if ((result == NULL) || (result == &parser_result_sentinel))
     {
         return;
     }
-    probe = result->probe;
-    free_slots(probe, result->global_slots, result->global_count);
-    free_slots(probe, result->command_slots, result->command_count);
-    clopts_parser_vec_free(probe, &result->positionals);
-    clopts_parser_free(probe, result);
+    free_slots(result->global_slots, result->global_count);
+    free_slots(result->command_slots, result->command_count);
+    clopts_core_vec_free(&result->positionals);
+    clopts_core_free(result);
 }

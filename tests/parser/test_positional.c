@@ -61,7 +61,7 @@ static clopts_result_t *parse_checked(clopts_program_t *program, char **argv)
 /* Builds the tool fixture into f and parses argv with it. */
 static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
-    fixture_tool_init(f, NULL);
+    fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
     return parse_checked(f->program, argv);
 }
@@ -111,7 +111,7 @@ NAOS_TEST(fixture_positionals_are_as_designed)
     fixture_tool_t t;
     fixture_filt_t f;
 
-    fixture_tool_init(&t, NULL);
+    fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     check_positional(t.build_src, "SRC", true, false);
     check_positional(t.build_extra, "EXTRA", false, true);
@@ -120,7 +120,7 @@ NAOS_TEST(fixture_positionals_are_as_designed)
     check_positional(t.cat_file, "FILE", false, true);
     fixture_tool_free(&t);
 
-    fixture_filt_init(&f, NULL);
+    fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     check_positional(f.file, "FILE", false, true);
     fixture_filt_free(&f);
@@ -131,12 +131,12 @@ NAOS_TEST(fixture_programs_with_commands_have_no_program_positionals)
     fixture_tool_t t;
     fixture_strict_t s;
 
-    fixture_tool_init(&t, NULL);
+    fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_CHECK_UINT_EQ(t.root->positionals.len, 0);
     fixture_tool_free(&t);
 
-    fixture_strict_init(&s, NULL);
+    fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_CHECK_UINT_EQ(s.root->positionals.len, 0);
     fixture_strict_free(&s);
@@ -257,7 +257,7 @@ NAOS_TEST(filt_without_subcommands_takes_positionals)
     fixture_filt_t f;
     clopts_result_t *result;
 
-    fixture_filt_init(&f, NULL);
+    fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     result = parse_checked(f.program, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
@@ -273,7 +273,7 @@ NAOS_TEST(strict_without_tokens_checks_the_global_required_option)
     fixture_strict_t s;
     clopts_result_t *result;
 
-    fixture_strict_init(&s, NULL);
+    fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     result = parse_checked(s.program, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);

@@ -50,6 +50,7 @@
   - サイズ計算の桁あふれ検査は `clopts_core_size_mul` / `clopts_core_size_add`（`src/core/core_internal.h`）。
   - 公開シンボル一覧（abi-compat）はまだない（abi-compat は brief だけの段階）。
 - **Implications**: probe 方式、番兵、NULL を番兵として読む規則を踏襲する。core-parser には手を入れない。
+- 注記（2026-11-09）: 確保の probe 方式は廃止した。ライブラリ全体で 1 つのアロケーター（`clopts_set_allocator`、`include/clopts/alloc.h`）を公開 API に置き、すべての確保を core の窓口（`src/core/core_alloc.c`）に通す。失敗の注入と生存ブロックの計数は、テスト側のアロケーター（`tests/support/test_alloc`）で行う。`src/parser/parser_alloc.c` は削除した（core-parser の research.md の注記を参照）。
 
 ## Architecture Pattern Evaluation
 
@@ -107,7 +108,7 @@
 ## Synthesis
 
 - **Generalization**: `clopts_argv_get`（Windows）と `clopts_argv_from_wide` は、どちらも「NUL 終端の UTF-16 文字列の列 → 取得結果」の変換に帰着する。内部の変換器を 1 つにして、get は「分割 → 変換器」、from_wide は「変換器」だけにする。コマンドライン文字列から取得結果を作る内部関数も切り出し、`GetCommandLineW()` を経ずに非 ASCII や不正な UTF-16 を含む文字列でテストする。
-- **Build vs. Adopt**: 分割は自前（`CommandLineToArgvW` は規則が古い。CRT の分割関数は公開されていない）。変換は Win32 API を採用する。メモリ確保失敗の注入は parser の probe 方式を踏襲する（共有のテスト基盤にはしない。parser の probe は parser の内部ヘッダにあり、platform は parser に依存できないため、同じ形の小さな probe を platform 内に持つ）。
+- **Build vs. Adopt**: 分割は自前（`CommandLineToArgvW` は規則が古い。CRT の分割関数は公開されていない）。変換は Win32 API を採用する。メモリ確保失敗の注入は parser の probe 方式を踏襲する（共有のテスト基盤にはしない。parser の probe は parser の内部ヘッダにあり、platform は parser に依存できないため、同じ形の小さな probe を platform 内に持つ）。注記（2026-11-09）: この probe と `platform_alloc.c` は削除し、core の窓口と、parser・platform・core のテストが共有するテスト側のアロケーター（`tests/support/test_alloc`）に置き換えた。
 - **Simplification**: 公開構造体、`owned` フラグ、利用側への `free` の委譲をなくし、不透明ハンドルと 1 回の確保にまとめた。分割関数は「数える」と「埋める」を同じ関数（出力先が NULL なら数えるだけ）にして、規則の二重実装を避ける。環境変数の既定を変えないので、core-parser への変更はない。
 
 ## Risks & Mitigations

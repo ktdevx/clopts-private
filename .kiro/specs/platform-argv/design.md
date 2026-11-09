@@ -35,7 +35,7 @@
 - 利用者向けの説明（`clopts_parse_with_env` との組み合わせ方、msvcrt 系 MinGW とワイルドカードの注意。docs-and-release）。
 
 ### Allowed Dependencies
-- `src/core/core_internal.h` の `clopts_core_size_mul` / `clopts_core_size_add`（確保サイズの桁あふれ検査）。
+- `src/core/core_internal.h` の `clopts_core_size_mul` / `clopts_core_size_add`（確保サイズの桁あふれ検査）と、確保の窓口 `clopts_core_malloc` / `malloc_array` / `free`（core-parser の Alloc。設定されたアロケーターを呼ぶ）。
 - 公開ヘッダ `clopts/export.h`（`CLOPTS_API`）と `clopts/parse.h`（`clopts_getenv_fn`、`clopts_env_status_t` の型だけ）。
 - C 標準ライブラリ: `<stdlib.h>`（確保、`getenv`）、`<string.h>`、`<stddef.h>`、`<stdint.h>`、`<limits.h>`、`<assert.h>`。`<stdio.h>` は使わない。
 - Windows（`platform_win32.c` だけ）: `<windows.h>` の kernel32 の関数 `GetCommandLineW`、`WideCharToMultiByte`、`MultiByteToWideChar`、`GetEnvironmentVariableW`、`GetLastError`、`SetLastError`。shell32（`<shellapi.h>`、`CommandLineToArgvW`）は使わない。
@@ -46,12 +46,13 @@
 - 本 spec の公開関数・列挙の追加や変更 → abi-compat の公開シンボル一覧、docs-and-release の API リファレンスを更新する。
 - 分割規則の変更（CRT の規則が変わった場合を含む） → probe の突き合わせ表と docs-and-release の Windows の章を見直す。
 - `clopts_core_size_*` の契約の変更 → 確保サイズの計算を見直す。
+- core の確保の窓口（`clopts_core_*`）の契約、またはテスト用のアロケーター（`tests/support/test_alloc`）の確保点の定義の変更 → スイート oom を見直す。
 
 ## Architecture
 
 ### Existing Architecture Analysis
 - `clopts` は 1 つのライブラリで、内部モジュールを `clopts_add_module` で足す。テストは `clopts_add_module_tests` で登録され、共有ビルドでは静的な `clopts_testing` にリンクするため、内部関数も呼べる。
-- 結果ハンドルは、メモリ不足のとき `static const` の番兵を返し、NULL は番兵と同じに読む（core-parser）。メモリ確保失敗の検査は、内部関数に probe を渡す方式（`fail_at` / `calls` / `live`）で、グローバルな状態を持たない。本 spec はどちらも踏襲する。
+- 結果ハンドルは、メモリ不足のとき `static const` の番兵を返し、NULL は番兵と同じに読む（core-parser）。ライブラリのすべての確保は core の窓口を通り、窓口は `clopts_set_allocator` で設定されたアロケーター（ライブラリ全体で 1 つ）を呼ぶ。メモリ確保失敗の検査は、テスト用のアロケーター（`tests/support/test_alloc`、`fail_at` / `calls` / `live`）を公開 API で組み込んで行う（2026-11-09 に、内部関数に確保の probe を渡す方式から変更）。本 spec はどちらも踏襲する。
 - `clopts_parse_with_env(program, argc, argv, getenv_fn, env_ctx)` は `getenv_fn` が NULL なら既定の `getenv` を使う。本 spec は、その差し込み口に渡す取得関数を提供する。
 
 ### Architecture Pattern & Boundary Map
@@ -68,21 +69,22 @@ graph TB
     OsWin --> EnvCtx[PlatformEnv]
     OsPosix --> ArgvHandle
     OsPosix --> EnvCtx
-    ArgvHandle --> Alloc[PlatformAlloc]
+    ArgvHandle --> Alloc[core alloc gateway]
     EnvCtx --> Alloc
     OsWin --> Alloc
     Alloc --> CoreSize[core size checks]
+    Alloc --> Allocator[allocator set by clopts_set_allocator]
     OsWin --> Kernel32[kernel32]
     EnvLookup --> OsWin
     EnvLookup --> OsPosix
 ```
 
 **Architecture Integration**:
-- Selected pattern: 全 OS 共通の純粋な部品（分割、ハンドル、文脈、確保の入口）と、CMake で 1 つだけ選ぶ OS 別の翻訳単位（`platform_win32.c` / `platform_posix.c`）。OS の分岐はソースの `#ifdef` ではなく、ビルドでどのファイルを使うかで表す。例外は公開ヘッダで `clopts_argv_from_wide` を宣言する 1 か所だけ。
+- Selected pattern: 全 OS 共通の純粋な部品（分割、ハンドル、文脈）と、CMake で 1 つだけ選ぶ OS 別の翻訳単位（`platform_win32.c` / `platform_posix.c`）。OS の分岐はソースの `#ifdef` ではなく、ビルドでどのファイルを使うかで表す。例外は公開ヘッダで `clopts_argv_from_wide` を宣言する 1 か所だけ。
 - Domain boundaries: 分割（PlatformSplit）は文字列から文字列への変換だけを行い、確保もしない。取得結果の形と寿命は PlatformArgv、環境変数の文脈は PlatformEnv が持つ。OS とのやり取りは OS 別の翻訳単位だけが行う。
-- Existing patterns preserved: 番兵、NULL のハンドルを番兵として読む、probe による確保失敗の注入、`clopts_add_module`、`platform_` のファイル接頭辞、Allman スタイル、契約違反は `assert`。
-- New components rationale: 分割を純粋関数にするのは、全 OS でのテストのため（9.1）。確保の入口（PlatformAlloc）は、メモリ不足の経路をすべてテストで通すため（5.4）。
-- Steering compliance: I/O をしない、公開ヘッダに構造体の定義を置かない、構造体を値で渡さない、ライブラリが確保したものはライブラリが解放する、`<windows.h>` は Windows 専用の翻訳単位だけ。
+- Existing patterns preserved: 番兵、NULL のハンドルを番兵として読む、core の確保の窓口とテスト用のアロケーターによる確保失敗の注入、`clopts_add_module`、`platform_` のファイル接頭辞、Allman スタイル、契約違反は `assert`。
+- New components rationale: 分割を純粋関数にするのは、全 OS でのテストのため（9.1）。確保は core の窓口に通し、platform 独自の確保の入口は持たない。メモリ不足の経路は、テスト用のアロケーターですべてテストで通す（5.4。2026-11-09 に、PlatformAlloc から変更）。
+- Steering compliance: I/O をしない、本 spec の公開型は不透明型と列挙だけで、公開ヘッダに構造体を定義しない（steering の「公開構造体は凍結する」の範囲内）、構造体を値で渡さない、確保は core の窓口を通す、ライブラリが確保したものはライブラリが解放する、`<windows.h>` は Windows 専用の翻訳単位だけ。
 
 ### Technology Stack
 
@@ -101,8 +103,7 @@ include/clopts/
 └── platform.h              # 公開: clopts_argv_t / clopts_env_t、2 つの列挙、argv と環境変数の関数
 src/platform/
 ├── CMakeLists.txt          # clopts_add_module(platform SOURCES 共通 4 ファイル + platform_win32.c または platform_posix.c)
-├── platform_internal.h     # モジュール内とテストで共有する内部宣言（u16 型、probe、分割、ハンドルと文脈の構造体と補助関数）
-├── platform_alloc.c        # PlatformAlloc: 確保の入口と probe
+├── platform_internal.h     # モジュール内とテストで共有する内部宣言（u16 型、分割、ハンドルと文脈の構造体と補助関数）
 ├── platform_split.c        # PlatformSplit: コマンドライン文字列の分割（CRT の規則、全 OS）
 ├── platform_argv.c         # PlatformArgv: argv ハンドル、番兵、失敗とパススルーのハンドル、アクセサ、解放
 ├── platform_env.c          # PlatformEnv: clopts_env_t の作成・解放、失敗の記録とアクセサ、値のバッファ
@@ -117,7 +118,7 @@ tests/platform/
 ├── test_argv.c             # スイート argv: ハンドル・アクセサ・解放・NULL と番兵、パススルー（非 Windows）、__argv との一致（Windows）
 ├── test_convert.c          # スイート convert（Windows）: from_wide、コマンドラインからの変換、非 ASCII、不正な UTF-16 と添字
 ├── test_env.c              # スイート env: 文脈の作成・解放、見つかった・未設定・空、失敗の記録（Windows は不正な値と名前も）
-├── test_oom.c              # スイート oom: probe で確保失敗の位置を動かし、番兵と live == 0 を確かめる
+├── test_oom.c              # スイート oom: テスト用のアロケーター（tests/support/test_alloc）で確保失敗の位置を動かし、番兵と live == 0 を確かめる
 ├── test_crt.c              # スイート crt（Windows）: probe を子プロセスで起動し、実際の CRT の __argv と突き合わせる
 ├── platform_probe.c        # Windows だけ: __argc / __argv と clopts_argv_get を比べて終了コードで返す実行ファイル
 └── check_no_shell32.cmake  # cmake -P: src/ に shell32 の使用（<shellapi.h>、CommandLineToArgv、shell32）がないことを検査
@@ -158,8 +159,8 @@ sequenceDiagram
     Win-->>App: handle or sentinel
 ```
 
-- 内部関数 `clopts_platform_argv_from_cmdline(probe, cmdline)` が上の流れ（`GetCommandLineW` の後）を担う。`clopts_argv_get` は `GetCommandLineW()` の結果を渡して呼ぶだけなので、テストは任意のコマンドライン文字列でこの流れを通せる。
-- 内部関数 `clopts_platform_argv_convert(probe, argc, wargs)` が「変換して 1 ブロックに置く」部分を担い、`clopts_argv_from_wide` もこれを呼ぶ（3.2）。
+- 内部関数 `clopts_platform_argv_from_cmdline(cmdline)` が上の流れ（`GetCommandLineW` の後）を担う。`clopts_argv_get` は `GetCommandLineW()` の結果を渡して呼ぶだけなので、テストは任意のコマンドライン文字列でこの流れを通せる。
+- 内部関数 `clopts_platform_argv_convert(argc, wargs)` が「変換して 1 ブロックに置く」部分を担い、`clopts_argv_from_wide` もこれを呼ぶ（3.2）。
 - 不正な UTF-16 の判定は添字の小さい順に行い、最初に見つけた要素を報告する（3.5）。どの段階で確保が失敗しても、確保済みの作業バッファを解放して番兵を返す（5.4）。
 
 ### 分割の状態
@@ -205,7 +206,7 @@ stateDiagram-v2
 | 4.1〜4.2 | パススルー | PlatformPosix、PlatformArgv | `clopts_platform_argv_passthrough` | — |
 | 4.3 | 寿命の明記 | platform.h | ヘッダのコメント | — |
 | 5.1〜5.3、5.5 | 解放 | PlatformArgv | `clopts_argv_free` | — |
-| 5.4 | 確保失敗で何も残さない | PlatformAlloc、PlatformWin32、PlatformArgv | probe、番兵 | argv の取得 |
+| 5.4 | 確保失敗で何も残さない | PlatformWin32、PlatformArgv（core の確保の窓口） | テスト用のアロケーター、番兵 | argv の取得 |
 | 5.6 | 解放まで不変 | PlatformArgv | 1 ブロックの不変条件 | — |
 | 6.1〜6.6 | 構造化エラー | PlatformArgv、platform.h | `clopts_argv_status_t`、`clopts_argv_error_index` | — |
 | 7.1〜7.2 | コールバックの形と文脈 | PlatformEnv、platform.h | `clopts_env_new`、`clopts_env_free`、`clopts_env_lookup` | — |
@@ -230,10 +231,9 @@ stateDiagram-v2
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies (P0/P1) | Contracts |
 |-----------|--------------|--------|--------------|--------------------------|-----------|
 | platform.h | 公開 API | 型・列挙・関数の宣言と契約 | 1.5, 3.3, 4.3, 6.1, 6.6, 7.1, 8.4, 8.5 | export.h、parse.h（P0） | Service |
-| PlatformAlloc | 内部 | 確保の入口と probe | 5.4 | core size（P0） | Service |
 | PlatformSplit | 内部・全 OS | CRT の規則でコマンドライン文字列を分割 | 2.2〜2.13 | なし | Service |
-| PlatformArgv | 内部・全 OS | argv ハンドルの形、番兵、アクセサ、解放 | 1.1〜1.4, 1.6, 4.1, 4.2, 5.1〜5.6, 6.1〜6.3, 6.5 | PlatformAlloc（P0） | Service, State |
-| PlatformEnv | 内部・全 OS | 環境変数の文脈、失敗の記録、値のバッファ | 7.1, 7.7, 7.9〜7.12 | PlatformAlloc（P0） | Service, State |
+| PlatformArgv | 内部・全 OS | argv ハンドルの形、番兵、アクセサ、解放 | 1.1〜1.4, 1.6, 4.1, 4.2, 5.1〜5.6, 6.1〜6.3, 6.5 | core の確保の窓口（P0） | Service, State |
+| PlatformEnv | 内部・全 OS | 環境変数の文脈、失敗の記録、値のバッファ | 7.1, 7.7, 7.9〜7.12 | core の確保の窓口（P0） | Service, State |
 | PlatformWin32 | 内部・Windows | Windows の取得・変換・環境変数 | 1.1, 1.2, 2.1, 3.1〜3.6, 6.4, 7.3, 7.5, 7.6, 7.8, 8.1, 8.2 | PlatformSplit、PlatformArgv、PlatformEnv（P0）、kernel32（P0） | Service |
 | PlatformPosix | 内部・非 Windows | パススルーと getenv | 1.1, 1.6, 4.1, 4.2, 7.4, 7.5, 7.6 | PlatformArgv、PlatformEnv（P0） | Service |
 
@@ -371,13 +371,6 @@ typedef wchar_t clopts_platform_u16_t;   /* 16-bit on Windows */
 typedef uint16_t clopts_platform_u16_t;
 #endif
 
-typedef struct clopts_platform_probe
-{
-    size_t fail_at;  /* 0: never fail; otherwise the calls-th and later allocations fail */
-    size_t calls;    /* allocations attempted */
-    size_t live;     /* blocks currently allocated */
-} clopts_platform_probe_t;
-
 struct clopts_argv
 {
     clopts_argv_status_t status;
@@ -388,7 +381,6 @@ struct clopts_argv
 
 struct clopts_env
 {
-    clopts_platform_probe_t *probe;   /* NULL in production */
     clopts_env_error_t error;
     char *error_name;                 /* NULL or owned copy */
     char *value;                      /* UTF-8 value buffer (Windows) */
@@ -398,22 +390,12 @@ struct clopts_env
 };
 ```
 
-#### PlatformAlloc（`src/platform/platform_alloc.c`）
+#### 確保（core の窓口）
 
-| Field | Detail |
-|-------|--------|
-| Intent | すべての確保と解放を 1 か所に通し、テストで失敗を注入する |
-| Requirements | 5.4 |
+2026-11-09 に、PlatformAlloc（`src/platform/platform_alloc.c` の `clopts_platform_malloc` / `malloc_array` / `free` と `clopts_platform_probe_t`）を削除した。platform のすべての確保と解放は、core の窓口（`clopts_core_malloc` / `clopts_core_malloc_array` / `clopts_core_free`。core-parser の design.md の Alloc）を直接呼ぶ。`malloc_array` は core に移した。
 
-**Contracts**: Service [x]
-```c
-void *clopts_platform_malloc(clopts_platform_probe_t *probe, size_t size);
-/* count * size with clopts_core_size_mul; NULL on overflow without allocating. */
-void *clopts_platform_malloc_array(clopts_platform_probe_t *probe, size_t count, size_t size);
-void clopts_platform_free(clopts_platform_probe_t *probe, void *ptr);  /* NULL is ignored */
-```
-- probe が NULL なら `malloc` / `free` を呼ぶだけ。probe があれば parser と同じ規則で `calls` を数え、`fail_at != 0 && calls >= fail_at` で失敗させ、`live` を増減する。
-- サイズ 0 の確保は 1 バイトとして扱い、NULL を成功と取り違えない。
+- 窓口はサイズ 0 を 1 バイトとして扱うので、NULL を成功と取り違えない。`count * size` は窓口が `clopts_core_size_mul` で検査し、桁あふれなら確保せずに NULL を返す。
+- 内部関数とハンドル・文脈の構造体は、確保の probe の引数・フィールドを持たない。メモリ確保失敗の注入は、テスト用のアロケーター（`tests/support/test_alloc`）を `clopts_set_allocator` で組み込んで行う。
 
 #### PlatformSplit（`src/platform/platform_split.c`）
 
@@ -468,16 +450,13 @@ void clopts_platform_split(const clopts_platform_u16_t *cmdline, clopts_platform
 ```c
 clopts_argv_t *clopts_platform_argv_sentinel(void);
 /* A handle with status (not OK), count 0 and error_index; the sentinel when the allocation fails. */
-clopts_argv_t *clopts_platform_argv_failure(clopts_platform_probe_t *probe, clopts_argv_status_t status,
-                                            int error_index);
+clopts_argv_t *clopts_platform_argv_failure(clopts_argv_status_t status, int error_index);
 /* A handle that borrows argv (count argc); the sentinel when the allocation fails. */
-clopts_argv_t *clopts_platform_argv_passthrough(clopts_platform_probe_t *probe, int argc, char *const *argv);
-/* Releases args through probe (NULL and the sentinel are ignored). clopts_argv_free() passes NULL. */
-void clopts_platform_argv_free(clopts_platform_probe_t *probe, clopts_argv_t *args);
+clopts_argv_t *clopts_platform_argv_passthrough(int argc, char *const *argv);
 ```
 - 番兵は `static const` で、状態 OUT_OF_MEMORY、要素数 0、添字 -1、`argv` は空の配列 `static char *const empty[1] = { NULL }` を指す。書き込まれないのでスレッド間で共有できる。
 - アクセサは NULL を番兵として読む。パススルーで `argv == NULL`（argc == 0）のときは空の配列を指す。
-- 解放は `free` 1 回（ハンドル、配列、文字列は同じブロック、またはハンドル単体）。
+- 解放は公開の `clopts_argv_free` が行い、NULL と番兵を無視する。`clopts_core_free` 1 回（ハンドル、配列、文字列は同じブロック、またはハンドル単体）。
 - State: ハンドルは作成後に変化しない（5.6）。
 
 #### PlatformEnv（`src/platform/platform_env.c`）
@@ -489,7 +468,6 @@ void clopts_platform_argv_free(clopts_platform_probe_t *probe, clopts_argv_t *ar
 
 **Contracts**: Service [x] / State [x]
 ```c
-clopts_env_t *clopts_platform_env_new(clopts_platform_probe_t *probe);  /* clopts_env_new() passes NULL */
 /* Clears the failure record (error NONE, error_name released). Called first by every lookup. */
 void clopts_platform_env_clear(clopts_env_t *env);
 /* Records kind and a copy of name; when the copy fails, records OUT_OF_MEMORY with error_name NULL. */
@@ -499,7 +477,7 @@ int clopts_platform_env_reserve_value(clopts_env_t *env, size_t bytes);
 /* Grows env->wide to at least units code units. Same return values. */
 int clopts_platform_env_reserve_wide(clopts_env_t *env, size_t units);
 ```
-- 公開の `clopts_env_new` / `clopts_env_free` / `clopts_env_error` / `clopts_env_error_name` もここで定義する。`clopts_env_error(NULL)` は OUT_OF_MEMORY、`clopts_env_error_name(NULL)` は NULL を返す。
+- 公開の `clopts_env_new` / `clopts_env_free` / `clopts_env_error` / `clopts_env_error_name` もここで定義する。文脈の作成は `clopts_env_new` だけで行う（確保の probe を受け取る内部の作成関数は持たない）。`clopts_env_error(NULL)` は OUT_OF_MEMORY、`clopts_env_error_name(NULL)` は NULL を返す。
 - バッファは伸ばすだけで縮めない。前回返した値は、次の呼び出しで上書きされるか移動してよい（7.7 の範囲内）。
 
 #### PlatformWin32（`src/platform/platform_win32.c`、`WIN32` のときだけビルド）
@@ -510,19 +488,19 @@ int clopts_platform_env_reserve_wide(clopts_env_t *env, size_t units);
 | Requirements | 1.1, 1.2, 2.1, 3.1〜3.6, 6.4, 7.3, 7.5, 7.6, 7.8, 8.1, 8.2 |
 
 **Dependencies**
-- Outbound: PlatformSplit、PlatformArgv、PlatformEnv、PlatformAlloc（P0）
+- Outbound: PlatformSplit、PlatformArgv、PlatformEnv、core の確保の窓口（P0）
 - External: kernel32 — `GetCommandLineW`、`WideCharToMultiByte`、`MultiByteToWideChar`、`GetEnvironmentVariableW`、`GetLastError`、`SetLastError`（P0）
 
 **Contracts**: Service [x]
 ```c
 /* Declared in platform_internal.h under #ifdef _WIN32 (for tests). */
-clopts_argv_t *clopts_platform_argv_from_cmdline(clopts_platform_probe_t *probe, const wchar_t *cmdline);
-clopts_argv_t *clopts_platform_argv_convert(clopts_platform_probe_t *probe, int argc, const wchar_t *const *wargs);
+clopts_argv_t *clopts_platform_argv_from_cmdline(const wchar_t *cmdline);
+clopts_argv_t *clopts_platform_argv_convert(int argc, const wchar_t *const *wargs);
 ```
-- `clopts_argv_get` は `clopts_platform_argv_from_cmdline(NULL, GetCommandLineW())`。`cmdline == NULL` なら CMDLINE_UNAVAILABLE のハンドル（6.4）。
+- `clopts_argv_get` は `clopts_platform_argv_from_cmdline(GetCommandLineW())`。`cmdline == NULL` なら CMDLINE_UNAVAILABLE のハンドル（6.4）。
 - `from_cmdline`: split で数える → 作業バッファ（符号単位とポインタ配列）を確保 → split で埋める → `convert` → 作業バッファを解放。要素数が `INT_MAX` を超えたらメモリ不足として扱う。
 - `convert`: 各要素について、長さ 0 なら変換せず 0 バイトとする。それ以外は `WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, s, len, NULL, 0, NULL, NULL)` で長さを測る。0 が返り `GetLastError() == ERROR_NO_UNICODE_TRANSLATION` なら、INVALID_UTF16 と添字 i のハンドルを返す（3.4〜3.6）。それ以外の 0 はメモリ不足として扱う。合計を `clopts_core_size_add` / `_mul` で求め、ハンドル + `(argc + 1)` 個のポインタ + 文字列のブロックを 1 回で確保して、2 回目の変換で埋める。
-- `clopts_argv_from_wide` は `clopts_platform_argv_convert(NULL, argc, (const wchar_t *const *)wargv)`。
+- `clopts_argv_from_wide` は `clopts_platform_argv_convert(argc, (const wchar_t *const *)wargv)`。
 - `clopts_env_lookup`（Windows）: ctx が NULL なら FAILED。`clear` → 名前を `MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, ...)` で wide バッファへ（`ERROR_NO_UNICODE_TRANSLATION` なら INVALID_NAME）→ `SetLastError(0)` して `GetEnvironmentVariableW` を呼ぶ。0 で `ERROR_ENVVAR_NOT_FOUND` なら UNSET（7.5）、0 でエラーなしなら空の値（7.6）。戻り値がバッファより大きければ伸ばして呼び直す（値の変化に備えて、収まるまで繰り返す）。値を UTF-8 に変換し（`ERROR_NO_UNICODE_TRANSLATION` なら INVALID_UTF16）、value バッファに NUL 終端で置いて FOUND を返す。どの確保が失敗しても OUT_OF_MEMORY を記録して FAILED を返す（7.8、7.9）。
 - 名前と値の wide バッファは同じ領域を使い回さず、名前の後ろに値を置くか、別々に確保する（実装時に選ぶ。どちらでも契約は同じ）。
 
@@ -595,8 +573,8 @@ clopts_argv_t *clopts_platform_argv_convert(clopts_platform_probe_t *probe, int 
 - `clopts_parse_with_env` に `clopts_env_lookup` を渡し、ENV フォールバックの値が UTF-8 で得られる（7.2）。架空のプログラム `tool` の宣言を使う。
 
 ### Unit Tests（スイート oom。5.4）
-- probe の `fail_at` を 1 から順に動かし、成功するまで次を繰り返す: Windows の `from_cmdline` と `convert`（成功の経路と INVALID_UTF16 の失敗ハンドルの経路）、パススルー、`clopts_platform_env_new`、Windows の lookup。各回で戻り値が番兵（または FAILED と OUT_OF_MEMORY の記録）であり、解放後に `live == 0` になることを確かめる。
-- `clopts_platform_malloc_array` が桁あふれで確保しないこと。
+- テスト用のアロケーター（`tests/support/test_alloc`）を `test_alloc_begin(fail_at)` で組み込み、`fail_at` を 1 から順に動かす。確保点の数は固定せず、`fail_at = n` で最後まで成功し、かつ `calls < n` になったら終える。対象は、Windows の `from_cmdline` と `convert`（成功の経路と INVALID_UTF16 の失敗ハンドルの経路）、パススルー、`clopts_env_new`、Windows の lookup。各回で戻り値が番兵（または FAILED と OUT_OF_MEMORY の記録）であり、解放後に `test_alloc_end()` が真（`live == 0`、不正な解放なし）になることを確かめる。
+- 窓口そのもの（桁あふれで確保しないことなど）は core のテスト（`tests/core/test_alloc.c`）で確かめる（2026-11-09 に、`clopts_platform_malloc_array` のテストから移した）。
 
 ### Integration Tests（スイート crt、Windows。2.2、9.3）
 - `platform_probe.exe` を `CreateProcessW(probe_path, cmdline, ...)` で起動し、終了コードを見る。probe は `clopts_argv_get` の結果と CRT の `__argc` / `__argv` を比べ、一致なら 0、不一致なら 1、取得の失敗なら 2 を返す。

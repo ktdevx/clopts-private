@@ -8,7 +8,7 @@
 |----------|------|
 | `abi/clopts.symbols` | 公開シンボル一覧。共有ライブラリが export すべきシンボルの、OS によらない唯一の基準 |
 | `tests/abi/check_symbols.cmake` | 一覧の形式の検査と、export されたシンボルとの照合 |
-| `tests/abi/check_header_rules.cmake` | 公開ヘッダの静的検査（構造体・共用体の定義、`CLOPTS_API` の付け漏れ） |
+| `tests/abi/check_header_rules.cmake` | 公開ヘッダの静的検査（`CLOPTS_API` の付け漏れ） |
 | `tests/abi/fixtures/headers/` | 公開ヘッダを C99 / C++11 でコンパイルし、C++ から全シンボルにリンクする子プロジェクト |
 | `tests/abi/run_abidiff.cmake` | 直近のリリースタグとの abidiff による比較（CI の `abi-compare` ジョブ） |
 | `tests/abi/CMakeLists.txt` | 上の検査を CTest のテスト（ラベル `abi`）として登録する |
@@ -81,12 +81,10 @@ clopts_argv_from_wide windows
 | `abi.symbols_selftest.objdump-pe` | 同じく `objdump-pe` の取り出しの誤り | 常に | 全 OS | 版によらない |
 | `abi.symbols_selftest.mismatch` | 不足と余分の報告（名前、一覧の場所、案内）が出ないこと | 常に | 全 OS | 版によらない |
 | `abi.symbols_selftest.bad_list` | 一覧の形式の誤りの報告（行と理由）が出ないこと | 常に | 全 OS | 版によらない |
-| `abi.header_rules` | `include/clopts/` の公開ヘッダにある構造体・共用体の定義と、`CLOPTS_API` のない関数の宣言 | 常に | 全 OS | 版によらない |
+| `abi.header_rules` | `include/clopts/` の公開ヘッダにある、`CLOPTS_API` のない関数の宣言 | 常に | 全 OS | 版によらない |
 | `abi.header_rules_selftest.good` | 違反のないヘッダを違反と誤って報告すること | 常に | 全 OS | 版によらない |
 | `abi.header_rules_selftest.missing_api` | `CLOPTS_API` のない関数を見逃すこと | 常に | 全 OS | 版によらない |
 | `abi.header_rules_selftest.missing_api_multiline` | 複数行にまたがる宣言で `CLOPTS_API` の欠落を見逃すこと | 常に | 全 OS | 版によらない |
-| `abi.header_rules_selftest.struct_def` | 構造体の定義を見逃すこと | 常に | 全 OS | 版によらない |
-| `abi.header_rules_selftest.union_def` | 共用体の定義を見逃すこと | 常に | 全 OS | 版によらない |
 | `abi.headers_c` | 公開ヘッダを単独で include した翻訳単位が、C99 と CLOpts と同じ警告の設定（`CLOPTS_WERROR=ON`）でコンパイルできないこと | 常に | 全 OS | 版によらない |
 | `abi.headers_cxx` | 公開ヘッダを単独で include した翻訳単位が C++11 でコンパイルできないこと。一覧の全シンボルを参照する `abi_link_check` が `CLOpts::clopts` にリンクできないこと（`extern "C"` の欠落、一覧にあってヘッダにない名前） | 常に。C++ のコンパイラが見つからなければ `DISABLED`（`Not Run (Disabled)` と表示され、失敗にはならない） | 全 OS | 版によらない |
 | `abi.compare_selftest` | `run_abidiff.cmake` の基準のタグの選択と、abidiff の終了コードの判定の誤り | 常に | 全 OS | 版によらない |
@@ -175,12 +173,11 @@ CI で見慣れない名前が `extra` に出たら、次の順に判断する�
 報告の形は次のとおりである（自己テスト `abi.header_rules_selftest.missing_api` の fixture を対象にした実際の出力。`abi.header_rules` では対象が `<repo>/include/clopts` になる）。
 
 ```text
- check_header_rules: 1 violation(s) in the public headers under <repo>/tests/abi/fixtures/header_rules/bad/missing_api (no struct or union definition, CLOPTS_API on every function; see requirement 4):
+ check_header_rules: 1 violation(s) in the public headers under <repo>/tests/abi/fixtures/header_rules/bad/missing_api (CLOPTS_API on every function; see requirement 4):
  <repo>/tests/abi/fixtures/header_rules/bad/missing_api/missing_api.h:10: function 'bad_unmarked' lacks CLOPTS_API
 ```
 
 - `<file>:<line>: function '<name>' lacks CLOPTS_API`: その行から始まる関数の宣言に `CLOPTS_API` がない。公開関数なら付け、公開しないなら公開ヘッダから内部ヘッダ（`src/<module>/<module>_internal.h`）へ移す。
-- `<file>:<line>: struct or union definition`: 公開ヘッダに構造体・共用体の本体がある。公開ヘッダには不透明型の前方宣言（`typedef struct clopts_program clopts_program_t;`）だけを置き、本体は内部ヘッダに置く。
 - 行は文の開始行である。違反はすべてまとめて出る。
 
 ### `abi.headers_c` / `abi.headers_cxx`: コンパイルとリンクの失敗
@@ -230,7 +227,7 @@ CI で見慣れない名前が `extra` に出たら、次の順に判断する�
 - `//` コメントを継続させる、またはトークンを分割する行末の `\`。トライグラフとダイグラフ。
 - `#if` / `#else` の枝をまたいでだけ釣り合う波括弧。
 
-扱う範囲は次のとおりである。`/* */` と `//` のコメントと前処理指令の行を取り除き（行番号は保つ）、`extern "C" {` と対応する `}` を透過的に扱いながら最上位の文に区切る。`typedef` で始まる文（不透明型の前方宣言、列挙、関数ポインタ型）は許し、`static` で始まる文（`static inline` の関数定義）は `CLOPTS_API` の検査から外す。
+扱う範囲は次のとおりである。`/* */` と `//` のコメントと前処理指令の行を取り除き（行番号は保つ）、`extern "C" {` と対応する `}` を透過的に扱いながら最上位の文に区切る。`typedef` で始まる文（不透明型の前方宣言、構造体・共用体・列挙の定義、関数ポインタ型）は許し、`static` で始まる文（`static inline` の関数定義）は `CLOPTS_API` の検査から外す。
 
 ## 手元での abidiff の実行
 

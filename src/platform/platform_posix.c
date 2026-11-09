@@ -14,7 +14,7 @@ clopts_argv_t *clopts_argv_get(int argc, char *const *argv)
     assert(argc >= 0);
     assert(argc == 0 || argv != NULL);
     /* Neither the array nor the strings are copied or converted. */
-    return clopts_platform_argv_passthrough(NULL, argc, argv);
+    return clopts_platform_argv_passthrough(argc, argv);
 }
 
 clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **value)
