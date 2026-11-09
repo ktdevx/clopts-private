@@ -633,7 +633,7 @@ NAOS_TEST(option_index_is_its_position_in_its_command)
 {
     sample_t s;
     const clopts_option_t *root_options[7];
-    size_t index;
+    size_t index = 0;
     size_t i;
 
     test_alloc_begin(0);
