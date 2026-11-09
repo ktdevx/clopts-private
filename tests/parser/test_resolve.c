@@ -145,19 +145,18 @@ static clopts_env_status_t counting_getenv(void *ctx, const char *name, const ch
 
 /*
  * tool
- *   root:  --config/-c (VALUE, env TOOL_CONFIG, default "def.conf"),
- *          --include/-I (LIST ',', env TOOL_INCLUDE, default "a,b"),
- *          --name (VALUE), --token (VALUE, required, env TOOL_TOKEN),
- *          --tag (LIST without delimiter, env TOOL_TAG), --verbose/-v (COUNT)
- *   build: --output/-o (VALUE, env BUILD_OUTPUT, default "out"),
- *          --mode (VALUE, required); positional src (required)
- *   copy:  --dest (VALUE, env COPY_DEST); positional files (required, variadic)
+ *   global: --config/-c (VALUE, env TOOL_CONFIG, default "def.conf"),
+ *           --include/-I (LIST ',', env TOOL_INCLUDE, default "a,b"),
+ *           --name (VALUE), --token (VALUE, required, env TOOL_TOKEN),
+ *           --tag (LIST without delimiter, env TOOL_TAG), --verbose/-v (COUNT)
+ *   build:  --output/-o (VALUE, env BUILD_OUTPUT, default "out"),
+ *           --mode (VALUE, required); positional src (required)
+ *   copy:   --dest (VALUE, env COPY_DEST); positional files (required, variadic)
  */
 typedef struct sample
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of sample_build() succeeded */
-    clopts_command_t *root;
     clopts_option_t *config;
     clopts_option_t *include;
     clopts_option_t *name;
@@ -177,35 +176,35 @@ typedef struct sample
 
 /*
  * Builds the sample program. With unset_env, every option that has an
- * environment variable in the root gets SURELY_UNSET_NAME instead (the
+ * environment variable among the global options gets SURELY_UNSET_NAME instead (the
  * variable must be chosen before the option is attached).
  */
 static void sample_build(sample_t *s, bool unset_env)
 {
     memset(s, 0, sizeof(*s));
     test_decl_reset();
-    s->root = test_decl_root("tool");
+    s->program = test_decl_begin("tool");
     s->config = test_decl_option(CLOPTS_OPTION_VALUE, "config", 'c');
     test_decl_check(clopts_option_set_env(s->config, unset_env ? SURELY_UNSET_NAME : "TOOL_CONFIG"));
     test_decl_check(clopts_option_set_default(s->config, "def.conf"));
-    s->config = test_decl_attach(s->root, s->config);
+    s->config = test_decl_global_attach(s->program, s->config);
     s->include = test_decl_option(CLOPTS_OPTION_LIST, "include", 'I');
     test_decl_check(clopts_option_set_delimiter(s->include, ','));
     test_decl_check(clopts_option_set_env(s->include, unset_env ? SURELY_UNSET_NAME : "TOOL_INCLUDE"));
     test_decl_check(clopts_option_set_default(s->include, "a,b"));
-    s->include = test_decl_attach(s->root, s->include);
+    s->include = test_decl_global_attach(s->program, s->include);
     s->name = test_decl_option(CLOPTS_OPTION_VALUE, "name", '\0');
-    s->name = test_decl_attach(s->root, s->name);
+    s->name = test_decl_global_attach(s->program, s->name);
     s->token = test_decl_option(CLOPTS_OPTION_VALUE, "token", '\0');
     test_decl_check(clopts_option_set_required(s->token, true));
     test_decl_check(clopts_option_set_env(s->token, unset_env ? SURELY_UNSET_NAME : "TOOL_TOKEN"));
-    s->token = test_decl_attach(s->root, s->token);
+    s->token = test_decl_global_attach(s->program, s->token);
     s->tag = test_decl_option(CLOPTS_OPTION_LIST, "tag", '\0');
     test_decl_check(clopts_option_set_env(s->tag, unset_env ? SURELY_UNSET_NAME : "TOOL_TAG"));
-    s->tag = test_decl_attach(s->root, s->tag);
+    s->tag = test_decl_global_attach(s->program, s->tag);
     s->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
-    s->verbose = test_decl_attach(s->root, s->verbose);
-    s->build = test_decl_command(s->root, "build");
+    s->verbose = test_decl_global_attach(s->program, s->verbose);
+    s->build = test_decl_command(s->program, "build");
     s->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
     test_decl_check(clopts_option_set_env(s->output, "BUILD_OUTPUT"));
     test_decl_check(clopts_option_set_default(s->output, "out"));
@@ -216,7 +215,7 @@ static void sample_build(sample_t *s, bool unset_env)
     s->src = test_decl_positional("src");
     clopts_positional_set_required(s->src, true);
     s->src = test_decl_attach_positional(s->build, s->src);
-    s->copy = test_decl_command(s->root, "copy");
+    s->copy = test_decl_command(s->program, "copy");
     s->dest = test_decl_option(CLOPTS_OPTION_VALUE, "dest", '\0');
     test_decl_check(clopts_option_set_env(s->dest, "COPY_DEST"));
     s->dest = test_decl_attach(s->copy, s->dest);
@@ -224,10 +223,10 @@ static void sample_build(sample_t *s, bool unset_env)
     clopts_positional_set_required(s->files, true);
     clopts_positional_set_variadic(s->files, true);
     s->files = test_decl_attach_positional(s->copy, s->files);
-    s->program = test_decl_finish(s->root);
+    s->program = test_decl_finish(s->program);
     if (s->program == NULL)
     {
-        /* Everything was released with the root. */
+        /* Everything was released with the program. */
         memset(s, 0, sizeof(*s));
     }
     s->ok = (test_decl_failures == 0);
@@ -238,7 +237,7 @@ static void sample_init(sample_t *s)
     sample_build(s, false);
 }
 
-/* Returns the slot of option (in the root or the selected command), found by its address. */
+/* Returns the slot of option (a global option or one of the selected command), found by its address. */
 static clopts_parser_slot_t *slot_of(clopts_result_t *result, const clopts_option_t *option)
 {
     size_t i;
@@ -441,7 +440,7 @@ NAOS_TEST(empty_env_string_is_an_env_value)
     SAMPLE_END(s, result);
 }
 
-NAOS_TEST(declaration_order_root_then_selected_command)
+NAOS_TEST(declaration_order_global_then_selected_command)
 {
     sample_t s;
     clopts_result_t *result;
@@ -537,7 +536,7 @@ NAOS_TEST(unselected_command_env_is_not_queried)
     SAMPLE_END(s, result);
 }
 
-NAOS_TEST(no_selected_command_queries_only_the_root)
+NAOS_TEST(no_selected_command_queries_only_the_global_options)
 {
     sample_t s;
     clopts_result_t *result;
@@ -556,7 +555,7 @@ NAOS_TEST(no_selected_command_queries_only_the_root)
     SAMPLE_END(s, result);
 }
 
-NAOS_TEST(include_command_false_resolves_only_the_root)
+NAOS_TEST(include_command_false_resolves_only_the_global_options)
 {
     sample_t s;
     clopts_result_t *result;
@@ -730,7 +729,7 @@ NAOS_TEST(required_satisfied_by_env)
     SAMPLE_END(s, result);
 }
 
-NAOS_TEST(missing_option_reports_root_before_command)
+NAOS_TEST(missing_option_reports_global_before_command)
 {
     sample_t s;
     clopts_result_t *result;
@@ -830,7 +829,7 @@ NAOS_TEST(required_variadic_needs_one_token)
     SAMPLE_END(s, result);
 }
 
-NAOS_TEST(include_command_false_checks_only_the_root)
+NAOS_TEST(include_command_false_checks_only_the_global_options)
 {
     sample_t s;
     clopts_result_t *result;
@@ -838,20 +837,20 @@ NAOS_TEST(include_command_false_checks_only_the_root)
     SAMPLE_BEGIN(s, result);
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_select(result, s.build), 0);
 
-    /* Root missing: reported without a command. */
+    /* Global option missing: reported without a command. */
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, false), -1);
     NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(result->error.option, s.token);
     NAOS_CHECK_NULL(result->error.command);
 
-    /* Root satisfied: the command's missing option and positional are ignored. */
+    /* Global option satisfied: the command's missing option and positional are ignored. */
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, false), 0);
 
     SAMPLE_END(s, result);
 }
 
-NAOS_TEST(no_selected_command_checks_only_root_options)
+NAOS_TEST(no_selected_command_checks_only_global_options)
 {
     sample_t s;
     clopts_result_t *result;
@@ -865,10 +864,9 @@ NAOS_TEST(no_selected_command_checks_only_root_options)
     SAMPLE_END(s, result);
 }
 
-NAOS_TEST(program_without_subcommands_checks_root_positionals)
+NAOS_TEST(program_without_subcommands_checks_program_positionals)
 {
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_option_t *level;
     clopts_positional_t *input;
     clopts_positional_t *rest;
@@ -878,17 +876,17 @@ NAOS_TEST(program_without_subcommands_checks_root_positionals)
 
     test_alloc_begin(0);
     test_decl_reset();
-    root = test_decl_root("filt");
+    program = test_decl_begin("filt");
     level = test_decl_option(CLOPTS_OPTION_VALUE, "level", 'n');
     test_decl_check(clopts_option_set_default(level, "1"));
-    level = test_decl_attach(root, level);
+    level = test_decl_global_attach(program, level);
     input = test_decl_positional("input");
     clopts_positional_set_required(input, true);
-    input = test_decl_attach_positional(root, input);
+    input = test_decl_global_attach_positional(program, input);
     rest = test_decl_positional("rest");
     clopts_positional_set_variadic(rest, true);
-    rest = test_decl_attach_positional(root, rest);
-    program = test_decl_finish(root);
+    rest = test_decl_global_attach_positional(program, rest);
+    program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     result = clopts_parser_result_new(program);
@@ -896,7 +894,7 @@ NAOS_TEST(program_without_subcommands_checks_root_positionals)
 
     NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, program, counting_getenv, &calls, true), 0);
     NAOS_CHECK_INT_EQ(calls, 0);
-    /* level is the only root option: slot 0. */
+    /* level is the only global option: slot 0. */
     NAOS_CHECK_INT_EQ(result->global_slots[0].source, CLOPTS_SOURCE_DEFAULT);
     NAOS_CHECK_STR_EQ(result->global_slots[0].value, "1");
 
@@ -981,23 +979,21 @@ typedef struct need_decl
 
 static void need_init(need_decl_t *d)
 {
-    clopts_command_t *root;
-
     test_decl_reset();
-    root = test_decl_root("need");
+    d->program = test_decl_begin("need");
     d->key = test_decl_option(CLOPTS_OPTION_VALUE, "key", '\0');
     test_decl_check(clopts_option_set_env(d->key, "NEED_KEY"));
     test_decl_check(clopts_option_set_required(d->key, true));
-    d->key = test_decl_attach(root, d->key);
+    d->key = test_decl_global_attach(d->program, d->key);
     d->items = test_decl_option(CLOPTS_OPTION_LIST, "items", '\0');
     test_decl_check(clopts_option_set_env(d->items, "NEED_ITEMS"));
     test_decl_check(clopts_option_set_delimiter(d->items, ','));
-    d->items = test_decl_attach(root, d->items);
+    d->items = test_decl_global_attach(d->program, d->items);
     d->files = test_decl_positional("FILES");
     clopts_positional_set_required(d->files, true);
     clopts_positional_set_variadic(d->files, true);
-    d->files = test_decl_attach_positional(root, d->files);
-    d->program = test_decl_finish(root);
+    d->files = test_decl_global_attach_positional(d->program, d->files);
+    d->program = test_decl_finish(d->program);
     NAOS_REQUIRE_NOT_NULL(d->program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 }
@@ -1013,21 +1009,19 @@ typedef struct order_decl
 
 static void order_init(order_decl_t *d)
 {
-    clopts_command_t *root;
-
     test_decl_reset();
-    root = test_decl_root("order");
+    d->program = test_decl_begin("order");
     d->global = test_decl_option(CLOPTS_OPTION_VALUE, "global", '\0');
     test_decl_check(clopts_option_set_required(d->global, true));
-    d->global = test_decl_attach(root, d->global);
-    d->cmd = test_decl_command(root, "cmd");
+    d->global = test_decl_global_attach(d->program, d->global);
+    d->cmd = test_decl_command(d->program, "cmd");
     d->local = test_decl_option(CLOPTS_OPTION_VALUE, "local", '\0');
     test_decl_check(clopts_option_set_required(d->local, true));
     d->local = test_decl_attach(d->cmd, d->local);
     d->arg = test_decl_positional("ARG");
     clopts_positional_set_required(d->arg, true);
     d->arg = test_decl_attach_positional(d->cmd, d->arg);
-    d->program = test_decl_finish(root);
+    d->program = test_decl_finish(d->program);
     NAOS_REQUIRE_NOT_NULL(d->program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 }
@@ -1549,12 +1543,12 @@ NAOS_SUITE(resolve,
     NAOS_ADD_TEST(env_wins_over_default),
     NAOS_ADD_TEST(default_when_env_is_unset),
     NAOS_ADD_TEST(empty_env_string_is_an_env_value),
-    NAOS_ADD_TEST(declaration_order_root_then_selected_command),
+    NAOS_ADD_TEST(declaration_order_global_then_selected_command),
     NAOS_ADD_TEST(list_default_is_split_by_the_delimiter),
     NAOS_ADD_TEST(list_env_is_split_by_the_delimiter),
     NAOS_ADD_TEST(unselected_command_env_is_not_queried),
-    NAOS_ADD_TEST(no_selected_command_queries_only_the_root),
-    NAOS_ADD_TEST(include_command_false_resolves_only_the_root),
+    NAOS_ADD_TEST(no_selected_command_queries_only_the_global_options),
+    NAOS_ADD_TEST(include_command_false_resolves_only_the_global_options),
     NAOS_ADD_TEST(failed_lookup_returns_error_without_default),
     NAOS_ADD_TEST(failed_lookup_in_the_command_returns_error),
     NAOS_ADD_TEST(borrowed_buffer_overwritten_after_return_keeps_values),
@@ -1562,14 +1556,14 @@ NAOS_SUITE(resolve,
     NAOS_ADD_TEST(alloc_failure_on_a_list_item_releases_the_env_copy),
     NAOS_ADD_TEST(full_resolve_leaves_no_live_blocks_after_free),
     NAOS_ADD_TEST(required_satisfied_by_env),
-    NAOS_ADD_TEST(missing_option_reports_root_before_command),
+    NAOS_ADD_TEST(missing_option_reports_global_before_command),
     NAOS_ADD_TEST(missing_option_in_the_selected_command),
     NAOS_ADD_TEST(default_source_does_not_satisfy_required),
     NAOS_ADD_TEST(missing_required_positional),
     NAOS_ADD_TEST(required_variadic_needs_one_token),
-    NAOS_ADD_TEST(include_command_false_checks_only_the_root),
-    NAOS_ADD_TEST(no_selected_command_checks_only_root_options),
-    NAOS_ADD_TEST(program_without_subcommands_checks_root_positionals),
+    NAOS_ADD_TEST(include_command_false_checks_only_the_global_options),
+    NAOS_ADD_TEST(no_selected_command_checks_only_global_options),
+    NAOS_ADD_TEST(program_without_subcommands_checks_program_positionals),
     NAOS_ADD_TEST(fixture_env_and_defaults_are_as_designed),
     NAOS_ADD_TEST(parse_config_from_env_is_env),
     NAOS_ADD_TEST(parse_config_explicit_wins_over_env),

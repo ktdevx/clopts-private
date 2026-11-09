@@ -31,8 +31,10 @@
  * clopts_set_allocator(), so with the fault-injecting allocator of
  * tests/support/test_alloc.h each of them is a fault point. When an
  * allocation fails, the remaining builder calls get NULL handles and do
- * nothing; when the program could not be created at the end, everything is
- * released and the whole struct is NULL (ok false). The free function
+ * nothing, and ok is false. When the program itself could not be created,
+ * or adding a command failed at the end, everything is released and the
+ * whole struct is NULL. A failure before any command was made can leave an
+ * incomplete program (only some global options) with ok false. The free function
  * releases the program (NULL is fine) and clears the struct.
  */
 

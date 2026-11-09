@@ -2,16 +2,18 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite oom: sweeps that move the failing allocation over the assembly of the
- * fixture tool, the parse of "tool build -k a,b -o x src" and the resolution
- * of environment variables and LIST defaults (15.7).
+ * Suite oom: sweeps that move the failing allocation over the builder calls
+ * of a program, the assembly of the fixture tool, the parse of
+ * "tool build -k a,b -o x src" and the resolution of environment variables
+ * and LIST defaults (15.7).
  *
  * The allocations are counted and made to fail by the fault-injecting
  * allocator of tests/support/test_alloc.h, installed with
  * clopts_set_allocator(): each malloc, calloc or realloc call of the library
- * is one fault point (from the first clopts_command_create() of the assembly to
- * clopts_program_create() at its end), and every block must have been released
- * through it at the end of each run. The allocation
+ * is one fault point (in the assembly, from clopts_program_create() at its
+ * start to the last clopts_program_add_command() of test_decl_finish() at its
+ * end), and every block must have been released through it at the end of
+ * each run. The allocation
  * gateway itself (clopts_core_malloc and the others, the overflow checks and
  * the vec growth) is tested in the core suite.
  */
@@ -34,7 +36,7 @@
  * points were passed in the swept part (test_alloc.calls < n, counted from
  * the start of that part). Every parse must end with OUT_OF_MEMORY or with
  * the same outcome as a run without failures (a fault point in the assembly
- * instead leaves no program at all, see scenario (a)), and test_alloc_end()
+ * instead leaves no complete program, see scenario (a)), and test_alloc_end()
  * must report no live block and no bad release once the result and the
  * program are released. The sweeps stop at SWEEP_LIMIT runs at most.
  */
@@ -259,6 +261,64 @@ static void reference_parse(int argc, char *const *argv, const fixture_env_var_t
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
+/* True when option is one of the global options of program. */
+static bool is_global_option(const clopts_program_t *program, const clopts_option_t *option)
+{
+    size_t i;
+
+    for (i = 0; i < clopts_program_option_count(program); i++)
+    {
+        if (clopts_program_option_at(program, i) == option)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * Checks an incomplete tool left by a failed assembly (see scenario (a)):
+ * not ok, no subcommand and no command handle, and every global option
+ * handle that is not NULL is attached to the program (none was left
+ * unattached, so none can leak).
+ */
+static void check_partial_tool(const fixture_tool_t *t)
+{
+    const clopts_option_t *globals[5];
+    size_t i;
+
+    NAOS_REQUIRE_NOT_NULL(t->program);
+    NAOS_CHECK_FALSE(t->ok);
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(t->program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(t->program), 0);
+    NAOS_CHECK_STR_EQ(clopts_program_name(t->program), "tool");
+    NAOS_CHECK_NULL(t->build);
+    NAOS_CHECK_NULL(t->copy);
+    NAOS_CHECK_NULL(t->cat);
+    NAOS_CHECK_NULL(t->help_command);
+    NAOS_CHECK_NULL(t->output);
+    NAOS_CHECK_NULL(t->keys);
+    NAOS_CHECK_NULL(t->jobs);
+    NAOS_CHECK_NULL(t->tags);
+    NAOS_CHECK_NULL(t->build_src);
+    NAOS_CHECK_NULL(t->build_extra);
+    NAOS_CHECK_NULL(t->copy_src);
+    NAOS_CHECK_NULL(t->copy_dst);
+    NAOS_CHECK_NULL(t->cat_file);
+    globals[0] = t->verbose;
+    globals[1] = t->color;
+    globals[2] = t->config;
+    globals[3] = t->help;
+    globals[4] = t->version;
+    for (i = 0; i < ARRAY_LEN(globals); i++)
+    {
+        if (globals[i] != NULL)
+        {
+            NAOS_CHECK_TRUE(is_global_option(t->program, globals[i]));
+        }
+    }
+}
+
 /* Counts of one sweep, checked by the callers. */
 typedef struct sweep_stats
 {
@@ -320,21 +380,233 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
     }
 }
 
+/* ---- the builder calls of a program ------------------------------------ */
+
+/* The handles the builder steps below work on. */
+typedef struct build_state
+{
+    clopts_program_t *program;        /* with global options and subcommands */
+    clopts_program_t *flat;           /* without subcommands, for the positionals */
+    const char *description;          /* argument of step_describe */
+    clopts_option_t *option;          /* argument of step_add_option */
+    clopts_command_t *command;        /* argument of step_add_command */
+    clopts_positional_t *positional;  /* argument of step_add_positional */
+} build_state_t;
+
+/* One builder call on a build_state_t. */
+typedef clopts_error_t (*build_step_fn)(build_state_t *st);
+
+static clopts_error_t step_create(build_state_t *st)
+{
+    return clopts_program_create("tool", &st->program);
+}
+
+static clopts_error_t step_describe(build_state_t *st)
+{
+    return clopts_program_set_description(st->program, st->description);
+}
+
+static clopts_error_t step_add_option(build_state_t *st)
+{
+    return clopts_program_add_option(st->program, st->option);
+}
+
+static clopts_error_t step_add_command(build_state_t *st)
+{
+    return clopts_program_add_command(st->program, st->command);
+}
+
+static clopts_error_t step_add_positional(build_state_t *st)
+{
+    return clopts_program_add_positional(st->flat, st->positional);
+}
+
+/* What the read functions show of one program (present false: NULL). */
+typedef struct program_view
+{
+    bool present;
+    snap_text_t name;
+    snap_text_t description;
+    size_t option_count;
+    size_t positional_count;
+    size_t command_count;
+} program_view_t;
+
+static void view_take(program_view_t *view, const clopts_program_t *program)
+{
+    memset(view, 0, sizeof(*view));
+    if (program == NULL)
+    {
+        return;
+    }
+    view->present = true;
+    snap_copy_text(&view->name, clopts_program_name(program));
+    snap_copy_text(&view->description, clopts_program_description(program));
+    view->option_count = clopts_program_option_count(program);
+    view->positional_count = clopts_program_positional_count(program);
+    view->command_count = clopts_program_command_count(program);
+}
+
+static void check_view_eq(const program_view_t *actual, const program_view_t *expected)
+{
+    NAOS_CHECK_INT_EQ(actual->present ? 1 : 0, expected->present ? 1 : 0);
+    check_text_eq(&actual->name, &expected->name);
+    check_text_eq(&actual->description, &expected->description);
+    NAOS_CHECK_UINT_EQ(actual->option_count, expected->option_count);
+    NAOS_CHECK_UINT_EQ(actual->positional_count, expected->positional_count);
+    NAOS_CHECK_UINT_EQ(actual->command_count, expected->command_count);
+}
+
+/*
+ * Runs step once per fault point it passes, failing only that one: run n
+ * makes the n-th allocation of the call fail (and the call returns at it),
+ * until a run passes no failing fault point. Every failing run must return
+ * CLOPTS_ERROR_OUT_OF_MEMORY, keep no block it allocated and change neither
+ * program; the caller still owns the handle and passes it again, so a
+ * release of it by the failing call would show as a bad release. The last
+ * run must succeed. Returns the number of failing runs.
+ */
+static size_t sweep_step(build_step_fn step, build_state_t *st)
+{
+    size_t n;
+    size_t failing = 0;
+    bool done = false;
+
+    for (n = 1; (n <= SWEEP_LIMIT) && (!done); n++)
+    {
+        program_view_t before[2];
+        program_view_t after[2];
+        size_t base = test_alloc.calls;
+        long live = test_alloc.live;
+        clopts_error_t error;
+
+        NAOS_NOTE("fault point %u of the call", (unsigned)n);
+        view_take(&before[0], st->program);
+        view_take(&before[1], st->flat);
+        test_alloc_set_fail_at(base + n);
+        error = step(st);
+        test_alloc_set_fail_at(0);
+        if (test_alloc.calls - base < n)
+        {
+            done = true;
+            NAOS_CHECK_INT_EQ(error, CLOPTS_ERROR_NONE);
+        }
+        else
+        {
+            failing++;
+            NAOS_CHECK_INT_EQ(error, CLOPTS_ERROR_OUT_OF_MEMORY);
+            NAOS_CHECK_INT_EQ(test_alloc.live, live);
+            view_take(&after[0], st->program);
+            view_take(&after[1], st->flat);
+            check_view_eq(&after[0], &before[0]);
+            check_view_eq(&after[1], &before[1]);
+        }
+    }
+    NAOS_CHECK_TRUE(done);
+    NAOS_CHECK_UINT_EQ(test_alloc.bad_frees, 0);
+    return failing;
+}
+
+/* Number of attaches per kind below: one more than the initial capacity (8) of the arrays. */
+#define BUILD_ATTACHES 9
+
+/*
+ * Every fault point of the builder calls of a program, one at a time:
+ * clopts_program_create() (the program, then its name),
+ * clopts_program_set_description() (the copy; a failing replacement keeps
+ * the previous description), and clopts_program_add_option(),
+ * clopts_program_add_command() and clopts_program_add_positional(), whose
+ * only fault points are the growth of their arrays (the first attach and the
+ * ninth, which grows the array beyond its initial capacity of 8). A failing
+ * call changes nothing and the caller keeps the handle, which the next run
+ * attaches; nothing leaks.
+ */
+NAOS_TEST(sweep_program_builder_calls)
+{
+    build_state_t st;
+    size_t i;
+
+    memset(&st, 0, sizeof(st));
+    test_alloc_begin(0);
+
+    NAOS_CHECK_UINT_EQ(sweep_step(step_create, &st), 2);
+    NAOS_REQUIRE_NOT_NULL(st.program);
+    NAOS_CHECK_STR_EQ(clopts_program_name(st.program), "tool");
+
+    st.description = "First.";
+    NAOS_CHECK_UINT_EQ(sweep_step(step_describe, &st), 1);
+    st.description = "Second.";
+    NAOS_CHECK_UINT_EQ(sweep_step(step_describe, &st), 1);
+    NAOS_CHECK_STR_EQ(clopts_program_description(st.program), "Second.");
+
+    for (i = 0; i < BUILD_ATTACHES; i++)
+    {
+        char name[8] = "opt-a";
+
+        name[4] = (char)('a' + i);
+        st.option = test_decl_option(CLOPTS_OPTION_FLAG, name, '\0');
+        NAOS_REQUIRE_NOT_NULL(st.option);
+        NAOS_CHECK_UINT_EQ(sweep_step(step_add_option, &st), ((i == 0) || (i == 8)) ? 1 : 0);
+        NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(st.program), i + 1);
+        NAOS_CHECK_PTR_EQ(clopts_program_option_at(st.program, i), st.option);
+    }
+
+    for (i = 0; i < BUILD_ATTACHES; i++)
+    {
+        char name[8] = "cmd-a";
+
+        name[4] = (char)('a' + i);
+        st.command = NULL;
+        NAOS_REQUIRE_INT_EQ(clopts_command_create(name, &st.command), CLOPTS_ERROR_NONE);
+        NAOS_CHECK_UINT_EQ(sweep_step(step_add_command, &st), ((i == 0) || (i == 8)) ? 1 : 0);
+        NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(st.program), i + 1);
+        NAOS_CHECK_PTR_EQ(clopts_program_command_at(st.program, i), st.command);
+        NAOS_CHECK_PTR_EQ(clopts_program_find_command(st.program, name), st.command);
+    }
+
+    NAOS_REQUIRE_INT_EQ(clopts_program_create("flat", &st.flat), CLOPTS_ERROR_NONE);
+    for (i = 0; i < BUILD_ATTACHES; i++)
+    {
+        char name[8] = "ARG-A";
+
+        name[4] = (char)('A' + i);
+        st.positional = test_decl_positional(name);
+        NAOS_REQUIRE_NOT_NULL(st.positional);
+        NAOS_CHECK_UINT_EQ(sweep_step(step_add_positional, &st), ((i == 0) || (i == 8)) ? 1 : 0);
+        NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(st.flat), i + 1);
+        NAOS_CHECK_PTR_EQ(clopts_program_positional_at(st.flat, i), st.positional);
+    }
+
+    clopts_program_destroy(st.program);
+    clopts_program_destroy(st.flat);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
 /*
  * Scenario (a): building tool, then parsing it. fail_at counts from the
- * first allocation of the assembly (the root's clopts_command_create()), and
- * every fault point from fail_at on fails.
+ * first allocation of the assembly (clopts_program_create() of
+ * test_decl_begin()), and every fault point from fail_at on fails.
  *
  * A failed allocation during the assembly makes that builder call return
- * CLOPTS_ERROR_OUT_OF_MEMORY and change nothing; the later builder calls get
- * NULL handles, and clopts_program_create() at the end (which allocates) fails
- * as well, so the fixture releases the root with everything attached to it
- * and the commands, and leaves the whole struct zeroed. So every fault point
- * of the assembly gives no program, no handle and no live block, and a
- * parse of the NULL program is the sentinel without any allocation or
- * environment lookup. A fault point after the assembly gives the complete
- * tool, whose parse is OUT_OF_MEMORY or the outcome of the reference run.
- * Every fault point of the assembly and of the parse is reached exactly once.
+ * CLOPTS_ERROR_OUT_OF_MEMORY and change nothing; an option or positional whose
+ * attach fails is released by the helper, and the later builder calls get
+ * NULL handles. The program is built incrementally, so what is left depends
+ * on where the fault point is:
+ *   - no program could be created (its own allocations), or a command had
+ *     been made before the fault point: then test_decl_finish() fails (the
+ *     first clopts_program_add_command() allocates), releases the program
+ *     and the remembered commands, and the fixture leaves the whole struct
+ *     zeroed;
+ *   - otherwise (a fault point among the global options, before any command
+ *     was made) no command is remembered, test_decl_finish() has nothing to
+ *     add and the fixture keeps the incomplete program: ok is false, it has
+ *     no subcommands, and every handle left in the struct is attached to it.
+ * Either way nothing leaks, and a parse is the sentinel without any
+ * environment lookup (of the NULL program without any allocation; of the
+ * incomplete program because its result cannot be allocated). A fault point
+ * after the assembly gives the complete tool, whose parse is OUT_OF_MEMORY or
+ * the outcome of the reference run. Every fault point of the assembly and of
+ * the parse is reached exactly once.
  */
 NAOS_TEST(sweep_tool_build_then_parse)
 {
@@ -345,6 +617,7 @@ NAOS_TEST(sweep_tool_build_then_parse)
     size_t parse_calls = 0;
     size_t fail_at;
     size_t build_oom_runs = 0;
+    size_t partial_runs = 0;
     size_t later_oom_runs = 0;
     bool succeeded = false;
 
@@ -382,12 +655,26 @@ NAOS_TEST(sweep_tool_build_then_parse)
             NAOS_CHECK_FALSE(env.query_count > 0);
             clopts_result_free(parsed);
         }
+        else if (!t.ok)
+        {
+            /* An incomplete program: the fault point came before any command was made. */
+            build_oom_runs++;
+            partial_runs++;
+            NAOS_CHECK_UINT_LE(fail_at, build_calls);
+            NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
+            check_partial_tool(&t);
+            /* Every fault point still fails: the result itself cannot be allocated. */
+            parsed = clopts_parse_with_env(t.program, 7, argv, fixture_env_getenv, &env);
+            NAOS_CHECK_PTR_EQ(parsed, clopts_parser_result_oom());
+            NAOS_CHECK_FALSE(env.query_count > 0);
+            clopts_result_free(parsed);
+            test_alloc_set_fail_at(0);
+        }
         else
         {
             /* The assembly passed no failing fault point. */
             NAOS_CHECK_UINT_GT(fail_at, build_calls);
             NAOS_CHECK_UINT_EQ(test_alloc.calls, build_calls);
-            NAOS_CHECK_TRUE(t.ok);
             parsed = clopts_parse_with_env(t.program, 7, argv, fixture_env_getenv, &env);
             NAOS_REQUIRE_NOT_NULL(parsed);
             snap_take(&snap, parsed, &t);
@@ -414,8 +701,14 @@ NAOS_TEST(sweep_tool_build_then_parse)
     }
 
     NAOS_CHECK_TRUE(succeeded);
-    /* Every fault point of the assembly (clopts_program_create() included) was failed once. */
+    /*
+     * Every fault point of the assembly (from clopts_program_create() to the
+     * first clopts_program_add_command()) was failed once; both outcomes of
+     * a failed assembly happened.
+     */
     NAOS_CHECK_UINT_EQ(build_oom_runs, build_calls);
+    NAOS_CHECK_UINT_GT(partial_runs, 0);
+    NAOS_CHECK_UINT_LT(partial_runs, build_oom_runs);
     /* Every fault point of the parse ended it with OUT_OF_MEMORY. */
     NAOS_CHECK_UINT_EQ(later_oom_runs, parse_calls);
     NAOS_CHECK_UINT_EQ(fail_at - 1, build_calls + parse_calls + 1);
@@ -495,6 +788,7 @@ NAOS_TEST(sweep_resolve_default_list)
 }
 
 NAOS_SUITE(oom,
+    NAOS_ADD_TEST(sweep_program_builder_calls),
     NAOS_ADD_TEST(sweep_tool_build_then_parse),
     NAOS_ADD_TEST(sweep_parse_build_command),
     NAOS_ADD_TEST(sweep_resolve_env_list),
