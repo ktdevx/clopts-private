@@ -11,8 +11,8 @@
  * functions only.
  *
  * Nothing here is reserved: --help, --version and the help command are
- * ordinary options and commands, listed like any other one. They are created
- * by the helpers at the end of this file.
+ * ordinary options and commands, listed like any other one. The help command
+ * is created by the helper at the end of this file.
  */
 
 #include "help/help_internal.h"
@@ -126,13 +126,57 @@ typedef struct help_item
     const char *help;
 } help_item_t;
 
+/*
+ * A scope read through the public read functions: the program itself
+ * (command == NULL: its global options and positionals) or a subcommand.
+ */
+typedef struct help_scope
+{
+    const clopts_program_t *program;
+    const clopts_command_t *command;
+} help_scope_t;
+
+/* The scope of command of program (NULL: the program itself). */
+static help_scope_t help_scope(const clopts_program_t *program, const clopts_command_t *command)
+{
+    help_scope_t scope;
+
+    scope.program = program;
+    scope.command = command;
+    return scope;
+}
+
+static size_t help_option_count(const help_scope_t *scope)
+{
+    return (scope->command != NULL) ? clopts_command_option_count(scope->command)
+                                    : clopts_program_option_count(scope->program);
+}
+
+static const clopts_option_t *help_option_at(const help_scope_t *scope, size_t index)
+{
+    return (scope->command != NULL) ? clopts_command_option_at(scope->command, index)
+                                    : clopts_program_option_at(scope->program, index);
+}
+
+static size_t help_positional_count(const help_scope_t *scope)
+{
+    return (scope->command != NULL) ? clopts_command_positional_count(scope->command)
+                                    : clopts_program_positional_count(scope->program);
+}
+
+static const clopts_positional_t *help_positional_at(const help_scope_t *scope, size_t index)
+{
+    return (scope->command != NULL) ? clopts_command_positional_at(scope->command, index)
+                                    : clopts_program_positional_at(scope->program, index);
+}
+
 /* Where the declared rows of a list come from. */
 typedef enum help_source_kind
 {
     HELP_SOURCE_NONE,         /* no declared rows */
-    HELP_SOURCE_OPTIONS,      /* the options of command, except those shadowed by shadow (when not NULL) */
-    HELP_SOURCE_POSITIONALS,  /* the positionals of command */
-    HELP_SOURCE_COMMANDS      /* the subcommands of program: name and summary as a fixed row */
+    HELP_SOURCE_OPTIONS,      /* the options of scope, except those shadowed by shadow (when not NULL) */
+    HELP_SOURCE_POSITIONALS,  /* the positionals of scope */
+    HELP_SOURCE_COMMANDS      /* the subcommands of the program of scope: name and summary as a fixed row */
 } help_source_kind_t;
 
 /*
@@ -142,22 +186,21 @@ typedef enum help_source_kind
 typedef struct help_list
 {
     help_source_kind_t kind;
-    const clopts_program_t *program;
-    const clopts_command_t *command;
+    help_scope_t scope;
     const clopts_command_t *shadow;
     const clopts_help_row_t *rows;
     size_t row_count;
 } help_list_t;
 
-/* True when command has an option with the long name l (exact). */
-static bool help_has_long(const clopts_command_t *command, const char *l)
+/* True when scope has an option with the long name l (exact). */
+static bool help_has_long(const help_scope_t *scope, const char *l)
 {
-    size_t count = clopts_command_option_count(command);
+    size_t count = help_option_count(scope);
     size_t i;
 
     for (i = 0; i < count; i++)
     {
-        const char *name = clopts_option_long_name(clopts_command_option_at(command, i));
+        const char *name = clopts_option_long_name(help_option_at(scope, i));
 
         if ((name != NULL) && (strcmp(name, l) == 0))
         {
@@ -167,13 +210,13 @@ static bool help_has_long(const clopts_command_t *command, const char *l)
     return false;
 }
 
-/* True when the long name l is taken in command: exactly, or as --no-<name> of a negatable FLAG. */
-static bool help_long_taken(const clopts_command_t *command, const char *l)
+/* True when the long name l is taken in scope: exactly, or as --no-<name> of a negatable FLAG. */
+static bool help_long_taken(const help_scope_t *scope, const char *l)
 {
     size_t count;
     size_t i;
 
-    if (help_has_long(command, l))
+    if (help_has_long(scope, l))
     {
         return true;
     }
@@ -181,10 +224,10 @@ static bool help_long_taken(const clopts_command_t *command, const char *l)
     {
         return false;
     }
-    count = clopts_command_option_count(command);
+    count = help_option_count(scope);
     for (i = 0; i < count; i++)
     {
-        const clopts_option_t *option = clopts_command_option_at(command, i);
+        const clopts_option_t *option = help_option_at(scope, i);
         const char *name = clopts_option_long_name(option);
 
         if ((name != NULL) && clopts_option_negatable(option) && (strcmp(name, l + 3) == 0))
@@ -195,15 +238,15 @@ static bool help_long_taken(const clopts_command_t *command, const char *l)
     return false;
 }
 
-/* True when the short name c is taken in command. */
-static bool help_short_taken(const clopts_command_t *command, char c)
+/* True when the short name c is taken in scope. */
+static bool help_short_taken(const help_scope_t *scope, char c)
 {
-    size_t count = clopts_command_option_count(command);
+    size_t count = help_option_count(scope);
     size_t i;
 
     for (i = 0; i < count; i++)
     {
-        if (clopts_option_short_name(clopts_command_option_at(command, i)) == c)
+        if (clopts_option_short_name(help_option_at(scope, i)) == c)
         {
             return true;
         }
@@ -212,17 +255,17 @@ static bool help_short_taken(const clopts_command_t *command, char c)
 }
 
 /*
- * True when --no-<l> is taken in command: by an option named "no-<l>", or as
+ * True when --no-<l> is taken in scope: by an option named "no-<l>", or as
  * the negation of a negatable FLAG named l.
  */
-static bool help_negation_taken(const clopts_command_t *command, const char *l)
+static bool help_negation_taken(const help_scope_t *scope, const char *l)
 {
-    size_t count = clopts_command_option_count(command);
+    size_t count = help_option_count(scope);
     size_t i;
 
     for (i = 0; i < count; i++)
     {
-        const clopts_option_t *option = clopts_command_option_at(command, i);
+        const clopts_option_t *option = help_option_at(scope, i);
         const char *name = clopts_option_long_name(option);
 
         if (name == NULL)
@@ -246,20 +289,22 @@ static bool help_negation_taken(const clopts_command_t *command, const char *l)
  * can be given in (its long name, --no-<long> when it is negatable, its short
  * name) is found in command first, so it cannot be given there.
  */
-static bool help_shadowed(const clopts_option_t *option, const clopts_command_t *command)
+static bool help_shadowed(const clopts_option_t *option, const clopts_program_t *program,
+                          const clopts_command_t *command)
 {
+    const help_scope_t scope = help_scope(program, command);
     const char *l = clopts_option_long_name(option);
     const char s = clopts_option_short_name(option);
 
-    if ((l != NULL) && !help_long_taken(command, l))
+    if ((l != NULL) && !help_long_taken(&scope, l))
     {
         return false;
     }
-    if ((l != NULL) && clopts_option_negatable(option) && !help_negation_taken(command, l))
+    if ((l != NULL) && clopts_option_negatable(option) && !help_negation_taken(&scope, l))
     {
         return false;
     }
-    if ((s != '\0') && !help_short_taken(command, s))
+    if ((s != '\0') && !help_short_taken(&scope, s))
     {
         return false;
     }
@@ -272,11 +317,11 @@ static size_t help_source_len(const help_list_t *list)
     switch (list->kind)
     {
     case HELP_SOURCE_OPTIONS:
-        return clopts_command_option_count(list->command);
+        return help_option_count(&list->scope);
     case HELP_SOURCE_POSITIONALS:
-        return clopts_command_positional_count(list->command);
+        return help_positional_count(&list->scope);
     case HELP_SOURCE_COMMANDS:
-        return clopts_program_command_count(list->program);
+        return clopts_program_command_count(list->scope.program);
     case HELP_SOURCE_NONE:
     default:
         return 0;
@@ -290,7 +335,7 @@ static bool help_source_listed(const help_list_t *list, size_t index)
     {
         return true;
     }
-    return !help_shadowed(clopts_command_option_at(list->command, index), list->shadow);
+    return !help_shadowed(help_option_at(&list->scope, index), list->scope.program, list->shadow);
 }
 
 /* Number of declared rows of list. */
@@ -324,14 +369,14 @@ static help_item_t help_source_item(const help_list_t *list, size_t index)
     switch (list->kind)
     {
     case HELP_SOURCE_OPTIONS:
-        item.option = clopts_command_option_at(list->command, index);
+        item.option = help_option_at(&list->scope, index);
         break;
     case HELP_SOURCE_POSITIONALS:
-        item.positional = clopts_command_positional_at(list->command, index);
+        item.positional = help_positional_at(&list->scope, index);
         break;
     case HELP_SOURCE_COMMANDS:
     {
-        const clopts_command_t *command = clopts_program_command_at(list->program, index);
+        const clopts_command_t *command = clopts_program_command_at(list->scope.program, index);
 
         item.left = clopts_command_name(command);
         item.help = clopts_command_summary(command);
@@ -523,8 +568,7 @@ void clopts_help_write_list(clopts_help_out_t *out, const clopts_help_row_t *row
     assert((count == 0) || (rows != NULL));
 
     list.kind = HELP_SOURCE_NONE;
-    list.program = NULL;
-    list.command = NULL;
+    list.scope = help_scope(NULL, NULL);
     list.shadow = NULL;
     list.rows = rows;
     list.row_count = count;
@@ -562,19 +606,19 @@ static void help_write_positional_usage(clopts_help_out_t *out, const clopts_pos
 }
 
 /*
- * Writes the Usage line of command (the root for the program) and its '\n'
+ * Writes the Usage line of command (NULL for the program) and its '\n'
  * (5.1, 5.2, 5.4).
  */
 static void help_write_usage_line(clopts_help_out_t *out, const clopts_program_t *program,
                                   const clopts_command_t *command)
 {
-    const clopts_command_t *root = clopts_program_root(program);
+    const help_scope_t scope = help_scope(program, command);
     size_t count;
     size_t i;
 
     clopts_help_out_str(out, "Usage: ");
-    clopts_help_out_str(out, clopts_command_name(root));
-    if (command != root)
+    clopts_help_out_str(out, clopts_program_name(program));
+    if (command != NULL)
     {
         clopts_help_out_char(out, ' ');
         clopts_help_out_str(out, clopts_command_name(command));
@@ -585,11 +629,11 @@ static void help_write_usage_line(clopts_help_out_t *out, const clopts_program_t
         return;
     }
     clopts_help_out_str(out, " [<options>]");
-    count = clopts_command_positional_count(command);
+    count = help_positional_count(&scope);
     for (i = 0; i < count; i++)
     {
         clopts_help_out_char(out, ' ');
-        help_write_positional_usage(out, clopts_command_positional_at(command, i));
+        help_write_positional_usage(out, help_positional_at(&scope, i));
     }
     clopts_help_out_char(out, '\n');
 }
@@ -615,59 +659,58 @@ static void help_write_list_paragraph(clopts_help_out_t *out, const char *headin
     help_write_rows(out, list);
 }
 
-/* Sets list to the declared rows of kind, with no fixed row. */
-static void help_list_init(help_list_t *list, help_source_kind_t kind, const clopts_program_t *program,
-                           const clopts_command_t *command, const clopts_command_t *shadow)
+/* Sets list to the declared rows of kind in scope, with no fixed row. */
+static void help_list_init(help_list_t *list, help_source_kind_t kind, help_scope_t scope,
+                           const clopts_command_t *shadow)
 {
     list->kind = kind;
-    list->program = program;
-    list->command = command;
+    list->scope = scope;
     list->shadow = shadow;
     list->rows = NULL;
     list->row_count = 0;
 }
 
-/* Writes the Arguments: paragraph of command, if it has positionals (2.3). */
-static void help_write_arguments(clopts_help_out_t *out, const clopts_command_t *command)
+/* Writes the Arguments: paragraph of scope, if it has positionals (2.3). */
+static void help_write_arguments(clopts_help_out_t *out, help_scope_t scope)
 {
     help_list_t list;
 
-    help_list_init(&list, HELP_SOURCE_POSITIONALS, NULL, command, NULL);
+    help_list_init(&list, HELP_SOURCE_POSITIONALS, scope, NULL);
     help_write_list_paragraph(out, "Arguments:", &list);
 }
 
-/* Writes the Options: paragraph of command, if it has options (1.4, 2.4, 3.3). */
-static void help_write_options(clopts_help_out_t *out, const clopts_command_t *command)
+/* Writes the Options: paragraph of scope, if it has options (1.4, 2.4, 3.3). */
+static void help_write_options(clopts_help_out_t *out, help_scope_t scope)
 {
     help_list_t list;
 
-    help_list_init(&list, HELP_SOURCE_OPTIONS, NULL, command, NULL);
+    help_list_init(&list, HELP_SOURCE_OPTIONS, scope, NULL);
     help_write_list_paragraph(out, "Options:", &list);
 }
 
 /* Writes the help of a program with subcommands (1.1 to 1.6). */
 static void help_write_global_help(clopts_help_out_t *out, const clopts_program_t *program)
 {
-    const clopts_command_t *root = clopts_program_root(program);
-    const char *description = clopts_command_description(root);
+    const help_scope_t global = help_scope(program, NULL);
+    const char *description = clopts_program_description(program);
     help_list_t commands;
 
-    help_write_usage_line(out, program, root);
+    help_write_usage_line(out, program, NULL);
     if (help_has_text(description))
     {
         help_write_text_paragraph(out, description);
     }
 
-    help_list_init(&commands, HELP_SOURCE_COMMANDS, program, NULL, NULL);
+    help_list_init(&commands, HELP_SOURCE_COMMANDS, global, NULL);
     help_write_list_paragraph(out, "Commands:", &commands);
 
-    help_write_options(out, root);
+    help_write_options(out, global);
 
     /* Only when the program has a global --help to point to. */
-    if (help_has_long(root, "help"))
+    if (help_has_long(&global, "help"))
     {
         clopts_help_out_str(out, "\nRun '");
-        clopts_help_out_str(out, clopts_command_name(root));
+        clopts_help_out_str(out, clopts_program_name(program));
         clopts_help_out_str(out, " <command> --help' for help on a command.\n");
     }
 }
@@ -689,26 +732,25 @@ static void help_write_command_help(clopts_help_out_t *out, const clopts_program
     {
         help_write_text_paragraph(out, summary);
     }
-    help_write_arguments(out, command);
-    help_write_options(out, command);
+    help_write_arguments(out, help_scope(program, command));
+    help_write_options(out, help_scope(program, command));
 
-    help_list_init(&globals, HELP_SOURCE_OPTIONS, NULL, clopts_program_root(program), command);
+    help_list_init(&globals, HELP_SOURCE_OPTIONS, help_scope(program, NULL), command);
     help_write_list_paragraph(out, "Global Options:", &globals);
 }
 
 /* Writes the help of a program without subcommands (3.1 to 3.3). */
 static void help_write_single_help(clopts_help_out_t *out, const clopts_program_t *program)
 {
-    const clopts_command_t *root = clopts_program_root(program);
-    const char *description = clopts_command_description(root);
+    const char *description = clopts_program_description(program);
 
-    help_write_usage_line(out, program, root);
+    help_write_usage_line(out, program, NULL);
     if (help_has_text(description))
     {
         help_write_text_paragraph(out, description);
     }
-    help_write_arguments(out, root);
-    help_write_options(out, root);
+    help_write_arguments(out, help_scope(program, NULL));
+    help_write_options(out, help_scope(program, NULL));
 }
 
 /* ---- public functions -------------------------------------------------- */
@@ -718,10 +760,6 @@ bool clopts_help_has_command(const clopts_program_t *program, const clopts_comma
     size_t count = clopts_program_command_count(program);
     size_t i;
 
-    if (command == clopts_program_root(program))
-    {
-        return true;
-    }
     for (i = 0; i < count; i++)
     {
         if (clopts_program_command_at(program, i) == command)
@@ -741,13 +779,8 @@ clopts_write_status_t clopts_write_help(const clopts_program_t *program, const c
     assert(write_fn != NULL);
     assert((command == NULL) || clopts_help_has_command(program, command));
 
-    if (command == NULL)
-    {
-        command = clopts_program_root(program);
-    }
-
     clopts_help_out_init(&out, write_fn, ctx);
-    if (command != clopts_program_root(program))
+    if (command != NULL)
     {
         help_write_command_help(&out, program, command);
     }
@@ -771,11 +804,6 @@ clopts_write_status_t clopts_write_usage(const clopts_program_t *program, const 
     assert(write_fn != NULL);
     assert((command == NULL) || clopts_help_has_command(program, command));
 
-    if (command == NULL)
-    {
-        command = clopts_program_root(program);
-    }
-
     clopts_help_out_init(&out, write_fn, ctx);
     help_write_usage_line(&out, program, command);
     return clopts_help_out_status(&out);
@@ -795,7 +823,7 @@ clopts_write_status_t clopts_write_version(const clopts_program_t *program, cons
     }
 
     clopts_help_out_init(&out, write_fn, ctx);
-    clopts_help_out_str(&out, clopts_command_name(clopts_program_root(program)));
+    clopts_help_out_str(&out, clopts_program_name(program));
     clopts_help_out_char(&out, ' ');
     clopts_help_out_str(&out, version);
     clopts_help_out_char(&out, '\n');
@@ -805,18 +833,16 @@ clopts_write_status_t clopts_write_version(const clopts_program_t *program, cons
 clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, const clopts_command_t *command,
                                               clopts_write_fn write_fn, void *ctx)
 {
-    const clopts_command_t *root;
     clopts_help_out_t out;
 
     assert(program != NULL);
     assert(write_fn != NULL);
     assert((command == NULL) || clopts_help_has_command(program, command));
 
-    root = clopts_program_root(program);
     clopts_help_out_init(&out, write_fn, ctx);
     clopts_help_out_str(&out, "Run '");
-    clopts_help_out_str(&out, clopts_command_name(root));
-    if ((command != NULL) && (command != root))
+    clopts_help_out_str(&out, clopts_program_name(program));
+    if (command != NULL)
     {
         clopts_help_out_char(&out, ' ');
         clopts_help_out_str(&out, clopts_command_name(command));
@@ -826,56 +852,6 @@ clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, c
 }
 
 /* ---- declarations for the help texts ----------------------------------- */
-
-/*
- * Creates a terminal FLAG named l / s with help and attaches it to command.
- * *out (when out is not NULL) gets it, or NULL on failure.
- */
-static clopts_error_t help_add_terminal(clopts_command_t *command, const char *l, char s, const char *help,
-                                             const clopts_option_t **out)
-{
-    clopts_option_t *option = NULL;
-    clopts_error_t error;
-
-    if (out != NULL)
-    {
-        *out = NULL;
-    }
-    assert(command != NULL);
-    error = clopts_option_create(CLOPTS_OPTION_FLAG, l, s, &option);
-    if (error == CLOPTS_ERROR_NONE)
-    {
-        error = clopts_option_set_terminal(option, true);
-    }
-    if (error == CLOPTS_ERROR_NONE)
-    {
-        error = clopts_option_set_help(option, help);
-    }
-    if (error == CLOPTS_ERROR_NONE)
-    {
-        error = clopts_command_add_option(command, option);
-    }
-    if (error != CLOPTS_ERROR_NONE)
-    {
-        clopts_option_destroy(option);
-        return error;
-    }
-    if (out != NULL)
-    {
-        *out = option;
-    }
-    return CLOPTS_ERROR_NONE;
-}
-
-clopts_error_t clopts_help_add_help_option(clopts_command_t *command, const clopts_option_t **out)
-{
-    return help_add_terminal(command, "help", 'h', "Show this help", out);
-}
-
-clopts_error_t clopts_help_add_version_option(clopts_command_t *command, const clopts_option_t **out)
-{
-    return help_add_terminal(command, "version", '\0', "Show version information", out);
-}
 
 clopts_error_t clopts_help_command_create(clopts_command_t **out)
 {

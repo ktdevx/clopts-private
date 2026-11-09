@@ -9,7 +9,7 @@
  * clopts_parser_result_new(), its fields (status, error) are set
  * directly and values are recorded with the slot functions. A result does
  * not point to its program: every slot knows its option, and an option
- * knows its index in its command, so an accessor finds a value in constant
+ * knows its index in its scope, so an accessor finds a value in constant
  * time and checks it by address.
  *
  * The last part goes through clopts_parse_with_env() with the shared fixtures
@@ -30,19 +30,18 @@
 
 /*
  * tool
- *   root:  --force/-f (FLAG, negatable), --verbose/-v (COUNT),
- *          --jobs/-j (COUNT, max 8), --config/-c (VALUE),
- *          --include/-I (LIST, ','), --tag/-t (LIST, no delimiter),
- *          --help/-h (FLAG, terminal)
- *   build: --release (FLAG), --output/-o (VALUE)
- *   copy:  --output (VALUE)
- *   empty: no options
+ *   global: --force/-f (FLAG, negatable), --verbose/-v (COUNT),
+ *           --jobs/-j (COUNT, max 8), --config/-c (VALUE),
+ *           --include/-I (LIST, ','), --tag/-t (LIST, no delimiter),
+ *           --help/-h (FLAG, terminal)
+ *   build:  --release (FLAG), --output/-o (VALUE)
+ *   copy:   --output (VALUE)
+ *   empty:  no options
  */
 typedef struct sample
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of sample_init() succeeded */
-    clopts_command_t *root;
     clopts_option_t *force;
     clopts_option_t *verbose;
     clopts_option_t *jobs;
@@ -59,43 +58,43 @@ typedef struct sample
 } sample_t;
 
 /*
- * Builds the sample program bottom up: the root and its options, the
- * commands, then the program. When the program cannot be created everything
- * is released and the whole struct is NULL (ok false).
+ * Builds the sample program: the program and its global options, then the
+ * commands, which test_decl_finish() adds. When the program cannot be
+ * completed everything is released and the whole struct is NULL (ok false).
  */
 static void sample_init(sample_t *s)
 {
     memset(s, 0, sizeof(*s));
     test_decl_reset();
-    s->root = test_decl_root("tool");
+    s->program = test_decl_begin("tool");
     s->force = test_decl_option(CLOPTS_OPTION_FLAG, "force", 'f');
     test_decl_check(clopts_option_set_negatable(s->force, true));
-    s->force = test_decl_attach(s->root, s->force);
+    s->force = test_decl_global_attach(s->program, s->force);
     s->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
-    s->verbose = test_decl_attach(s->root, s->verbose);
+    s->verbose = test_decl_global_attach(s->program, s->verbose);
     s->jobs = test_decl_option(CLOPTS_OPTION_COUNT, "jobs", 'j');
     test_decl_check(clopts_option_set_count_max(s->jobs, 8));
-    s->jobs = test_decl_attach(s->root, s->jobs);
+    s->jobs = test_decl_global_attach(s->program, s->jobs);
     s->config = test_decl_option(CLOPTS_OPTION_VALUE, "config", 'c');
-    s->config = test_decl_attach(s->root, s->config);
+    s->config = test_decl_global_attach(s->program, s->config);
     s->include = test_decl_option(CLOPTS_OPTION_LIST, "include", 'I');
     test_decl_check(clopts_option_set_delimiter(s->include, ','));
-    s->include = test_decl_attach(s->root, s->include);
+    s->include = test_decl_global_attach(s->program, s->include);
     s->tag = test_decl_option(CLOPTS_OPTION_LIST, "tag", 't');
-    s->tag = test_decl_attach(s->root, s->tag);
+    s->tag = test_decl_global_attach(s->program, s->tag);
     s->help = test_decl_option(CLOPTS_OPTION_FLAG, "help", 'h');
     test_decl_check(clopts_option_set_terminal(s->help, true));
-    s->help = test_decl_attach(s->root, s->help);
-    s->build = test_decl_command(s->root, "build");
+    s->help = test_decl_global_attach(s->program, s->help);
+    s->build = test_decl_command(s->program, "build");
     s->release = test_decl_option(CLOPTS_OPTION_FLAG, "release", '\0');
     s->release = test_decl_attach(s->build, s->release);
     s->build_output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
     s->build_output = test_decl_attach(s->build, s->build_output);
-    s->copy = test_decl_command(s->root, "copy");
+    s->copy = test_decl_command(s->program, "copy");
     s->copy_output = test_decl_option(CLOPTS_OPTION_VALUE, "output", '\0');
     s->copy_output = test_decl_attach(s->copy, s->copy_output);
-    s->empty = test_decl_command(s->root, "empty");
-    s->program = test_decl_finish(s->root);
+    s->empty = test_decl_command(s->program, "empty");
+    s->program = test_decl_finish(s->program);
     if (s->program == NULL)
     {
         memset(s, 0, sizeof(*s));
@@ -104,13 +103,13 @@ static void sample_init(sample_t *s)
 }
 
 /* Sets *index to the position of option in the options of scope; false when it is not there. */
-static bool index_in(const clopts_command_t *scope, const clopts_option_t *option, size_t *index)
+static bool index_in(const clopts_scope_t *scope, const clopts_option_t *option, size_t *index)
 {
     size_t i;
 
-    for (i = 0; i < clopts_command_option_count(scope); i++)
+    for (i = 0; i < clopts_scope_option_count(scope); i++)
     {
-        if (clopts_command_option_at(scope, i) == option)
+        if (clopts_scope_option_at(scope, i) == option)
         {
             *index = i;
             return true;
@@ -120,7 +119,7 @@ static bool index_in(const clopts_command_t *scope, const clopts_option_t *optio
 }
 
 /*
- * Returns the slot of option of s (in the root or the selected command),
+ * Returns the slot of option of s (a global option or one of the selected command),
  * found by its position in the options of its scope (not by its index,
  * which the tests below check on their own).
  */
@@ -130,11 +129,11 @@ static clopts_parser_slot_t *slot_of(const sample_t *s, clopts_result_t *result,
 
     ref.option = option;
     ref.negated = false;
-    ref.global = index_in(s->root, option, &ref.index);
+    ref.global = index_in(clopts_program_scope(s->program), option, &ref.index);
     if (!ref.global)
     {
         NAOS_REQUIRE_NOT_NULL(result->command);
-        NAOS_REQUIRE_TRUE(index_in(result->command, option, &ref.index));
+        NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(result->command), option, &ref.index));
     }
     return clopts_parser_result_slot(result, &ref);
 }
@@ -182,7 +181,7 @@ static clopts_parser_slot_t *slot_of(const sample_t *s, clopts_result_t *result,
 
 /* ---- allocation ------------------------------------------------------- */
 
-NAOS_TEST(new_allocates_one_slot_per_root_option)
+NAOS_TEST(new_allocates_one_slot_per_global_option)
 {
     sample_t s;
     clopts_result_t *result;
@@ -199,9 +198,9 @@ NAOS_TEST(new_allocates_one_slot_per_root_option)
     NAOS_CHECK_UINT_EQ(result->command_count, 0);
     for (i = 0; i < result->global_count; i++)
     {
-        /* Slot i records option i of the root. */
+        /* Slot i records global option i. */
         NAOS_CHECK_PTR_EQ(result->global_slots[i].option,
-                          clopts_command_option_at(s.root, i));
+                          clopts_program_option_at(s.program, i));
         NAOS_CHECK_INT_EQ(result->global_slots[i].source, CLOPTS_SOURCE_NONE);
         NAOS_CHECK_NULL(result->global_slots[i].value);
         NAOS_CHECK_NULL(result->global_slots[i].owned);
@@ -217,7 +216,7 @@ NAOS_TEST(new_allocates_one_slot_per_root_option)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-NAOS_TEST(new_without_root_options_has_no_slots)
+NAOS_TEST(new_without_global_options_has_no_slots)
 {
     clopts_program_t *program;
     clopts_result_t *result;
@@ -631,11 +630,11 @@ NAOS_TEST(null_option_reads_as_unset)
     clopts_program_destroy(s.program);
 }
 
-/* Every attached option is at the position of its attachment in the options of its command. */
+/* Every attached option is at the position of its attachment in the options of its scope (program or command). */
 NAOS_TEST(options_keep_their_attach_position_in_their_command)
 {
     sample_t s;
-    const clopts_option_t *root_options[7];
+    const clopts_option_t *global_options[7];
     size_t index = 0;
     size_t i;
 
@@ -643,24 +642,24 @@ NAOS_TEST(options_keep_their_attach_position_in_their_command)
     sample_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
-    root_options[0] = s.force;
-    root_options[1] = s.verbose;
-    root_options[2] = s.jobs;
-    root_options[3] = s.config;
-    root_options[4] = s.include;
-    root_options[5] = s.tag;
-    root_options[6] = s.help;
-    for (i = 0; i < sizeof(root_options) / sizeof(root_options[0]); i++)
+    global_options[0] = s.force;
+    global_options[1] = s.verbose;
+    global_options[2] = s.jobs;
+    global_options[3] = s.config;
+    global_options[4] = s.include;
+    global_options[5] = s.tag;
+    global_options[6] = s.help;
+    for (i = 0; i < sizeof(global_options) / sizeof(global_options[0]); i++)
     {
-        NAOS_REQUIRE_TRUE(index_in(s.root, root_options[i], &index));
+        NAOS_REQUIRE_TRUE(index_in(clopts_program_scope(s.program), global_options[i], &index));
         NAOS_CHECK_UINT_EQ(index, i);
     }
-    NAOS_REQUIRE_TRUE(index_in(s.build, s.release, &index));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.build), s.release, &index));
     NAOS_CHECK_UINT_EQ(index, 0);
-    NAOS_REQUIRE_TRUE(index_in(s.build, s.build_output, &index));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.build), s.build_output, &index));
     NAOS_CHECK_UINT_EQ(index, 1);
     /* copy's --output is at the same position as build's --release. */
-    NAOS_REQUIRE_TRUE(index_in(s.copy, s.copy_output, &index));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.copy), s.copy_output, &index));
     NAOS_CHECK_UINT_EQ(index, 0);
     clopts_program_destroy(s.program);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -695,19 +694,19 @@ NAOS_TEST(option_at_the_same_position_elsewhere_reads_as_unset)
     NAOS_REQUIRE_TRUE(clopts_result_flag(result, s.release));
     NAOS_REQUIRE_STR_EQ(clopts_result_value(result, s.build_output), "out");
 
-    /* Same position as a recorded root slot and command slot. */
-    NAOS_REQUIRE_TRUE(index_in(s.build, s.release, &pos_a));
-    NAOS_REQUIRE_TRUE(index_in(s.copy, s.copy_output, &pos_b));
+    /* Same position as a recorded global slot and command slot. */
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.build), s.release, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.copy), s.copy_output, &pos_b));
     NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
-    NAOS_REQUIRE_TRUE(index_in(s.root, s.force, &pos_a));
-    NAOS_REQUIRE_TRUE(index_in(other.root, other.force, &pos_b));
+    NAOS_REQUIRE_TRUE(index_in(clopts_program_scope(s.program), s.force, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(clopts_program_scope(other.program), other.force, &pos_b));
     NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
-    NAOS_REQUIRE_TRUE(index_in(s.build, s.build_output, &pos_a));
-    NAOS_REQUIRE_TRUE(index_in(other.build, other.build_output, &pos_b));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.build), s.build_output, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(other.build), other.build_output, &pos_b));
     NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
     /* An option of a command that was not selected. */
     CHECK_UNSET(result, s.copy_output);
-    /* Options of another program: root, and the command of the same name. */
+    /* Options of another program: global, and of the command of the same name. */
     CHECK_UNSET(result, other.force);
     CHECK_UNSET(result, other.release);
     CHECK_UNSET(result, other.build_output);
@@ -727,16 +726,15 @@ NAOS_TEST(option_beyond_the_slots_reads_as_unset)
 {
     sample_t s;
     clopts_program_t *small;
-    clopts_command_t *small_root;
     clopts_option_t *first;
     clopts_result_t *result;
 
     SAMPLE_BEGIN(s, result);
     clopts_result_free(result);
-    /* A one-option program without commands: its result has a single root slot. */
-    small_root = test_decl_root("small");
-    first = test_decl_add(small_root, CLOPTS_OPTION_FLAG, "first", '\0');
-    small = test_decl_finish(small_root);
+    /* A one-option program without commands: its result has a single global slot. */
+    small = test_decl_begin("small");
+    first = test_decl_global_add(small, CLOPTS_OPTION_FLAG, "first", '\0');
+    small = test_decl_finish(small);
     NAOS_REQUIRE_NOT_NULL(small);
     NAOS_REQUIRE_NOT_NULL(first);
     result = clopts_parser_result_new(small);
@@ -763,7 +761,7 @@ NAOS_TEST(option_beyond_the_slots_reads_as_unset)
 
 /* ---- per-status defaults ---------------------------------------------- */
 
-/* Records a value in every root option of s and in build's options, and adds a positional. */
+/* Records a value in every global option of s and in build's options, and adds a positional. */
 static void record_everything(sample_t *s, clopts_result_t *result)
 {
     static char token[] = "file";
@@ -818,7 +816,7 @@ NAOS_TEST(value_accessors_are_unset_unless_ok_terminated_or_no_command)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-NAOS_TEST(no_command_keeps_only_the_root_values)
+NAOS_TEST(no_command_keeps_only_the_global_values)
 {
     sample_t s;
     clopts_result_t *result;
@@ -843,10 +841,10 @@ NAOS_TEST(no_command_keeps_only_the_root_values)
 
 /*
  * TERMINATED: the values recorded before the terminal option are readable,
- * those of the root and those of the selected command, and so are the
+ * the global ones and those of the selected command, and so are the
  * positionals.
  */
-NAOS_TEST(terminated_keeps_the_root_and_command_values)
+NAOS_TEST(terminated_keeps_the_global_and_command_values)
 {
     sample_t s;
     clopts_result_t *result;
@@ -1591,8 +1589,8 @@ NAOS_TEST(parse_no_command_result_has_no_error_and_only_global_values)
 }
 
 NAOS_SUITE(result,
-    NAOS_ADD_TEST(new_allocates_one_slot_per_root_option),
-    NAOS_ADD_TEST(new_without_root_options_has_no_slots),
+    NAOS_ADD_TEST(new_allocates_one_slot_per_global_option),
+    NAOS_ADD_TEST(new_without_global_options_has_no_slots),
     NAOS_ADD_TEST(select_allocates_command_slots),
     NAOS_ADD_TEST(select_command_without_options),
     NAOS_ADD_TEST(result_slot_returns_the_slot_of_the_ref),
@@ -1613,8 +1611,8 @@ NAOS_SUITE(result,
     NAOS_ADD_TEST(option_at_the_same_position_elsewhere_reads_as_unset),
     NAOS_ADD_TEST(option_beyond_the_slots_reads_as_unset),
     NAOS_ADD_TEST(value_accessors_are_unset_unless_ok_terminated_or_no_command),
-    NAOS_ADD_TEST(no_command_keeps_only_the_root_values),
-    NAOS_ADD_TEST(terminated_keeps_the_root_and_command_values),
+    NAOS_ADD_TEST(no_command_keeps_only_the_global_values),
+    NAOS_ADD_TEST(terminated_keeps_the_global_and_command_values),
     NAOS_ADD_TEST(error_accessors_report_only_errors),
     NAOS_ADD_TEST(fresh_result_has_no_error),
     NAOS_ADD_TEST(null_result_and_sentinel_read_like_the_sentinel),

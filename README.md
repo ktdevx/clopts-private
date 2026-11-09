@@ -6,7 +6,7 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 ## 特徴
 
-- **宣言からの解析と文面の生成**: 宣言は下から上へ組み立てる。オプション（フラグ、カウント、単一値、リスト値）と位置引数を単独で作って設定してからコマンドに渡し、root とサブコマンドを `clopts_program_create` にまとめて渡してプログラムを作る。宣言の誤りは、誤った呼び出しの戻り値ですぐに返る。解析器に組み込みのオプションはなく、`--help`・`--version`・`help` コマンドも `clopts/help.h` の関数で足すふつうの宣言である。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
+- **宣言からの解析と文面の生成**: プログラムを名前で作り（`clopts_program_create`）、そこにグローバルオプション・位置引数・サブコマンドを渡して宣言する。オプション（フラグ、カウント、単一値、リスト値）と位置引数は単独で作って設定してから、プログラムかコマンドに渡す。サブコマンドも単独で作って埋めてから、プログラムに渡す。宣言の誤りは、誤った呼び出しの戻り値ですぐに返る。解析器に組み込みのオプションはなく、`--help`・`--version` は終端オプションとして、`help` コマンドは `clopts/help.h` の関数で足す、ふつうの宣言である。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
 - **構造化エラー**: 使い方の誤りは文字列ではなく、種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読めるエラーとして返る。宣言の誤り（名前の重複など）は使い方の誤りと区別して返る。
 - **入出力も `exit` もしない**: ライブラリは標準出力にも標準エラーにも書かず、`exit` も呼ばない。ヘルプやエラーの文面は書き込みのコールバックに渡すので、表示の仕方と終了コードは利用側が決める。`FILE*` に出すなら、公開ヘッダの `clopts_file_write` を渡すだけでよい。
 - **アロケーターの差し替え**: `clopts_set_allocator` で、ライブラリが使う `malloc` / `calloc` / `realloc` / `free` を差し替えられる。ライブラリの確保と解放は、例外なく設定した関数を通る。
@@ -36,42 +36,53 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
     } while (0)
 
 /* Declares: hello [-g TEXT] [-h] [--version] NAME */
-static clopts_error_t declare(clopts_program_t **program, clopts_option_t **greeting,
-                                   const clopts_option_t **version)
+static clopts_error_t declare(clopts_program_t **out, clopts_option_t **greeting,
+                              const clopts_option_t **version)
 {
     clopts_error_t e;
-    clopts_command_t *root = NULL;
+    clopts_program_t *program = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
 
-    CHECK(clopts_command_create("hello", &root));
-    CHECK(clopts_command_set_description(root, "Greet someone."));
+    CHECK(clopts_program_create("hello", &program));
+    CHECK(clopts_program_set_description(program, "Greet someone."));
 
     CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
     CHECK(clopts_option_set_value_name(option, "TEXT"));
     CHECK(clopts_option_set_default(option, "Hello"));
     CHECK(clopts_option_set_help(option, "Word to greet with"));
-    CHECK(clopts_command_add_option(root, option));
-    *greeting = option; /* now owned by root */
+    CHECK(clopts_program_add_option(program, option));
+    *greeting = option; /* now owned by the program */
     option = NULL;
 
     CHECK(clopts_positional_create("NAME", &name));
     clopts_positional_set_required(name, true);
     CHECK(clopts_positional_set_help(name, "Who to greet"));
-    CHECK(clopts_command_add_positional(root, name));
-    name = NULL; /* now owned by root */
+    CHECK(clopts_program_add_positional(program, name));
+    name = NULL; /* now owned by the program */
 
-    CHECK(clopts_help_add_help_option(root, NULL));
-    CHECK(clopts_help_add_version_option(root, version));
+    /* -h / --help and --version are terminal flags: they end the parse. */
+    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "help", 'h', &option));
+    CHECK(clopts_option_set_terminal(option, true));
+    CHECK(clopts_option_set_help(option, "Show this help"));
+    CHECK(clopts_program_add_option(program, option));
+    option = NULL;
 
-    CHECK(clopts_program_create(root, NULL, 0, program)); /* the program now owns root */
+    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "version", '\0', &option));
+    CHECK(clopts_option_set_terminal(option, true));
+    CHECK(clopts_option_set_help(option, "Show version information"));
+    CHECK(clopts_program_add_option(program, option));
+    *version = option;
+    option = NULL;
+
+    *out = program;
     return CLOPTS_ERROR_NONE;
 
 fail:
-    /* Whatever is not attached or handed to the program is still ours. */
+    /* Whatever is not attached is still ours; the program owns the rest. */
     clopts_option_destroy(option);
     clopts_positional_destroy(name);
-    clopts_command_destroy(root);
+    clopts_program_destroy(program);
     return e;
 }
 

@@ -6,7 +6,36 @@
 #ifndef CLOPTS_PARSER_INTERNAL_H
 #define CLOPTS_PARSER_INTERNAL_H
 
-#include "parser/parser_model.h"
+#include "clopts/command.h"
+#include "clopts/option.h"
+#include "clopts/parse.h"
+#include "clopts/positional.h"
+#include "clopts/program.h"
+#include "core/core_internal.h"
+
+/*
+ * Internal declaration model: the only representation of a declaration, built
+ * by the builder functions (option.c, positional.c, scope.c, command.c and
+ * parser_program.c). The layouts of a program, a command and a positional are
+ * private to parser_program.c, command.c and positional.c; options have their
+ * own header. The program and every command embed a scope (below) that holds
+ * their options and positionals. Everything outside those files reads them
+ * through the read functions only: the public ones, and the scope functions
+ * inside the parser (help-and-messages reads the public ones only).
+ *
+ * Invariants, guaranteed by the builder:
+ *   - Everything attached to a program satisfies every declaration rule:
+ *     a builder call that would break one fails and changes nothing. This
+ *     holds as long as the caller keeps the ownership contract (no setter or
+ *     attach after the attach, no handle attached twice), which is not
+ *     checked.
+ *   - The address of every handle stays the same until it is released:
+ *     children are allocated one by one and the arrays hold pointers only.
+ *   - Nothing points to its owner: an option or positional does not point to
+ *     its program or command, and a command does not point to its program.
+ *   - A program does not change once it is first parsed or written: this is
+ *     a contract of the caller (clopts/program.h), not checked.
+ */
 
 /*
  * Internal contracts of the parser module, shared by the builder
@@ -19,19 +48,57 @@
  */
 
 /*
+ * Scope (scope.c): the options and positionals of the program or of a
+ * command, in order of attachment. The program and every command embed one;
+ * everything else reads it through the functions below. An attach checks the
+ * rules against the other options and positionals of the same scope, in a
+ * fixed order, and changes nothing on failure.
+ */
+typedef struct clopts_scope
+{
+    clopts_core_vec_t options;      /* clopts_option_t * elements, in order of attachment */
+    clopts_core_vec_t positionals;  /* clopts_positional_t * elements, in order of attachment */
+} clopts_scope_t;
+
+/* Makes scope empty. */
+void clopts_scope_init(clopts_scope_t *scope);
+
+/* Releases the options and positionals of scope and its arrays, leaving it empty. */
+void clopts_scope_release(clopts_scope_t *scope);
+
+/* DUPLICATE_OPTION, NEGATION_CONFLICT (in that order) or OUT_OF_MEMORY; on success scope owns option. */
+clopts_error_t clopts_scope_add_option(clopts_scope_t *scope, clopts_option_t *option);
+
+/* VARIADIC_POSITION, POSITIONAL_ORDER (in that order) or OUT_OF_MEMORY; on success scope owns positional. */
+clopts_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_positional_t *positional);
+
+size_t clopts_scope_option_count(const clopts_scope_t *scope);
+/* index must be less than clopts_scope_option_count() (assert). */
+const clopts_option_t *clopts_scope_option_at(const clopts_scope_t *scope, size_t index);
+size_t clopts_scope_positional_count(const clopts_scope_t *scope);
+/* index must be less than clopts_scope_positional_count() (assert). */
+const clopts_positional_t *clopts_scope_positional_at(const clopts_scope_t *scope, size_t index);
+
+/* The scope of command (command.c). */
+const clopts_scope_t *clopts_command_scope(const clopts_command_t *command);
+
+/* The scope of the program itself: its global options and its positionals (parser_program.c). */
+const clopts_scope_t *clopts_program_scope(const clopts_program_t *program);
+
+/*
  * Name rules and lookups (parser_decl.c).
  *
  * Names are compared byte by byte, exactly and case-sensitively; there is no
  * prefix matching. The checks of the builder look at one command only. The
- * lookups of the scanner search the selected command and then the root, so a
- * name of the command shadows the same name of the root.
+ * lookups of the scanner search the selected command and then the program,
+ * so a name of the command shadows the same global option.
  */
 
 /* Where a looked-up option was found. */
 typedef struct clopts_parser_ref
 {
     const clopts_option_t *option;  /* NULL when not found */
-    bool global;                    /* true: the root, false: the selected command */
+    bool global;                    /* true: the program, false: the selected command */
     size_t index;                   /* index in that scope */
     bool negated;                   /* found through --no-<name> */
 } clopts_parser_ref_t;
@@ -46,31 +113,29 @@ bool clopts_parser_valid_long_name(const char *name);
 bool clopts_parser_valid_short_name(char c);
 
 /*
- * Returns the first option of command whose long name equals l (which may be
+ * Returns the first option of scope whose long name equals l (which may be
  * NULL) or whose short name equals s (when s is not '\0'), or NULL.
  */
-const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *command, const char *l, char s);
+const clopts_option_t *clopts_parser_find_conflict(const clopts_scope_t *scope, const char *l, char s);
 
 /*
- * Returns the first option of command whose long name is the name_len bytes
+ * Returns the first option of scope whose long name is the name_len bytes
  * at name, or NULL (used for the no-x conflict checks).
  */
-const clopts_option_t *clopts_parser_find_named(const clopts_command_t *command, const char *name, size_t name_len);
-
-/* Returns the command of program named name, or NULL. */
-const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program, const char *name);
+const clopts_option_t *clopts_parser_find_named(const clopts_scope_t *scope, const char *name, size_t name_len);
 
 /*
- * Looks up the long name given by the name_len bytes at name in command
- * (which may be NULL) and then in the root. In each scope the exact long name
- * is looked up first and then, when name starts with "no-", the rest as a
- * negatable FLAG (negated is set).
+ * Looks up the long name given by the name_len bytes at name in selected
+ * (the scope of the selected command; NULL when none) and then in global (the
+ * scope of the program). In each scope the exact long name is looked up first
+ * and then, when name starts with "no-", the rest as a negatable FLAG
+ * (negated is set).
  */
-clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program, const clopts_command_t *command,
+clopts_parser_ref_t clopts_parser_find_long(const clopts_scope_t *global, const clopts_scope_t *selected,
                                             const char *name, size_t name_len);
 
-/* Looks up the short name c in command (which may be NULL) and then in the root. */
-clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, const clopts_command_t *command, char c);
+/* Looks up the short name c in selected (NULL when none) and then in global. */
+clopts_parser_ref_t clopts_parser_find_short(const clopts_scope_t *global, const clopts_scope_t *selected, char c);
 
 /*
  * Result handle (parser_result.c).
@@ -109,7 +174,7 @@ struct clopts_result
         size_t name_len;
         char short_name;
     } error;
-    clopts_parser_slot_t *global_slots;   /* one per root option */
+    clopts_parser_slot_t *global_slots;   /* one per global option */
     size_t global_count;
     clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */
     size_t command_count;
@@ -117,7 +182,7 @@ struct clopts_result
 };
 
 /*
- * Allocates a result for program with one slot per root option. Returns NULL
+ * Allocates a result for program with one slot per global option. Returns NULL
  * on failure (the caller returns the sentinel instead).
  */
 clopts_result_t *clopts_parser_result_new(const clopts_program_t *program);
@@ -174,14 +239,14 @@ clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, co
  * Fills the VALUE / LIST slots that got nothing from argv, from the
  * environment and then from the default value, in declaration order. A found
  * environment value is copied before the callback is called again. Only the
- * root is resolved when include_command is false. Returns 0, or -1 (out of
+ * global options are resolved when include_command is false. Returns 0, or -1 (out of
  * memory) when the lookup fails or a copy cannot be allocated.
  */
 int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *program,
                           clopts_getenv_fn getenv_fn, void *env_ctx, bool include_command);
 
 /*
- * Checks required options and positionals in declaration order (root
+ * Checks required options and positionals in declaration order (global
  * options, selected command options, positionals); an option counts as given
  * when its source is EXPLICIT or ENV. Returns 0 when nothing is missing;
  * otherwise records the first missing one in result->error and returns -1.

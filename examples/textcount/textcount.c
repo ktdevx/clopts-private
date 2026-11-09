@@ -94,73 +94,103 @@ static int run(const clopts_result_t *result, const struct textcount_options *op
     } while (0)
 
 /*
- * Declares the program into *out: the root first, then the program. Returns
- * the declaration error that stopped it, or CLOPTS_ERROR_NONE.
+ * Creates the terminal FLAG named long_name / short_name with help into
+ * *out. Returns the declaration error, or CLOPTS_ERROR_NONE; on an error *out
+ * is NULL and nothing is left to release.
+ */
+static clopts_error_t create_terminal(const char *long_name, char short_name, const char *help,
+                                      clopts_option_t **out)
+{
+    clopts_error_t e;
+    clopts_option_t *option = NULL;
+
+    *out = NULL;
+    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, long_name, short_name, &option));
+    CHECK(clopts_option_set_terminal(option, true));
+    CHECK(clopts_option_set_help(option, help));
+    *out = option;
+    return CLOPTS_ERROR_NONE;
+
+fail:
+    clopts_option_destroy(option);
+    return e;
+}
+
+/*
+ * Declares the program into *out: the program, then its options and
+ * positionals. Returns the declaration error that stopped it, or
+ * CLOPTS_ERROR_NONE.
  */
 static clopts_error_t declare(clopts_program_t **out, struct textcount_options *opts)
 {
     clopts_error_t e;
-    clopts_command_t *root = NULL;
+    clopts_program_t *program = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *positional = NULL;
 
-    CHECK(clopts_command_create("textcount", &root));
-    CHECK(clopts_command_set_description(root, "Count the lines and words of text files."));
+    CHECK(clopts_program_create("textcount", &program));
+    CHECK(clopts_program_set_description(program, "Count the lines and words of text files."));
 
     CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "lines", 'l', &option));
     CHECK(clopts_option_set_help(option, "Count lines"));
-    CHECK(clopts_command_add_option(root, option));
+    CHECK(clopts_program_add_option(program, option));
     opts->lines = option;
-    option = NULL; /* now owned by root */
+    option = NULL; /* now owned by the program */
     CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "words", 'w', &option));
     CHECK(clopts_option_set_help(option, "Count words"));
-    CHECK(clopts_command_add_option(root, option));
+    CHECK(clopts_program_add_option(program, option));
     opts->words = option;
-    option = NULL; /* now owned by root */
+    option = NULL; /* now owned by the program */
     CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "total", '\0', &option));
     CHECK(clopts_option_set_negatable(option, true));
     CHECK(clopts_option_set_help(option, "Print a total line"));
-    CHECK(clopts_command_add_option(root, option));
+    CHECK(clopts_program_add_option(program, option));
     opts->total = option;
-    option = NULL; /* now owned by root */
+    option = NULL; /* now owned by the program */
     CHECK(clopts_option_create(CLOPTS_OPTION_COUNT, "quiet", 'q', &option));
     CHECK(clopts_option_set_help(option, "Print less (repeat for even less)"));
-    CHECK(clopts_command_add_option(root, option));
+    CHECK(clopts_program_add_option(program, option));
     opts->quiet = option;
-    option = NULL; /* now owned by root */
+    option = NULL; /* now owned by the program */
     CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "encoding", 'e', &option));
     CHECK(clopts_option_set_value_name(option, "NAME"));
     CHECK(clopts_option_set_env(option, "TEXTCOUNT_ENCODING"));
     CHECK(clopts_option_set_default(option, "utf-8"));
     CHECK(clopts_option_set_help(option, "Text encoding of the files"));
-    CHECK(clopts_command_add_option(root, option));
+    CHECK(clopts_program_add_option(program, option));
     opts->encoding = option;
-    option = NULL; /* now owned by root */
+    option = NULL; /* now owned by the program */
     CHECK(clopts_option_create(CLOPTS_OPTION_LIST, "exclude", 'x', &option));
     CHECK(clopts_option_set_value_name(option, "PATTERN"));
     CHECK(clopts_option_set_delimiter(option, ','));
     CHECK(clopts_option_set_help(option, "Skip files matching the patterns"));
-    CHECK(clopts_command_add_option(root, option));
+    CHECK(clopts_program_add_option(program, option));
     opts->exclude = option;
-    option = NULL; /* now owned by root */
-    CHECK(clopts_help_add_help_option(root, &opts->help));
-    CHECK(clopts_help_add_version_option(root, &opts->version));
+    option = NULL; /* now owned by the program */
+    CHECK(create_terminal("help", 'h', "Show this help", &option));
+    CHECK(clopts_program_add_option(program, option));
+    opts->help = option;
+    option = NULL; /* now owned by the program */
+    CHECK(create_terminal("version", '\0', "Show version information", &option));
+    CHECK(clopts_program_add_option(program, option));
+    opts->version = option;
+    option = NULL; /* now owned by the program */
 
     CHECK(clopts_positional_create("FILE", &positional));
     clopts_positional_set_required(positional, true);
     clopts_positional_set_variadic(positional, true);
     CHECK(clopts_positional_set_help(positional, "Files to count (- for standard input)"));
-    CHECK(clopts_command_add_positional(root, positional));
-    positional = NULL; /* now owned by root */
+    CHECK(clopts_program_add_positional(program, positional));
+    positional = NULL; /* now owned by the program */
 
-    CHECK(clopts_program_create(root, NULL, 0, out));
+    *out = program;
     return CLOPTS_ERROR_NONE;
 
 fail:
-    /* Nothing was handed to the program: whatever is not attached is still ours. */
+    /* Whatever is not attached is still ours; the program owns the rest. */
     clopts_option_destroy(option);
     clopts_positional_destroy(positional);
-    clopts_command_destroy(root);
+    clopts_program_destroy(program);
     return e;
 }
 

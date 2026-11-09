@@ -151,20 +151,24 @@ NAOS_TEST(fixture_commands_are_shaped_as_designed)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_PTR_EQ(t.program->root, t.root);
-    NAOS_REQUIRE_UINT_EQ(t.program->command_count, 4);
-    NAOS_CHECK_PTR_EQ(t.program->commands[0], t.build);
-    NAOS_CHECK_PTR_EQ(t.program->commands[1], t.copy);
-    NAOS_CHECK_PTR_EQ(t.program->commands[2], t.cat);
-    NAOS_CHECK_PTR_EQ(t.program->commands[3], t.help_command);
+    NAOS_CHECK_STR_EQ(clopts_program_name(t.program), "tool");
+    NAOS_CHECK_STR_EQ(clopts_program_description(t.program), "A fictional tool with subcommands.");
+    NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(t.program), 4);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(t.program, 0), t.build);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(t.program, 1), t.copy);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(t.program, 2), t.cat);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(t.program, 3), t.help_command);
 
-    /* Root: the global options, then the terminal options of clopts/help.h. */
-    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(t.root), 5);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 0), t.verbose);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 1), t.color);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 2), t.config);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 3), t.help);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(t.root, 4), t.version);
+    NAOS_CHECK_PTR_EQ(clopts_program_find_command(t.program, "copy"), t.copy);
+
+    /* Program: the global options, then the terminal options of test_decl.h; no positionals. */
+    NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(t.program), 5);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(t.program, 0), t.verbose);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(t.program, 1), t.color);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(t.program, 2), t.config);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(t.program, 3), t.help);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(t.program, 4), t.version);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(t.program), 0);
     NAOS_CHECK_TRUE(clopts_option_terminal(t.help));
     NAOS_CHECK_TRUE(clopts_option_terminal(t.version));
     NAOS_CHECK_FALSE(clopts_option_terminal(t.verbose));
@@ -203,14 +207,14 @@ NAOS_TEST(fixture_filt_has_no_commands_and_a_help_option)
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_UINT_EQ(f.program->command_count, 0);
-    NAOS_CHECK_NULL(f.program->commands);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(f.root), 2);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(f.root, 0), f.lines);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(f.root, 1), f.help);
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(f.program), 0);
+    NAOS_CHECK_STR_EQ(clopts_program_name(f.program), "filt");
+    NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(f.program), 2);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(f.program, 0), f.lines);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(f.program, 1), f.help);
     NAOS_CHECK_TRUE(clopts_option_terminal(f.help));
-    NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(f.root), 1);
-    NAOS_CHECK_PTR_EQ(clopts_command_positional_at(f.root, 0), f.file);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(f.program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(f.program, 0), f.file);
     fixture_filt_free(&f);
 }
 
@@ -246,9 +250,9 @@ NAOS_TEST(parse_leaves_the_program_unchanged)
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 6, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    NAOS_CHECK_PTR_EQ(t.program->root, t.root);
-    NAOS_CHECK_UINT_EQ(t.program->command_count, 4);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(t.root), 5);
+    NAOS_CHECK_STR_EQ(clopts_program_name(t.program), "tool");
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(t.program), 4);
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(t.program), 5);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(t.build), 3);
     NAOS_CHECK_NULL(clopts_option_default(t.output));
     NAOS_CHECK_PTR_EQ(result->command, t.build);
@@ -479,7 +483,7 @@ NAOS_TEST(selection_allocation_failure_is_out_of_memory)
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
     /*
-     * Fault points of the parse: the result (1), the root slots (2) and the
+     * Fault points of the parse: the result (1), the global slots (2) and the
      * build slots (3), allocated when build is selected at argv[1], before
      * anything else of the parse allocates. The third one fails.
      */
@@ -754,7 +758,7 @@ NAOS_TEST(tool_help_with_command_and_extra_is_unexpected_argument)
     fixture_tool_free(&t);
 }
 
-/* A terminal option after the help command is looked up in the root as usual. */
+/* A terminal option after the help command is looked up in the global options as usual. */
 NAOS_TEST(tool_help_command_then_long_help_is_terminated)
 {
     char *argv[] = { "tool", "help", "--help", NULL };
@@ -954,7 +958,7 @@ NAOS_TEST(strict_run_long_help_skips_the_required_global_option)
 
 /* ---- terminal options after a subcommand -------------------------------- */
 
-/* The root's --help is in scope after build; build's required ones are not checked. */
+/* The global --help is in scope after build; build's required ones are not checked. */
 NAOS_TEST(tool_build_long_help_is_terminated_with_build)
 {
     char *argv[] = { "tool", "build", "--help", NULL };
@@ -1082,7 +1086,7 @@ NAOS_TEST(tool_terminated_keeps_the_values_given_before_it)
     fixture_tool_free(&t);
 }
 
-/* Without subcommands: the root positionals before -h are kept, the default is resolved. */
+/* Without subcommands: the program positionals before -h are kept, the default is resolved. */
 NAOS_TEST(filt_short_help_keeps_positionals_before_it_and_the_default)
 {
     char *argv[] = { "filt", "a", "-h", "b", NULL };
@@ -1127,7 +1131,7 @@ NAOS_TEST(tool_build_unknown_option_then_help_is_terminated)
     fixture_tool_free(&t);
 }
 
-/* Before a subcommand: an unknown command is recovered by a later root terminal option. */
+/* Before a subcommand: an unknown command is recovered by a later global terminal option. */
 NAOS_TEST(tool_unknown_command_then_version_is_terminated)
 {
     char *argv[] = { "tool", "bogus", "--version", NULL };

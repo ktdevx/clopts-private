@@ -218,9 +218,9 @@ static void message_write_prefix(clopts_help_out_t *out, const clopts_program_t 
 {
     flags &= MESSAGE_PREFIX_DEFINED;
 
-    if (((flags & CLOPTS_PREFIX_PROGRAM) != 0u) && message_has_text(clopts_command_name(clopts_program_root(program))))
+    if (((flags & CLOPTS_PREFIX_PROGRAM) != 0u) && message_has_text(clopts_program_name(program)))
     {
-        clopts_help_out_str(out, clopts_command_name(clopts_program_root(program)));
+        clopts_help_out_str(out, clopts_program_name(program));
         if ((command != NULL) && message_has_text(clopts_command_name(command)))
         {
             clopts_help_out_char(out, ' ');

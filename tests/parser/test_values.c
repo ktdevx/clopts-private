@@ -20,8 +20,6 @@
 #include "test_fixtures.h"
 #include "test_decl.h"
 
-#include "clopts/help.h"
-
 #include <clopts/parse.h>
 
 #include <naos/naos.h>
@@ -465,14 +463,14 @@ NAOS_TEST(parse_cat_tags_explicit_is_split_and_wins)
  *     --color negatable FLAG, -v/--verbose COUNT max 3, -k/--keys LIST ',',
  *     -o/--output VALUE required, -m/--mode VALUE (default "fast",
  *     env NOSUB_MODE), -h/--help and --version terminal FLAGs
- *     (clopts/help.h), SRC required, REST variadic
+ *     (test_decl_help_option() / test_decl_version_option()), SRC required,
+ *     REST variadic
  */
 
 typedef struct nosub
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of nosub_init() succeeded */
-    clopts_command_t *root;
     clopts_option_t *color;
     clopts_option_t *verbose;
     clopts_option_t *keys;
@@ -487,48 +485,47 @@ typedef struct nosub
 /* Assembles nosub into n (handles are NULL after a failed allocation). */
 static void nosub_init(nosub_t *n)
 {
+    clopts_program_t *program;
+
     memset(n, 0, sizeof(*n));
     test_decl_reset();
-    n->root = test_decl_root("nosub");
+    program = test_decl_begin("nosub");
 
     n->color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
     test_decl_check(clopts_option_set_negatable(n->color, true));
-    n->color = test_decl_attach(n->root, n->color);
+    n->color = test_decl_global_attach(program, n->color);
 
     n->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
     test_decl_check(clopts_option_set_count_max(n->verbose, 3));
-    n->verbose = test_decl_attach(n->root, n->verbose);
+    n->verbose = test_decl_global_attach(program, n->verbose);
 
     n->keys = test_decl_option(CLOPTS_OPTION_LIST, "keys", 'k');
     test_decl_check(clopts_option_set_delimiter(n->keys, ','));
-    n->keys = test_decl_attach(n->root, n->keys);
+    n->keys = test_decl_global_attach(program, n->keys);
 
     n->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
     test_decl_check(clopts_option_set_required(n->output, true));
-    n->output = test_decl_attach(n->root, n->output);
+    n->output = test_decl_global_attach(program, n->output);
 
     n->mode = test_decl_option(CLOPTS_OPTION_VALUE, "mode", 'm');
     test_decl_check(clopts_option_set_default(n->mode, "fast"));
     test_decl_check(clopts_option_set_env(n->mode, "NOSUB_MODE"));
-    n->mode = test_decl_attach(n->root, n->mode);
+    n->mode = test_decl_global_attach(program, n->mode);
 
     n->src = test_decl_positional("SRC");
     clopts_positional_set_required(n->src, true);
-    n->src = test_decl_attach_positional(n->root, n->src);
+    n->src = test_decl_global_attach_positional(program, n->src);
 
     n->rest = test_decl_positional("REST");
     clopts_positional_set_variadic(n->rest, true);
-    n->rest = test_decl_attach_positional(n->root, n->rest);
+    n->rest = test_decl_global_attach_positional(program, n->rest);
 
-    if (n->root != NULL)
-    {
-        test_decl_check(clopts_help_add_help_option(n->root, &n->help));
-        test_decl_check(clopts_help_add_version_option(n->root, &n->version));
-    }
-    n->program = test_decl_finish(n->root);
+    n->help = test_decl_global_attach(program, test_decl_help_option());
+    n->version = test_decl_global_attach(program, test_decl_version_option());
+    n->program = test_decl_finish(program);
     if (n->program == NULL)
     {
-        /* Everything was released with the root. */
+        /* Everything was released with the program. */
         memset(n, 0, sizeof(*n));
     }
     n->ok = (test_decl_failures == 0);
@@ -578,10 +575,14 @@ NAOS_TEST(nosub_declaration_is_valid)
     nosub_init(&n);
     NAOS_REQUIRE_NOT_NULL(n.program);
     NAOS_REQUIRE_TRUE(n.ok);
-    NAOS_CHECK_PTR_EQ(n.program->root, n.root);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(n.root), 7);
-    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(n.root), 2);
-    NAOS_CHECK_UINT_EQ(n.program->command_count, 0);
+    NAOS_CHECK_STR_EQ(clopts_program_name(n.program), "nosub");
+    NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(n.program), 7);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(n.program, 5), n.help);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(n.program, 6), n.version);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(n.program), 2);
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(n.program, 0), n.src);
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(n.program, 1), n.rest);
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(n.program), 0);
     NAOS_CHECK_TRUE(clopts_option_terminal(n.help));
     NAOS_CHECK_TRUE(clopts_option_terminal(n.version));
     NAOS_CHECK_UINT_EQ(clopts_option_count_max(n.verbose), 3);

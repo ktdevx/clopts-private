@@ -110,23 +110,16 @@ Windows で `clopts_argv_get` に 0 と NULL を渡すと、同じソースを�
 int wmain(int argc, wchar_t **wargv)
 {
     clopts_program_t *program = NULL;
-    clopts_command_t *root = NULL;
     clopts_argv_t *args;
     clopts_result_t *result;
     int code = 0;
 
-    if (clopts_command_create("app", &root) != CLOPTS_ERROR_NONE)
+    if (clopts_program_create("app", &program) != CLOPTS_ERROR_NONE)
     {
         fputs("app: error: out of memory\n", stderr);
         return 1;
     }
-    /* ... declare options and positionals on root ... */
-    if (clopts_program_create(root, NULL, 0, &program) != CLOPTS_ERROR_NONE)
-    {
-        fputs("app: error: out of memory\n", stderr);
-        clopts_command_destroy(root);
-        return 1;
-    }
+    /* ... declare options and positionals on program ... */
 
     args = clopts_argv_from_wide(argc, wargv);
     if (clopts_argv_status(args) != CLOPTS_ARGV_OK)

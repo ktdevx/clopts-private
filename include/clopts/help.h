@@ -17,8 +17,9 @@ extern "C" {
 
 /*
  * Text API: help, Usage line, version line, usage hint and error line of a
- * program, and the declarations the help texts go with (--help, --version
- * and a help command). Every function writes its text through
+ * program, and the help command the help texts go with. --help and
+ * --version are ordinary terminal FLAG options that the program declares
+ * itself (clopts/option.h). Every function writes its text through
  * write_fn(ctx, ...) only; nothing is written to a stream directly. To write
  * to a FILE*, pass the ready-made callback of clopts/writer.h, e.g.
  * clopts_write_help(program, NULL, clopts_file_write, stdout).
@@ -27,7 +28,7 @@ extern "C" {
  * clopts/decl.h only, like any other user of the library.
  *
  * Preconditions (caught by assert): program and write_fn are not NULL; a
- * command is the root or a subcommand of program; a result was obtained from
+ * command is NULL (the program itself) or a subcommand of program; a result was obtained from
  * program and program has not been released yet. A NULL result is read like
  * the out-of-memory sentinel, as in clopts/parse.h.
  *
@@ -56,9 +57,9 @@ typedef enum clopts_write_status
 #define CLOPTS_PREFIX_ERROR 0x2u    /* "error: " */
 
 /*
- * command: NULL or the root for the program help, a subcommand for its help.
- * In the help of a subcommand, the global options it shadows (every form of
- * the root option, --no-<name> of a negatable one included, is found in the
+ * command: NULL for the program help, a subcommand for its help. In the help
+ * of a subcommand, the global options it shadows (every form of the global
+ * option, --no-<name> of a negatable one included, is found in the
  * subcommand first) are left out.
  */
 CLOPTS_API clopts_write_status_t clopts_write_help(const clopts_program_t *program, const clopts_command_t *command,
@@ -77,26 +78,12 @@ CLOPTS_API clopts_write_status_t clopts_write_usage_hint(const clopts_program_t 
 CLOPTS_API clopts_write_status_t clopts_write_error(const clopts_program_t *program, const clopts_result_t *result,
                                                     unsigned flags, clopts_write_fn write_fn, void *ctx);
 
-/* ---- declarations for the help texts ---- */
-
-/*
- * Creates the terminal FLAG -h / --help ("Show this help") and attaches it to
- * command, usually the root: a global option is found in every subcommand
- * too. *out gets the option (NULL on failure); out may be NULL. Errors of
- * clopts_option_create() and clopts_command_add_option(); on failure nothing is
- * attached.
- */
-CLOPTS_API clopts_error_t clopts_help_add_help_option(clopts_command_t *command,
-                                                           const clopts_option_t **out);
-
-/* Same for the terminal FLAG --version ("Show version information"). */
-CLOPTS_API clopts_error_t clopts_help_add_version_option(clopts_command_t *command,
-                                                              const clopts_option_t **out);
+/* ---- the help command ---- */
 
 /*
  * Creates an unattached subcommand "help" ("Show help for a command") with
- * one optional positional COMMAND into *out, to be passed to
- * clopts_program_create() with the other subcommands. clopts_help_target()
+ * one optional positional COMMAND into *out, to be added with
+ * clopts_program_add_command() like the other subcommands. clopts_help_target()
  * reads a result that selected it.
  */
 CLOPTS_API clopts_error_t clopts_help_command_create(clopts_command_t **out);

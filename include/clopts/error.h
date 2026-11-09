@@ -33,7 +33,7 @@ extern "C" {
     X(POSITIONAL_ORDER, "a required argument cannot follow an optional one")                                           \
     X(VARIADIC_POSITION, "only the last argument can be variadic")                                                     \
     X(ATTRIBUTE_KIND, "attribute does not apply to this kind of option")                                               \
-    X(MIXED_LAYOUT, "a program with subcommands cannot have root arguments")                                           \
+    X(MIXED_LAYOUT, "a program cannot have both arguments and subcommands")                                            \
     X(INVALID_KIND, "invalid option kind")                                                                             \
     X(INVALID_ARGUMENT, "invalid argument")                                                                            \
     X(OUT_OF_MEMORY, "out of memory")

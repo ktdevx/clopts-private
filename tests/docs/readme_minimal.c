@@ -15,42 +15,53 @@
     } while (0)
 
 /* Declares: hello [-g TEXT] [-h] [--version] NAME */
-static clopts_error_t declare(clopts_program_t **program, clopts_option_t **greeting,
-                                   const clopts_option_t **version)
+static clopts_error_t declare(clopts_program_t **out, clopts_option_t **greeting,
+                              const clopts_option_t **version)
 {
     clopts_error_t e;
-    clopts_command_t *root = NULL;
+    clopts_program_t *program = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
 
-    CHECK(clopts_command_create("hello", &root));
-    CHECK(clopts_command_set_description(root, "Greet someone."));
+    CHECK(clopts_program_create("hello", &program));
+    CHECK(clopts_program_set_description(program, "Greet someone."));
 
     CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
     CHECK(clopts_option_set_value_name(option, "TEXT"));
     CHECK(clopts_option_set_default(option, "Hello"));
     CHECK(clopts_option_set_help(option, "Word to greet with"));
-    CHECK(clopts_command_add_option(root, option));
-    *greeting = option; /* now owned by root */
+    CHECK(clopts_program_add_option(program, option));
+    *greeting = option; /* now owned by the program */
     option = NULL;
 
     CHECK(clopts_positional_create("NAME", &name));
     clopts_positional_set_required(name, true);
     CHECK(clopts_positional_set_help(name, "Who to greet"));
-    CHECK(clopts_command_add_positional(root, name));
-    name = NULL; /* now owned by root */
+    CHECK(clopts_program_add_positional(program, name));
+    name = NULL; /* now owned by the program */
 
-    CHECK(clopts_help_add_help_option(root, NULL));
-    CHECK(clopts_help_add_version_option(root, version));
+    /* -h / --help and --version are terminal flags: they end the parse. */
+    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "help", 'h', &option));
+    CHECK(clopts_option_set_terminal(option, true));
+    CHECK(clopts_option_set_help(option, "Show this help"));
+    CHECK(clopts_program_add_option(program, option));
+    option = NULL;
 
-    CHECK(clopts_program_create(root, NULL, 0, program)); /* the program now owns root */
+    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "version", '\0', &option));
+    CHECK(clopts_option_set_terminal(option, true));
+    CHECK(clopts_option_set_help(option, "Show version information"));
+    CHECK(clopts_program_add_option(program, option));
+    *version = option;
+    option = NULL;
+
+    *out = program;
     return CLOPTS_ERROR_NONE;
 
 fail:
-    /* Whatever is not attached or handed to the program is still ours. */
+    /* Whatever is not attached is still ours; the program owns the rest. */
     clopts_option_destroy(option);
     clopts_positional_destroy(name);
-    clopts_command_destroy(root);
+    clopts_program_destroy(program);
     return e;
 }
 

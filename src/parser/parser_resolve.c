@@ -113,14 +113,14 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
 
 /* Resolves the slots of the options of scope in declaration order. Returns 0 or -1. */
 static int resolve_scope(clopts_parser_slot_t *slots, size_t slot_count,
-                         const clopts_command_t *scope, clopts_getenv_fn getenv_fn, void *env_ctx)
+                         const clopts_scope_t *scope, clopts_getenv_fn getenv_fn, void *env_ctx)
 {
     size_t i;
 
-    assert(slot_count == clopts_command_option_count(scope));
+    assert(slot_count == clopts_scope_option_count(scope));
     for (i = 0; i < slot_count; i++)
     {
-        const clopts_option_t *option = clopts_command_option_at(scope, i);
+        const clopts_option_t *option = clopts_scope_option_at(scope, i);
 
         if (resolve_slot(&slots[i], option, getenv_fn, env_ctx) != 0)
         {
@@ -142,14 +142,14 @@ int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *progr
         getenv_fn = clopts_parser_getenv_default;
     }
 
-    if (resolve_scope(result->global_slots, result->global_count, program->root,
+    if (resolve_scope(result->global_slots, result->global_count, clopts_program_scope(program),
                       getenv_fn, env_ctx) != 0)
     {
         return -1;
     }
     if (include_command && (result->command != NULL))
     {
-        if (resolve_scope(result->command_slots, result->command_count, result->command,
+        if (resolve_scope(result->command_slots, result->command_count, clopts_command_scope(result->command),
                           getenv_fn, env_ctx) != 0)
         {
             return -1;
@@ -183,14 +183,14 @@ static bool slot_given(const clopts_parser_slot_t *slot)
 
 /* Returns the first required option of scope whose slot was not given, or NULL. */
 static const clopts_option_t *first_missing_option(const clopts_parser_slot_t *slots, size_t slot_count,
-                                                   const clopts_command_t *scope)
+                                                   const clopts_scope_t *scope)
 {
     size_t i;
 
-    assert(slot_count == clopts_command_option_count(scope));
+    assert(slot_count == clopts_scope_option_count(scope));
     for (i = 0; i < slot_count; i++)
     {
-        const clopts_option_t *option = clopts_command_option_at(scope, i);
+        const clopts_option_t *option = clopts_scope_option_at(scope, i);
 
         if (clopts_option_required(option) && !slot_given(&slots[i]))
         {
@@ -203,7 +203,7 @@ static const clopts_option_t *first_missing_option(const clopts_parser_slot_t *s
 int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t *program, bool include_command)
 {
     const clopts_command_t *command;
-    const clopts_command_t *positional_scope;
+    const clopts_scope_t *positional_scope;
     const clopts_option_t *missing;
     size_t recorded;
     size_t i;
@@ -214,7 +214,7 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
 
     command = include_command ? result->command : NULL;
 
-    missing = first_missing_option(result->global_slots, result->global_count, program->root);
+    missing = first_missing_option(result->global_slots, result->global_count, clopts_program_scope(program));
     if (missing != NULL)
     {
         set_missing(result, command, missing, NULL);
@@ -227,21 +227,21 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
 
     if (command != NULL)
     {
-        missing = first_missing_option(result->command_slots, result->command_count, command);
+        missing = first_missing_option(result->command_slots, result->command_count, clopts_command_scope(command));
         if (missing != NULL)
         {
             set_missing(result, command, missing, NULL);
             return -1;
         }
-        positional_scope = command;
+        positional_scope = clopts_command_scope(command);
     }
-    else if (program->command_count == 0)
+    else if (clopts_program_command_count(program) == 0)
     {
-        positional_scope = program->root;
+        positional_scope = clopts_program_scope(program);
     }
     else
     {
-        /* NO_COMMAND: only the root options are checked. */
+        /* NO_COMMAND: only the global options are checked. */
         return 0;
     }
 
@@ -251,10 +251,9 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
      * required variadic positional therefore needs at least one token.
      */
     recorded = result->positionals.len;
-    for (i = 0; i < clopts_command_positional_count(positional_scope); i++)
+    for (i = 0; i < clopts_scope_positional_count(positional_scope); i++)
     {
-        const clopts_positional_t *positional =
-            clopts_command_positional_at(positional_scope, i);
+        const clopts_positional_t *positional = clopts_scope_positional_at(positional_scope, i);
 
         if (clopts_positional_required(positional) && (i >= recorded))
         {

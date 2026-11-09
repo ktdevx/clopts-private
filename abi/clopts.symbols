@@ -52,8 +52,6 @@ clopts_write_usage
 clopts_write_version
 clopts_write_usage_hint
 clopts_write_error
-clopts_help_add_help_option
-clopts_help_add_version_option
 clopts_help_command_create
 clopts_help_target
 
@@ -134,7 +132,16 @@ clopts_positional_variadic
 # clopts/program.h
 clopts_program_create
 clopts_program_destroy
-clopts_program_root
+clopts_program_set_description
+clopts_program_add_option
+clopts_program_add_positional
+clopts_program_add_command
+clopts_program_name
+clopts_program_description
+clopts_program_option_count
+clopts_program_option_at
+clopts_program_positional_count
+clopts_program_positional_at
 clopts_program_command_count
 clopts_program_command_at
 clopts_program_find_command

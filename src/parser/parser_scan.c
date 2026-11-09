@@ -103,6 +103,18 @@ static void scan_init(scan_state_t *state, const clopts_program_t *program, int 
     state->out_of_memory = false;
 }
 
+/* The scope of the program: the global options, and the positionals of a program without subcommands. */
+static const clopts_scope_t *scan_global(const scan_state_t *state)
+{
+    return clopts_program_scope(state->program);
+}
+
+/* The scope of the selected command, or NULL before the selection. */
+static const clopts_scope_t *scan_selected(const scan_state_t *state)
+{
+    return (state->command != NULL) ? clopts_command_scope(state->command) : NULL;
+}
+
 /* True when there is no token left. argc == 0 has no tokens at all. */
 static bool scan_at_end(const scan_state_t *state)
 {
@@ -237,7 +249,7 @@ static void scan_long_option(scan_state_t *state)
     scan_error_t *error;
 
     state->pos++;
-    ref = clopts_parser_find_long(state->program, state->command, name, name_len);
+    ref = clopts_parser_find_long(scan_global(state), scan_selected(state), name, name_len);
     if (ref.option == NULL)
     {
         error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, index);
@@ -295,7 +307,7 @@ static void scan_short_option(scan_state_t *state)
     state->pos++;
     for (i = 0; chars[i] != '\0'; i++)
     {
-        ref = clopts_parser_find_short(state->program, state->command, chars[i]);
+        ref = clopts_parser_find_short(scan_global(state), scan_selected(state), chars[i]);
         if (ref.option == NULL)
         {
             error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, index);
@@ -350,16 +362,16 @@ static void scan_option(scan_state_t *state)
 /*
  * Main-scan row for a positional token: a token not starting with "-", "-"
  * alone, or any token after "--". Positionals are taken by the declared
- * positionals of the scope in order (the selected command, or the root of a
- * program without subcommands); a variadic last positional takes every
+ * positionals of the scope in order (the selected command, or the program
+ * itself when it has no subcommands); a variadic last positional takes every
  * remaining one. A token beyond the declared ones without a variadic last
  * positional is an unexpected argument. Missing required positionals are
  * reported later by the required check.
  */
 static void main_positional(scan_state_t *state)
 {
-    const clopts_command_t *scope = (state->command != NULL) ? state->command : state->program->root;
-    const size_t declared = clopts_command_positional_count(scope);
+    const clopts_scope_t *scope = (state->command != NULL) ? scan_selected(state) : scan_global(state);
+    const size_t declared = clopts_scope_positional_count(scope);
     const size_t taken = state->result->positionals.len;
     const clopts_positional_t *last;
 
@@ -367,7 +379,7 @@ static void main_positional(scan_state_t *state)
     {
         last = (declared == 0)
                    ? NULL
-                   : clopts_command_positional_at(scope, declared - 1);
+                   : clopts_scope_positional_at(scope, declared - 1);
         if ((last == NULL) || !clopts_positional_variadic(last))
         {
             (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, state->pos);
@@ -432,7 +444,7 @@ static void prelude_command(scan_state_t *state)
 {
     const clopts_command_t *command;
 
-    command = clopts_parser_find_command(state->program, scan_token(state));
+    command = clopts_program_find_command(state->program, scan_token(state));
     if (state->dashdash || (command == NULL))
     {
         (void)scan_fail(state, CLOPTS_USAGE_UNKNOWN_COMMAND, state->pos);
@@ -503,7 +515,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
         {
             return NULL;
         }
-        *ref = clopts_parser_find_long(state->program, state->command, token + 2, strlen(token + 2));
+        *ref = clopts_parser_find_long(scan_global(state), scan_selected(state), token + 2, strlen(token + 2));
         if (ref->negated)
         {
             return NULL;
@@ -515,7 +527,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
         {
             return NULL;
         }
-        *ref = clopts_parser_find_short(state->program, state->command, token[1]);
+        *ref = clopts_parser_find_short(scan_global(state), scan_selected(state), token[1]);
     }
     if ((ref->option == NULL) || (clopts_option_kind_of(ref->option) != CLOPTS_OPTION_FLAG) || !clopts_option_terminal(ref->option))
     {
@@ -529,7 +541,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
  * after the first usage error, which stays the only one reported. The tokens
  * from the one of the pending error up to, not including, "--" are searched
  * for an exact "--<long>" or "-<c>" of a terminal FLAG of the scope (the
- * selected command, then the root); the first one found is recorded and
+ * selected command, then the program); the first one found is recorded and
  * turns the outcome into TERMINATED. Nothing else is looked up or recorded:
  * any other token, option values and short groups included, is skipped.
  * When "--" was reached before the error, every remaining token follows
@@ -615,7 +627,7 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
 
     /* 2. */
     scan_init(&state, program, argc, argv, result);
-    if (program->command_count > 0)
+    if (clopts_program_command_count(program) > 0)
     {
         scan_prelude(&state);
         if ((state.command != NULL) && !scan_decided(&state))
@@ -636,7 +648,7 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
     }
 
     /* 4. */
-    selected_scope = ((program->command_count == 0) || (state.command != NULL));
+    selected_scope = ((clopts_program_command_count(program) == 0) || (state.command != NULL));
     if (clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope) != 0)
     {
         finish(result, CLOPTS_OUT_OF_MEMORY);

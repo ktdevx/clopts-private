@@ -7,8 +7,8 @@
  * Names are compared byte by byte, exactly and case-sensitively, with no
  * prefix matching. The checks of the builder look at one command only. The
  * find_* functions used by the scanner search the selected command (when
- * there is one) and then the root, so a name of the command shadows the same
- * name of the root; in each scope an exact long name comes before
+ * there is one) and then the program, so a name of the command shadows the
+ * same global option; in each scope an exact long name comes before
  * --no-<name>.
  */
 
@@ -57,12 +57,6 @@ bool clopts_parser_valid_short_name(char c)
 
 /* ---- scopes ---------------------------------------------------------------- */
 
-/* Returns option index of scope. */
-static const clopts_option_t *decl_option_at(const clopts_command_t *scope, size_t index)
-{
-    return clopts_command_option_at(scope, index);
-}
-
 /* True when long_name is exactly the name_len bytes at name. */
 static bool decl_long_equals(const char *long_name, const char *name, size_t name_len)
 {
@@ -87,49 +81,49 @@ static bool decl_matches(const clopts_option_t *option, const decl_query_t *quer
     return ((query->short_name != '\0') && (clopts_option_short_name(option) == query->short_name));
 }
 
-/* Returns the index in scope of the first option matching query, or clopts_command_option_count(scope). */
-static size_t decl_index_in(const clopts_command_t *scope, const decl_query_t *query)
+/* Returns the index in scope of the first option matching query, or clopts_scope_option_count(scope). */
+static size_t decl_index_in(const clopts_scope_t *scope, const decl_query_t *query)
 {
     size_t i;
 
-    for (i = 0; i < clopts_command_option_count(scope); i++)
+    for (i = 0; i < clopts_scope_option_count(scope); i++)
     {
-        if (decl_matches(decl_option_at(scope, i), query))
+        if (decl_matches(clopts_scope_option_at(scope, i), query))
         {
             return i;
         }
     }
-    return clopts_command_option_count(scope);
+    return clopts_scope_option_count(scope);
 }
 
 /* Returns the first option matching query in scope, or NULL. */
-static const clopts_option_t *decl_find_in(const clopts_command_t *scope, const decl_query_t *query)
+static const clopts_option_t *decl_find_in(const clopts_scope_t *scope, const decl_query_t *query)
 {
     size_t index = decl_index_in(scope, query);
 
-    return (index < clopts_command_option_count(scope)) ? decl_option_at(scope, index) : NULL;
+    return (index < clopts_scope_option_count(scope)) ? clopts_scope_option_at(scope, index) : NULL;
 }
 
-const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *command, const char *l, char s)
+const clopts_option_t *clopts_parser_find_conflict(const clopts_scope_t *scope, const char *l, char s)
 {
     decl_query_t query;
 
-    assert(command != NULL);
+    assert(scope != NULL);
     query.long_name = l;
     query.long_len = (l != NULL) ? strlen(l) : 0;
     query.short_name = s;
-    return decl_find_in(command, &query);
+    return decl_find_in(scope, &query);
 }
 
-const clopts_option_t *clopts_parser_find_named(const clopts_command_t *command, const char *name, size_t name_len)
+const clopts_option_t *clopts_parser_find_named(const clopts_scope_t *scope, const char *name, size_t name_len)
 {
     decl_query_t query;
 
-    assert((command != NULL) && (name != NULL));
+    assert((scope != NULL) && (name != NULL));
     query.long_name = name;
     query.long_len = name_len;
     query.short_name = '\0';
-    return decl_find_in(command, &query);
+    return decl_find_in(scope, &query);
 }
 
 /* ---- lookups for the scanner --------------------------------------------- */
@@ -145,16 +139,16 @@ static clopts_parser_ref_t decl_no_ref(void)
  * Looks query up in scope (global tells which one it is). For a long name
  * that is not found exactly, also looks up --no-<name> of a negatable FLAG.
  */
-static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool global, const decl_query_t *query)
+static clopts_parser_ref_t decl_lookup_in(const clopts_scope_t *scope, bool global, const decl_query_t *query)
 {
     clopts_parser_ref_t ref = decl_no_ref();
     decl_query_t negation;
     size_t index;
 
     index = decl_index_in(scope, query);
-    if (index < clopts_command_option_count(scope))
+    if (index < clopts_scope_option_count(scope))
     {
-        ref.option = decl_option_at(scope, index);
+        ref.option = clopts_scope_option_at(scope, index);
         ref.global = global;
         ref.index = index;
         return ref;
@@ -167,9 +161,9 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
     negation.long_len = query->long_len - 3;
     negation.short_name = '\0';
     index = decl_index_in(scope, &negation);
-    if (index < clopts_command_option_count(scope))
+    if (index < clopts_scope_option_count(scope))
     {
-        const clopts_option_t *option = decl_option_at(scope, index);
+        const clopts_option_t *option = clopts_scope_option_at(scope, index);
 
         if ((clopts_option_kind_of(option) == CLOPTS_OPTION_FLAG) && clopts_option_negatable(option))
         {
@@ -182,58 +176,40 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
     return ref;
 }
 
-/*
- * Searches the selected command (NULL or the root means none) and then the
- * root for the first option matching query.
- */
-static clopts_parser_ref_t decl_lookup(const clopts_program_t *program, const clopts_command_t *command,
+/* Searches selected (NULL when no command is selected) and then global for the first option matching query. */
+static clopts_parser_ref_t decl_lookup(const clopts_scope_t *global, const clopts_scope_t *selected,
                                        const decl_query_t *query)
 {
-    clopts_parser_ref_t ref = decl_no_ref();
+    clopts_parser_ref_t ref;
 
-    if ((command != NULL) && (command != program->root))
+    if (selected != NULL)
     {
-        ref = decl_lookup_in(command, false, query);
+        ref = decl_lookup_in(selected, false, query);
         if (ref.option != NULL)
         {
             return ref;
         }
     }
-    return decl_lookup_in(program->root, true, query);
+    return decl_lookup_in(global, true, query);
 }
 
-const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program, const char *name)
-{
-    size_t i;
-
-    assert((program != NULL) && (name != NULL));
-    for (i = 0; i < program->command_count; i++)
-    {
-        if (strcmp(clopts_command_name(program->commands[i]), name) == 0)
-        {
-            return program->commands[i];
-        }
-    }
-    return NULL;
-}
-
-clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program, const clopts_command_t *command,
+clopts_parser_ref_t clopts_parser_find_long(const clopts_scope_t *global, const clopts_scope_t *selected,
                                             const char *name, size_t name_len)
 {
     decl_query_t query;
 
-    assert((program != NULL) && (name != NULL));
+    assert((global != NULL) && (name != NULL));
     query.long_name = name;
     query.long_len = name_len;
     query.short_name = '\0';
-    return decl_lookup(program, command, &query);
+    return decl_lookup(global, selected, &query);
 }
 
-clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, const clopts_command_t *command, char c)
+clopts_parser_ref_t clopts_parser_find_short(const clopts_scope_t *global, const clopts_scope_t *selected, char c)
 {
     decl_query_t query;
 
-    assert(program != NULL);
+    assert(global != NULL);
     if (c == '\0')
     {
         return decl_no_ref();
@@ -241,5 +217,5 @@ clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, co
     query.long_name = NULL;
     query.long_len = 0;
     query.short_name = c;
-    return decl_lookup(program, command, &query);
+    return decl_lookup(global, selected, &query);
 }
