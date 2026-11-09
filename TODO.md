@@ -80,7 +80,7 @@ tech.md の「公開ヘッダに構造体の定義を置かない」という規
 
 ### 0. 仕様とsteering（Kiro の文書は更新するが、Kiro の手順・コマンドは使わない）
 
-- [ ] `.kiro/steering/tech.md`:
+- [x] `.kiro/steering/tech.md`:
   - 64 行目の「`malloc` / `calloc` / `realloc` / `free` を直接使い」を、「確保は core の窓口を通す（窓口が、設定されたアロケーターを呼ぶ）」に改める。
   - 「公開ヘッダに構造体の定義を置かない」を削除し、「公開ヘッダに定義した構造体は凍結する（拡張は別の型を足す）」に置き換える。「構造体を値で受け渡さない」は残す。
 - [ ] `.kiro/specs/core-parser/`（requirements / design / tasks）: 確保プローブの記述をアロケーターに置き換える（design.md の 29, 41, 58, 127, 137, 547, 568–591 行あたり、requirements の 1.8, 13.5, 13.7, 15.7 に関わる箇所）。
@@ -94,57 +94,57 @@ tech.md の「公開ヘッダに構造体の定義を置かない」という規
 
 ### 1. 公開ヘッダ
 
-- [ ] `include/clopts/alloc.h` を新しく作り、`clopts_allocator_t` と `clopts_set_allocator` を宣言する。`clopts.h` から取り込む。
-- [ ] `tests/abi/check_header_rules.cmake`: 構造体・共用体の定義の検査を削除する（ファイル冒頭の説明、155–156 行の判定、263 行の報告文）。この検査のための例 `tests/abi/fixtures/header_rules/bad/struct_def/`・`bad/union_def/` と、それを使う `tests/abi/CMakeLists.txt` のテスト（158–162 行あたり）を削除する。構造体の定義を含むヘッダが通ることを、`good/` に例を足して確かめる。
-- [ ] ヘッダの C99 / C++ のコンパイル検査が通ることを確かめる。
+- [x] `include/clopts/alloc.h` を新しく作り、`clopts_allocator_t` と `clopts_set_allocator` を宣言する。`clopts.h` から取り込む。
+- [x] `tests/abi/check_header_rules.cmake`: 構造体・共用体の定義の検査を削除する（ファイル冒頭の説明、155–156 行の判定、263 行の報告文）。この検査のための例 `tests/abi/fixtures/header_rules/bad/struct_def/`・`bad/union_def/` と、それを使う `tests/abi/CMakeLists.txt` のテスト（158–162 行あたり）を削除する。構造体の定義を含むヘッダが通ることを、`good/` に例を足して確かめる。
+- [x] ヘッダの C99 / C++ のコンパイル検査が通ることを確かめる。
 
 ### 2. core
 
-- [ ] `src/core/core_alloc.c` を追加し、`src/core/CMakeLists.txt` に登録する。
-- [ ] `core_vec.c` の `realloc` / `free` を、`clopts_core_realloc` / `clopts_core_free` に置き換える。vec の関数の引数は変えない。
-- [ ] `tests/core/` に窓口のテスト（サイズ 0 の丸め、オーバーフローの検査、`strndup` の終端、設定した関数が呼ばれること、NULL で既定に戻ること）を追加する。
+- [x] `src/core/core_alloc.c` を追加し、`src/core/CMakeLists.txt` に登録する。
+- [x] `core_vec.c` の `realloc` / `free` を、`clopts_core_realloc` / `clopts_core_free` に置き換える。vec の関数の引数は変えない。
+- [x] `tests/core/` に窓口のテスト（サイズ 0 の丸め、オーバーフローの検査、`strndup` の終端、設定した関数が呼ばれること、NULL で既定に戻ること）を追加する。
 
 ### 3. parser
 
-- [ ] `parser_alloc.c` を削除し、`src/parser/CMakeLists.txt` から外す。
-- [ ] `parser_internal.h` から `clopts_parser_probe_t`、`clopts_parser_set_probe`、窓口の宣言を削除する。
-- [ ] `program->probe` / `result->probe` のフィールドと、番兵の初期化子の `.probe` を削除する。
-- [ ] `parser_build.c` / `parser_scan.c` / `parser_resolve.c` / `parser_result.c`: `probe` の引数をなくし、`clopts_parser_*` の窓口の呼び出しを `clopts_core_*` に置き換える。
-- [ ] `clopts_program_new` の 1 ブロックも、`clopts_core_malloc` / `clopts_core_free` で確保・解放する。
+- [x] `parser_alloc.c` を削除し、`src/parser/CMakeLists.txt` から外す。
+- [x] `parser_internal.h` から `clopts_parser_probe_t`、`clopts_parser_set_probe`、窓口の宣言を削除する。
+- [x] `program->probe` / `result->probe` のフィールドと、番兵の初期化子の `.probe` を削除する。
+- [x] `parser_build.c` / `parser_scan.c` / `parser_resolve.c` / `parser_result.c`: `probe` の引数をなくし、`clopts_parser_*` の窓口の呼び出しを `clopts_core_*` に置き換える。
+- [x] `clopts_program_new` の 1 ブロックも、`clopts_core_malloc` / `clopts_core_free` で確保・解放する。
 
 ### 4. platform
 
-- [ ] `platform_alloc.c` を削除する（`malloc_array` は core の窓口に移す）。
-- [ ] `platform_internal.h` から `clopts_platform_probe_t` と窓口の宣言を削除し、`env->probe` を削除する。
-- [ ] `clopts_platform_env_new(probe)` は、公開の `clopts_env_new()` に統合する。`clopts_platform_argv_*` からも `probe` の引数を取り除く。
-- [ ] `platform_env.c` / `platform_argv.c` / `platform_win32.c` の呼び出しを、`clopts_core_*` に置き換える。
+- [x] `platform_alloc.c` を削除する（`malloc_array` は core の窓口に移す）。
+- [x] `platform_internal.h` から `clopts_platform_probe_t` と窓口の宣言を削除し、`env->probe` を削除する。
+- [x] `clopts_platform_env_new(probe)` は、公開の `clopts_env_new()` に統合する。`clopts_platform_argv_*` からも `probe` の引数を取り除く。
+- [x] `platform_env.c` / `platform_argv.c` / `platform_win32.c` の呼び出しを、`clopts_core_*` に置き換える。
 
 ### 5. テスト
 
-- [ ] `tests/support/test_alloc.{c,h}` を追加する。失敗を注入するアロケーターで、`fail_at`、`calls`、`live` を静的な変数に持つ（`ctx` がないため）。各ブロックに目印を付け、自分が確保していないポインタの解放と二重解放を検出する。`realloc` が失敗したときに元のブロックが残ることも試せるようにする。
-- [ ] 支援用の関数: `test_alloc_install(fail_at)`（計数を初期化して `clopts_set_allocator`）と `test_alloc_uninstall()`（`live == 0` を確かめて、既定に戻す）。各テストで、必ず対にして呼ぶ。Naos がテストを順に実行することを前提にする（並列に流すなら、テストの実行ファイルを分ける）。
-- [ ] parser / platform / core のテストで共有できる静的ライブラリにする。
-- [ ] `tests/parser/test_oom.c`（21 件）と `tests/platform/test_oom.c`（13 件）: 窓口を直接試すテストは `tests/core/` に移す。スイープは、公開 API と `test_alloc_install` を使う形に書き直す。
-- [ ] `test_build.c`、`test_dispatch.c`、`test_resolve.c`、`test_result.c`、`test_fixtures.{c,h}`（parser）と、`test_argv.c`、`test_convert.c`、`test_env.c`（platform）から、`set_probe` / `probe_t` の利用を取り除く。
-- [ ] 失敗する位置の数が変わることへの対応: `vec_push` は、伸ばさないときには失敗しなくなる。`strdup(NULL)` も確保しない。スイープは、固定の回数ではなく「`fail_at = n` で最後まで成功し、かつ `calls < n` になったら終わる」という条件で回す。
-- [ ] 新しく対象になった、`clopts_program_new` の確保と vec の `realloc` の失敗を試す。
-- [ ] 4 つのうち 1 つが NULL のときの `assert` は、death test が書けなければ試さず、文書の契約にとどめる。
-- [ ] OOM のスイープは公開 API だけで書けるので、共有ビルドでも `CLOpts::clopts` に対して流せる。可能なら、そのように構成する。
+- [x] `tests/support/test_alloc.{c,h}` を追加する。失敗を注入するアロケーターで、`fail_at`、`calls`、`live` を静的な変数に持つ（`ctx` がないため）。各ブロックに目印を付け、自分が確保していないポインタの解放と二重解放を検出する。`realloc` が失敗したときに元のブロックが残ることも試せるようにする。
+- [x] 支援用の関数: `test_alloc_begin(fail_at)`（計数を初期化して `clopts_set_allocator`）と `test_alloc_end()`（失敗をやめ、生存ブロック 0・不正な解放 0・大きさ 0 の要求 0 を確かめる）。実施では、途中で止まったテストのブロックも同じアロケーターで解放されるよう、`test_alloc_end()` は既定に戻さないことにした（案の `install` / `uninstall` から変更）。
+- [x] parser / platform / core のテストで共有する。実施では静的ライブラリにせず、各テスト実行ファイルのソースに `../support/test_alloc.c` を加え、`clopts_add_module_tests` でインクルードの場所を足した。
+- [x] `tests/parser/test_oom.c`（21 件）と `tests/platform/test_oom.c`（13 件）: 窓口を直接試すテストは `tests/core/` に移す。スイープは、公開 API と `test_alloc_install` を使う形に書き直す。
+- [x] `test_build.c`、`test_dispatch.c`、`test_resolve.c`、`test_result.c`、`test_fixtures.{c,h}`（parser）と、`test_argv.c`、`test_convert.c`、`test_env.c`（platform）から、`set_probe` / `probe_t` の利用を取り除く。
+- [x] 失敗する位置の数が変わることへの対応: `vec_push` は、伸ばさないときには失敗しなくなる。`strdup(NULL)` も確保しない。スイープは、固定の回数ではなく「`fail_at = n` で最後まで成功し、かつ `calls < n` になったら終わる」という条件で回す。
+- [x] 新しく対象になった、`clopts_program_new` の確保と vec の `realloc` の失敗を試す。
+- [x] 4 つのうち 1 つが NULL のときの `assert` は、death test が書けなければ試さず、文書の契約にとどめる（実施: 試さず、文書の契約にとどめた）。
+- [x] OOM のスイープは公開 API だけで書けるので、共有ビルドでも `CLOpts::clopts` に対して流せる。可能なら、そのように構成する（実施: 見送り。スイープは内部関数を使うテストと同じ実行ファイルにあるので、共有ビルドではこれまでどおり `clopts_testing` に対して流す）。
 
 ### 6. ABI・文書・変更履歴
 
-- [ ] `abi/clopts.symbols` に `clopts_set_allocator` を追加する。
-- [ ] `docs/abi.md`: 74 行目（構造体の定義の追加は互換を壊す）を、「既存の公開構造体の配置の変更は互換を壊す。拡張するときは別の型を足す」に置き換える。ヘッダの検査の説明があれば、構造体の検査を削除する。
-- [ ] `docs/api.md`: アロケーターの節を追加する（4 つの関数の契約、設定してよい時機、スレッド、サイズ 0 と NULL の扱い、番兵との関係）。519 行目の「解放」の規則に、アロケーターとの関係を書き足す。
-- [ ] 文書の検査（ラベル `docs`、`tests/docs/check_docs.cmake`）が、シンボルの一覧と文書を照合するので、新しいシンボルが文書に載っていることを確かめる。
-- [ ] `CHANGELOG.md` の `## [Unreleased]` / `### 追加` に、アロケーターの API を書く。0.1.0 は未リリースなので、互換性のない変更の節は要らない。
-- [ ] 必要なら、README か `examples/` にアロケーターの短い例を足す。その場合は docs のテストで照合する。
+- [x] `abi/clopts.symbols` に `clopts_set_allocator` を追加する。
+- [x] `docs/abi.md`: 74 行目（構造体の定義の追加は互換を壊す）を、「既存の公開構造体の配置の変更は互換を壊す。拡張するときは別の型を足す」に置き換える。ヘッダの検査の説明があれば、構造体の検査を削除する。
+- [x] `docs/api.md`: アロケーターの節を追加する（4 つの関数の契約、設定してよい時機、スレッド、サイズ 0 と NULL の扱い、番兵との関係）。519 行目の「解放」の規則に、アロケーターとの関係を書き足す。
+- [x] 文書の検査（ラベル `docs`、`tests/docs/check_docs.cmake`）が、シンボルの一覧と文書を照合するので、新しいシンボルが文書に載っていることを確かめる。
+- [x] `CHANGELOG.md` の `## [Unreleased]` / `### 追加` に、アロケーターの API を書く。0.1.0 は未リリースなので、互換性のない変更の節は要らない。
+- [x] 必要なら、README か `examples/` にアロケーターの短い例を足す（実施: 例は足さず、README の特徴の一覧に 1 項目を足した）。
 
 ### 7. 後片付けと確認
 
-- [ ] `grep -rnE "probe|\b(malloc|calloc|realloc|free)\(" src` を実行し、`core_alloc.c` の既定値（標準関数のアドレス）以外に該当がないことを確かめる。
-- [ ] `clopts_testing` がまだ必要かを見直す。OOM 以外の内部テストのために残るはず。
-- [ ] 静的・共有ビルドの両方、全ラベル（core / parser / platform / help / abi / docs / integration）で CTest を通す。
+- [x] `grep -rnE "probe|\b(malloc|calloc|realloc|free)\(" src` を実行し、`core_alloc.c` の既定値（標準関数のアドレス）以外に該当がないことを確かめる。
+- [x] `clopts_testing` がまだ必要かを見直す（実施: 内部関数を呼ぶテストのために残す）。
+- [x] 静的・共有ビルドの両方、全ラベル（core / parser / platform / help / abi / docs / integration）で CTest を通す。
 - [ ] Windows（MSVC / MinGW）で、platform の OOM スイープと `platform_probe` が通ることを確かめる。
 
 ## 完了条件
