@@ -681,7 +681,7 @@ NAOS_TEST(tool_single_dash_is_unknown_command)
 
 /*
  * "help" is not special before a subcommand: the tool fixture declares the
- * help command of clopts_help_command_new(), and "tool help" selects it.
+ * help command of clopts_help_command_create(), and "tool help" selects it.
  */
 NAOS_TEST(tool_help_command_alone_selects_the_help_command)
 {

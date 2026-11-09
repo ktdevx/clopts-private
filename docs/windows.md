@@ -26,7 +26,7 @@ textcount の `main` から抜き出すと、次のようになる（宣言と�
     {
         fputs("textcount: error: cannot read the command line arguments\n", stderr);
         clopts_argv_free(args);
-        clopts_program_free(program);
+        clopts_program_destroy(program);
         return 1;
     }
 
@@ -39,7 +39,7 @@ textcount の `main` から抜き出すと、次のようになる（宣言と�
     clopts_result_free(result);
     clopts_env_free(env);
     clopts_argv_free(args);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     return code;
 ```
 
@@ -115,16 +115,16 @@ int wmain(int argc, wchar_t **wargv)
     clopts_result_t *result;
     int code = 0;
 
-    if (clopts_command_new("app", &root) != CLOPTS_DECL_NONE)
+    if (clopts_command_create("app", &root) != CLOPTS_DECL_NONE)
     {
         fputs("app: error: out of memory\n", stderr);
         return 1;
     }
     /* ... declare options and positionals on root ... */
-    if (clopts_program_new(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
+    if (clopts_program_create(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
     {
         fputs("app: error: out of memory\n", stderr);
-        clopts_command_free(root);
+        clopts_command_destroy(root);
         return 1;
     }
 
@@ -133,7 +133,7 @@ int wmain(int argc, wchar_t **wargv)
     {
         fputs("app: error: cannot read the command line arguments\n", stderr);
         clopts_argv_free(args);
-        clopts_program_free(program);
+        clopts_program_destroy(program);
         return 1;
     }
 
@@ -142,7 +142,7 @@ int wmain(int argc, wchar_t **wargv)
 
     clopts_result_free(result);
     clopts_argv_free(args);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     return code;
 }
 ```

@@ -24,7 +24,7 @@
  *   - Nothing points to its owner: an option or positional does not point to
  *     its command, and a command does not point to its program. The index of
  *     an option is its position in the vec of the command it is attached to.
- *   - A program never changes after clopts_program_new(): its root and
+ *   - A program never changes after clopts_program_create(): its root and
  *     commands are attached (read-only) from then on.
  */
 

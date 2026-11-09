@@ -57,8 +57,8 @@
 
 ```text
 # clopts/program.h
-clopts_program_new
-clopts_program_free
+clopts_program_create
+clopts_program_destroy
 ...
 
 # clopts/platform.h
@@ -139,7 +139,7 @@ CTest のテストではなく、`.github/workflows/ci.yml` の独立したジ�
 
 ```text
  check_symbols: 5 error(s) in the public symbol list <repo>/tests/abi/fixtures/exports/bad_list.symbols:
-   <repo>/tests/abi/fixtures/exports/bad_list.symbols:9: duplicate symbol 'clopts_program_new'
+   <repo>/tests/abi/fixtures/exports/bad_list.symbols:9: duplicate symbol 'clopts_program_create'
    <repo>/tests/abi/fixtures/exports/bad_list.symbols:10: invalid symbol name 'parse_args'
    <repo>/tests/abi/fixtures/exports/bad_list.symbols:11: invalid symbol name 'Clopts_Parse'
    <repo>/tests/abi/fixtures/exports/bad_list.symbols:12: invalid platform tag 'linux'

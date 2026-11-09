@@ -6,7 +6,7 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 ## 特徴
 
-- **宣言からの解析と文面の生成**: 宣言は下から上へ組み立てる。オプション（フラグ、カウント、単一値、リスト値）と位置引数を単独で作って設定してからコマンドに渡し、root とサブコマンドを `clopts_program_new` にまとめて渡してプログラムを作る。宣言の誤りは、誤った呼び出しの戻り値ですぐに返る。解析器に組み込みのオプションはなく、`--help`・`--version`・`help` コマンドも `clopts/help.h` の関数で足すふつうの宣言である。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
+- **宣言からの解析と文面の生成**: 宣言は下から上へ組み立てる。オプション（フラグ、カウント、単一値、リスト値）と位置引数を単独で作って設定してからコマンドに渡し、root とサブコマンドを `clopts_program_create` にまとめて渡してプログラムを作る。宣言の誤りは、誤った呼び出しの戻り値ですぐに返る。解析器に組み込みのオプションはなく、`--help`・`--version`・`help` コマンドも `clopts/help.h` の関数で足すふつうの宣言である。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
 - **構造化エラー**: 使い方の誤りは文字列ではなく、種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読めるエラーとして返る。宣言の誤り（名前の重複など）は使い方の誤りと区別して返る。
 - **入出力も `exit` もしない**: ライブラリは標準出力にも標準エラーにも書かず、`exit` も呼ばない。ヘルプやエラーの文面は書き込みのコールバックに渡すので、表示の仕方と終了コードは利用側が決める。`FILE*` に出すなら、公開ヘッダの `clopts_file_write` を渡すだけでよい。
 - **アロケーターの差し替え**: `clopts_set_allocator` で、ライブラリが使う `malloc` / `calloc` / `realloc` / `free` を差し替えられる。ライブラリの確保と解放は、例外なく設定した関数を通る。
@@ -43,7 +43,7 @@ static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t *
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
 
-    check(&e, clopts_command_new("hello", &root));
+    check(&e, clopts_command_create("hello", &root));
     check(&e, clopts_command_set_description(root, "Greet someone."));
 
     check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
@@ -59,20 +59,20 @@ static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t *
         clopts_option_destroy(option); /* not attached: still ours */
     }
 
-    check(&e, clopts_positional_new("NAME", &name));
+    check(&e, clopts_positional_create("NAME", &name));
     check(&e, clopts_positional_set_required(name, true));
     check(&e, clopts_positional_set_help(name, "Who to greet"));
     if (!check(&e, clopts_command_add_positional(root, name)))
     {
-        clopts_positional_free(name);
+        clopts_positional_destroy(name);
     }
     check(&e, clopts_help_add_help_option(root, NULL));
     check(&e, clopts_help_add_version_option(root, version));
 
-    check(&e, clopts_program_new(root, NULL, 0, program)); /* the program now owns root */
+    check(&e, clopts_program_create(root, NULL, 0, program)); /* the program now owns root */
     if (e != CLOPTS_DECL_NONE)
     {
-        clopts_command_free(root);
+        clopts_command_destroy(root);
     }
     return e;
 }
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
     {
         fputs("hello: error: cannot read the command line arguments\n", stderr);
         clopts_argv_free(args);
-        clopts_program_free(program);
+        clopts_program_destroy(program);
         return 1;
     }
 
@@ -141,7 +141,7 @@ int main(int argc, char **argv)
 
     clopts_result_free(result);
     clopts_argv_free(args);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     return code;
 }
 ```

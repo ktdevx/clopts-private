@@ -4,8 +4,8 @@
 # "missing").
 
 # clopts/decl.h
-clopts_program_new
-clopts_program_free
+clopts_program_create
+clopts_program_destroy
 clopts_command_add_flag
 clopts_option_set_help
 

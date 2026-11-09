@@ -25,8 +25,8 @@ File Type: DLL
           6    5 00009650 clopts_env_new = clopts_env_new
           7    6 00003800 clopts_option_set_help = clopts_option_set_help
           8    7 000056B0 clopts_parse = clopts_parse
-          9    8 00002FD0 clopts_program_free = @ILT+4045(clopts_program_free)
-         10    9 00002E30 clopts_program_new = @ILT+3625(clopts_program_new)
+          9    8 00002FD0 clopts_program_destroy = @ILT+4045(clopts_program_destroy)
+         10    9 00002E30 clopts_program_create = @ILT+3625(clopts_program_create)
          11    A 00006940 clopts_result_free = clopts_result_free
          12    B 00006390 clopts_result_status = clopts_result_status
          13    C 000079F0 clopts_write_help = clopts_write_help

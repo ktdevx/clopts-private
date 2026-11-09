@@ -6,8 +6,8 @@
  * The allocations are counted and made to fail by the fault-injecting
  * allocator of tests/support/test_alloc.h, installed with
  * clopts_set_allocator(): each malloc, calloc or realloc call of the library
- * is one fault point (from the first clopts_command_new() of the assembly to
- * clopts_program_new() at its end), and every block must have been released
+ * is one fault point (from the first clopts_command_create() of the assembly to
+ * clopts_program_create() at its end), and every block must have been released
  * through it at the end of each run. The allocation
  * gateway itself (clopts_core_malloc and the others, the overflow checks and
  * the vec growth) is tested in the core suite.
@@ -319,12 +319,12 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
 
 /*
  * Scenario (a): building tool, then parsing it. fail_at counts from the
- * first allocation of the assembly (the root's clopts_command_new()), and
+ * first allocation of the assembly (the root's clopts_command_create()), and
  * every fault point from fail_at on fails.
  *
  * A failed allocation during the assembly makes that builder call return
  * CLOPTS_DECL_OUT_OF_MEMORY and change nothing; the later builder calls get
- * NULL handles, and clopts_program_new() at the end (which allocates) fails
+ * NULL handles, and clopts_program_create() at the end (which allocates) fails
  * as well, so the fixture releases the root with everything attached to it
  * and the commands, and leaves the whole struct zeroed. So every fault point
  * of the assembly gives no program, no handle and no live block, and a
@@ -411,7 +411,7 @@ NAOS_TEST(sweep_tool_build_then_parse)
     }
 
     NAOS_CHECK_TRUE(succeeded);
-    /* Every fault point of the assembly (clopts_program_new() included) was failed once. */
+    /* Every fault point of the assembly (clopts_program_create() included) was failed once. */
     NAOS_CHECK_UINT_EQ(build_oom_runs, build_calls);
     /* Every fault point of the parse ended it with OUT_OF_MEMORY. */
     NAOS_CHECK_UINT_EQ(later_oom_runs, parse_calls);

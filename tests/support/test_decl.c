@@ -78,7 +78,7 @@ clopts_command_t *test_decl_root(const char *name)
 {
     clopts_command_t *root = NULL;
 
-    test_decl_check(clopts_command_new(name, &root));
+    test_decl_check(clopts_command_create(name, &root));
     return root;
 }
 
@@ -92,7 +92,7 @@ clopts_command_t *test_decl_adopt(clopts_command_t *root, clopts_command_t *comm
     }
     if (root == NULL)
     {
-        clopts_command_free(command);
+        clopts_command_destroy(command);
         return NULL;
     }
     draft = test_decl_draft(root, true);
@@ -109,7 +109,7 @@ clopts_command_t *test_decl_command(clopts_command_t *root, const char *name)
     {
         return NULL;
     }
-    test_decl_check(clopts_command_new(name, &command));
+    test_decl_check(clopts_command_create(name, &command));
     return test_decl_adopt(root, command);
 }
 
@@ -127,11 +127,11 @@ void test_decl_discard(clopts_command_t *root)
     {
         for (i = 0; i < draft->count; i++)
         {
-            clopts_command_free(draft->commands[i]);
+            clopts_command_destroy(draft->commands[i]);
         }
         test_decl_forget(draft);
     }
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 clopts_program_t *test_decl_finish(clopts_command_t *root)
@@ -144,8 +144,8 @@ clopts_program_t *test_decl_finish(clopts_command_t *root)
         return NULL;
     }
     draft = test_decl_draft(root, false);
-    test_decl_check(clopts_program_new(root, (draft != NULL) ? draft->commands : NULL,
-                                       (draft != NULL) ? draft->count : 0, &program));
+    test_decl_check(clopts_program_create(root, (draft != NULL) ? draft->commands : NULL,
+                                          (draft != NULL) ? draft->count : 0, &program));
     if (program == NULL)
     {
         test_decl_discard(root);
@@ -175,7 +175,7 @@ clopts_positional_t *test_decl_positional(const char *name)
 {
     clopts_positional_t *positional = NULL;
 
-    test_decl_check(clopts_positional_new(name, &positional));
+    test_decl_check(clopts_positional_create(name, &positional));
     return positional;
 }
 
@@ -195,7 +195,7 @@ clopts_positional_t *test_decl_attach_positional(clopts_command_t *command, clop
     test_decl_check(clopts_command_add_positional(command, positional));
     if (test_decl_last != CLOPTS_DECL_NONE)
     {
-        clopts_positional_free(positional);
+        clopts_positional_destroy(positional);
         return NULL;
     }
     return positional;

@@ -141,7 +141,7 @@ _clopts_abi_add_script_test(symbols_selftest.bad_list check_symbols.cmake
     ARGS
         "-DSYMBOLS_FILE=${_clopts_abi_fixtures}/exports/bad_list.symbols"
     PASS_REGEX
-        "5 error\\(s\\) in the public symbol list [^\n]*bad_list\\.symbols:[\r\n ]+[^\n]*bad_list\\.symbols:9: duplicate symbol 'clopts_program_new'[\r\n ]+[^\n]*bad_list\\.symbols:10: invalid symbol name 'parse_args'[\r\n ]+[^\n]*bad_list\\.symbols:11: invalid symbol name 'Clopts_Parse'[\r\n ]+[^\n]*bad_list\\.symbols:12: invalid platform tag 'linux'[\r\n ]+[^\n]*bad_list\\.symbols:13: invalid platform tag 'windows extra'")
+        "5 error\\(s\\) in the public symbol list [^\n]*bad_list\\.symbols:[\r\n ]+[^\n]*bad_list\\.symbols:9: duplicate symbol 'clopts_program_create'[\r\n ]+[^\n]*bad_list\\.symbols:10: invalid symbol name 'parse_args'[\r\n ]+[^\n]*bad_list\\.symbols:11: invalid symbol name 'Clopts_Parse'[\r\n ]+[^\n]*bad_list\\.symbols:12: invalid platform tag 'linux'[\r\n ]+[^\n]*bad_list\\.symbols:13: invalid platform tag 'windows extra'")
 
 # ---- Public header rules --------------------------
 _clopts_abi_add_script_test(header_rules check_header_rules.cmake

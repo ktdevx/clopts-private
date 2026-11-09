@@ -38,7 +38,7 @@ extern "C" {
  * positionals, error tokens) is valid until the result is released, and only
  * while the caller keeps both the program and argv alive. Accessors may only
  * be called before the program that produced the result is released;
- * clopts_result_free() may be called before or after clopts_program_free().
+ * clopts_result_free() may be called before or after clopts_program_destroy().
  *
  * Threads: parsing never writes to any stream, never calls exit() and never
  * writes to the program, so the same program may be parsed from several
@@ -156,7 +156,7 @@ CLOPTS_API size_t clopts_result_positional_count(const clopts_result_t *result);
 /* index must be less than clopts_result_positional_count(). Returns an argv element. */
 CLOPTS_API const char *clopts_result_positional_at(const clopts_result_t *result, size_t index);
 
-/* Releases result. NULL and the sentinel do nothing. May be called before or after clopts_program_free(). */
+/* Releases result. NULL and the sentinel do nothing. May be called before or after clopts_program_destroy(). */
 CLOPTS_API void clopts_result_free(clopts_result_t *result);
 
 #ifdef __cplusplus

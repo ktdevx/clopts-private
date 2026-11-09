@@ -3,7 +3,7 @@
  * the usage hint, compared byte for byte; the filter of the shadowed global
  * options; and the declarations for the help texts
  * (clopts_help_add_help_option(), clopts_help_add_version_option(),
- * clopts_help_command_new() and clopts_help_target()).
+ * clopts_help_command_create() and clopts_help_target()).
  *
  * It also checks that the fixtures it uses (tool, filt, bare) are built
  * without a declaration error. Nothing is reserved: -h/--help, --version
@@ -239,7 +239,7 @@ NAOS_TEST(help_tool_copy_uses_the_summary)
 
 NAOS_TEST(help_tool_help_command)
 {
-    /* The help command of clopts_help_command_new() has a help like any other subcommand. */
+    /* The help command of clopts_help_command_create() has a help like any other subcommand. */
     static const char expected[] =
         "Usage: tool help [<options>] [<COMMAND>]\n"
         "\n"
@@ -356,7 +356,7 @@ NAOS_TEST(help_without_root_options_has_no_options_and_no_run_line)
     NAOS_CHECK_INT_EQ(write_help(&rec, f.program, NULL), CLOPTS_WRITE_OK);
     NAOS_CHECK_NULL(strstr(rec.buf, "--version"));
     NAOS_CHECK_NULL(strstr(rec.buf, "--help"));
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(help_subcommand_without_text_or_options)
@@ -372,7 +372,7 @@ NAOS_TEST(help_subcommand_without_text_or_options)
     layout_nover_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, f.init, expected);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 /* ---- Usage line -------------------------------------------------------- */
@@ -413,7 +413,7 @@ NAOS_TEST(usage_subcommand)
     layout_nover_init(&g);
     NAOS_REQUIRE_NOT_NULL(g.program);
     CHECK_USAGE(g.program, g.init, "Usage: nover init [<options>] [<NAME>]\n");
-    clopts_program_free(g.program);
+    clopts_program_destroy(g.program);
 }
 
 NAOS_TEST(usage_without_subcommands)
@@ -505,7 +505,7 @@ NAOS_TEST(version_line_does_not_need_a_version_option)
     layout_nover_init(&g);
     NAOS_REQUIRE_NOT_NULL(g.program);
     CHECK_VERSION(g.program, "", "nover \n");
-    clopts_program_free(g.program);
+    clopts_program_destroy(g.program);
 }
 
 NAOS_TEST(version_line_unavailable_without_version)
@@ -628,7 +628,7 @@ static void layout_shad_init(layout_shad_t *f)
     f->program = test_decl_finish(root);
     if ((f->program == NULL) || (test_decl_failures != 0))
     {
-        clopts_program_free(f->program);
+        clopts_program_destroy(f->program);
         memset(f, 0, sizeof(*f));
     }
 }
@@ -659,7 +659,7 @@ NAOS_TEST(help_global_options_leave_out_the_shadowed_ones)
     layout_shad_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, f.run, expected);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(help_negatable_global_option_stays_while_its_negation_is_free)
@@ -709,7 +709,7 @@ NAOS_TEST(help_negatable_global_option_stays_while_its_negation_is_free)
     NAOS_REQUIRE_NOT_NULL(program);
     CHECK_HELP(program, plain, kept);
     CHECK_HELP(program, both, hidden);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 NAOS_TEST(help_global_options_are_filtered_per_command)
@@ -729,7 +729,7 @@ NAOS_TEST(help_global_options_are_filtered_per_command)
     layout_shad_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, f.plain, expected);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(help_program_lists_every_global_option)
@@ -753,7 +753,7 @@ NAOS_TEST(help_program_lists_every_global_option)
     layout_shad_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, NULL, expected);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(help_shadowed_help_option_is_left_out_of_the_global_options)
@@ -781,7 +781,7 @@ NAOS_TEST(help_shadowed_help_option_is_left_out_of_the_global_options)
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     CHECK_HELP(program, sub, expected);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 /* ---- the closing Run line ---------------------------------------------- */
@@ -838,7 +838,7 @@ NAOS_TEST(run_line_needs_a_root_long_option_named_help)
     program = layout_run_line_program("help", '\0', NULL);
     NAOS_REQUIRE_NOT_NULL(program);
     layout_check_run_line(program, true);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     NAOS_TRACE_POP();
 
     /* The short name h alone is not --help. */
@@ -846,7 +846,7 @@ NAOS_TEST(run_line_needs_a_root_long_option_named_help)
     program = layout_run_line_program(NULL, 'h', NULL);
     NAOS_REQUIRE_NOT_NULL(program);
     layout_check_run_line(program, false);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     NAOS_TRACE_POP();
 
     /* Another long name is not --help. */
@@ -854,7 +854,7 @@ NAOS_TEST(run_line_needs_a_root_long_option_named_help)
     program = layout_run_line_program("helps", '\0', NULL);
     NAOS_REQUIRE_NOT_NULL(program);
     layout_check_run_line(program, false);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     NAOS_TRACE_POP();
 
     /* A --help of a subcommand is not a global --help. */
@@ -862,7 +862,7 @@ NAOS_TEST(run_line_needs_a_root_long_option_named_help)
     program = layout_run_line_program(NULL, '\0', "help");
     NAOS_REQUIRE_NOT_NULL(program);
     layout_check_run_line(program, false);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     NAOS_TRACE_POP();
 }
 
@@ -1011,7 +1011,7 @@ NAOS_TEST(add_options_to_an_attached_command_fail)
     NAOS_CHECK_NULL(option);
     NAOS_CHECK_INT_EQ(clopts_help_add_version_option(f.init, NULL), CLOPTS_DECL_ALREADY_ATTACHED);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(f.init), 0);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(help_command_new_declaration)
@@ -1019,7 +1019,7 @@ NAOS_TEST(help_command_new_declaration)
     clopts_command_t *command = NULL;
     const clopts_positional_t *positional;
 
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_new(&command), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&command), CLOPTS_DECL_NONE);
     NAOS_REQUIRE_NOT_NULL(command);
     NAOS_CHECK_STR_EQ(clopts_command_name(command), "help");
     NAOS_CHECK_STR_EQ(clopts_command_summary(command), "Show help for a command");
@@ -1032,12 +1032,12 @@ NAOS_TEST(help_command_new_declaration)
     NAOS_CHECK_FALSE(clopts_positional_required(positional));
     NAOS_CHECK_FALSE(clopts_positional_variadic(positional));
     /* It is unattached: the caller owns it. */
-    clopts_command_free(command);
+    clopts_command_destroy(command);
 }
 
 NAOS_TEST(help_command_new_rejects_a_null_out)
 {
-    NAOS_CHECK_INT_EQ(clopts_help_command_new(NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_help_command_create(NULL), CLOPTS_DECL_INVALID_ARGUMENT);
 }
 
 NAOS_TEST(help_command_new_gives_a_new_command_each_time)
@@ -1050,15 +1050,15 @@ NAOS_TEST(help_command_new_gives_a_new_command_each_time)
     clopts_program_t *program = NULL;
 
     NAOS_REQUIRE_NOT_NULL(root);
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_new(&first), CLOPTS_DECL_NONE);
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_new(&second), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&first), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&second), CLOPTS_DECL_NONE);
     NAOS_CHECK_TRUE(first != second);
     commands[0] = first;
     commands[1] = second;
-    NAOS_CHECK_INT_EQ(clopts_program_new(root, commands, 2, &program), CLOPTS_DECL_DUPLICATE_COMMAND);
+    NAOS_CHECK_INT_EQ(clopts_program_create(root, commands, 2, &program), CLOPTS_DECL_DUPLICATE_COMMAND);
     NAOS_CHECK_NULL(program);
-    clopts_command_free(second);
-    clopts_command_free(first);
+    clopts_command_destroy(second);
+    clopts_command_destroy(first);
     test_decl_discard(root);
 }
 
@@ -1357,7 +1357,7 @@ NAOS_TEST(every_text_of_the_fixtures_is_well_formed)
             NAOS_TRACE_POP();
         }
     }
-    clopts_program_free(nover.program);
+    clopts_program_destroy(nover.program);
     help_fixture_wide_free(&wide);
     help_fixture_bare_free(&bare);
     help_fixture_filt_free(&filt);

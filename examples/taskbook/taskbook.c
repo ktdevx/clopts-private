@@ -136,7 +136,7 @@ static void attach_positional(clopts_decl_error_t *first, clopts_command_t *comm
 {
     if ((*first != CLOPTS_DECL_NONE) || !check(first, clopts_command_add_positional(command, positional)))
     {
-        clopts_positional_free(positional);
+        clopts_positional_destroy(positional);
     }
 }
 
@@ -156,7 +156,7 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     clopts_option_t *option = NULL;
     clopts_positional_t *positional = NULL;
 
-    check(&e, clopts_command_new("taskbook", &root));
+    check(&e, clopts_command_create("taskbook", &root));
     check(&e, clopts_command_set_description(root, "Keep a small list of tasks."));
     check(&e, clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &option));
     check(&e, clopts_option_set_count_max(option, 3));
@@ -169,7 +169,7 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     check(&e, clopts_help_add_help_option(root, &opts->help));
     check(&e, clopts_help_add_version_option(root, &opts->version));
 
-    check(&e, clopts_command_new("add", &add));
+    check(&e, clopts_command_create("add", &add));
     check(&e, clopts_command_set_summary(add, "Add a task"));
     check(&e, clopts_command_set_description(add, "Add a task with the given title."));
     check(&e, clopts_option_create(CLOPTS_OPTION_LIST, "tag", 't', &option));
@@ -182,12 +182,12 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     check(&e, clopts_option_set_default(option, "normal"));
     check(&e, clopts_option_set_help(option, "Priority: low, normal or high"));
     opts->priority = attach_option(&e, add, option);
-    check(&e, clopts_positional_new("TITLE", &positional));
+    check(&e, clopts_positional_create("TITLE", &positional));
     check(&e, clopts_positional_set_required(positional, true));
     check(&e, clopts_positional_set_help(positional, "Title of the task"));
     attach_positional(&e, add, positional);
 
-    check(&e, clopts_command_new("list", &list));
+    check(&e, clopts_command_create("list", &list));
     check(&e, clopts_command_set_summary(list, "List tasks"));
     check(&e, clopts_command_set_description(list, "List the open tasks."));
     check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "all", 'a', &option));
@@ -200,16 +200,16 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     check(&e, clopts_option_set_help(option, "Output format: text or json"));
     opts->format = attach_option(&e, list, option);
 
-    check(&e, clopts_command_new("done", &done));
+    check(&e, clopts_command_create("done", &done));
     check(&e, clopts_command_set_summary(done, "Mark tasks as finished"));
     check(&e, clopts_command_set_description(done, "Mark the given tasks as finished."));
-    check(&e, clopts_positional_new("ID", &positional));
+    check(&e, clopts_positional_create("ID", &positional));
     check(&e, clopts_positional_set_required(positional, true));
     check(&e, clopts_positional_set_variadic(positional, true));
     check(&e, clopts_positional_set_help(positional, "Numbers of the tasks"));
     attach_positional(&e, done, positional);
 
-    check(&e, clopts_help_command_new(&help));
+    check(&e, clopts_help_command_create(&help));
 
     if (e == CLOPTS_DECL_NONE)
     {
@@ -219,16 +219,16 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
         commands[1] = list;
         commands[2] = done;
         commands[3] = help;
-        check(&e, clopts_program_new(root, commands, 4, out));
+        check(&e, clopts_program_create(root, commands, 4, out));
     }
     if (e != CLOPTS_DECL_NONE)
     {
         /* Nothing was handed to a program: every command is still ours. */
-        clopts_command_free(root);
-        clopts_command_free(add);
-        clopts_command_free(list);
-        clopts_command_free(done);
-        clopts_command_free(help);
+        clopts_command_destroy(root);
+        clopts_command_destroy(add);
+        clopts_command_destroy(list);
+        clopts_command_destroy(done);
+        clopts_command_destroy(help);
         return e;
     }
     opts->add = add;
@@ -323,7 +323,7 @@ int main(int argc, char **argv)
     {
         fputs("taskbook: error: cannot read the command line arguments\n", stderr);
         clopts_argv_free(args);
-        clopts_program_free(program);
+        clopts_program_destroy(program);
         return 1;
     }
 
@@ -336,6 +336,6 @@ int main(int argc, char **argv)
     clopts_result_free(result);
     clopts_env_free(env);
     clopts_argv_free(args);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     return code;
 }

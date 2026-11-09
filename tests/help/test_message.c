@@ -308,7 +308,7 @@ NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 NAOS_TEST(missing_argument_names_the_positional)

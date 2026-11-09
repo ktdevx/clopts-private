@@ -22,7 +22,7 @@ static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t *
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
 
-    check(&e, clopts_command_new("hello", &root));
+    check(&e, clopts_command_create("hello", &root));
     check(&e, clopts_command_set_description(root, "Greet someone."));
 
     check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
@@ -38,20 +38,20 @@ static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t *
         clopts_option_destroy(option); /* not attached: still ours */
     }
 
-    check(&e, clopts_positional_new("NAME", &name));
+    check(&e, clopts_positional_create("NAME", &name));
     check(&e, clopts_positional_set_required(name, true));
     check(&e, clopts_positional_set_help(name, "Who to greet"));
     if (!check(&e, clopts_command_add_positional(root, name)))
     {
-        clopts_positional_free(name);
+        clopts_positional_destroy(name);
     }
     check(&e, clopts_help_add_help_option(root, NULL));
     check(&e, clopts_help_add_version_option(root, version));
 
-    check(&e, clopts_program_new(root, NULL, 0, program)); /* the program now owns root */
+    check(&e, clopts_program_create(root, NULL, 0, program)); /* the program now owns root */
     if (e != CLOPTS_DECL_NONE)
     {
-        clopts_command_free(root);
+        clopts_command_destroy(root);
     }
     return e;
 }
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
     {
         fputs("hello: error: cannot read the command line arguments\n", stderr);
         clopts_argv_free(args);
-        clopts_program_free(program);
+        clopts_program_destroy(program);
         return 1;
     }
 
@@ -120,6 +120,6 @@ int main(int argc, char **argv)
 
     clopts_result_free(result);
     clopts_argv_free(args);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     return code;
 }

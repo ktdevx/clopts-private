@@ -6,7 +6,7 @@
  *
  * A command does not know its program: every check made here reads the
  * command alone. The checks between commands are made by
- * clopts_program_new() (parser_program.c).
+ * clopts_program_create() (parser_program.c).
  *
  * Every builder function checks its arguments and the declaration rules that
  * belong to it, in a fixed order, and returns the first rule that fails.
@@ -21,7 +21,7 @@
 #include <assert.h>
 #include <string.h>
 
-clopts_decl_error_t clopts_command_new(const char *name, clopts_command_t **out)
+clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **out)
 {
     clopts_command_t *command;
 
@@ -77,7 +77,7 @@ void clopts_parser_command_release(clopts_command_t *command)
     clopts_core_free(command);
 }
 
-void clopts_command_free(clopts_command_t *command)
+void clopts_command_destroy(clopts_command_t *command)
 {
     if (command == NULL)
     {

@@ -13,7 +13,7 @@ extern "C" {
 /*
  * Command (the root included): creation, release, texts, the attach of
  * options and positionals, and the read functions. A command is created on
- * its own, filled, and then handed to clopts_program_new() (clopts/program.h),
+ * its own, filled, and then handed to clopts_program_create() (clopts/program.h),
  * as the root or as a subcommand; it does not know its program. The attach
  * functions make the checks against the other options and positionals of the
  * same command. The rules shared by every builder function are in
@@ -25,14 +25,14 @@ extern "C" {
  * not be NULL or empty, start with '-' or contain white space
  * (INVALID_NAME). For the root, the name is the program name.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_new(const char *name, clopts_command_t **out);
+CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **out);
 
 /*
  * Releases an unattached command with the options and positionals attached
  * to it. NULL does nothing. Passing a command owned by a program is a
  * contract violation caught by assert (without assert it does nothing).
  */
-CLOPTS_API void clopts_command_free(clopts_command_t *command);
+CLOPTS_API void clopts_command_destroy(clopts_command_t *command);
 
 /* One-line description in the program help. Not used for the root. */
 CLOPTS_API clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary);

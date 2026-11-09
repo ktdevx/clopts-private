@@ -2,7 +2,7 @@
  * Builder of the program (clopts/program.h): creation from the root and the
  * subcommands, release, and the read functions.
  *
- * clopts_program_new() is the only place that checks rules between
+ * clopts_program_create() is the only place that checks rules between
  * commands: the names of the subcommands and the layout of the root. It
  * checks its arguments and these rules in a fixed order and returns the
  * first rule that fails. Nothing is changed before every check has passed
@@ -16,7 +16,7 @@
 #include <assert.h>
 #include <string.h>
 
-/* Checks of clopts_program_new(root, commands, count), in order. */
+/* Checks of clopts_program_create(root, commands, count), in order. */
 static clopts_decl_error_t program_check_new(const clopts_command_t *root, clopts_command_t *const *commands,
                                              size_t count)
 {
@@ -69,8 +69,8 @@ static clopts_decl_error_t program_check_new(const clopts_command_t *root, clopt
     return CLOPTS_DECL_NONE;
 }
 
-clopts_decl_error_t clopts_program_new(clopts_command_t *root, clopts_command_t *const *commands,
-                                       size_t command_count, clopts_program_t **out)
+clopts_decl_error_t clopts_program_create(clopts_command_t *root, clopts_command_t *const *commands,
+                                          size_t command_count, clopts_program_t **out)
 {
     clopts_program_t *program;
     clopts_command_t **copy = NULL;
@@ -117,7 +117,7 @@ clopts_decl_error_t clopts_program_new(clopts_command_t *root, clopts_command_t 
     return CLOPTS_DECL_NONE;
 }
 
-void clopts_program_free(clopts_program_t *program)
+void clopts_program_destroy(clopts_program_t *program)
 {
     size_t i;
 

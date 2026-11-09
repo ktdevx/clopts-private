@@ -599,7 +599,7 @@ NAOS_TEST(recovery_finds_a_terminal_of_the_selected_command)
     check_terminated(r.program, argv_long, r.stop, r.run);
     check_terminated(r.program, argv_short, r.stop, r.run);
     check_terminated(r.program, argv_root, r.quit, r.run);
-    clopts_program_free(r.program);
+    clopts_program_destroy(r.program);
 }
 
 NAOS_TEST(recovery_ignores_a_terminal_out_of_scope)
@@ -617,7 +617,7 @@ NAOS_TEST(recovery_ignores_a_terminal_out_of_scope)
         check_usage(r.program, argv_before, &expected_before);
         check_usage(r.program, argv_idle, &expected_idle);
     }
-    clopts_program_free(r.program);
+    clopts_program_destroy(r.program);
 }
 
 NAOS_TEST(recovery_ignores_the_negation_of_a_terminal)
@@ -634,7 +634,7 @@ NAOS_TEST(recovery_ignores_the_negation_of_a_terminal)
         check_usage(r.program, argv, &expected);
     }
     check_terminated(r.program, argv_exact, r.info, r.idle);
-    clopts_program_free(r.program);
+    clopts_program_destroy(r.program);
 }
 
 NAOS_TEST(negation_of_a_terminal_does_not_terminate)
@@ -654,7 +654,7 @@ NAOS_TEST(negation_of_a_terminal_does_not_terminate)
     NAOS_CHECK_FALSE(clopts_result_flag(result, r.info));
     NAOS_CHECK_INT_EQ(clopts_result_source(result, r.info), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_free(result);
-    clopts_program_free(r.program);
+    clopts_program_destroy(r.program);
 }
 
 /* ---- fields of each usage error kind (11.3, 11.4) ----------------------- */

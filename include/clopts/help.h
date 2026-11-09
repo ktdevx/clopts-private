@@ -91,10 +91,10 @@ CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_help_add_version_option(c
 /*
  * Creates an unattached subcommand "help" ("Show help for a command") with
  * one optional positional COMMAND into *out, to be passed to
- * clopts_program_new() with the other subcommands. clopts_help_target()
+ * clopts_program_create() with the other subcommands. clopts_help_target()
  * reads a result that selected it.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_help_command_new(clopts_command_t **out);
+CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_help_command_create(clopts_command_t **out);
 
 /*
  * For a result of program whose status is OK: reads the first positional as

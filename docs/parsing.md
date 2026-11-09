@@ -434,7 +434,7 @@ color: false
 
 ## 終端オプション、ヘルプと版、使い方エラー
 
-解析器には、組み込みのオプションもコマンドもない。`--help`、`-h`、`--version`、`help` コマンドは、`clopts/help.h` の関数（`clopts_help_add_help_option`、`clopts_help_add_version_option`、`clopts_help_command_new`）で足すふつうの宣言である。taskbook と textcount は、root に `-h` / `--help` と `--version` を、taskbook はさらに `help` コマンドを宣言している。
+解析器には、組み込みのオプションもコマンドもない。`--help`、`-h`、`--version`、`help` コマンドは、`clopts/help.h` の関数（`clopts_help_add_help_option`、`clopts_help_add_version_option`、`clopts_help_command_create`）で足すふつうの宣言である。taskbook と textcount は、root に `-h` / `--help` と `--version` を、taskbook はさらに `help` コマンドを宣言している。
 
 `--help` と `--version` は終端オプション（`clopts_option_set_terminal` を設定した FLAG）である。終端オプションは次のように扱われる。
 

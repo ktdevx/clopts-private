@@ -114,7 +114,7 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct textcount_opti
     clopts_option_t *option = NULL;
     clopts_positional_t *positional = NULL;
 
-    check(&e, clopts_command_new("textcount", &root));
+    check(&e, clopts_command_create("textcount", &root));
     check(&e, clopts_command_set_description(root, "Count the lines and words of text files."));
 
     check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "lines", 'l', &option));
@@ -144,19 +144,19 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct textcount_opti
     check(&e, clopts_help_add_help_option(root, &opts->help));
     check(&e, clopts_help_add_version_option(root, &opts->version));
 
-    check(&e, clopts_positional_new("FILE", &positional));
+    check(&e, clopts_positional_create("FILE", &positional));
     check(&e, clopts_positional_set_required(positional, true));
     check(&e, clopts_positional_set_variadic(positional, true));
     check(&e, clopts_positional_set_help(positional, "Files to count (- for standard input)"));
     if ((e != CLOPTS_DECL_NONE) || !check(&e, clopts_command_add_positional(root, positional)))
     {
-        clopts_positional_free(positional);
+        clopts_positional_destroy(positional);
     }
 
-    check(&e, clopts_program_new(root, NULL, 0, out));
+    check(&e, clopts_program_create(root, NULL, 0, out));
     if (e != CLOPTS_DECL_NONE)
     {
-        clopts_command_free(root);
+        clopts_command_destroy(root);
     }
     return e;
 }
@@ -218,7 +218,7 @@ int main(int argc, char **argv)
     {
         fputs("textcount: error: cannot read the command line arguments\n", stderr);
         clopts_argv_free(args);
-        clopts_program_free(program);
+        clopts_program_destroy(program);
         return 1;
     }
 
@@ -231,6 +231,6 @@ int main(int argc, char **argv)
     clopts_result_free(result);
     clopts_env_free(env);
     clopts_argv_free(args);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     return code;
 }

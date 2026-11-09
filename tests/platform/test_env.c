@@ -467,7 +467,7 @@ static void platform_env_tool_init(platform_env_tool_t *tool, const char *env_na
 
     tool->program = NULL;
     tool->output = NULL;
-    if (clopts_command_new("tool", &root) != CLOPTS_DECL_NONE)
+    if (clopts_command_create("tool", &root) != CLOPTS_DECL_NONE)
     {
         return;
     }
@@ -478,9 +478,9 @@ static void platform_env_tool_init(platform_env_tool_t *tool, const char *env_na
         clopts_option_destroy(output);
         output = NULL;
     }
-    if (clopts_program_new(root, NULL, 0, &tool->program) != CLOPTS_DECL_NONE)
+    if (clopts_program_create(root, NULL, 0, &tool->program) != CLOPTS_DECL_NONE)
     {
-        clopts_command_free(root);
+        clopts_command_destroy(root);
         return;
     }
     tool->output = output;
@@ -529,7 +529,7 @@ NAOS_TEST(parse_with_env_takes_a_utf8_value_from_the_environment)
     }
 
     clopts_result_free(result);
-    clopts_program_free(tool.program);
+    clopts_program_destroy(tool.program);
     NAOS_CHECK_TRUE(test_alloc_end());
     platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", NULL);
 }
@@ -556,7 +556,7 @@ NAOS_TEST(parse_with_env_leaves_an_unset_variable_unset)
 
     clopts_result_free(result);
     clopts_env_free(env);
-    clopts_program_free(tool.program);
+    clopts_program_destroy(tool.program);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -576,7 +576,7 @@ NAOS_TEST(parse_with_env_null_context_ends_with_out_of_memory)
     NAOS_CHECK_NULL(clopts_result_value(result, tool.output));
 
     clopts_result_free(result);
-    clopts_program_free(tool.program);
+    clopts_program_destroy(tool.program);
     NAOS_CHECK_TRUE(test_alloc_end());
     platform_env_put("CLOPTS_TEST_TOOL_OUTPUT", NULL);
 }
@@ -1054,7 +1054,7 @@ NAOS_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reas
 
     clopts_result_free(result);
     clopts_env_free(env);
-    clopts_program_free(tool.program);
+    clopts_program_destroy(tool.program);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 #endif /* _WIN32 */

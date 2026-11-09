@@ -13,7 +13,7 @@
  * counterparts. Checks against the siblings of an option or positional are
  * made by the attach functions and look at that command only; checks between
  * commands (command names, the layout of the root) are made by
- * clopts_program_new(). The order of the checks within one call is that of
+ * clopts_program_create(). The order of the checks within one call is that of
  * parser_program.c and parser_command.c.
  *
  * Names are not checked between the root and a command: there are no
@@ -66,7 +66,7 @@ static clopts_command_t *new_command(const char *name)
 {
     clopts_command_t *command = NULL;
 
-    EXPECT_OK(clopts_command_new(name, &command));
+    EXPECT_OK(clopts_command_create(name, &command));
     NAOS_REQUIRE_NOT_NULL(command);
     return command;
 }
@@ -191,7 +191,7 @@ static void expect_attach_positional_error(clopts_command_t *scope, clopts_posit
     NAOS_CHECK_FALSE(positional->attached);
     if (!positional->attached)
     {
-        clopts_positional_free(positional);
+        clopts_positional_destroy(positional);
     }
 }
 
@@ -199,7 +199,7 @@ static void expect_attach_positional_error(clopts_command_t *scope, clopts_posit
 #define MAX_PROGRAM_COMMANDS 8
 
 /*
- * Calls clopts_program_new(root, commands, count) expecting error and checks
+ * Calls clopts_program_create(root, commands, count) expecting error and checks
  * that the out pointer is set to NULL and that no handle changed: the
  * attached state of root and of every command (NULL entries skipped) and
  * their numbers of options and positionals are the same as before.
@@ -231,7 +231,7 @@ static void expect_program_error(clopts_command_t *root, clopts_command_t *const
         }
     }
 
-    NAOS_CHECK_INT_EQ(clopts_program_new(root, commands, count, &out), error);
+    NAOS_CHECK_INT_EQ(clopts_program_create(root, commands, count, &out), error);
     NAOS_CHECK_NULL(out);
     for (i = 0; i < n; i++)
     {
@@ -245,12 +245,12 @@ static void expect_program_error(clopts_command_t *root, clopts_command_t *const
     }
 }
 
-/* Calls clopts_program_new(root, commands, count) expecting success; the test stops when it fails. */
+/* Calls clopts_program_create(root, commands, count) expecting success; the test stops when it fails. */
 static clopts_program_t *program_new(clopts_command_t *root, clopts_command_t *const *commands, size_t count)
 {
     clopts_program_t *program = NULL;
 
-    EXPECT_OK(clopts_program_new(root, commands, count, &program));
+    EXPECT_OK(clopts_program_create(root, commands, count, &program));
     NAOS_REQUIRE_NOT_NULL(program);
     return program;
 }
@@ -320,7 +320,7 @@ NAOS_TEST(valid_short_name_rules)
     NAOS_CHECK_FALSE(clopts_parser_valid_short_name('\t'));
 }
 
-/* ---- clopts_command_new -------------------------------------------------- */
+/* ---- clopts_command_create -------------------------------------------------- */
 
 NAOS_TEST(command_name_invalid)
 {
@@ -332,7 +332,7 @@ NAOS_TEST(command_name_invalid)
     {
         NAOS_NOTE("name=\"%s\"", (names[i] != NULL) ? names[i] : "(null)");
         out = &sentinel_command;
-        NAOS_CHECK_INT_EQ(clopts_command_new(names[i], &out), CLOPTS_DECL_INVALID_NAME);
+        NAOS_CHECK_INT_EQ(clopts_command_create(names[i], &out), CLOPTS_DECL_INVALID_NAME);
         NAOS_CHECK_NULL(out);
     }
 }
@@ -347,17 +347,17 @@ NAOS_TEST(command_named_help_is_accepted)
     root = new_command("help");
     program = program_new(root, NULL, 0);
     NAOS_CHECK_STR_EQ(clopts_command_name(clopts_program_root(program)), "help");
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 
     root = new_command("tool");
     commands[0] = new_command("build");
     commands[1] = new_command("help");
     program = program_new(root, commands, 2);
     NAOS_CHECK_PTR_EQ(clopts_parser_find_command(program, "help"), commands[1]);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
-/* ---- clopts_program_new: arguments ------------------------------------------ */
+/* ---- clopts_program_create: arguments ------------------------------------------ */
 
 NAOS_TEST(program_new_invalid_arguments)
 {
@@ -366,8 +366,8 @@ NAOS_TEST(program_new_invalid_arguments)
     clopts_command_t *with_null[2];
 
     /* out NULL */
-    NAOS_CHECK_INT_EQ(clopts_program_new(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_program_new(root, &build, 1, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_program_create(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_program_create(root, &build, 1, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
 
     /* root NULL, commands NULL with a count, a NULL entry */
     expect_program_error(NULL, NULL, 0, CLOPTS_DECL_INVALID_ARGUMENT);
@@ -381,11 +381,11 @@ NAOS_TEST(program_new_invalid_arguments)
     expect_program_error(root, with_null, 2, CLOPTS_DECL_INVALID_ARGUMENT);
 
     /* commands NULL is fine without a count; a count of 0 ignores the array */
-    clopts_program_free(program_new(root, with_null, 0));
-    clopts_command_free(build);
+    clopts_program_destroy(program_new(root, with_null, 0));
+    clopts_command_destroy(build);
 }
 
-/* ---- clopts_program_new: ALREADY_ATTACHED ----------------------------------- */
+/* ---- clopts_program_create: ALREADY_ATTACHED ----------------------------------- */
 
 NAOS_TEST(program_new_already_attached)
 {
@@ -423,11 +423,11 @@ NAOS_TEST(program_new_already_attached)
     /* the other program is untouched, and the same handles make a program */
     NAOS_CHECK_UINT_EQ(clopts_program_command_count(first), 1);
     NAOS_CHECK_PTR_EQ(clopts_program_root(first), first_root);
-    clopts_program_free(program_new(root, commands, 2));
-    clopts_program_free(first);
+    clopts_program_destroy(program_new(root, commands, 2));
+    clopts_program_destroy(first);
 }
 
-/* ---- clopts_program_new: DUPLICATE_COMMAND ---------------------------------- */
+/* ---- clopts_program_create: DUPLICATE_COMMAND ---------------------------------- */
 
 NAOS_TEST(program_new_duplicate_command)
 {
@@ -443,10 +443,10 @@ NAOS_TEST(program_new_duplicate_command)
     pair[0] = commands[2];
     pair[1] = commands[0];
     expect_program_error(root, pair, 2, CLOPTS_DECL_DUPLICATE_COMMAND);
-    clopts_command_free(commands[2]);
+    clopts_command_destroy(commands[2]);
     program = program_new(root, commands, 2);
     NAOS_CHECK_PTR_EQ(clopts_parser_find_command(program, "build"), commands[0]);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 NAOS_TEST(command_names_are_case_sensitive)
@@ -468,10 +468,10 @@ NAOS_TEST(command_names_are_case_sensitive)
     {
         NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, i), commands[i]);
     }
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
-/* ---- clopts_program_new: MIXED_LAYOUT --------------------------------------- */
+/* ---- clopts_program_create: MIXED_LAYOUT --------------------------------------- */
 
 NAOS_TEST(program_new_root_positional_with_commands_is_mixed)
 {
@@ -486,16 +486,16 @@ NAOS_TEST(program_new_root_positional_with_commands_is_mixed)
     /* without subcommands the root takes positionals */
     program = program_new(root, NULL, 0);
     NAOS_CHECK_UINT_EQ(clopts_command_positional_count(clopts_program_root(program)), 1);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 
     /* and subcommands may have positionals, with root options */
     root = new_command("tool");
     add(root, CLOPTS_OPTION_FLAG, "verbose", 'v');
     program = program_new(root, &build, 1);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
-/* ---- clopts_program_new: order and failure ---------------------------------- */
+/* ---- clopts_program_create: order and failure ---------------------------------- */
 
 NAOS_TEST(program_new_checks_follow_order)
 {
@@ -511,7 +511,7 @@ NAOS_TEST(program_new_checks_follow_order)
     add_positional(root, "file");
 
     /* out pointer before everything */
-    NAOS_CHECK_INT_EQ(clopts_program_new(NULL, NULL, 1, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_program_create(NULL, NULL, 1, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
 
     /* INVALID_ARGUMENT (a NULL entry anywhere) before ALREADY_ATTACHED */
     commands[0] = other_cmd;
@@ -533,14 +533,14 @@ NAOS_TEST(program_new_checks_follow_order)
     /* MIXED_LAYOUT last */
     expect_program_error(root, commands, 1, CLOPTS_DECL_MIXED_LAYOUT);
 
-    clopts_command_free(root);
-    clopts_command_free(build);
-    clopts_command_free(build2);
-    clopts_program_free(other);
+    clopts_command_destroy(root);
+    clopts_command_destroy(build);
+    clopts_command_destroy(build2);
+    clopts_program_destroy(other);
 }
 
 /*
- * A failed clopts_program_new() allocates and releases nothing, and the
+ * A failed clopts_program_create() allocates and releases nothing, and the
  * caller still owns and may change every handle; also when an allocation of
  * the call fails.
  */
@@ -569,7 +569,7 @@ NAOS_TEST(program_new_failure_changes_nothing)
     EXPECT_OK(clopts_command_set_description(root, "A tool."));
     add(commands[0], CLOPTS_OPTION_FLAG, "verbose", 'v');
     live = test_alloc.live;
-    clopts_command_free(commands[1]);
+    clopts_command_destroy(commands[1]);
     NAOS_CHECK_INT_LT(test_alloc.live, live);
 
     /* the rules are checked before any allocation */
@@ -578,7 +578,7 @@ NAOS_TEST(program_new_failure_changes_nothing)
     expect_program_error(root, commands, 1, CLOPTS_DECL_MIXED_LAYOUT);
     test_alloc_set_fail_at(0);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 
     /* out of memory at each allocation of the call */
     root = new_command("tool");
@@ -595,12 +595,12 @@ NAOS_TEST(program_new_failure_changes_nothing)
     program = program_new(root, commands, 1);
     NAOS_CHECK_TRUE(root->attached);
     NAOS_CHECK_TRUE(commands[0]->attached);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     NAOS_CHECK_INT_EQ(test_alloc.live, 0);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-/* After clopts_program_new() the root and the commands are read-only. */
+/* After clopts_program_create() the root and the commands are read-only. */
 NAOS_TEST(commands_are_read_only_in_a_program)
 {
     clopts_command_t *root = new_command("tool");
@@ -630,7 +630,7 @@ NAOS_TEST(commands_are_read_only_in_a_program)
     }
     NAOS_CHECK_STR_EQ(build->summary, "Build things.");
     NAOS_CHECK_NULL(root->description);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 /* ---- names shared by the root and a command ----------------------------------- */
@@ -654,7 +654,7 @@ NAOS_TEST(help_and_version_names_are_accepted)
     NAOS_CHECK_UINT_EQ(root->options.len, 2);
     NAOS_CHECK_UINT_EQ(build->options.len, 2);
     NAOS_CHECK_UINT_EQ(help->options.len, 2);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 /* The same long or short name in the root and in commands, attached in any order. */
@@ -686,7 +686,7 @@ NAOS_TEST(option_same_name_in_root_and_command_is_accepted)
     NAOS_CHECK_UINT_EQ(root->options.len, 4);
     NAOS_CHECK_UINT_EQ(build->options.len, 4);
     NAOS_CHECK_UINT_EQ(copy->options.len, 3);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 /* A negatable FLAG x in one scope and an option named no-x in another one. */
@@ -717,7 +717,7 @@ NAOS_TEST(negation_across_root_and_command_is_accepted)
     NAOS_CHECK_UINT_EQ(root->options.len, 4);
     NAOS_CHECK_UINT_EQ(build->options.len, 3);
     NAOS_CHECK_UINT_EQ(copy->options.len, 3);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 /* ---- clopts_command_add_option ------------------------------------------- */
@@ -744,8 +744,8 @@ NAOS_TEST(option_duplicate_in_same_command)
     add(build, CLOPTS_OPTION_FLAG, "f", 'F');
     NAOS_CHECK_UINT_EQ(build->options.len, 4);
     NAOS_CHECK_UINT_EQ(root->options.len, 1);
-    clopts_command_free(build);
-    clopts_command_free(root);
+    clopts_command_destroy(build);
+    clopts_command_destroy(root);
 }
 
 /* no-x attached after a negatable FLAG x in the same command */
@@ -771,8 +771,8 @@ NAOS_TEST(option_negation_conflict_on_add)
     add(build, CLOPTS_OPTION_FLAG, "no-color", '\0');
     NAOS_CHECK_UINT_EQ(root->options.len, 1);
     NAOS_CHECK_UINT_EQ(build->options.len, 4);
-    clopts_command_free(build);
-    clopts_command_free(root);
+    clopts_command_destroy(build);
+    clopts_command_destroy(root);
 }
 
 /* a negatable FLAG x attached after no-x in the same command */
@@ -798,8 +798,8 @@ NAOS_TEST(negatable_with_existing_no_option)
     attach(root, make_negatable("cache", '\0'));
     NAOS_CHECK_UINT_EQ(root->options.len, 2);
     NAOS_CHECK_UINT_EQ(build->options.len, 3);
-    clopts_command_free(build);
-    clopts_command_free(root);
+    clopts_command_destroy(build);
+    clopts_command_destroy(root);
 }
 
 NAOS_TEST(option_no_prefix_without_negatable_flag_is_allowed)
@@ -815,7 +815,7 @@ NAOS_TEST(option_no_prefix_without_negatable_flag_is_allowed)
     add(root, CLOPTS_OPTION_FLAG, "no-cache", '\0');
     add(root, CLOPTS_OPTION_FLAG, "No-Cache", '\0');
     NAOS_CHECK_UINT_EQ(root->options.len, 8);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 NAOS_TEST(negatable_flag_without_long_name_is_allowed)
@@ -826,7 +826,7 @@ NAOS_TEST(negatable_flag_without_long_name_is_allowed)
     add(root, CLOPTS_OPTION_FLAG, "no-", '\0');
     option = attach(root, make_negatable(NULL, 'c'));
     NAOS_CHECK_TRUE(option->negatable);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 NAOS_TEST(option_attach_checks_follow_order)
@@ -845,7 +845,7 @@ NAOS_TEST(option_attach_checks_follow_order)
     expect_attach_error(root, make(CLOPTS_OPTION_FLAG, "no-color", 'q'), CLOPTS_DECL_DUPLICATE_OPTION);
     expect_attach_error(root, make_negatable("cache", 'q'), CLOPTS_DECL_DUPLICATE_OPTION);
     NAOS_CHECK_UINT_EQ(root->options.len, 4);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 /* ---- clopts_command_add_positional ---------------------------------------- */
@@ -870,7 +870,7 @@ NAOS_TEST(positional_after_variadic)
     EXPECT_OK(clopts_positional_set_required(extra, true));
     expect_attach_positional_error(build, extra, CLOPTS_DECL_VARIADIC_POSITION);
     NAOS_CHECK_PTR_EQ(positional_at(build, 0), files);
-    clopts_command_free(build);
+    clopts_command_destroy(build);
 }
 
 NAOS_TEST(required_positional_after_optional)
@@ -892,7 +892,7 @@ NAOS_TEST(required_positional_after_optional)
     /* an optional one is allowed */
     add_positional(copy, "dst");
     NAOS_CHECK_UINT_EQ(copy->positionals.len, 2);
-    clopts_command_free(copy);
+    clopts_command_destroy(copy);
 }
 
 NAOS_TEST(positional_order_allowed)
@@ -928,7 +928,7 @@ NAOS_TEST(positional_order_allowed)
     NAOS_CHECK_TRUE(d->variadic);
     NAOS_CHECK_PTR_EQ(positional_at(root, 3), d);
     program = program_new(root, NULL, 0);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 
     /* a single required variadic one */
     root = new_command("tool");
@@ -936,7 +936,7 @@ NAOS_TEST(positional_order_allowed)
     EXPECT_OK(clopts_positional_set_required(a, true));
     EXPECT_OK(clopts_positional_set_variadic(a, true));
     attach_positional(root, a);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 /* ---- negatable flags at attach ------------------------------------------ */
@@ -955,7 +955,7 @@ NAOS_TEST(negatable_unset_is_not_checked)
     EXPECT_OK(clopts_option_set_negatable(color, false));
     attach(root, color);
     NAOS_CHECK_UINT_EQ(root->options.len, 3);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 /* ---- already attached --------------------------------------------------- */
@@ -986,10 +986,10 @@ NAOS_TEST(option_attached_twice)
     NAOS_CHECK_UINT_EQ(other_root->options.len, 0);
     NAOS_CHECK_TRUE(option->attached);
     NAOS_CHECK_UINT_EQ(option->index, 0);
-    clopts_program_free(other);
-    clopts_command_free(copy);
-    clopts_command_free(build);
-    clopts_command_free(root);
+    clopts_program_destroy(other);
+    clopts_command_destroy(copy);
+    clopts_command_destroy(build);
+    clopts_command_destroy(root);
 }
 
 NAOS_TEST(positional_attached_twice)
@@ -1016,9 +1016,9 @@ NAOS_TEST(positional_attached_twice)
     NAOS_CHECK_UINT_EQ(build->positionals.len, 1);
     NAOS_CHECK_UINT_EQ(copy->positionals.len, 1);
     NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
-    clopts_command_free(copy);
-    clopts_command_free(build);
-    clopts_command_free(root);
+    clopts_command_destroy(copy);
+    clopts_command_destroy(build);
+    clopts_command_destroy(root);
 }
 
 /* Every option setter on an attached option, with a value that would otherwise be accepted. */
@@ -1101,7 +1101,7 @@ NAOS_TEST(option_setters_after_attach)
     NAOS_CHECK_NULL(flag->env);
     NAOS_CHECK_NULL(flag->default_value);
     NAOS_CHECK_TRUE(help->terminal);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 NAOS_TEST(positional_setters_after_attach)
@@ -1130,7 +1130,7 @@ NAOS_TEST(positional_setters_after_attach)
     NAOS_CHECK_FALSE(src->variadic);
     NAOS_CHECK_FALSE(rest->required);
     NAOS_CHECK_TRUE(rest->variadic);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 /* ---- invalid arguments -------------------------------------------------- */
@@ -1186,10 +1186,10 @@ NAOS_TEST(null_handles_are_invalid_arguments)
     NAOS_CHECK_INT_EQ(clopts_positional_set_variadic(NULL, false), CLOPTS_DECL_INVALID_ARGUMENT);
 
     /* the releases accept NULL */
-    clopts_program_free(NULL);
-    clopts_command_free(NULL);
+    clopts_program_destroy(NULL);
+    clopts_command_destroy(NULL);
     clopts_option_destroy(NULL);
-    clopts_positional_free(NULL);
+    clopts_positional_destroy(NULL);
 
     /* nothing changed: the handles are still the caller's */
     NAOS_CHECK_FALSE(option->attached);
@@ -1198,8 +1198,8 @@ NAOS_TEST(null_handles_are_invalid_arguments)
     NAOS_CHECK_UINT_EQ(root->options.len, 0);
     NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
     clopts_option_destroy(option);
-    clopts_positional_free(positional);
-    clopts_command_free(root);
+    clopts_positional_destroy(positional);
+    clopts_command_destroy(root);
 }
 
 NAOS_TEST(null_out_pointers_are_invalid_arguments)
@@ -1207,17 +1207,17 @@ NAOS_TEST(null_out_pointers_are_invalid_arguments)
     clopts_command_t *root = new_command("tool");
 
     /* the out pointer is checked before the name, the kind and the handles */
-    NAOS_CHECK_INT_EQ(clopts_command_new("tool", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_new(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_new("", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_command_create("tool", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_command_create(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_command_create("", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_option_create(CLOPTS_OPTION_FLAG, "force", 'f', NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_option_create((clopts_option_kind_t)9, NULL, '\0', NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_new("file", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_new(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_program_new(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_program_new(NULL, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_positional_create("file", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_positional_create(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_program_create(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_program_create(NULL, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_FALSE(root->attached);
-    clopts_command_free(root);
+    clopts_command_destroy(root);
 }
 
 /* ---- ownership on a failed attach ------------------------------------------ */
@@ -1284,10 +1284,10 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     positional = make_positional("dst");
     EXPECT_OK(clopts_positional_set_required(positional, true));
     NAOS_CHECK_INT_EQ(clopts_command_add_positional(copy, positional), CLOPTS_DECL_POSITIONAL_ORDER);
-    clopts_positional_free(positional);
+    clopts_positional_destroy(positional);
 
     program = finish(root);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     NAOS_CHECK_INT_EQ(test_alloc.live, 0);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
@@ -1370,7 +1370,7 @@ NAOS_TEST(tool_like_declaration_is_ok)
     NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_command(result), copy);
     clopts_result_free(result);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 /* ---- lookups ------------------------------------------------------------- */
@@ -1428,7 +1428,7 @@ NAOS_TEST(find_command_is_exact_and_case_sensitive)
     NAOS_CHECK_NULL(clopts_parser_find_command(f.program, ""));
     NAOS_CHECK_NULL(clopts_parser_find_command(f.program, "tool"));
     NAOS_CHECK_NULL(clopts_parser_find_command(f.program, "help"));
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(find_long_searches_command_then_root)
@@ -1466,7 +1466,7 @@ NAOS_TEST(find_long_searches_command_then_root)
     /* other commands are not searched */
     ref = clopts_parser_find_long(f.program, f.copy, "cache", 5);
     NAOS_CHECK_NULL(ref.option);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(find_long_is_exact_case_sensitive_and_uses_name_len)
@@ -1483,7 +1483,7 @@ NAOS_TEST(find_long_is_exact_case_sensitive_and_uses_name_len)
     ref = clopts_parser_find_long(f.program, f.build, "output=x", 6);
     NAOS_CHECK_PTR_EQ(ref.option, f.build_output);
     NAOS_CHECK_NULL(clopts_parser_find_long(f.program, f.build, "output=x", 5).option);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(find_long_negation_only_for_negatable_flags_with_long_name)
@@ -1517,7 +1517,7 @@ NAOS_TEST(find_long_negation_only_for_negatable_flags_with_long_name)
     NAOS_CHECK_NULL(clopts_parser_find_long(f.program, NULL, "nocolor", 7).option);
     /* a negatable FLAG without a long name has no negation */
     NAOS_CHECK_NULL(clopts_parser_find_long(f.program, f.build, "no-r", 4).option);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 /*
@@ -1550,7 +1550,7 @@ NAOS_TEST(find_long_resolves_each_scope_completely)
     ref = clopts_parser_find_long(f.program, f.copy, "no-color", 8);
     NAOS_CHECK_PTR_EQ(ref.option, f.color);
     NAOS_CHECK_TRUE(ref.negated);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(find_short_searches_command_then_root)
@@ -1582,7 +1582,7 @@ NAOS_TEST(find_short_searches_command_then_root)
     NAOS_CHECK_NULL(clopts_parser_find_short(f.program, f.build, 'V').option);
     NAOS_CHECK_NULL(clopts_parser_find_short(f.program, f.build, 'O').option);
     NAOS_CHECK_NULL(clopts_parser_find_short(f.program, f.build, '\0').option);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 NAOS_TEST(find_conflict_and_named_search_one_command)
@@ -1612,7 +1612,7 @@ NAOS_TEST(find_conflict_and_named_search_one_command)
     NAOS_CHECK_NULL(clopts_parser_find_named(root, "cache", 5));
     NAOS_CHECK_NULL(clopts_parser_find_named(f.build, "colo", 4));
     NAOS_CHECK_NULL(clopts_parser_find_named(f.build, "", 0));
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 /* ---- shadowing at parse time ----------------------------------------------- */
@@ -1706,7 +1706,7 @@ NAOS_TEST(shadowed_long_name_resolves_by_position)
     NAOS_CHECK_STR_EQ(clopts_result_value(result, f.output), "z");
     NAOS_CHECK_NULL(clopts_result_value(result, f.build_output));
     clopts_result_free(result);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 /* Short names likewise: alone, with an attached value and in a group. */
@@ -1750,7 +1750,7 @@ NAOS_TEST(shadowed_short_name_resolves_by_position)
     NAOS_CHECK_TRUE(clopts_result_flag(result, f.quiet));
     NAOS_CHECK_STR_EQ(clopts_result_value(result, f.output), "z");
     clopts_result_free(result);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 /*
@@ -1814,7 +1814,7 @@ NAOS_TEST(shadowed_negation_resolves_by_scope)
     NAOS_CHECK_INT_EQ(clopts_result_source(result, f.color), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_TRUE(clopts_result_flag(result, f.no_cache));
     clopts_result_free(result);
-    clopts_program_free(f.program);
+    clopts_program_destroy(f.program);
 }
 
 /* --help, -h and --version declared as ordinary options parse as ordinary options. */
@@ -1847,7 +1847,7 @@ NAOS_TEST(help_and_version_options_parse_as_declared)
     NAOS_CHECK_TRUE(clopts_result_flag(result, help_h));
     NAOS_CHECK_UINT_EQ(clopts_result_count(result, root_help), 0);
     clopts_result_free(result);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
 }
 
 NAOS_SUITE(decl,

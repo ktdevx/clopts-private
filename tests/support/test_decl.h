@@ -17,7 +17,7 @@
  * Setters must be called before the attach: an attached option, positional
  * or command is read-only.
  *
- * A program is built from the bottom up (clopts_program_new() takes the root
+ * A program is built from the bottom up (clopts_program_create() takes the root
  * and the commands). To keep tests short, test_decl_root() makes a root and
  * test_decl_command() makes a command and remembers it for that root; once
  * everything is declared, test_decl_finish() creates the program from the
@@ -47,24 +47,24 @@ clopts_decl_error_t test_decl_check(clopts_decl_error_t error);
 /* Maximum number of commands test_decl_command() remembers per root. */
 #define TEST_DECL_MAX_COMMANDS 16
 
-/* clopts_command_new(name), as a root; NULL on failure. */
+/* clopts_command_create(name), as a root; NULL on failure. */
 clopts_command_t *test_decl_root(const char *name);
 
 /*
- * clopts_command_new(name), remembered as a subcommand of root; NULL on
+ * clopts_command_create(name), remembered as a subcommand of root; NULL on
  * failure or when root is NULL (nothing is created then).
  */
 clopts_command_t *test_decl_command(clopts_command_t *root, const char *name);
 
 /*
- * Remembers command (made elsewhere, e.g. by clopts_help_command_new()) as a
+ * Remembers command (made elsewhere, e.g. by clopts_help_command_create()) as a
  * subcommand of root and returns it. NULL command gives NULL; NULL root
  * releases command and gives NULL.
  */
 clopts_command_t *test_decl_adopt(clopts_command_t *root, clopts_command_t *command);
 
 /*
- * clopts_program_new(root, <the remembered commands of root>); NULL on
+ * clopts_program_create(root, <the remembered commands of root>); NULL on
  * failure, after releasing root and its commands. NULL root gives NULL (the
  * commands remembered for it, if any, are released).
  */
@@ -79,7 +79,7 @@ void test_decl_discard(clopts_command_t *root);
 /* clopts_option_create(kind, long_name, short_name); NULL on failure. */
 clopts_option_t *test_decl_option(clopts_option_kind_t kind, const char *long_name, char short_name);
 
-/* clopts_positional_new(name); NULL on failure. */
+/* clopts_positional_create(name); NULL on failure. */
 clopts_positional_t *test_decl_positional(const char *name);
 
 /*

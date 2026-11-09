@@ -28,17 +28,17 @@ extern "C" {
  * listed twice, or root is also listed among commands), DUPLICATE_COMMAND, or
  * MIXED_LAYOUT when there are subcommands and root has positionals.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_program_new(clopts_command_t *root,
-                                                                   clopts_command_t *const *commands,
-                                                                   size_t command_count, clopts_program_t **out);
+CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_program_create(clopts_command_t *root,
+                                                                      clopts_command_t *const *commands,
+                                                                      size_t command_count, clopts_program_t **out);
 
 /* Releases program and everything attached to it. NULL does nothing. */
-CLOPTS_API void clopts_program_free(clopts_program_t *program);
+CLOPTS_API void clopts_program_destroy(clopts_program_t *program);
 
 /* The root of program (NULL for NULL). */
 CLOPTS_API const clopts_command_t *clopts_program_root(const clopts_program_t *program);
 
-/* Number of subcommands, in the order given to clopts_program_new(). */
+/* Number of subcommands, in the order given to clopts_program_create(). */
 CLOPTS_API size_t clopts_program_command_count(const clopts_program_t *program);
 
 /* Subcommand index; index must be less than clopts_program_command_count() (caught by assert). */

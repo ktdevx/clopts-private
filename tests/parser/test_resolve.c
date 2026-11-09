@@ -278,7 +278,7 @@ static const char *item_of(const clopts_parser_slot_t *slot, size_t index)
     do                                                                              \
     {                                                                               \
         clopts_result_free(result);                                                 \
-        clopts_program_free((s).program);                                           \
+        clopts_program_destroy((s).program);                                           \
         NAOS_CHECK_TRUE(test_alloc_end());                                          \
     } while (0)
 
@@ -904,7 +904,7 @@ NAOS_TEST(program_without_subcommands_checks_root_positionals)
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, program, true), 0);
 
     clopts_result_free(result);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -1242,7 +1242,7 @@ NAOS_TEST(parse_required_satisfied_by_env)
     NAOS_CHECK_STR_EQ(clopts_result_value(result, d.key), "k");
     NAOS_CHECK_UINT_EQ(clopts_result_positional_count(result), 1);
     clopts_result_free(result);
-    clopts_program_free(d.program);
+    clopts_program_destroy(d.program);
 }
 
 NAOS_TEST(parse_required_missing_when_env_unset)
@@ -1261,7 +1261,7 @@ NAOS_TEST(parse_required_missing_when_env_unset)
     NAOS_CHECK_NULL(clopts_result_error_positional(result));
     check_missing_common(result, NULL);
     clopts_result_free(result);
-    clopts_program_free(d.program);
+    clopts_program_destroy(d.program);
 }
 
 NAOS_TEST(parse_required_variadic_needs_one_token)
@@ -1282,7 +1282,7 @@ NAOS_TEST(parse_required_variadic_needs_one_token)
     NAOS_CHECK_NULL(clopts_result_error_option(result));
     check_missing_common(result, NULL);
     clopts_result_free(result);
-    clopts_program_free(d.program);
+    clopts_program_destroy(d.program);
 }
 
 NAOS_TEST(parse_build_without_output_is_missing_option)
@@ -1372,7 +1372,7 @@ NAOS_TEST(parse_required_order_global_command_positional)
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_value(result, d.local), all[5]);
     clopts_result_free(result);
-    clopts_program_free(d.program);
+    clopts_program_destroy(d.program);
 }
 
 NAOS_TEST(parse_no_command_skips_the_command_required_checks)
@@ -1400,7 +1400,7 @@ NAOS_TEST(parse_no_command_skips_the_command_required_checks)
     NAOS_CHECK_PTR_EQ(clopts_result_value(result, d.global), given[2]);
     NAOS_CHECK_NULL(clopts_result_command(result));
     clopts_result_free(result);
-    clopts_program_free(d.program);
+    clopts_program_destroy(d.program);
 }
 
 NAOS_TEST(parse_strict_no_command_with_required_global)

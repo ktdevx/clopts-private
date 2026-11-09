@@ -14,7 +14,7 @@
  *             SRC required, EXTRA variadic
  *     copy:   SRC required, DST required
  *     cat:    --tags LIST ',' (default "a,b", env TOOL_TAGS), FILE variadic
- *     help:   the help command of clopts_help_command_new() (COMMAND optional)
+ *     help:   the help command of clopts_help_command_create() (COMMAND optional)
  *   filt         without subcommands, no --version
  *     -n/--lines VALUE (default "10", env FILT_LINES), -h/--help terminal,
  *     FILE variadic
@@ -24,7 +24,7 @@
  *
  * Each init function fills a struct of handles and sets ok when every
  * builder call succeeded. Every allocation of the assembly,
- * clopts_program_new() included, goes through the allocator set with
+ * clopts_program_create() included, goes through the allocator set with
  * clopts_set_allocator(), so with the fault-injecting allocator of
  * tests/support/test_alloc.h each of them is a fault point. When an
  * allocation fails, the remaining builder calls get NULL handles and do

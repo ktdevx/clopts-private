@@ -114,7 +114,7 @@ void fixture_tool_init(fixture_tool_t *f)
     /* help */
     if (f->root != NULL)
     {
-        test_decl_check(clopts_help_command_new(&f->help_command));
+        test_decl_check(clopts_help_command_create(&f->help_command));
         f->help_command = test_decl_adopt(f->root, f->help_command);
     }
 
@@ -131,7 +131,7 @@ void fixture_tool_free(fixture_tool_t *f)
 {
     assert(f != NULL);
 
-    clopts_program_free(f->program);
+    clopts_program_destroy(f->program);
     memset(f, 0, sizeof(*f));
 }
 
@@ -174,7 +174,7 @@ void fixture_filt_free(fixture_filt_t *f)
 {
     assert(f != NULL);
 
-    clopts_program_free(f->program);
+    clopts_program_destroy(f->program);
     memset(f, 0, sizeof(*f));
 }
 
@@ -214,7 +214,7 @@ void fixture_strict_free(fixture_strict_t *f)
 {
     assert(f != NULL);
 
-    clopts_program_free(f->program);
+    clopts_program_destroy(f->program);
     memset(f, 0, sizeof(*f));
 }
 

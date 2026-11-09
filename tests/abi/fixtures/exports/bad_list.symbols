@@ -2,11 +2,11 @@
 # every kind of format error, each reported with its line number. Blank lines,
 # comments and indented comments must not be reported.
 
-clopts_program_new
+clopts_program_create
    # an indented comment
-  clopts_program_free  
+  clopts_program_destroy  
 
-clopts_program_new
+clopts_program_create
 parse_args
 Clopts_Parse
 clopts_argv_from_wide linux

@@ -19,7 +19,7 @@ extern "C" {
  *
  * A declaration is built from the bottom up. Options and positionals are
  * created on their own, configured, and then attached to a command; commands
- * are created on their own, filled, and then handed to clopts_program_new()
+ * are created on their own, filled, and then handed to clopts_program_create()
  * together with the root:
  *
  *     clopts_option_t *verbose;
@@ -38,13 +38,13 @@ extern "C" {
  *     change or release it right after the call.
  *   - A new option, positional or command is owned by the caller until it is
  *     attached successfully; the caller releases an unattached one with
- *     clopts_option_destroy() / clopts_positional_free() /
- *     clopts_command_free(). A successful attach (clopts_command_add_option(),
- *     clopts_command_add_positional(), clopts_program_new()) moves ownership
+ *     clopts_option_destroy() / clopts_positional_destroy() /
+ *     clopts_command_destroy(). A successful attach (clopts_command_add_option(),
+ *     clopts_command_add_positional(), clopts_program_create()) moves ownership
  *     to the command or the program; a failed one changes nothing.
  *   - The program owns its root, its commands and everything attached to
  *     them. These handles stay valid, at the same address, until
- *     clopts_program_free().
+ *     clopts_program_destroy().
  *
  * Errors: every builder function returns CLOPTS_DECL_NONE on success and
  * another clopts_decl_error_t right away on failure, leaving every handle
@@ -53,7 +53,7 @@ extern "C" {
  * positional itself are made by its constructor and setters; checks against
  * the other options and positionals of the same command are made when it is
  * attached to the command; checks between commands (command names, the
- * layout of the root) are made by clopts_program_new(). Option names are not
+ * layout of the root) are made by clopts_program_create(). Option names are not
  * checked between commands: a name of a command shadows the same name of the
  * root (clopts/parse.h).
  *
@@ -63,7 +63,7 @@ extern "C" {
  *   - Attached handles are read-only: a setter or an attach called on an
  *     attached option, positional or command gives
  *     CLOPTS_DECL_ALREADY_ATTACHED. A program never changes after
- *     clopts_program_new().
+ *     clopts_program_create().
  *   - Setting a string attribute again replaces the previous copy (last call
  *     wins). NULL, false, '\0' or 0 resets an attribute.
  *   - The read functions (clopts_option_long_name() and the others) accept

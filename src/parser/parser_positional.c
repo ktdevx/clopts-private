@@ -16,7 +16,7 @@ void clopts_parser_positional_release(clopts_positional_t *positional)
     clopts_core_free(positional);
 }
 
-clopts_decl_error_t clopts_positional_new(const char *name, clopts_positional_t **out)
+clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
 {
     clopts_positional_t *positional;
 
@@ -49,7 +49,7 @@ clopts_decl_error_t clopts_positional_new(const char *name, clopts_positional_t 
     return CLOPTS_DECL_NONE;
 }
 
-void clopts_positional_free(clopts_positional_t *positional)
+void clopts_positional_destroy(clopts_positional_t *positional)
 {
     if (positional == NULL)
     {

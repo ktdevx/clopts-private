@@ -16,7 +16,7 @@
  *             -k/--keys LIST <KEY> ',' (default "a,b"),
  *             SRC required, EXTRA optional variadic
  *     copy:   summary only, SRC required, DST required
- *     help:   the help command of clopts_help_command_new()
+ *     help:   the help command of clopts_help_command_create()
  *   filt         without subcommands, no --version, with a description
  *     -n/--lines VALUE <N> (default "10", env FILT_LINES), -h/--help,
  *     FILE required variadic
@@ -30,7 +30,7 @@
  *     -h/--help, ファイル optional variadic
  *
  * Each init function fills a struct of handles; the program is NULL only
- * when clopts_program_new() failed (the other handles are then NULL too).
+ * when clopts_program_create() failed (the other handles are then NULL too).
  * The free function releases the program (NULL is fine) and clears the
  * struct.
  */

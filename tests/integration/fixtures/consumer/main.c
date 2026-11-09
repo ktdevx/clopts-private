@@ -46,24 +46,24 @@ static int consumer_parse_check(void)
     const char *value;
     int failed = 0;
 
-    if (clopts_command_new("consumer", &root) != CLOPTS_DECL_NONE)
+    if (clopts_command_create("consumer", &root) != CLOPTS_DECL_NONE)
     {
         return 1;
     }
     if (clopts_option_create(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_DECL_NONE)
     {
-        clopts_command_free(root);
+        clopts_command_destroy(root);
         return 1;
     }
     if (clopts_command_add_option(root, name) != CLOPTS_DECL_NONE)
     {
         clopts_option_destroy(name);
-        clopts_command_free(root);
+        clopts_command_destroy(root);
         return 1;
     }
-    if (clopts_program_new(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
+    if (clopts_program_create(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
     {
-        clopts_command_free(root);
+        clopts_command_destroy(root);
         return 1;
     }
     result = clopts_parse(program, 3, args);
@@ -80,7 +80,7 @@ static int consumer_parse_check(void)
         }
     }
     clopts_result_free(result);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     return failed;
 }
 
@@ -111,13 +111,13 @@ static int consumer_help_check(void)
     clopts_result_t *result;
     int failed = 0;
 
-    if (clopts_command_new("consumer", &root) != CLOPTS_DECL_NONE)
+    if (clopts_command_create("consumer", &root) != CLOPTS_DECL_NONE)
     {
         return 1;
     }
-    if (clopts_program_new(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
+    if (clopts_program_create(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
     {
-        clopts_command_free(root);
+        clopts_command_destroy(root);
         return 1;
     }
     result = clopts_parse(program, 0, NULL);
@@ -132,7 +132,7 @@ static int consumer_help_check(void)
         failed = 1;
     }
     clopts_result_free(result);
-    clopts_program_free(program);
+    clopts_program_destroy(program);
     return failed;
 }
 

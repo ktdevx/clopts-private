@@ -534,7 +534,7 @@ static void nosub_init(nosub_t *n)
 /* Releases the program of n and clears it. */
 static void nosub_free(nosub_t *n)
 {
-    clopts_program_free(n->program);
+    clopts_program_destroy(n->program);
     memset(n, 0, sizeof(*n));
 }
 

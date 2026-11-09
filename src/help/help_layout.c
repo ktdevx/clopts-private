@@ -877,7 +877,7 @@ clopts_decl_error_t clopts_help_add_version_option(clopts_command_t *command, co
     return help_add_terminal(command, "version", '\0', "Show version information", out);
 }
 
-clopts_decl_error_t clopts_help_command_new(clopts_command_t **out)
+clopts_decl_error_t clopts_help_command_create(clopts_command_t **out)
 {
     clopts_command_t *command = NULL;
     clopts_positional_t *positional = NULL;
@@ -888,14 +888,14 @@ clopts_decl_error_t clopts_help_command_new(clopts_command_t **out)
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
     *out = NULL;
-    error = clopts_command_new("help", &command);
+    error = clopts_command_create("help", &command);
     if (error == CLOPTS_DECL_NONE)
     {
         error = clopts_command_set_summary(command, "Show help for a command");
     }
     if (error == CLOPTS_DECL_NONE)
     {
-        error = clopts_positional_new("COMMAND", &positional);
+        error = clopts_positional_create("COMMAND", &positional);
     }
     if (error == CLOPTS_DECL_NONE)
     {
@@ -911,8 +911,8 @@ clopts_decl_error_t clopts_help_command_new(clopts_command_t **out)
     }
     if (error != CLOPTS_DECL_NONE)
     {
-        clopts_positional_free(positional);
-        clopts_command_free(command);
+        clopts_positional_destroy(positional);
+        clopts_command_destroy(command);
         return error;
     }
     *out = command;

@@ -625,7 +625,7 @@ NAOS_TEST(custom_command_short_shadows_the_root_short)
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.run_x), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_UINT_EQ(clopts_result_count(result, c.verbose), 1);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(custom_command_short_shadow_leaves_the_root_unset)
@@ -641,7 +641,7 @@ NAOS_TEST(custom_command_short_shadow_leaves_the_root_unset)
     NAOS_CHECK_FALSE(clopts_result_flag(result, c.root_x));
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_x), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(custom_root_short_is_reached_from_the_command)
@@ -656,7 +656,7 @@ NAOS_TEST(custom_root_short_is_reached_from_the_command)
     NAOS_CHECK_UINT_EQ(clopts_result_count(result, c.verbose), 2);
     NAOS_CHECK_STR_EQ(clopts_result_value(result, c.out), "a");
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(custom_command_terminal_stops_the_group)
@@ -676,7 +676,7 @@ NAOS_TEST(custom_command_terminal_stops_the_group)
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.run_x), CLOPTS_SOURCE_NONE);
     NAOS_CHECK_NULL(clopts_result_value(result, c.out));
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(custom_root_terminal_in_a_group_after_the_command)
@@ -695,7 +695,7 @@ NAOS_TEST(custom_root_terminal_in_a_group_after_the_command)
     NAOS_CHECK_FALSE(clopts_result_flag(result, c.root_x));
     NAOS_CHECK_UINT_EQ(clopts_result_count(result, c.verbose), 0);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(custom_command_terminal_before_the_command_is_unknown)
@@ -709,7 +709,7 @@ NAOS_TEST(custom_command_terminal_before_the_command_is_unknown)
     check_short_error(result, CLOPTS_USAGE_UNKNOWN_OPTION, NULL, NULL, argv, 1, 's');
     NAOS_CHECK_NULL(clopts_result_terminal(result));
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(custom_terminal_after_a_value_in_a_group_is_the_value)
@@ -725,7 +725,7 @@ NAOS_TEST(custom_terminal_after_a_value_in_a_group_is_the_value)
     NAOS_CHECK_STR_EQ(clopts_result_value(result, c.out), "s");
     NAOS_CHECK_FALSE(clopts_result_flag(result, c.stop));
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_SUITE(short,

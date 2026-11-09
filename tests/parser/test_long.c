@@ -904,7 +904,7 @@ NAOS_TEST(lookup_command_exact_shadows_root_exact)
     NAOS_CHECK_NULL(clopts_result_value(result, c.root_mode));
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_mode), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(lookup_command_exact_shadows_root_negation)
@@ -919,7 +919,7 @@ NAOS_TEST(lookup_command_exact_shadows_root_negation)
     NAOS_CHECK_TRUE(clopts_result_flag(result, c.run_no_color));
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_color), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(lookup_command_negation_shadows_root_exact)
@@ -936,7 +936,7 @@ NAOS_TEST(lookup_command_negation_shadows_root_exact)
     NAOS_CHECK_FALSE(clopts_result_flag(result, c.root_no_fast));
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_no_fast), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(lookup_root_exact_and_negation_when_the_command_has_no_such_name)
@@ -955,7 +955,7 @@ NAOS_TEST(lookup_root_exact_and_negation_when_the_command_has_no_such_name)
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_color), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_TRUE(clopts_result_flag(result, c.root_dry));
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(lookup_root_names_before_the_command)
@@ -976,7 +976,7 @@ NAOS_TEST(lookup_root_names_before_the_command)
     NAOS_CHECK_TRUE(clopts_result_flag(result, c.root_no_fast));
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.run_fast), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(lookup_unshadowed_root_name_from_the_command)
@@ -990,7 +990,7 @@ NAOS_TEST(lookup_unshadowed_root_name_from_the_command)
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_TRUE(clopts_result_flag(result, c.root_dry));
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 /* ---- custom program: terminal options ---------------------------------- */
@@ -1011,7 +1011,7 @@ NAOS_TEST(terminal_of_the_selected_command)
     NAOS_CHECK_NULL(clopts_result_value(result, c.out));
     NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_NONE);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(root_terminal_reached_from_a_command)
@@ -1029,7 +1029,7 @@ NAOS_TEST(root_terminal_reached_from_a_command)
     NAOS_CHECK_FALSE(clopts_result_flag(result, c.stop));
     NAOS_CHECK_UINT_EQ(clopts_result_positional_count(result), 0);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(root_terminal_before_the_command_has_no_command)
@@ -1043,7 +1043,7 @@ NAOS_TEST(root_terminal_before_the_command_has_no_command)
     NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), c.quit);
     NAOS_CHECK_NULL(clopts_result_command(result));
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(command_terminal_in_another_command_is_unknown)
@@ -1058,7 +1058,7 @@ NAOS_TEST(command_terminal_in_another_command_is_unknown)
     check_error(result, CLOPTS_USAGE_UNKNOWN_OPTION, c.idle, NULL, argv, 2, strlen("--stop"));
     NAOS_CHECK_NULL(clopts_result_terminal(result));
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(terminal_with_equals_is_unexpected_value_on_that_flag)
@@ -1071,7 +1071,7 @@ NAOS_TEST(terminal_with_equals_is_unexpected_value_on_that_flag)
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
     check_error(result, CLOPTS_USAGE_UNEXPECTED_VALUE, c.run, c.stop, argv, 2, 0);
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_TEST(terminal_after_dashdash_is_a_positional)
@@ -1087,7 +1087,7 @@ NAOS_TEST(terminal_after_dashdash_is_a_positional)
     NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(result), 1);
     NAOS_CHECK_STR_EQ(clopts_result_positional_at(result, 0), "--stop");
     clopts_result_free(result);
-    clopts_program_free(c.program);
+    clopts_program_destroy(c.program);
 }
 
 NAOS_SUITE(long,
