@@ -199,13 +199,6 @@ clopts_parser_scan_status_t clopts_parser_scan(clopts_result_t *result, const cl
  */
 
 /*
- * Default environment lookup: returns the value of getenv(name) as a borrowed
- * string. CLOPTS_ENV_FOUND with *value set, or CLOPTS_ENV_UNSET. ctx is not
- * used.
- */
-clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, const char **value);
-
-/*
  * Fills the VALUE / LIST slots that got nothing from argv, from the
  * environment and then from the default value, in declaration order. A found
  * environment value is copied before the callback is called again. Only the

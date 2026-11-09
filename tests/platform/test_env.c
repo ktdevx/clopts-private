@@ -1056,6 +1056,26 @@ NAOS_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reas
 }
 #endif /* _WIN32 */
 
+/* ---- default lookup of the parser ------------------------------------------ */
+
+NAOS_TEST(getenv_default_lends_the_getenv_pointer)
+{
+    const char *value = NULL;
+    const char *expected = getenv("PATH");
+
+    if (expected != NULL)
+    {
+        NAOS_CHECK_INT_EQ(clopts_platform_getenv_default(NULL, "PATH", &value), CLOPTS_ENV_FOUND);
+        NAOS_CHECK_PTR_EQ(value, expected);
+    }
+    else
+    {
+        NAOS_CHECK_INT_EQ(clopts_platform_getenv_default(NULL, "PATH", &value), CLOPTS_ENV_UNSET);
+    }
+    NAOS_CHECK_INT_EQ(clopts_platform_getenv_default(NULL, "CLOPTS_TEST_SURELY_UNSET_VARIABLE_6_3", &value),
+                      CLOPTS_ENV_UNSET);
+}
+
 /* Preprocessor directives cannot appear inside the macro arguments, so each OS has its own list. */
 #ifndef _WIN32
 NAOS_SUITE(env,
@@ -1081,7 +1101,8 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(env_lookup_reports_an_unset_variable),
     NAOS_ADD_TEST(env_lookup_finds_an_empty_value),
     NAOS_ADD_TEST(env_lookup_clears_an_earlier_failure),
-    NAOS_ADD_TEST(env_lookup_with_null_ctx_fails)
+    NAOS_ADD_TEST(env_lookup_with_null_ctx_fails),
+    NAOS_ADD_TEST(getenv_default_lends_the_getenv_pointer)
 )
 #else
 NAOS_SUITE(env,
@@ -1114,6 +1135,7 @@ NAOS_SUITE(env,
     NAOS_ADD_TEST(env_lookup_clears_an_earlier_failure),
     NAOS_ADD_TEST(env_lookup_with_null_ctx_fails),
     NAOS_ADD_TEST(env_lookup_reports_out_of_memory_when_an_allocation_fails),
-    NAOS_ADD_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reason)
+    NAOS_ADD_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reason),
+    NAOS_ADD_TEST(getenv_default_lends_the_getenv_pointer)
 )
 #endif

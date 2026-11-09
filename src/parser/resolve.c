@@ -2,39 +2,21 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Resolver: the default environment lookup and resolution from the
- * environment and the defaults (step 4 of parsing, parse.c). The required
- * checks that follow are in check.c.
+ * Resolver: resolution from the environment and the defaults (step 4 of
+ * parsing, parse.c). The required checks that follow are in check.c. Without
+ * a lookup callback, the environment is read by the default lookup of the
+ * platform module (clopts_platform_getenv_default).
  *
  * A lookup callback lends its string: it stays valid only until the next
  * call of the callback. The resolver copies a found string through the
  * allocation gateway right after the callback returns, before any further
- * call, and never reads the borrowed string afterwards. getenv is called only
- * from clopts_parser_getenv_default; MSVC's deprecation warning for it is
- * silenced by the PRIVATE _CRT_SECURE_NO_WARNINGS definition of the target.
+ * call, and never reads the borrowed string afterwards.
  */
 
 #include "parser/parser_internal.h"
+#include "platform/platform_internal.h"
 
 #include <assert.h>
-#include <stdlib.h>
-
-clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, const char **value)
-{
-    const char *found;
-
-    (void)ctx;
-    assert(name != NULL);
-    assert(value != NULL);
-
-    found = getenv(name);
-    if (found == NULL)
-    {
-        return CLOPTS_ENV_UNSET;
-    }
-    *value = found;
-    return CLOPTS_ENV_FOUND;
-}
 
 /*
  * Resolves the slot of option when argv gave it nothing: the environment
@@ -143,7 +125,7 @@ int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *progr
 
     if (getenv_fn == NULL)
     {
-        getenv_fn = clopts_parser_getenv_default;
+        getenv_fn = clopts_platform_getenv_default;
     }
 
     slots = clopts_parser_result_get_slots(result, true, &slot_count);

@@ -15,7 +15,8 @@
 /*
  * Internal declarations of the platform module, shared by its source files
  * (platform_split.c, platform_argv.c, platform_env.c and platform_win32.c
- * or platform_posix.c) and its tests (tests/platform/). None of these
+ * or platform_posix.c), its tests (tests/platform/) and the parser (the
+ * default environment lookup). None of these
  * symbols is exported from the shared library. Every allocation goes through
  * the allocation gateway of core (clopts_core_malloc and the others).
  */
@@ -68,6 +69,14 @@ clopts_argv_t *clopts_platform_argv_sentinel(void);
 clopts_argv_t *clopts_platform_argv_failure(clopts_argv_status_t status, int error_index);
 /* A handle that borrows argv (count argc); the sentinel when the allocation fails. */
 clopts_argv_t *clopts_platform_argv_passthrough(int argc, char *const *argv);
+
+/*
+ * Default environment lookup of clopts_parse() (platform_env.c): returns the
+ * value of getenv(name) as a borrowed string, on every platform (on Windows
+ * in the code page of the C runtime, unlike clopts_env_lookup()).
+ * CLOPTS_ENV_FOUND with *value set, or CLOPTS_ENV_UNSET. ctx is not used.
+ */
+clopts_env_status_t clopts_platform_getenv_default(void *ctx, const char *name, const char **value);
 
 /* Environment lookup contexts (platform_env.c). */
 

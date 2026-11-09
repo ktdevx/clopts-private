@@ -285,24 +285,7 @@ NAOS_TEST(null_program_does_not_call_getenv)
     clopts_result_destroy(result);
 }
 
-/* ---- default lookup --------------------------------------------------- */
-
-NAOS_TEST(getenv_default_lends_the_getenv_pointer)
-{
-    const char *value = NULL;
-    const char *expected = getenv("PATH");
-
-    if (expected != NULL)
-    {
-        NAOS_CHECK_INT_EQ(clopts_parser_getenv_default(NULL, "PATH", &value), CLOPTS_ENV_FOUND);
-        NAOS_CHECK_PTR_EQ(value, expected);
-    }
-    else
-    {
-        NAOS_CHECK_INT_EQ(clopts_parser_getenv_default(NULL, "PATH", &value), CLOPTS_ENV_UNSET);
-    }
-    NAOS_CHECK_INT_EQ(clopts_parser_getenv_default(NULL, SURELY_UNSET_NAME, &value), CLOPTS_ENV_UNSET);
-}
+/* ---- default lookup (clopts_platform_getenv_default: tests/platform/test_env.c) ---- */
 
 NAOS_TEST(null_getenv_fn_uses_the_default_lookup)
 {
@@ -1522,7 +1505,6 @@ NAOS_TEST(parse_env_value_is_copied_before_the_next_lookup)
 
 NAOS_SUITE(resolve,
     NAOS_ADD_TEST(null_program_does_not_call_getenv),
-    NAOS_ADD_TEST(getenv_default_lends_the_getenv_pointer),
     NAOS_ADD_TEST(null_getenv_fn_uses_the_default_lookup),
     NAOS_ADD_TEST(explicit_wins_over_env_and_default),
     NAOS_ADD_TEST(env_wins_over_default),

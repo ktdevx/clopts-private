@@ -3,13 +3,36 @@
  * SPDX-License-Identifier: MIT
  *
  * Environment lookup contexts: creation and release, the failure record and
- * its accessors, and the value buffers.
+ * its accessors, and the value buffers; and the default lookup of the parser.
+ *
+ * getenv is called only from clopts_platform_getenv_default and from
+ * clopts_env_lookup elsewhere than Windows (platform_posix.c); MSVC's
+ * deprecation warning for it is silenced by the PRIVATE
+ * _CRT_SECURE_NO_WARNINGS definition of the target.
  */
 
 #include "platform/platform_internal.h"
 
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
+
+clopts_env_status_t clopts_platform_getenv_default(void *ctx, const char *name, const char **value)
+{
+    const char *found;
+
+    (void)ctx;
+    assert(name != NULL);
+    assert(value != NULL);
+
+    found = getenv(name);
+    if (found == NULL)
+    {
+        return CLOPTS_ENV_UNSET;
+    }
+    *value = found;
+    return CLOPTS_ENV_FOUND;
+}
 
 /* Releases the recorded name, if any. */
 static void platform_env_drop_name(clopts_env_t *env)
