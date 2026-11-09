@@ -14,29 +14,19 @@
  */
 
 /*
- * Builder helpers shared by parser_program.c and parser_command.c.
+ * Builder helper shared by parser_command.c and parser_program.c.
  */
 
-/*
- * Common check of every call that changes program: changing a frozen program
- * is a contract violation caught by assert; without assert it gives
- * CLOPTS_DECL_FROZEN.
- */
-clopts_decl_error_t clopts_parser_check_frozen(const clopts_program_t *program);
-
-/* Sets the empty state of scope (no texts, options, positionals or handler) for program. */
-void clopts_parser_scope_init(clopts_command_t *scope, clopts_program_t *program);
-
-/* Releases the options, positionals and texts of scope (not its name nor scope itself). */
-void clopts_parser_scope_free(clopts_command_t *scope);
+/* Releases command with its options, positionals and texts, attached or not. */
+void clopts_parser_command_release(clopts_command_t *command);
 
 /*
  * Name rules and lookups (parser_decl.c).
  *
  * Names are compared byte by byte, exactly and case-sensitively; there is no
- * prefix matching. The lookup range of a scope is the scope itself plus, for
- * the root, every command and, for a command, the root. Duplicates between
- * different commands are allowed.
+ * prefix matching. The checks of the builder look at one command only. The
+ * lookups of the scanner search the selected command and then the root, so a
+ * name of the command shadows the same name of the root.
  */
 
 /* Where a looked-up option was found. */
@@ -58,50 +48,44 @@ bool clopts_parser_valid_long_name(const char *name);
 bool clopts_parser_valid_short_name(char c);
 
 /*
- * Returns the first option in the lookup range of scope whose long name
- * equals l (which may be NULL) or whose short name equals s (when s is not
- * '\0'), or NULL.
+ * Returns the first option of command whose long name equals l (which may be
+ * NULL) or whose short name equals s (when s is not '\0'), or NULL.
  */
-const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *scope, const char *l, char s);
+const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *command, const char *l, char s);
 
 /*
- * Returns the first option in the lookup range of scope whose long name is
- * the name_len bytes at name, or NULL (used for the no-x conflict checks).
+ * Returns the first option of command whose long name is the name_len bytes
+ * at name, or NULL (used for the no-x conflict checks).
  */
-const clopts_option_t *clopts_parser_find_named(const clopts_command_t *scope, const char *name, size_t name_len);
+const clopts_option_t *clopts_parser_find_named(const clopts_command_t *command, const char *name, size_t name_len);
 
 /* Returns the command of program named name, or NULL. */
 const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program, const char *name);
 
 /*
- * Looks up the long name given by the name_len bytes at name, first in
- * command (which may be NULL) and then in the root.
+ * Looks up the long name given by the name_len bytes at name in command
+ * (which may be NULL) and then in the root. In each scope the exact long name
+ * is looked up first and then, when name starts with "no-", the rest as a
+ * negatable FLAG (negated is set).
  */
 clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program, const clopts_command_t *command,
                                             const char *name, size_t name_len);
 
-/*
- * When name (name_len bytes) starts with "no-", looks up the rest as a
- * negatable FLAG in the same order as clopts_parser_find_long. Used when there
- * is no exact match.
- */
-clopts_parser_ref_t clopts_parser_find_negation(const clopts_program_t *program, const clopts_command_t *command,
-                                                const char *name, size_t name_len);
-
-/* Looks up the short name c in the same order as clopts_parser_find_long. */
+/* Looks up the short name c in command (which may be NULL) and then in the root. */
 clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, const clopts_command_t *command, char c);
 
 /*
  * Result handle (parser_result.c).
  *
  * A slot records one option and has the same index as the option in its
- * scope. The value of a slot and its source are always updated together, and
+ * scope (option->index), so a slot is found in constant time. The value of a slot and its source are always updated together, and
  * value == owned whenever owned is not NULL.
  */
 
 /* Recorded state of one option. */
 typedef struct clopts_parser_slot
 {
+    const clopts_option_t *option;  /* the option of the slot */
     clopts_source_t source;
     bool flag;
     unsigned count;
@@ -113,8 +97,8 @@ typedef struct clopts_parser_slot
 struct clopts_result
 {
     clopts_status_t status;
-    const clopts_program_t *program;  /* option lookup and run; never read by free */
-    const clopts_command_t *command;  /* selected command / help target, or NULL */
+    const clopts_command_t *command;  /* selected command, or NULL */
+    const clopts_option_t *terminal;  /* TERMINATED: the terminal option, else NULL */
     struct
     {
         clopts_usage_error_t usage;

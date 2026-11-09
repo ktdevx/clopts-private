@@ -10,7 +10,8 @@
  *
  * consumer_parse_check() runs declaration -> parse -> lookup -> release with
  * public functions only. consumer_help_check() calls the five text writers
- * and clopts_decl_error_message() of clopts/help.h through the umbrella header (in a shared build, each call
+ * of clopts/help.h and clopts_decl_error_message() of clopts/decl_types.h
+ * through the umbrella header (in a shared build, each call
  * must resolve against an exported symbol). consumer_platform_check() calls
  * every function of clopts/platform.h (clopts_argv_from_wide only on Windows)
  * through the umbrella header and checks the results against the contract.
@@ -39,24 +40,30 @@ static int consumer_parse_check(void)
     char arg2[] = "ok";
     char *const args[] = { arg0, arg1, arg2 };
     clopts_program_t *program;
+    clopts_command_t *root;
     clopts_option_t *name;
     clopts_result_t *result;
     const char *value;
     int failed = 0;
 
-    if (clopts_program_new("consumer", &program) != CLOPTS_DECL_NONE)
+    if (clopts_command_new("consumer", &root) != CLOPTS_DECL_NONE)
     {
         return 1;
     }
     if (clopts_option_new(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_DECL_NONE)
     {
-        clopts_program_free(program);
+        clopts_command_free(root);
         return 1;
     }
-    if (clopts_command_add_option(clopts_program_root(program), name) != CLOPTS_DECL_NONE)
+    if (clopts_command_add_option(root, name) != CLOPTS_DECL_NONE)
     {
         clopts_option_free(name);
-        clopts_program_free(program);
+        clopts_command_free(root);
+        return 1;
+    }
+    if (clopts_program_new(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
+    {
+        clopts_command_free(root);
         return 1;
     }
     result = clopts_parse(program, 3, args);
@@ -100,17 +107,23 @@ static int consumer_write_status_valid(clopts_write_status_t status)
 static int consumer_help_check(void)
 {
     clopts_program_t *program;
+    clopts_command_t *root;
     clopts_result_t *result;
     int failed = 0;
 
-    if (clopts_program_new("consumer", &program) != CLOPTS_DECL_NONE)
+    if (clopts_command_new("consumer", &root) != CLOPTS_DECL_NONE)
     {
+        return 1;
+    }
+    if (clopts_program_new(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
+    {
+        clopts_command_free(root);
         return 1;
     }
     result = clopts_parse(program, 0, NULL);
     if (!consumer_write_status_valid(clopts_write_help(program, NULL, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_usage(program, NULL, consumer_discard, NULL)) ||
-        !consumer_write_status_valid(clopts_write_version(program, consumer_discard, NULL)) ||
+        !consumer_write_status_valid(clopts_write_version(program, "1.0", consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_usage_hint(program, NULL, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR,
                                                         consumer_discard, NULL)) ||

@@ -1,6 +1,8 @@
 #ifndef CLOPTS_COMMAND_H
 #define CLOPTS_COMMAND_H
 
+#include <stddef.h>
+
 #include "clopts/decl_types.h"
 #include "clopts/export.h"
 
@@ -9,11 +11,28 @@ extern "C" {
 #endif
 
 /*
- * Command (including the root): its texts and handler, and the attach of
- * options and positionals. The attach functions make the checks that depend
- * on the other options, positionals and commands. The rules shared by every
- * builder function are in clopts/decl_types.h.
+ * Command (the root included): creation, release, texts, the attach of
+ * options and positionals, and the read functions. A command is created on
+ * its own, filled, and then handed to clopts_program_new() (clopts/program.h),
+ * as the root or as a subcommand; it does not know its program. The attach
+ * functions make the checks against the other options and positionals of the
+ * same command. The rules shared by every builder function are in
+ * clopts/decl_types.h.
  */
+
+/*
+ * Creates an unattached command named name (copied) into *out. The name must
+ * not be NULL or empty, start with '-' or contain white space
+ * (INVALID_NAME). For the root, the name is the program name.
+ */
+CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_new(const char *name, clopts_command_t **out);
+
+/*
+ * Releases an unattached command with the options and positionals attached
+ * to it. NULL does nothing. Passing a command owned by a program is a
+ * contract violation caught by assert (without assert it does nothing).
+ */
+CLOPTS_API void clopts_command_free(clopts_command_t *command);
 
 /* One-line description in the program help. Not used for the root. */
 CLOPTS_API clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary);
@@ -22,18 +41,11 @@ CLOPTS_API clopts_decl_error_t clopts_command_set_summary(clopts_command_t *comm
 CLOPTS_API clopts_decl_error_t clopts_command_set_description(clopts_command_t *command, const char *description);
 
 /*
- * Handler run by clopts_result_run(). userdata is owned by the caller.
- * MIXED_LAYOUT for the root of a program with subcommands.
- */
-CLOPTS_API clopts_decl_error_t clopts_command_set_handler(clopts_command_t *command, clopts_handler_fn handler,
-                                                          void *userdata);
-
-/*
  * Attaches option to command. On success command owns option, and option
- * stays valid (read-only) until clopts_program_free(). On failure nothing
- * changes and the caller still owns option: ALREADY_ATTACHED, RESERVED_NAME
- * (help, h, or version when a version is set), DUPLICATE_OPTION (within the
- * command, or between the root and a command) or NEGATION_CONFLICT.
+ * stays valid (read-only) as long as command does. On failure nothing
+ * changes and the caller still owns option: ALREADY_ATTACHED (option or
+ * command), DUPLICATE_OPTION (within command) or NEGATION_CONFLICT (within
+ * command).
  */
 CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_add_option(clopts_command_t *command,
                                                                           clopts_option_t *option);
@@ -41,12 +53,27 @@ CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_add_option(clopts
 /*
  * Attaches positional to command, after the positionals already attached.
  * Ownership as with clopts_command_add_option(). ALREADY_ATTACHED,
- * MIXED_LAYOUT (the root of a program with subcommands), VARIADIC_POSITION
- * (the last attached one is variadic) or POSITIONAL_ORDER (positional is
- * required and the last attached one is optional).
+ * VARIADIC_POSITION (the last attached one is variadic) or POSITIONAL_ORDER
+ * (positional is required and the last attached one is optional).
  */
 CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command,
                                                                               clopts_positional_t *positional);
+
+/* ---- read functions ---- */
+
+CLOPTS_API const char *clopts_command_name(const clopts_command_t *command);
+/* NULL when not set. */
+CLOPTS_API const char *clopts_command_summary(const clopts_command_t *command);
+/* NULL when not set. */
+CLOPTS_API const char *clopts_command_description(const clopts_command_t *command);
+/* Number of attached options, in the order of attachment. */
+CLOPTS_API size_t clopts_command_option_count(const clopts_command_t *command);
+/* index must be less than clopts_command_option_count() (caught by assert). */
+CLOPTS_API const clopts_option_t *clopts_command_option_at(const clopts_command_t *command, size_t index);
+/* Number of attached positionals, in the order of attachment. */
+CLOPTS_API size_t clopts_command_positional_count(const clopts_command_t *command);
+/* index must be less than clopts_command_positional_count() (caught by assert). */
+CLOPTS_API const clopts_positional_t *clopts_command_positional_at(const clopts_command_t *command, size_t index);
 
 #ifdef __cplusplus
 }

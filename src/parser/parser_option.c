@@ -1,8 +1,8 @@
 /*
  * Option (clopts/option.h): creation, release and attributes. Everything
  * here depends on the option alone: nothing reads or writes a command or a
- * program. The checks against the other options are made when the option is
- * attached (parser_command.c).
+ * program. The checks against the other options of the same command are
+ * made when the option is attached (parser_command.c).
  *
  * Every function checks its arguments and the rules that belong to it, in a
  * fixed order, and returns the first rule that fails, changing nothing.
@@ -94,6 +94,8 @@ clopts_decl_error_t clopts_option_new(clopts_option_kind_t kind, const char *lon
     option->count_max = 0;
     option->required = false;
     option->negatable = false;
+    option->terminal = false;
+    option->index = 0;
     *out = option;
     return CLOPTS_DECL_NONE;
 }
@@ -248,4 +250,82 @@ clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *option, unsigne
     }
     option->count_max = count_max;
     return CLOPTS_DECL_NONE;
+}
+
+clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal)
+{
+    clopts_decl_error_t error = option_check_call(option);
+
+    if (error != CLOPTS_DECL_NONE)
+    {
+        return error;
+    }
+    if (terminal && (option->kind != CLOPTS_PARSER_FLAG))
+    {
+        return CLOPTS_DECL_ATTRIBUTE_KIND;
+    }
+    option->terminal = terminal;
+    return CLOPTS_DECL_NONE;
+}
+
+/* ---- read functions ---- */
+
+clopts_option_kind_t clopts_option_kind_of(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->kind : CLOPTS_OPTION_FLAG;
+}
+
+const char *clopts_option_long_name(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->long_name : NULL;
+}
+
+char clopts_option_short_name(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->short_name : '\0';
+}
+
+const char *clopts_option_help(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->help : NULL;
+}
+
+const char *clopts_option_value_name(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->value_name : NULL;
+}
+
+const char *clopts_option_env(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->env : NULL;
+}
+
+const char *clopts_option_default(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->default_value : NULL;
+}
+
+char clopts_option_delimiter(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->delimiter : '\0';
+}
+
+unsigned clopts_option_count_max(const clopts_option_t *option)
+{
+    return (option != NULL) ? option->count_max : 0u;
+}
+
+bool clopts_option_required(const clopts_option_t *option)
+{
+    return (option != NULL) && option->required;
+}
+
+bool clopts_option_negatable(const clopts_option_t *option)
+{
+    return (option != NULL) && option->negatable;
+}
+
+bool clopts_option_terminal(const clopts_option_t *option)
+{
+    return (option != NULL) && option->terminal;
 }

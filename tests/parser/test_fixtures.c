@@ -3,18 +3,21 @@
  *
  * The three programs reproduce the first-version declarations (names, kinds,
  * help texts, value names, environment variables, defaults, delimiters, count
- * limit, positionals, handlers and version) with the builder functions.
+ * limit and positionals) with the builder functions, bottom up: the root and
+ * the commands first, then the program (test_decl_finish()). The terminal
+ * options -h/--help and --version and the help command come from the
+ * helpers of clopts/help.h.
  */
 
 #include "test_fixtures.h"
 #include "test_decl.h"
 
+#include "clopts/help.h"
+
 #include <assert.h>
 #include <string.h>
 
 /* ---- tool -------------------------------------------------------------- */
-
-fixture_handler_record_t fixture_build_handler_record;
 
 void fixture_tool_init(fixture_tool_t *f)
 {
@@ -22,10 +25,8 @@ void fixture_tool_init(fixture_tool_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->program = test_decl_program("tool");
-    f->root = clopts_program_root(f->program);
+    f->root = test_decl_root("tool");
     test_decl_check(clopts_command_set_description(f->root, "A fictional tool with subcommands."));
-    test_decl_check(clopts_program_set_version(f->program, "1.2.3"));
 
     f->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
     test_decl_check(clopts_option_set_help(f->verbose, "Increase verbosity."));
@@ -42,10 +43,15 @@ void fixture_tool_init(fixture_tool_t *f)
     test_decl_check(clopts_option_set_env(f->config, "TOOL_CONFIG"));
     f->config = test_decl_attach(f->root, f->config);
 
+    if (f->root != NULL)
+    {
+        test_decl_check(clopts_help_add_help_option(f->root, &f->help));
+        test_decl_check(clopts_help_add_version_option(f->root, &f->version));
+    }
+
     /* build */
-    f->build = test_decl_command(f->program, "build");
+    f->build = test_decl_command(f->root, "build");
     test_decl_check(clopts_command_set_summary(f->build, "Build a source."));
-    test_decl_check(clopts_command_set_handler(f->build, fixture_handler, &fixture_build_handler_record));
 
     f->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
     test_decl_check(clopts_option_set_value_name(f->output, "FILE"));
@@ -75,7 +81,7 @@ void fixture_tool_init(fixture_tool_t *f)
     f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
 
     /* copy */
-    f->copy = test_decl_command(f->program, "copy");
+    f->copy = test_decl_command(f->root, "copy");
     test_decl_check(clopts_command_set_summary(f->copy, "Copy a file."));
 
     f->copy_src = test_decl_positional("SRC");
@@ -89,7 +95,7 @@ void fixture_tool_init(fixture_tool_t *f)
     f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
 
     /* cat */
-    f->cat = test_decl_command(f->program, "cat");
+    f->cat = test_decl_command(f->root, "cat");
     test_decl_check(clopts_command_set_summary(f->cat, "Show files."));
 
     f->tags = test_decl_option(CLOPTS_OPTION_LIST, "tags", '\0');
@@ -104,6 +110,20 @@ void fixture_tool_init(fixture_tool_t *f)
     test_decl_check(clopts_positional_set_help(f->cat_file, "Files to show."));
     test_decl_check(clopts_positional_set_variadic(f->cat_file, true));
     f->cat_file = test_decl_attach_positional(f->cat, f->cat_file);
+
+    /* help */
+    if (f->root != NULL)
+    {
+        test_decl_check(clopts_help_command_new(&f->help_command));
+        f->help_command = test_decl_adopt(f->root, f->help_command);
+    }
+
+    f->program = test_decl_finish(f->root);
+    if (f->program == NULL)
+    {
+        /* Everything was released with the root. */
+        memset(f, 0, sizeof(*f));
+    }
     f->ok = (test_decl_failures == 0);
 }
 
@@ -117,18 +137,14 @@ void fixture_tool_free(fixture_tool_t *f)
 
 /* ---- filt -------------------------------------------------------------- */
 
-fixture_handler_record_t fixture_filt_handler_record;
-
 void fixture_filt_init(fixture_filt_t *f)
 {
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->program = test_decl_program("filt");
-    f->root = clopts_program_root(f->program);
+    f->root = test_decl_root("filt");
     test_decl_check(clopts_command_set_description(f->root, "A fictional filter without subcommands."));
-    test_decl_check(clopts_command_set_handler(f->root, fixture_handler, &fixture_filt_handler_record));
 
     f->lines = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
     test_decl_check(clopts_option_set_value_name(f->lines, "N"));
@@ -141,6 +157,16 @@ void fixture_filt_init(fixture_filt_t *f)
     test_decl_check(clopts_positional_set_help(f->file, "Files to filter."));
     test_decl_check(clopts_positional_set_variadic(f->file, true));
     f->file = test_decl_attach_positional(f->root, f->file);
+
+    if (f->root != NULL)
+    {
+        test_decl_check(clopts_help_add_help_option(f->root, &f->help));
+    }
+    f->program = test_decl_finish(f->root);
+    if (f->program == NULL)
+    {
+        memset(f, 0, sizeof(*f));
+    }
     f->ok = (test_decl_failures == 0);
 }
 
@@ -160,8 +186,7 @@ void fixture_strict_init(fixture_strict_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->program = test_decl_program("strict");
-    f->root = clopts_program_root(f->program);
+    f->root = test_decl_root("strict");
     test_decl_check(clopts_command_set_description(f->root, "A fictional program with a required global option."));
 
     f->token = test_decl_option(CLOPTS_OPTION_VALUE, "token", '\0');
@@ -170,8 +195,18 @@ void fixture_strict_init(fixture_strict_t *f)
     test_decl_check(clopts_option_set_required(f->token, true));
     f->token = test_decl_attach(f->root, f->token);
 
-    f->run = test_decl_command(f->program, "run");
+    if (f->root != NULL)
+    {
+        test_decl_check(clopts_help_add_help_option(f->root, &f->help));
+    }
+
+    f->run = test_decl_command(f->root, "run");
     test_decl_check(clopts_command_set_summary(f->run, "Run it."));
+    f->program = test_decl_finish(f->root);
+    if (f->program == NULL)
+    {
+        memset(f, 0, sizeof(*f));
+    }
     f->ok = (test_decl_failures == 0);
 }
 
@@ -181,26 +216,6 @@ void fixture_strict_free(fixture_strict_t *f)
 
     clopts_program_free(f->program);
     memset(f, 0, sizeof(*f));
-}
-
-/* ---- handler ----------------------------------------------------------- */
-
-int fixture_handler(const clopts_result_t *result, void *userdata)
-{
-    fixture_handler_record_t *record = (fixture_handler_record_t *)userdata;
-
-    record->calls++;
-    record->last_result = result;
-    record->last_userdata = userdata;
-    return record->return_value;
-}
-
-void fixture_handler_reset(fixture_handler_record_t *record, int return_value)
-{
-    record->calls = 0;
-    record->last_result = NULL;
-    record->last_userdata = NULL;
-    record->return_value = return_value;
 }
 
 /* ---- mock environment -------------------------------------------------- */

@@ -1,14 +1,18 @@
 /*
- * Builder of commands, the root included (clopts/command.h): texts and
- * handler, the attach of options and positionals with the checks against the
- * other options, positionals and commands, and the scope helpers shared with
- * parser_program.c.
+ * Builder of commands, the root included (clopts/command.h): creation and
+ * release, texts, the attach of options and positionals with the checks
+ * against the other options and positionals of the same command, and the
+ * read functions.
+ *
+ * A command does not know its program: every check made here reads the
+ * command alone. The checks between commands are made by
+ * clopts_program_new() (parser_program.c).
  *
  * Every builder function checks its arguments and the declaration rules that
  * belong to it, in a fixed order, and returns the first rule that fails.
  * Nothing is changed before every check has passed and every allocation has
- * succeeded, so a failing call leaves every handle as it was. Name rules and lookup ranges live in
- * parser_decl.c.
+ * succeeded, so a failing call leaves every handle as it was. Name rules and
+ * lookups live in parser_decl.c.
  */
 
 #include "clopts/command.h"
@@ -17,41 +21,74 @@
 #include <assert.h>
 #include <string.h>
 
-clopts_decl_error_t clopts_parser_check_frozen(const clopts_program_t *program)
+clopts_decl_error_t clopts_command_new(const char *name, clopts_command_t **out)
 {
-    assert(!program->frozen);
-    return program->frozen ? CLOPTS_DECL_FROZEN : CLOPTS_DECL_NONE;
+    clopts_command_t *command;
+
+    if (out == NULL)
+    {
+        return CLOPTS_DECL_INVALID_ARGUMENT;
+    }
+    *out = NULL;
+    if (!clopts_parser_valid_command_name(name))
+    {
+        return CLOPTS_DECL_INVALID_NAME;
+    }
+
+    command = (clopts_command_t *)clopts_core_calloc(1, sizeof(*command));
+    if (command == NULL)
+    {
+        return CLOPTS_DECL_OUT_OF_MEMORY;
+    }
+    command->name = clopts_core_strdup(name);
+    if (command->name == NULL)
+    {
+        clopts_core_free(command);
+        return CLOPTS_DECL_OUT_OF_MEMORY;
+    }
+    command->attached = false;
+    command->summary = NULL;
+    command->description = NULL;
+    clopts_core_vec_init(&command->options, sizeof(clopts_option_t *));
+    clopts_core_vec_init(&command->positionals, sizeof(clopts_positional_t *));
+    *out = command;
+    return CLOPTS_DECL_NONE;
 }
 
-void clopts_parser_scope_init(clopts_command_t *scope, clopts_program_t *program)
-{
-    scope->program = program;
-    scope->summary = NULL;
-    scope->description = NULL;
-    clopts_core_vec_init(&scope->options, sizeof(clopts_option_t *));
-    clopts_core_vec_init(&scope->positionals, sizeof(clopts_positional_t *));
-    scope->handler = NULL;
-    scope->userdata = NULL;
-}
-
-void clopts_parser_scope_free(clopts_command_t *scope)
+void clopts_parser_command_release(clopts_command_t *command)
 {
     size_t i;
 
-    for (i = 0; i < scope->options.len; i++)
+    for (i = 0; i < command->options.len; i++)
     {
-        clopts_parser_option_release(*(clopts_option_t **)clopts_core_vec_at(&scope->options, i));
+        clopts_parser_option_release(*(clopts_option_t **)clopts_core_vec_at(&command->options, i));
     }
-    clopts_core_vec_free(&scope->options);
+    clopts_core_vec_free(&command->options);
 
-    for (i = 0; i < scope->positionals.len; i++)
+    for (i = 0; i < command->positionals.len; i++)
     {
-        clopts_parser_positional_release(*(clopts_positional_t **)clopts_core_vec_at(&scope->positionals, i));
+        clopts_parser_positional_release(*(clopts_positional_t **)clopts_core_vec_at(&command->positionals, i));
     }
-    clopts_core_vec_free(&scope->positionals);
+    clopts_core_vec_free(&command->positionals);
 
-    clopts_core_free(scope->summary);
-    clopts_core_free(scope->description);
+    clopts_core_free(command->name);
+    clopts_core_free(command->summary);
+    clopts_core_free(command->description);
+    clopts_core_free(command);
+}
+
+void clopts_command_free(clopts_command_t *command)
+{
+    if (command == NULL)
+    {
+        return;
+    }
+    assert(!command->attached && "a command handed to a program is owned by it");
+    if (command->attached)
+    {
+        return;
+    }
+    clopts_parser_command_release(command);
 }
 
 /* Common checks of a call that changes command. */
@@ -61,7 +98,7 @@ static clopts_decl_error_t command_check_call(const clopts_command_t *command)
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
-    return clopts_parser_check_frozen(command->program);
+    return command->attached ? CLOPTS_DECL_ALREADY_ATTACHED : CLOPTS_DECL_NONE;
 }
 
 clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
@@ -86,58 +123,22 @@ clopts_decl_error_t clopts_command_set_description(clopts_command_t *command, co
     return (clopts_core_replace_string(&command->description, description) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
-clopts_decl_error_t clopts_command_set_handler(clopts_command_t *command, clopts_handler_fn handler, void *userdata)
+/*
+ * True when command has a negatable FLAG whose long name is the name_len
+ * bytes at name.
+ */
+static bool command_has_negatable(const clopts_command_t *command, const char *name, size_t name_len)
 {
-    clopts_decl_error_t error = command_check_call(command);
+    const clopts_option_t *found = clopts_parser_find_named(command, name, name_len);
 
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
-    if ((handler != NULL) && (command == &command->program->root) && (command->program->commands.len > 0))
-    {
-        return CLOPTS_DECL_MIXED_LAYOUT;
-    }
-    command->handler = handler;
-    command->userdata = userdata;
-    return CLOPTS_DECL_NONE;
+    return ((found != NULL) && (found->kind == CLOPTS_PARSER_FLAG) && found->negatable);
 }
 
 /*
- * True when the lookup range of scope has a negatable FLAG whose long name is
- * the name_len bytes at name. For the root, each command is asked with its
- * own range (the command and the root): a name is unique within such a
- * range, while different commands may share one.
+ * True when command has an option whose long name is "no-" followed by
+ * long_name. Returns -1 when the name cannot be built.
  */
-static bool command_has_negatable(const clopts_command_t *scope, const char *name, size_t name_len)
-{
-    const clopts_program_t *program = scope->program;
-    const clopts_option_t *found;
-    size_t i;
-
-    if ((scope != &program->root) || (program->commands.len == 0))
-    {
-        found = clopts_parser_find_named(scope, name, name_len);
-        return ((found != NULL) && (found->kind == CLOPTS_PARSER_FLAG) && found->negatable);
-    }
-    for (i = 0; i < program->commands.len; i++)
-    {
-        const clopts_command_t *command = *(clopts_command_t *const *)clopts_core_vec_at(&program->commands, i);
-
-        found = clopts_parser_find_named(command, name, name_len);
-        if ((found != NULL) && (found->kind == CLOPTS_PARSER_FLAG) && found->negatable)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/*
- * True when the lookup range of scope has an option whose long name is "no-"
- * followed by long_name. Returns -1 when the name cannot be built.
- */
-static int command_has_negation_name(const clopts_command_t *scope, const char *long_name)
+static int command_has_negation_name(const clopts_command_t *command, const char *long_name)
 {
     size_t len = strlen(long_name);
     size_t size;
@@ -155,34 +156,28 @@ static int command_has_negation_name(const clopts_command_t *scope, const char *
     }
     memcpy(name, "no-", 3);
     memcpy(name + 3, long_name, len + 1);
-    found = (clopts_parser_find_named(scope, name, len + 3) != NULL) ? 1 : 0;
+    found = (clopts_parser_find_named(command, name, len + 3) != NULL) ? 1 : 0;
     clopts_core_free(name);
     return found;
 }
 
-/* Checks of clopts_command_add_option(scope, option) against scope, in order. */
-static clopts_decl_error_t command_check_attach_option(const clopts_command_t *scope, const clopts_option_t *option)
+/* Checks of clopts_command_add_option(command, option) against command, in order. */
+static clopts_decl_error_t command_check_attach_option(const clopts_command_t *command, const clopts_option_t *option)
 {
     const char *l = option->long_name;
-    const char s = option->short_name;
     int conflict;
 
-    if (((l != NULL) && (strcmp(l, "help") == 0))
-        || ((l != NULL) && (scope->program->version != NULL) && (strcmp(l, "version") == 0)) || (s == 'h'))
-    {
-        return CLOPTS_DECL_RESERVED_NAME;
-    }
-    if (clopts_parser_find_conflict(scope, l, s) != NULL)
+    if (clopts_parser_find_conflict(command, l, option->short_name) != NULL)
     {
         return CLOPTS_DECL_DUPLICATE_OPTION;
     }
-    if ((l != NULL) && (strncmp(l, "no-", 3) == 0) && command_has_negatable(scope, l + 3, strlen(l) - 3))
+    if ((l != NULL) && (strncmp(l, "no-", 3) == 0) && command_has_negatable(command, l + 3, strlen(l) - 3))
     {
         return CLOPTS_DECL_NEGATION_CONFLICT;
     }
     if (option->negatable && (l != NULL))
     {
-        conflict = command_has_negation_name(scope, l);
+        conflict = command_has_negation_name(command, l);
         if (conflict < 0)
         {
             return CLOPTS_DECL_OUT_OF_MEMORY;
@@ -198,17 +193,13 @@ static clopts_decl_error_t command_check_attach_option(const clopts_command_t *s
 clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option)
 {
     clopts_decl_error_t error;
+    size_t index;
 
     if ((command == NULL) || (option == NULL))
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
-    error = clopts_parser_check_frozen(command->program);
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
-    if (option->attached)
+    if (command->attached || option->attached)
     {
         return CLOPTS_DECL_ALREADY_ATTACHED;
     }
@@ -217,30 +208,27 @@ clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_
     {
         return error;
     }
+    index = command->options.len;
     if (clopts_core_vec_push(&command->options, &option) != 0)
     {
         return CLOPTS_DECL_OUT_OF_MEMORY;
     }
     option->attached = true;
+    option->index = index;
     return CLOPTS_DECL_NONE;
 }
 
-/* Checks of clopts_command_add_positional(scope, positional) against scope, in order. */
-static clopts_decl_error_t command_check_attach_positional(const clopts_command_t *scope,
+/* Checks of clopts_command_add_positional(command, positional) against command, in order. */
+static clopts_decl_error_t command_check_attach_positional(const clopts_command_t *command,
                                                          const clopts_positional_t *positional)
 {
-    const clopts_program_t *program = scope->program;
     const clopts_positional_t *last;
 
-    if ((scope == &program->root) && (program->commands.len > 0))
-    {
-        return CLOPTS_DECL_MIXED_LAYOUT;
-    }
-    if (scope->positionals.len == 0)
+    if (command->positionals.len == 0)
     {
         return CLOPTS_DECL_NONE;
     }
-    last = *(clopts_positional_t *const *)clopts_core_vec_at(&scope->positionals, scope->positionals.len - 1);
+    last = *(clopts_positional_t *const *)clopts_core_vec_at(&command->positionals, command->positionals.len - 1);
     if (last->variadic)
     {
         return CLOPTS_DECL_VARIADIC_POSITION;
@@ -261,12 +249,7 @@ clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clo
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
-    error = clopts_parser_check_frozen(command->program);
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
-    if (positional->attached)
+    if (command->attached || positional->attached)
     {
         return CLOPTS_DECL_ALREADY_ATTACHED;
     }
@@ -281,4 +264,55 @@ clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clo
     }
     positional->attached = true;
     return CLOPTS_DECL_NONE;
+}
+
+/* ---- read functions ---- */
+
+const char *clopts_command_name(const clopts_command_t *command)
+{
+    return (command != NULL) ? command->name : NULL;
+}
+
+const char *clopts_command_summary(const clopts_command_t *command)
+{
+    return (command != NULL) ? command->summary : NULL;
+}
+
+const char *clopts_command_description(const clopts_command_t *command)
+{
+    return (command != NULL) ? command->description : NULL;
+}
+
+size_t clopts_command_option_count(const clopts_command_t *command)
+{
+    return (command != NULL) ? command->options.len : 0u;
+}
+
+const clopts_option_t *clopts_command_option_at(const clopts_command_t *command, size_t index)
+{
+    size_t count = clopts_command_option_count(command);
+
+    assert((index < count) && "index must be less than clopts_command_option_count()");
+    if (index >= count)
+    {
+        return NULL;
+    }
+    return *(const clopts_option_t *const *)clopts_core_vec_at(&command->options, index);
+}
+
+size_t clopts_command_positional_count(const clopts_command_t *command)
+{
+    return (command != NULL) ? command->positionals.len : 0u;
+}
+
+const clopts_positional_t *clopts_command_positional_at(const clopts_command_t *command, size_t index)
+{
+    size_t count = clopts_command_positional_count(command);
+
+    assert((index < count) && "index must be less than clopts_command_positional_count()");
+    if (index >= count)
+    {
+        return NULL;
+    }
+    return *(const clopts_positional_t *const *)clopts_core_vec_at(&command->positionals, index);
 }

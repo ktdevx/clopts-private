@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 
+#include "clopts/env.h"
 #include "clopts/export.h"
-#include "clopts/parse.h"
 
 #ifdef __cplusplus
 extern "C" {

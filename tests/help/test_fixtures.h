@@ -7,22 +7,27 @@
  * Only valid declarations live here; a suite that needs an invalid or a
  * one-row declaration builds its own program in its own file.
  *
- *   tool 1.2.3   with subcommands, description "A sample tool for testing."
+ *   tool         with subcommands, description "A sample tool for testing."
  *     global: -v/--verbose COUNT, -c/--color negatable FLAG,
- *             --config VALUE <FILE> (env TOOL_CONFIG)
+ *             --config VALUE <FILE> (env TOOL_CONFIG),
+ *             -h/--help and --version (clopts/help.h)
  *     build:  summary and description,
  *             -o/--output VALUE <FILE> required,
  *             -k/--keys LIST <KEY> ',' (default "a,b"),
  *             SRC required, EXTRA optional variadic
  *     copy:   summary only, SRC required, DST required
- *   filt         without subcommands, no version, with a description
- *     -n/--lines VALUE <N> (default "10", env FILT_LINES), FILE required variadic
- *   bare 0.1     with one subcommand and no global option, no description
+ *     help:   the help command of clopts_help_command_new()
+ *   filt         without subcommands, no --version, with a description
+ *     -n/--lines VALUE <N> (default "10", env FILT_LINES), -h/--help,
+ *     FILE required variadic
+ *   bare         with one subcommand, no description
+ *     global: -h/--help and --version only
  *     run:    summary only, no options, no positionals
- *   wide         without subcommands, no version
+ *     help:   the help command
+ *   wide         without subcommands, no --version
  *     --naïve FLAG, -j/--日本語 VALUE <値>,
  *     --raw VALUE whose value name has bytes that are not valid UTF-8,
- *     ファイル optional variadic
+ *     -h/--help, ファイル optional variadic
  *
  * Each init function fills a struct of handles; the program is NULL only
  * when clopts_program_new() failed (the other handles are then NULL too).
@@ -47,6 +52,9 @@ typedef struct help_fixture_tool
     clopts_command_t *root;
     clopts_command_t *build;
     clopts_command_t *copy;
+    clopts_command_t *help_command;  /* help [COMMAND] */
+    const clopts_option_t *help;     /* root: -h/--help */
+    const clopts_option_t *version;  /* root: --version */
     clopts_option_t *verbose;   /* root:  -v/--verbose COUNT */
     clopts_option_t *color;     /* root:  -c/--color negatable FLAG */
     clopts_option_t *config;    /* root:  --config VALUE <FILE>, env TOOL_CONFIG */
@@ -69,6 +77,7 @@ typedef struct help_fixture_filt
     bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_option_t *lines;     /* -n/--lines VALUE <N>, default "10", env FILT_LINES */
+    const clopts_option_t *help;  /* -h/--help */
     clopts_positional_t *file;  /* FILE required variadic */
 } help_fixture_filt_t;
 
@@ -83,6 +92,9 @@ typedef struct help_fixture_bare
     bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_command_t *run;      /* summary only, no options, no positionals */
+    clopts_command_t *help_command;  /* help [COMMAND] */
+    const clopts_option_t *help;     /* -h/--help */
+    const clopts_option_t *version;  /* --version */
 } help_fixture_bare_t;
 
 void help_fixture_bare_init(help_fixture_bare_t *f);
@@ -110,6 +122,7 @@ typedef struct help_fixture_wide
     clopts_option_t *naive;     /* --naïve FLAG */
     clopts_option_t *nihongo;   /* -j/--日本語 VALUE <値> */
     clopts_option_t *raw;       /* --raw VALUE <HELP_FIXTURE_RAW_VALUE_NAME> */
+    const clopts_option_t *help;  /* -h/--help */
     clopts_positional_t *file;  /* ファイル optional variadic */
 } help_fixture_wide_t;
 

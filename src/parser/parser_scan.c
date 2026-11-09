@@ -3,20 +3,21 @@
  * scanner: the scan before the subcommand, the main scan, the recovery scan
  * and the final status.
  *
- * Procedure (design, "解析の全体の流れ" and Scan):
- *   1. the entry scan_enter(): NULL program (sentinel), freezing and the
- *      allocation of the result (sentinel on failure);
+ * Procedure:
+ *   1. the entry scan_enter(): NULL program (sentinel) and the allocation of
+ *      the result (sentinel on failure);
  *   2. scan: the pre-command phase with subcommands, the main scan without;
  *   3. a pending usage error ends the parse, unless the recovery scan finds
- *      a HELP / VERSION request from its token on;
- *   4. a HELP / VERSION request ends the parse;
- *   5. resolve environment variables / defaults, then check required ones;
- *   6. OK, or NO_COMMAND when the program has subcommands and none was
+ *      a terminal option from its token on;
+ *   4. resolve environment variables / defaults;
+ *   5. a terminal option ends the parse with TERMINATED;
+ *   6. check required ones;
+ *   7. OK, or NO_COMMAND when the program has subcommands and none was
  *      selected.
  * Allocation and environment lookup failures after the result exists end
  * with CLOPTS_OUT_OF_MEMORY on that result, which stays releasable with
- * clopts_result_free(). The scanner never writes to program (except frozen
- * in scan_enter) nor to argv.
+ * clopts_result_free(). The scanner never writes to program nor to argv, and
+ * it knows no built-in option or command.
  */
 
 #include "parser/parser_internal.h"
@@ -25,10 +26,10 @@
 #include <string.h>
 
 /*
- * Entry of parsing. Freezes program, then returns the sentinel when program
- * is NULL or the result cannot be allocated, and a new result otherwise.
+ * Entry of parsing. Returns the sentinel when program is NULL or the result
+ * cannot be allocated, and a new result otherwise.
  */
-static clopts_result_t *scan_enter(clopts_program_t *program)
+static clopts_result_t *scan_enter(const clopts_program_t *program)
 {
     clopts_result_t *result;
 
@@ -36,7 +37,6 @@ static clopts_result_t *scan_enter(clopts_program_t *program)
     {
         return clopts_parser_result_oom();
     }
-    program->frozen = true;
 
     result = clopts_parser_result_new(program);
     if (result == NULL)
@@ -45,14 +45,6 @@ static clopts_result_t *scan_enter(clopts_program_t *program)
     }
     return result;
 }
-
-/* What the scan asked for besides a normal end. */
-typedef enum scan_request
-{
-    SCAN_REQUEST_NONE,
-    SCAN_REQUEST_HELP,
-    SCAN_REQUEST_VERSION
-} scan_request_t;
 
 /* A pending usage error: the fields of result->error a usage error sets. */
 typedef struct scan_error
@@ -86,8 +78,8 @@ typedef struct scan_state
     scan_error_t pending_error;
     /* "--" was reached: every following token is a positional. */
     bool dashdash;
-    /* HELP / VERSION request; the target of HELP is command. */
-    scan_request_t request;
+    /* The terminal option that ended the scan, or NULL. */
+    const clopts_option_t *terminal;
     /* An allocation failed while recording. */
     bool out_of_memory;
 } scan_state_t;
@@ -104,7 +96,7 @@ static void scan_init(scan_state_t *state, const clopts_program_t *program, int 
     state->command = NULL;
     state->has_pending = false;
     state->dashdash = false;
-    state->request = SCAN_REQUEST_NONE;
+    state->terminal = NULL;
     state->out_of_memory = false;
 }
 
@@ -117,7 +109,7 @@ static bool scan_at_end(const scan_state_t *state)
 /* True when the scan has decided the outcome before the end of the tokens. */
 static bool scan_decided(const scan_state_t *state)
 {
-    return (state->has_pending || (state->request != SCAN_REQUEST_NONE) || state->out_of_memory);
+    return (state->has_pending || (state->terminal != NULL) || state->out_of_memory);
 }
 
 /* The current token; there must be one. */
@@ -172,34 +164,17 @@ static void scan_select(scan_state_t *state, const clopts_command_t *command)
     state->command = command;
 }
 
-/* HELP of the selected command (NULL: the whole program); the scan ends. */
-static void scan_request_help(scan_state_t *state)
+/*
+ * Records a FLAG found through ref (negated or not) given by argv. A
+ * terminal one ends the scan.
+ */
+static void scan_flag(scan_state_t *state, const clopts_parser_ref_t *ref)
 {
-    state->request = SCAN_REQUEST_HELP;
-}
-
-/* VERSION; the scan ends. */
-static void scan_request_version(scan_state_t *state)
-{
-    state->request = SCAN_REQUEST_VERSION;
-}
-
-/* True when token is exactly "--help" or "-h". */
-static bool is_help_token(const char *token)
-{
-    return ((strcmp(token, "--help") == 0) || (strcmp(token, "-h") == 0));
-}
-
-/* True when token is exactly "--version" and the program has a version. */
-static bool is_version_token(const scan_state_t *state, const char *token)
-{
-    return ((state->program->version != NULL) && (strcmp(token, "--version") == 0));
-}
-
-/* True when the name_len bytes at name are exactly the NUL-terminated word. */
-static bool name_is(const char *name, size_t name_len, const char *word)
-{
-    return ((strlen(word) == name_len) && (memcmp(name, word, name_len) == 0));
+    clopts_parser_slot_set_flag(clopts_parser_result_slot(state->result, ref), !ref->negated, CLOPTS_SOURCE_EXPLICIT);
+    if (ref->option->terminal)
+    {
+        state->terminal = ref->option;
+    }
 }
 
 /*
@@ -244,11 +219,9 @@ static scan_error_t *scan_option_value(scan_state_t *state, const clopts_parser_
 
 /*
  * Long option token "--<name>" / "--<name>=<value>". <name> ends at the
- * first "=". The reserved --help and --version (with a version) request HELP
- * of the selected command / VERSION, and take no value (option NULL in the
- * UNEXPECTED_VALUE error). Otherwise the name is looked up exactly, then as
- * --no-<name> of a negatable FLAG, in the selected command (if any) and the
- * global options. FLAG / COUNT take no value; VALUE / LIST take the text
+ * first "=". The name is looked up in the selected command (if any) and then
+ * in the global options; in each, exactly first and then as --no-<name> of a
+ * negatable FLAG. FLAG / COUNT take no value; VALUE / LIST take the text
  * after "=" or the next token.
  */
 static void scan_long_option(scan_state_t *state)
@@ -257,35 +230,11 @@ static void scan_long_option(scan_state_t *state)
     const char *name = scan_token(state) + 2;
     const size_t name_len = strcspn(name, "=");
     const char *value = (name[name_len] == '=') ? (name + name_len + 1) : NULL;
-    const bool reserved_help = name_is(name, name_len, "help");
-    const bool reserved_version = ((state->program->version != NULL) && name_is(name, name_len, "version"));
     clopts_parser_ref_t ref;
     scan_error_t *error;
 
     state->pos++;
-    if (reserved_help || reserved_version)
-    {
-        if (value != NULL)
-        {
-            (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_VALUE, index);
-        }
-        else if (reserved_help)
-        {
-            scan_request_help(state);
-        }
-        else
-        {
-            scan_request_version(state);
-        }
-        return;
-    }
-
-    /* find_negation does not check for an exact match itself. */
     ref = clopts_parser_find_long(state->program, state->command, name, name_len);
-    if (ref.option == NULL)
-    {
-        ref = clopts_parser_find_negation(state->program, state->command, name, name_len);
-    }
     if (ref.option == NULL)
     {
         error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, index);
@@ -310,8 +259,7 @@ static void scan_long_option(scan_state_t *state)
         }
         else if (ref.option->kind == CLOPTS_PARSER_FLAG)
         {
-            clopts_parser_slot_set_flag(clopts_parser_result_slot(state->result, &ref), !ref.negated,
-                                        CLOPTS_SOURCE_EXPLICIT);
+            scan_flag(state, &ref);
         }
         else
         {
@@ -327,12 +275,11 @@ static void scan_long_option(scan_state_t *state)
 
 /*
  * Short option token "-<c1><c2>...", one character at a time against the
- * selected command (if any) and the global options: "h" requests HELP of the
- * selected command (the whole program before the selection); an unknown
- * character is an unknown option on that character; FLAG / COUNT go on with
- * the next character; VALUE / LIST take the rest of the token verbatim ("="
- * included) when it is not empty, else the next token verbatim, and end the
- * token. A HELP request or a usage error ends the token as well.
+ * selected command (if any) and the global options: an unknown character is
+ * an unknown option on that character; FLAG / COUNT go on with the next
+ * character; VALUE / LIST take the rest of the token verbatim ("=" included)
+ * when it is not empty, else the next token verbatim, and end the token. A
+ * terminal FLAG or a usage error ends the token as well.
  */
 static void scan_short_option(scan_state_t *state)
 {
@@ -345,11 +292,6 @@ static void scan_short_option(scan_state_t *state)
     state->pos++;
     for (i = 0; chars[i] != '\0'; i++)
     {
-        if (chars[i] == 'h')
-        {
-            scan_request_help(state);
-            return;
-        }
         ref = clopts_parser_find_short(state->program, state->command, chars[i]);
         if (ref.option == NULL)
         {
@@ -363,8 +305,11 @@ static void scan_short_option(scan_state_t *state)
         switch (ref.option->kind)
         {
         case CLOPTS_PARSER_FLAG:
-            clopts_parser_slot_set_flag(clopts_parser_result_slot(state->result, &ref), true,
-                                        CLOPTS_SOURCE_EXPLICIT);
+            scan_flag(state, &ref);
+            if (state->terminal != NULL)
+            {
+                return;
+            }
             break;
         case CLOPTS_PARSER_COUNT:
             clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), ref.option->count_max);
@@ -410,7 +355,7 @@ static void scan_option(scan_state_t *state)
  */
 static void main_positional(scan_state_t *state)
 {
-    const clopts_command_t *scope = (state->command != NULL) ? state->command : &state->program->root;
+    const clopts_command_t *scope = (state->command != NULL) ? state->command : state->program->root;
     const size_t declared = scope->positionals.len;
     const size_t taken = state->result->positionals.len;
     const clopts_positional_t *last;
@@ -476,44 +421,6 @@ static void scan_main(scan_state_t *state)
 }
 
 /*
- * Pre-command row "help": alone it is HELP of the whole program; followed by
- * a command name it is HELP of that command (selected as the help target),
- * and a further token is an unexpected argument; followed by anything else it
- * is an unknown command.
- */
-static void prelude_help_command(scan_state_t *state)
-{
-    const clopts_command_t *command;
-
-    state->pos++;
-    if (scan_at_end(state))
-    {
-        scan_request_help(state);
-        return;
-    }
-    command = clopts_parser_find_command(state->program, scan_token(state));
-    if (command == NULL)
-    {
-        (void)scan_fail(state, CLOPTS_USAGE_UNKNOWN_COMMAND, state->pos);
-        state->pos++;
-        return;
-    }
-    scan_select(state, command);
-    if (state->out_of_memory)
-    {
-        return;
-    }
-    state->pos++;
-    if (!scan_at_end(state))
-    {
-        (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, state->pos);
-        state->pos++;
-        return;
-    }
-    scan_request_help(state);
-}
-
-/*
  * Pre-command row for a token that does not start with "-" (or is "-" alone,
  * or follows "--"): a command name selects that command; anything else is an
  * unknown command (exact, case-sensitive, no prefix).
@@ -537,11 +444,9 @@ static void prelude_command(scan_state_t *state)
 }
 
 /*
- * One token of the pre-command phase, in the order of the design table:
- * after "--" every token is a positional, which is an unknown command since no
- * command is selected; exact --help / -h, exact --version (with a version),
- * "--", other "-" tokens except "-" alone (options), "help", then command
- * names.
+ * One token of the pre-command phase: after "--" every token is a
+ * positional, which is an unknown command since no command is selected;
+ * "--"; other "-" tokens except "-" alone (options); then command names.
  */
 static void prelude_token(scan_state_t *state)
 {
@@ -551,14 +456,6 @@ static void prelude_token(scan_state_t *state)
     {
         prelude_command(state);
     }
-    else if (is_help_token(token))
-    {
-        scan_request_help(state);
-    }
-    else if (is_version_token(state, token))
-    {
-        scan_request_version(state);
-    }
     else if (strcmp(token, "--") == 0)
     {
         state->dashdash = true;
@@ -567,10 +464,6 @@ static void prelude_token(scan_state_t *state)
     else if ((token[0] == '-') && (token[1] != '\0'))
     {
         scan_option(state);
-    }
-    else if (strcmp(token, "help") == 0)
-    {
-        prelude_help_command(state);
     }
     else
     {
@@ -591,28 +484,59 @@ static void scan_prelude(scan_state_t *state)
 }
 
 /*
+ * Returns the terminal FLAG that token names exactly in the scope of the
+ * scan ("--<long>" with no "=", or "-<c>" alone), or NULL; *ref gets where
+ * it was found.
+ */
+static const clopts_option_t *recover_terminal(const scan_state_t *state, const char *token, clopts_parser_ref_t *ref)
+{
+    if ((token[0] != '-') || (token[1] == '\0'))
+    {
+        return NULL;
+    }
+    if (token[1] == '-')
+    {
+        if ((token[2] == '\0') || (strchr(token + 2, '=') != NULL))
+        {
+            return NULL;
+        }
+        *ref = clopts_parser_find_long(state->program, state->command, token + 2, strlen(token + 2));
+        if (ref->negated)
+        {
+            return NULL;
+        }
+    }
+    else
+    {
+        if (token[2] != '\0')
+        {
+            return NULL;
+        }
+        *ref = clopts_parser_find_short(state->program, state->command, token[1]);
+    }
+    if ((ref->option == NULL) || (ref->option->kind != CLOPTS_PARSER_FLAG) || !ref->option->terminal)
+    {
+        return NULL;
+    }
+    return ref->option;
+}
+
+/*
  * Recovery scan, run when a usage error is pending: the scan stopped right
  * after the first usage error, which stays the only one reported. The tokens
  * from the one of the pending error up to, not including, "--" are searched
- * for exact --help / -h / --version (with a version); the first one found
- * turns the outcome into HELP (of the selected command, else the whole
- * program) / VERSION. Nothing is looked up or recorded: any other token,
- * including option values and short groups containing "h", is skipped.
- *
- * The search starts at the pending error's own token, not the next one: in
- * "help --help", "help -h", "help copy --help" or "help --version" that
- * token is itself a request "anywhere before --" and wins over the unknown
- * command / unexpected argument it caused. The only other error tokens are
- * options, positionals and command names, which never equal a request token
- * exactly (the scan handles exact requests itself). When "--" was reached
- * before the error, every remaining token follows "--" and none counts
- * ("tool -- --help" stays an unknown command). Tokens consumed as option
- * values before the error precede it and are never searched; after the
- * error nothing is interpreted, so an exact token there counts even where it
- * would have been a value ("--bad -o -h" is HELP).
+ * for an exact "--<long>" or "-<c>" of a terminal FLAG of the scope (the
+ * selected command, then the root); the first one found is recorded and
+ * turns the outcome into TERMINATED. Nothing else is looked up or recorded:
+ * any other token, option values and short groups included, is skipped.
+ * When "--" was reached before the error, every remaining token follows
+ * "--" and none counts. After the error nothing is interpreted, so an exact
+ * token there counts even where it would have been a value ("--bad -o -h"
+ * is TERMINATED when -h is terminal).
  */
 static void scan_recover(scan_state_t *state)
 {
+    clopts_parser_ref_t ref;
     const char *token;
     int i;
 
@@ -628,15 +552,9 @@ static void scan_recover(scan_state_t *state)
         {
             return;
         }
-        if (is_help_token(token))
+        if (recover_terminal(state, token, &ref) != NULL)
         {
-            scan_request_help(state);
-            state->has_pending = false;
-            return;
-        }
-        if (is_version_token(state, token))
-        {
-            scan_request_version(state);
+            scan_flag(state, &ref);
             state->has_pending = false;
             return;
         }
@@ -662,18 +580,15 @@ static void store_pending_error(clopts_result_t *result, const scan_error_t *err
     result->error.short_name = error->short_name;
 }
 
-/*
- * Steps 3 and 4 of the procedure: ends the parse with the outcome the scan
- * decided (scan_decided() is true).
- */
-static void scan_outcome(scan_state_t *state)
+/* Step 3 of the procedure: a pending usage error, or out of memory, ends the parse. Returns true when it did. */
+static bool scan_failed(scan_state_t *state)
 {
     clopts_result_t *result = state->result;
 
     if (state->out_of_memory)
     {
         finish(result, CLOPTS_OUT_OF_MEMORY);
-        return;
+        return true;
     }
     if (state->has_pending)
     {
@@ -683,18 +598,12 @@ static void scan_outcome(scan_state_t *state)
     {
         store_pending_error(result, &state->pending_error);
         finish(result, CLOPTS_USAGE_ERROR);
-        return;
+        return true;
     }
-    if (state->request == SCAN_REQUEST_HELP)
-    {
-        finish(result, CLOPTS_HELP);
-        return;
-    }
-    assert(state->request == SCAN_REQUEST_VERSION);
-    finish(result, CLOPTS_VERSION);
+    return false;
 }
 
-/* Steps 2 to 6 of the procedure on a result that scan_enter() left open. */
+/* Steps 2 to 7 of the procedure on a result that scan_enter() left open. */
 static void scan_run(const clopts_program_t *program, int argc, char *const *argv, clopts_getenv_fn getenv_fn,
                      void *env_ctx, clopts_result_t *result)
 {
@@ -703,7 +612,7 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
 
     /* 2. */
     scan_init(&state, program, argc, argv, result);
-    if (program->commands.len > 0)
+    if (program->command_count > 0)
     {
         scan_prelude(&state);
         if ((state.command != NULL) && !scan_decided(&state))
@@ -717,32 +626,41 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
     }
     assert(state.command == result->command);
 
-    /* 3. and 4. */
-    if (scan_decided(&state))
+    /* 3. */
+    if (scan_failed(&state))
     {
-        scan_outcome(&state);
         return;
     }
 
-    /* 5. */
-    selected_scope = ((program->commands.len == 0) || (state.command != NULL));
+    /* 4. */
+    selected_scope = ((program->command_count == 0) || (state.command != NULL));
     if (clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope) != 0)
     {
         finish(result, CLOPTS_OUT_OF_MEMORY);
         return;
     }
+
+    /* 5. */
+    if (state.terminal != NULL)
+    {
+        result->terminal = state.terminal;
+        finish(result, CLOPTS_TERMINATED);
+        return;
+    }
+
+    /* 6. */
     if (clopts_parser_check_required(result, program, selected_scope) != 0)
     {
         finish(result, CLOPTS_USAGE_ERROR);
         return;
     }
 
-    /* 6. */
+    /* 7. */
     finish(result, selected_scope ? CLOPTS_OK : CLOPTS_NO_COMMAND);
 }
 
 /* Shared body of clopts_parse() and clopts_parse_with_env(). */
-static clopts_result_t *parse(clopts_program_t *program, int argc, char *const *argv, clopts_getenv_fn getenv_fn,
+static clopts_result_t *parse(const clopts_program_t *program, int argc, char *const *argv, clopts_getenv_fn getenv_fn,
                               void *env_ctx)
 {
     clopts_result_t *result;
@@ -761,12 +679,12 @@ static clopts_result_t *parse(clopts_program_t *program, int argc, char *const *
     return result;
 }
 
-clopts_result_t *clopts_parse(clopts_program_t *program, int argc, char *const *argv)
+clopts_result_t *clopts_parse(const clopts_program_t *program, int argc, char *const *argv)
 {
     return parse(program, argc, argv, NULL, NULL);
 }
 
-clopts_result_t *clopts_parse_with_env(clopts_program_t *program, int argc, char *const *argv,
+clopts_result_t *clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
                                        clopts_getenv_fn getenv_fn, void *env_ctx)
 {
     return parse(program, argc, argv, getenv_fn, env_ctx);

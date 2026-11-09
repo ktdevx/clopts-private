@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "clopts/decl_types.h"
+#include "clopts/env.h"
 #include "clopts/export.h"
 
 #ifdef __cplusplus
@@ -17,30 +18,41 @@ extern "C" {
  * with the builder functions of clopts/decl.h is always valid, so a parse
  * never reports a declaration error.
  *
+ * Lookup: an option token is looked up in the selected command first and
+ * then in the root (the global options). In each of them the exact long
+ * name comes first and --no-<name> of a negatable FLAG second, so a name of
+ * a command shadows the same name of the root. The parser knows no built-in
+ * option or command: --help, --version and a help command are ordinary
+ * declarations (clopts/help.h).
+ *
+ * Terminal options (clopts_option_set_terminal()): when argv gives one, the
+ * scan stops right after it, the parse ends with CLOPTS_TERMINATED and
+ * clopts_result_terminal() returns it. The tokens after it are not read and
+ * the required options and positionals are not checked. A usage error found
+ * before it is still replaced: after the first usage error, the following
+ * tokens up to "--" are searched for an exact "--<long>" or "-<c>" of a
+ * terminal option of the scope, and the first one found gives
+ * CLOPTS_TERMINATED instead.
+ *
  * String lifetime: a string obtained from a result (values, list items,
  * positionals, error tokens) is valid until the result is released, and only
- * while the caller keeps both the program and argv alive. Accessors and
- * clopts_result_run() may only be called before the program that produced
- * the result is released; clopts_result_free() may be called before or after
- * clopts_program_free().
+ * while the caller keeps both the program and argv alive. Accessors may only
+ * be called before the program that produced the result is released;
+ * clopts_result_free() may be called before or after clopts_program_free().
  *
- * Threads: parsing never writes to any stream and never calls exit(). The
- * first parse freezes the program (it writes to the program), so the same
- * program must not be parsed from several threads at the same time. Distinct
- * programs may be used concurrently.
+ * Threads: parsing never writes to any stream, never calls exit() and never
+ * writes to the program, so the same program may be parsed from several
+ * threads at the same time.
  *
  * NULL handling: a NULL result is read like the out-of-memory sentinel
  * (status CLOPTS_OUT_OF_MEMORY). A NULL option makes a value accessor return
  * the unset value. Neither is a contract violation.
  *
- * Options are looked up by their address among the options of the root and
- * of the selected command, so an option that is not attached there (an
- * option of another command or program, or an unattached one) reads as
+ * An option that is attached neither to the root nor to the selected command
+ * (an option of another command or program, or an unattached one) reads as
  * unset.
  *
- * Contract violations (caught by assert): an index out of range, and
- * clopts_result_run() on a result whose status is not CLOPTS_OK or for a
- * scope without a handler.
+ * Contract violations (caught by assert): an index out of range.
  */
 
 /* Outcome of a parse. */
@@ -48,16 +60,14 @@ typedef enum clopts_status
 {
     /* Parsed successfully. */
     CLOPTS_OK = 0,
-    /* Help was requested: the whole program when clopts_result_command() is NULL, that command otherwise. */
-    CLOPTS_HELP = 1,
-    /* --version was requested (only when a version is set). */
-    CLOPTS_VERSION = 2,
+    /* A terminal option was given (clopts_result_terminal()). Required ones were not checked. */
+    CLOPTS_TERMINATED = 1,
     /* The program has subcommands but none appeared. Only global option values are available. */
-    CLOPTS_NO_COMMAND = 3,
+    CLOPTS_NO_COMMAND = 2,
     /* A usage error in argv. */
-    CLOPTS_USAGE_ERROR = 4,
+    CLOPTS_USAGE_ERROR = 3,
     /* An allocation or the environment lookup failed. */
-    CLOPTS_OUT_OF_MEMORY = 5
+    CLOPTS_OUT_OF_MEMORY = 4
 } clopts_status_t;
 
 /* Kind of a usage error. The comment lists the error accessors it sets besides argv_index. */
@@ -70,7 +80,7 @@ typedef enum clopts_usage_error
     CLOPTS_USAGE_UNKNOWN_OPTION = 2,
     /* option, token: an option that needs a value got none. */
     CLOPTS_USAGE_MISSING_VALUE = 3,
-    /* option (NULL for a reserved option), token: a value given to an option that takes none. */
+    /* option, token: a value given to an option that takes none. */
     CLOPTS_USAGE_UNEXPECTED_VALUE = 4,
     /* option: a required option got no value. */
     CLOPTS_USAGE_MISSING_OPTION = 5,
@@ -89,25 +99,6 @@ typedef enum clopts_source
     CLOPTS_SOURCE_EXPLICIT = 3
 } clopts_source_t;
 
-/* Return value of a clopts_getenv_fn. */
-typedef enum clopts_env_status
-{
-    /* Found: *value holds a string borrowed from the callback. */
-    CLOPTS_ENV_FOUND = 0,
-    /* Not set. *value is not read. */
-    CLOPTS_ENV_UNSET = 1,
-    /* Lookup failed. The parse ends with CLOPTS_OUT_OF_MEMORY. */
-    CLOPTS_ENV_FAILED = 2
-} clopts_env_status_t;
-
-/*
- * Environment lookup callback. The string stored in *value is owned by the
- * callback and needs to stay valid only until the next call of the callback
- * or until the parse function returns. The library copies it right after the
- * callback returns and never reads or releases it afterwards.
- */
-typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, const char **value);
-
 /*
  * Parses argv[1..argc-1] (argv[0] is skipped) against program. argc must be
  * >= 0 and argv[0..argc-1] NUL-terminated (argv is not read when argc == 0).
@@ -115,16 +106,19 @@ typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, con
  * are looked up with getenv(). Never returns NULL: when an allocation fails
  * (or program is NULL) the shared out-of-memory sentinel is returned.
  */
-CLOPTS_API clopts_result_t *clopts_parse(clopts_program_t *program, int argc, char *const *argv);
+CLOPTS_API clopts_result_t *clopts_parse(const clopts_program_t *program, int argc, char *const *argv);
 
 /* Same as clopts_parse(), with getenv_fn(env_ctx, ...) as lookup. NULL selects the default lookup. */
-CLOPTS_API clopts_result_t *clopts_parse_with_env(clopts_program_t *program, int argc, char *const *argv,
+CLOPTS_API clopts_result_t *clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
                                                   clopts_getenv_fn getenv_fn, void *env_ctx);
 
 CLOPTS_API clopts_status_t clopts_result_status(const clopts_result_t *result);
 
-/* OK / NO_COMMAND / USAGE_ERROR: the selected command. HELP: the help target. NULL without one. */
+/* OK / TERMINATED / NO_COMMAND / USAGE_ERROR: the selected command. NULL without one (and for the root). */
 CLOPTS_API const clopts_command_t *clopts_result_command(const clopts_result_t *result);
+
+/* TERMINATED: the terminal option that ended the parse. NULL for any other status. */
+CLOPTS_API const clopts_option_t *clopts_result_terminal(const clopts_result_t *result);
 
 /*
  * Error accessors. Meaningful when the status is USAGE_ERROR;
@@ -145,10 +139,11 @@ CLOPTS_API size_t clopts_result_error_name_len(const clopts_result_t *result);
 CLOPTS_API char clopts_result_error_short_name(const clopts_result_t *result);
 
 /*
- * Value accessors. Meaningful when the status is OK or NO_COMMAND (global
- * options only); otherwise, and for an option of a command that was not
- * selected, they return the unset value (false, 0, NULL, 0 items,
- * CLOPTS_SOURCE_NONE).
+ * Value accessors. Meaningful when the status is OK, TERMINATED (the values
+ * recorded up to the terminal option, then the environment and defaults) or
+ * NO_COMMAND (global options only); otherwise, and for an option of a
+ * command that was not selected, they return the unset value (false, 0,
+ * NULL, 0 items, CLOPTS_SOURCE_NONE).
  */
 CLOPTS_API bool clopts_result_flag(const clopts_result_t *result, const clopts_option_t *option);
 CLOPTS_API unsigned clopts_result_count(const clopts_result_t *result, const clopts_option_t *option);
@@ -160,9 +155,6 @@ CLOPTS_API clopts_source_t clopts_result_source(const clopts_result_t *result, c
 CLOPTS_API size_t clopts_result_positional_count(const clopts_result_t *result);
 /* index must be less than clopts_result_positional_count(). Returns an argv element. */
 CLOPTS_API const char *clopts_result_positional_at(const clopts_result_t *result, size_t index);
-
-/* Calls the handler of the selected scope with result and its userdata and returns its value. */
-CLOPTS_API int clopts_result_run(const clopts_result_t *result);
 
 /* Releases result. NULL and the sentinel do nothing. May be called before or after clopts_program_free(). */
 CLOPTS_API void clopts_result_free(clopts_result_t *result);

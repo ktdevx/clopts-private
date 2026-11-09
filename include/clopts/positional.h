@@ -31,6 +31,14 @@ CLOPTS_API clopts_decl_error_t clopts_positional_set_required(clopts_positional_
 /* Takes all remaining tokens. Must be the last positional (checked when the next one is attached). */
 CLOPTS_API clopts_decl_error_t clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic);
 
+/* ---- read functions ---- */
+
+CLOPTS_API const char *clopts_positional_name(const clopts_positional_t *positional);
+/* NULL when not set. */
+CLOPTS_API const char *clopts_positional_help(const clopts_positional_t *positional);
+CLOPTS_API bool clopts_positional_required(const clopts_positional_t *positional);
+CLOPTS_API bool clopts_positional_variadic(const clopts_positional_t *positional);
+
 #ifdef __cplusplus
 }
 #endif

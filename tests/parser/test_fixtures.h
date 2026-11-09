@@ -1,33 +1,36 @@
 /*
  * Shared fixtures for the parser tests: fictional programs assembled with the
- * builder functions, the handler they use and a borrowing mock environment.
+ * builder functions, and a borrowing mock environment.
  *
  * The programs are made up for the tests and do not describe any real tool.
  * Only valid declarations live here; a suite that needs an invalid or special
  * declaration builds its own program in its own file.
  *
- *   tool 1.2.3   with subcommands
+ *   tool         with subcommands
  *     global: -v/--verbose COUNT, --color negatable FLAG,
- *             --config VALUE (env TOOL_CONFIG)
+ *             --config VALUE (env TOOL_CONFIG),
+ *             -h/--help and --version terminal FLAGs (clopts/help.h)
  *     build:  -o/--output VALUE required, -k/--keys LIST ',', -j COUNT max 8,
- *             SRC required, EXTRA variadic, with a handler
+ *             SRC required, EXTRA variadic
  *     copy:   SRC required, DST required
  *     cat:    --tags LIST ',' (default "a,b", env TOOL_TAGS), FILE variadic
- *   filt         without subcommands, no version, with a handler
- *     -n/--lines VALUE (default "10", env FILT_LINES), FILE variadic
+ *     help:   the help command of clopts_help_command_new() (COMMAND optional)
+ *   filt         without subcommands, no --version
+ *     -n/--lines VALUE (default "10", env FILT_LINES), -h/--help terminal,
+ *     FILE variadic
  *   strict       with one subcommand and a required global option
- *     global: --token VALUE required
+ *     global: --token VALUE required, -h/--help terminal
  *     run:    no options, no positionals
  *
  * Each init function fills a struct of handles and sets ok when every
- * builder call succeeded. Every allocation of the
- * assembly, clopts_program_new() included, goes through the allocator set
- * with clopts_set_allocator(), so with the fault-injecting allocator of
+ * builder call succeeded. Every allocation of the assembly,
+ * clopts_program_new() included, goes through the allocator set with
+ * clopts_set_allocator(), so with the fault-injecting allocator of
  * tests/support/test_alloc.h each of them is a fault point. When an
  * allocation fails, the remaining builder calls get NULL handles and do
- * nothing; the struct then holds NULL for the handles that could not be
- * created (program itself is NULL when clopts_program_new() failed). The free
- * function releases the program (NULL is fine) and clears the struct.
+ * nothing; when the program could not be created at the end, everything is
+ * released and the whole struct is NULL (ok false). The free function
+ * releases the program (NULL is fine) and clears the struct.
  */
 
 #ifndef CLOPTS_TESTS_PARSER_TEST_FIXTURES_H
@@ -48,6 +51,9 @@ typedef struct fixture_tool
     clopts_command_t *build;
     clopts_command_t *copy;
     clopts_command_t *cat;
+    clopts_command_t *help_command;  /* help [COMMAND] */
+    const clopts_option_t *help;     /* root: -h/--help terminal FLAG */
+    const clopts_option_t *version;  /* root: --version terminal FLAG */
     clopts_option_t *verbose;   /* root:  -v/--verbose COUNT */
     clopts_option_t *color;     /* root:  --color negatable FLAG */
     clopts_option_t *config;    /* root:  --config VALUE, env TOOL_CONFIG */
@@ -73,6 +79,7 @@ typedef struct fixture_filt
     bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *root;
     clopts_option_t *lines;     /* -n/--lines VALUE, default "10", env FILT_LINES */
+    const clopts_option_t *help;  /* -h/--help terminal FLAG */
     clopts_positional_t *file;  /* FILE variadic */
 } fixture_filt_t;
 
@@ -88,39 +95,11 @@ typedef struct fixture_strict
     clopts_command_t *root;
     clopts_command_t *run;
     clopts_option_t *token;     /* root: --token VALUE required */
+    const clopts_option_t *help;  /* root: -h/--help terminal FLAG */
 } fixture_strict_t;
 
 void fixture_strict_init(fixture_strict_t *f);
 void fixture_strict_free(fixture_strict_t *f);
-
-/* ---- handler ----------------------------------------------------------- */
-
-/*
- * Record kept by fixture_handler. The root of filt passes
- * &fixture_filt_handler_record and the build command of tool passes
- * &fixture_build_handler_record as userdata. Reset a record with
- * fixture_handler_reset() before use.
- */
-typedef struct fixture_handler_record
-{
-    int calls;                          /* number of calls */
-    const clopts_result_t *last_result; /* result of the last call */
-    void *last_userdata;                /* userdata of the last call */
-    int return_value;                   /* returned by every call */
-} fixture_handler_record_t;
-
-extern fixture_handler_record_t fixture_filt_handler_record;
-extern fixture_handler_record_t fixture_build_handler_record;
-
-/*
- * Handler used by the fixtures. userdata must point to a
- * fixture_handler_record_t; the call is recorded there and its return_value
- * is returned.
- */
-int fixture_handler(const clopts_result_t *result, void *userdata);
-
-/* Sets calls = 0, last_* = NULL and return_value. */
-void fixture_handler_reset(fixture_handler_record_t *record, int return_value);
 
 /* ---- mock environment -------------------------------------------------- */
 

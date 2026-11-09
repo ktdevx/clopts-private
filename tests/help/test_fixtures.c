@@ -2,7 +2,10 @@
  * Definitions of the shared help test fixtures (see test_fixtures.h).
  *
  * The help texts of tool are those of the output example in the design
- * (HelpLayout), so that the layout tests can compare against it.
+ * (HelpLayout), so that the layout tests can compare against it. Each
+ * program is built bottom up (test_decl_root(), test_decl_command(), then
+ * test_decl_finish()); -h/--help, --version and the help command come from
+ * the helpers of clopts/help.h, declared last.
  */
 
 #include "test_fixtures.h"
@@ -10,6 +13,51 @@
 
 #include <assert.h>
 #include <string.h>
+
+/* ---- shared steps ------------------------------------------------------ */
+
+/* Adds -h/--help and, when version is not NULL, --version to root (NULL root does nothing). */
+static void help_fixture_add_terminals(clopts_command_t *root, const clopts_option_t **help,
+                                       const clopts_option_t **version)
+{
+    if (root == NULL)
+    {
+        return;
+    }
+    test_decl_check(clopts_help_add_help_option(root, help));
+    if (version != NULL)
+    {
+        test_decl_check(clopts_help_add_version_option(root, version));
+    }
+}
+
+/* Makes the help command and remembers it as the last subcommand of root. */
+static clopts_command_t *help_fixture_add_help_command(clopts_command_t *root)
+{
+    clopts_command_t *command = NULL;
+
+    if (root == NULL)
+    {
+        return NULL;
+    }
+    test_decl_check(clopts_help_command_new(&command));
+    return test_decl_adopt(root, command);
+}
+
+/*
+ * Creates the program of root; on failure everything was released, so the
+ * fixture struct (size bytes at f) is cleared.
+ */
+static clopts_program_t *help_fixture_finish(clopts_command_t *root, void *f, size_t size)
+{
+    clopts_program_t *program = test_decl_finish(root);
+
+    if (program == NULL)
+    {
+        memset(f, 0, size);
+    }
+    return program;
+}
 
 /* ---- tool -------------------------------------------------------------- */
 
@@ -19,10 +67,8 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->program = test_decl_program("tool");
-    f->root = clopts_program_root(f->program);
+    f->root = test_decl_root("tool");
     test_decl_check(clopts_command_set_description(f->root, "A sample tool for testing."));
-    test_decl_check(clopts_program_set_version(f->program, "1.2.3"));
 
     f->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
     test_decl_check(clopts_option_set_help(f->verbose, "Print more details"));
@@ -38,9 +84,10 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     test_decl_check(clopts_option_set_help(f->config, "Configuration file"));
     test_decl_check(clopts_option_set_env(f->config, "TOOL_CONFIG"));
     f->config = test_decl_attach(f->root, f->config);
+    help_fixture_add_terminals(f->root, &f->help, &f->version);
 
     /* build */
-    f->build = test_decl_command(f->program, "build");
+    f->build = test_decl_command(f->root, "build");
     test_decl_check(clopts_command_set_summary(f->build, "Build an output from a source"));
     test_decl_check(clopts_command_set_description(f->build, "Build an output from SRC."));
 
@@ -68,7 +115,7 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
 
     /* copy */
-    f->copy = test_decl_command(f->program, "copy");
+    f->copy = test_decl_command(f->root, "copy");
     test_decl_check(clopts_command_set_summary(f->copy, "Copy a file"));
 
     f->copy_src = test_decl_positional("SRC");
@@ -80,6 +127,9 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     test_decl_check(clopts_positional_set_help(f->copy_dst, "Destination"));
     test_decl_check(clopts_positional_set_required(f->copy_dst, true));
     f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
+
+    f->help_command = help_fixture_add_help_command(f->root);
+    f->program = help_fixture_finish(f->root, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
 
@@ -99,8 +149,7 @@ void help_fixture_filt_init(help_fixture_filt_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->program = test_decl_program("filt");
-    f->root = clopts_program_root(f->program);
+    f->root = test_decl_root("filt");
     test_decl_check(clopts_command_set_description(f->root, "Filter the lines of files."));
 
     f->lines = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
@@ -115,6 +164,8 @@ void help_fixture_filt_init(help_fixture_filt_t *f)
     test_decl_check(clopts_positional_set_required(f->file, true));
     test_decl_check(clopts_positional_set_variadic(f->file, true));
     f->file = test_decl_attach_positional(f->root, f->file);
+    help_fixture_add_terminals(f->root, &f->help, NULL);
+    f->program = help_fixture_finish(f->root, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
 
@@ -134,12 +185,13 @@ void help_fixture_bare_init(help_fixture_bare_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->program = test_decl_program("bare");
-    f->root = clopts_program_root(f->program);
-    test_decl_check(clopts_program_set_version(f->program, "0.1"));
+    f->root = test_decl_root("bare");
+    help_fixture_add_terminals(f->root, &f->help, &f->version);
 
-    f->run = test_decl_command(f->program, "run");
+    f->run = test_decl_command(f->root, "run");
     test_decl_check(clopts_command_set_summary(f->run, "Run the task"));
+    f->help_command = help_fixture_add_help_command(f->root);
+    f->program = help_fixture_finish(f->root, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
 
@@ -159,8 +211,7 @@ void help_fixture_wide_init(help_fixture_wide_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->program = test_decl_program("wide");
-    f->root = clopts_program_root(f->program);
+    f->root = test_decl_root("wide");
 
     f->naive = test_decl_option(CLOPTS_OPTION_FLAG, HELP_FIXTURE_NAIVE, '\0');
     test_decl_check(clopts_option_set_help(f->naive, "Trust every input"));
@@ -180,6 +231,8 @@ void help_fixture_wide_init(help_fixture_wide_t *f)
     test_decl_check(clopts_positional_set_help(f->file, "Input files"));
     test_decl_check(clopts_positional_set_variadic(f->file, true));
     f->file = test_decl_attach_positional(f->root, f->file);
+    help_fixture_add_terminals(f->root, &f->help, NULL);
+    f->program = help_fixture_finish(f->root, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
 
