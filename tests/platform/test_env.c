@@ -465,26 +465,20 @@ typedef struct platform_env_tool
 
 static void platform_env_tool_init(platform_env_tool_t *tool, const char *env_name)
 {
-    clopts_command_t *root = NULL;
     clopts_option_t *output = NULL;
 
     tool->program = NULL;
     tool->output = NULL;
-    if (clopts_command_create("tool", &root) != CLOPTS_ERROR_NONE)
+    if (clopts_program_create("tool", &tool->program) != CLOPTS_ERROR_NONE)
     {
         return;
     }
     if ((clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_ERROR_NONE)
         || (clopts_option_set_env(output, env_name) != CLOPTS_ERROR_NONE)
-        || (clopts_command_add_option(root, output) != CLOPTS_ERROR_NONE))
+        || (clopts_program_add_option(tool->program, output) != CLOPTS_ERROR_NONE))
     {
         clopts_option_destroy(output);
         output = NULL;
-    }
-    if (clopts_program_create(root, NULL, 0, &tool->program) != CLOPTS_ERROR_NONE)
-    {
-        clopts_command_destroy(root);
-        return;
     }
     tool->output = output;
 }

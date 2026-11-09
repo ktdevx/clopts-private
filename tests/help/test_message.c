@@ -295,15 +295,14 @@ NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
     /* A one-option declaration local to this test: -t VALUE required, no long name. */
     char *argv[] = { "short", NULL };
     const char *expected = "missing required option '-t'\n";
-    clopts_command_t *root = test_decl_root("short");
-    clopts_program_t *program;
+    clopts_program_t *program = test_decl_begin("short");
     clopts_option_t *target;
     message_run_t run;
 
     target = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 't');
     NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_ERROR_NONE);
-    target = test_decl_attach(root, target);
-    program = test_decl_finish(root);
+    target = test_decl_global_attach(program, target);
+    program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_NOT_NULL(target);
     message_parse_and_write(program, MESSAGE_ARGC(argv), argv, 0u, &run);
@@ -460,7 +459,7 @@ NAOS_TEST(statuses_without_an_error_are_unavailable)
 
 NAOS_TEST(prefixes_without_an_error_command)
 {
-    /* The unknown command is reported for the root: no command in the prefix. */
+    /* The unknown command is reported for the program: no command in the prefix. */
     char *argv[] = { "tool", "bulid", NULL };
     const char *expected[4] = {
         "unknown command 'bulid'\n",
@@ -534,7 +533,7 @@ NAOS_TEST(prefixes_of_a_program_without_subcommands)
 NAOS_TEST(undefined_prefix_bits_are_ignored)
 {
     char *argv_command[] = { "tool", "build", "-o", NULL };
-    char *argv_root[] = { "tool", "bulid", NULL };
+    char *argv_no_command[] = { "tool", "bulid", NULL };
     const unsigned extra[3] = { 0x4u, 0x80000000u, ~(unsigned)MESSAGE_PREFIX_BOTH };
     help_fixture_tool_t f;
     message_run_t plain;
@@ -553,8 +552,8 @@ NAOS_TEST(undefined_prefix_bits_are_ignored)
             NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
             NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, plain.rec.buf, plain.rec.len);
 
-            message_parse_and_write(f.program, MESSAGE_ARGC(argv_root), argv_root, flags, &plain);
-            message_parse_and_write(f.program, MESSAGE_ARGC(argv_root), argv_root, flags | extra[i], &run);
+            message_parse_and_write(f.program, MESSAGE_ARGC(argv_no_command), argv_no_command, flags, &plain);
+            message_parse_and_write(f.program, MESSAGE_ARGC(argv_no_command), argv_no_command, flags | extra[i], &run);
             NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
             NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, plain.rec.buf, plain.rec.len);
         }
@@ -608,7 +607,7 @@ NAOS_TEST(decl_error_message_of_every_kind)
         { CLOPTS_ERROR_POSITIONAL_ORDER, "a required argument cannot follow an optional one" },
         { CLOPTS_ERROR_VARIADIC_POSITION, "only the last argument can be variadic" },
         { CLOPTS_ERROR_ATTRIBUTE_KIND, "attribute does not apply to this kind of option" },
-        { CLOPTS_ERROR_MIXED_LAYOUT, "a program with subcommands cannot have root arguments" },
+        { CLOPTS_ERROR_MIXED_LAYOUT, "a program cannot have both arguments and subcommands" },
         { CLOPTS_ERROR_INVALID_KIND, "invalid option kind" },
         { CLOPTS_ERROR_INVALID_ARGUMENT, "invalid argument" },
         { CLOPTS_ERROR_OUT_OF_MEMORY, "out of memory" },
@@ -630,18 +629,35 @@ NAOS_TEST(decl_error_message_of_every_kind)
 NAOS_TEST(decl_error_message_of_a_builder_error)
 {
     /* The kind returned by a failed builder call has its text. */
-    clopts_command_t *root = test_decl_root("tool");
+    clopts_program_t *program = test_decl_begin("tool");
     clopts_option_t *first;
     clopts_option_t *second;
 
-    NAOS_REQUIRE_NOT_NULL(root);
-    first = test_decl_add(root, CLOPTS_OPTION_VALUE, "out", 'o');
+    NAOS_REQUIRE_NOT_NULL(program);
+    first = test_decl_global_add(program, CLOPTS_OPTION_VALUE, "out", 'o');
     NAOS_REQUIRE_NOT_NULL(first);
-    second = test_decl_add(root, CLOPTS_OPTION_FLAG, "out", '\0');
+    second = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "out", '\0');
     NAOS_CHECK_NULL(second);
     NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_ERROR_DUPLICATE_OPTION);
     NAOS_CHECK_STR_EQ(clopts_error_message(test_decl_last), "duplicate option name");
-    test_decl_discard(root);
+    test_decl_discard(program);
+}
+
+NAOS_TEST(decl_error_message_of_a_mixed_layout)
+{
+    /* A subcommand added to a program with positionals is refused with the layout text. */
+    clopts_program_t *program = test_decl_begin("tool");
+    clopts_command_t *command = NULL;
+
+    NAOS_REQUIRE_NOT_NULL(program);
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "FILE"));
+    NAOS_REQUIRE_INT_EQ(clopts_command_create("run", &command), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_ERROR_MIXED_LAYOUT);
+    NAOS_CHECK_STR_EQ(clopts_error_message(CLOPTS_ERROR_MIXED_LAYOUT),
+                      "a program cannot have both arguments and subcommands");
+    /* The failed call left the command with the caller. */
+    clopts_command_destroy(command);
+    test_decl_discard(program);
 }
 
 /* ---- coverage of the text tables (12.1, 12.2) -------------------------- */
@@ -775,6 +791,7 @@ NAOS_SUITE(message,
     NAOS_ADD_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory),
     NAOS_ADD_TEST(decl_error_message_of_every_kind),
     NAOS_ADD_TEST(decl_error_message_of_a_builder_error),
+    NAOS_ADD_TEST(decl_error_message_of_a_mixed_layout),
     NAOS_ADD_TEST(usage_text_covers_every_kind),
     NAOS_ADD_TEST(decl_error_message_covers_every_kind),
     NAOS_ADD_TEST(failer_fails_on_the_nth_call_and_counts_later_calls),

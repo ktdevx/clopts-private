@@ -341,7 +341,7 @@ static const clopts_parser_slot_t *slot_of(const clopts_parser_slot_t *slots, si
  * Returns the slot of option in result, or NULL when the accessors must
  * return the unset value: a NULL result (read as the sentinel), the
  * sentinel, a NULL option, a status other than OK / TERMINATED /
- * NO_COMMAND, or an option that is attached neither to the root nor to the
+ * NO_COMMAND, or an option that is attached neither to the program nor to the
  * selected command (an option of another command or program, or an
  * unattached one). The option is found by its address.
  */

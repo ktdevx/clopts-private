@@ -2,15 +2,15 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Builder of commands, the root included (clopts/command.h): creation and
+ * Builder of subcommands (clopts/command.h): creation and
  * release, texts, the attach of options and positionals, and the read
  * functions. The options and positionals live in the scope of the command,
  * which makes the checks against the other options and positionals of the
  * same command (scope.c).
  *
  * A command does not know its program: every check made here reads the
- * command alone. The checks between commands are made by
- * clopts_program_create() (parser_program.c).
+ * command alone. The checks between commands are made when a command is
+ * added to the program (parser_program.c).
  *
  * Every builder function checks its arguments and the declaration rules that
  * belong to it, in a fixed order, and returns the first rule that fails.
@@ -25,7 +25,7 @@
 #include <assert.h>
 
 /*
- * A command, the root included. A command does not point to the program it
+ * A subcommand. A command does not point to the program it
  * is attached to. Attached, it is owned by that program and read-only.
  * Everything outside this file reads it through the public read functions,
  * or its scope through clopts_command_scope().

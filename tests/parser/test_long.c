@@ -5,8 +5,8 @@
  * Suite long: long options, --name=value, value consumption, unknown long
  * options, --no-<name>, global and command scope, the terminal --help /
  * --version of the fixtures, and on a custom program the lookup order
- * (command exact, command negation, root exact, root negation) and terminal
- * options declared on a command or on the root.
+ * (command exact, command negation, global exact, global negation) and terminal
+ * options declared on a command or on the program.
  *
  * Ported from the first-version long suite onto the builder fixtures of
  * test_fixtures.c (handles instead of index constants) and the result handle
@@ -85,72 +85,72 @@ static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
 /*
  * A custom program for the lookup order and the terminal options (fictional):
  *
- *   shadow   root: --mode VALUE, --color negatable FLAG, --no-fast FLAG,
- *                  --dry FLAG, -q/--quit terminal FLAG
+ *   shadow   global: --mode VALUE, --color negatable FLAG, --no-fast FLAG,
+ *                    --dry FLAG, -q/--quit terminal FLAG
  *     run:   --mode VALUE, --no-color FLAG, --fast negatable FLAG,
  *            -s/--stop terminal FLAG, -o/--out VALUE required, ARG optional
  *     idle:  nothing
  *
- * Every root name but --dry and --quit is shadowed in run: --mode by the same
- * name (command exact over root exact), --no-color of the root's negation by
- * run's --no-color (command exact over root negation), and the root's
- * --no-fast by the negation of run's --fast (command negation over root
+ * Every global name but --dry and --quit is shadowed in run: --mode by the
+ * same name (command exact over global exact), --no-color of the global
+ * negation by run's --no-color (command exact over global negation), and the
+ * global --no-fast by the negation of run's --fast (command negation over global
  * exact). idle shadows nothing.
  */
 typedef struct custom
 {
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_command_t *run;
     clopts_command_t *idle;
-    clopts_option_t *root_mode;     /* root: --mode VALUE */
-    clopts_option_t *root_color;    /* root: --color negatable FLAG */
-    clopts_option_t *root_no_fast;  /* root: --no-fast FLAG */
-    clopts_option_t *root_dry;      /* root: --dry FLAG */
-    clopts_option_t *quit;          /* root: -q/--quit terminal FLAG */
-    clopts_option_t *run_mode;      /* run:  --mode VALUE */
-    clopts_option_t *run_no_color;  /* run:  --no-color FLAG */
-    clopts_option_t *run_fast;      /* run:  --fast negatable FLAG */
-    clopts_option_t *stop;          /* run:  -s/--stop terminal FLAG */
-    clopts_option_t *out;           /* run:  -o/--out VALUE required */
+    clopts_option_t *global_mode;     /* global: --mode VALUE */
+    clopts_option_t *global_color;    /* global: --color negatable FLAG */
+    clopts_option_t *global_no_fast;  /* global: --no-fast FLAG */
+    clopts_option_t *global_dry;      /* global: --dry FLAG */
+    clopts_option_t *quit;            /* global: -q/--quit terminal FLAG */
+    clopts_option_t *run_mode;        /* run:    --mode VALUE */
+    clopts_option_t *run_no_color;    /* run:    --no-color FLAG */
+    clopts_option_t *run_fast;        /* run:    --fast negatable FLAG */
+    clopts_option_t *stop;            /* run:    -s/--stop terminal FLAG */
+    clopts_option_t *out;             /* run:    -o/--out VALUE required */
 } custom_t;
 
-/* Attaches a FLAG to command, terminal and / or negatable (NULL on failure). */
-static clopts_option_t *custom_flag(clopts_command_t *command, const char *long_name, char short_name,
-                                    bool terminal, bool negatable)
+/* Makes an unattached FLAG, terminal and / or negatable (NULL on failure). */
+static clopts_option_t *custom_flag(const char *long_name, char short_name, bool terminal, bool negatable)
 {
     clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
 
     test_decl_check(clopts_option_set_terminal(option, terminal));
     test_decl_check(clopts_option_set_negatable(option, negatable));
-    return test_decl_attach(command, option);
+    return option;
 }
 
 /* Builds the custom program into c (every builder call must succeed). */
 static void custom_init(custom_t *c)
 {
+    clopts_program_t *program;
+
     memset(c, 0, sizeof(*c));
     test_decl_reset();
-    c->root = test_decl_root("shadow");
-    c->root_mode = test_decl_add(c->root, CLOPTS_OPTION_VALUE, "mode", '\0');
-    c->root_color = custom_flag(c->root, "color", '\0', false, true);
-    c->root_no_fast = custom_flag(c->root, "no-fast", '\0', false, false);
-    c->root_dry = custom_flag(c->root, "dry", '\0', false, false);
-    c->quit = custom_flag(c->root, "quit", 'q', true, false);
+    program = test_decl_begin("shadow");
+    c->global_mode = test_decl_global_add(program, CLOPTS_OPTION_VALUE, "mode", '\0');
+    c->global_color = test_decl_global_attach(program, custom_flag("color", '\0', false, true));
+    c->global_no_fast = test_decl_global_attach(program, custom_flag("no-fast", '\0', false, false));
+    c->global_dry = test_decl_global_attach(program, custom_flag("dry", '\0', false, false));
+    c->quit = test_decl_global_attach(program, custom_flag("quit", 'q', true, false));
 
-    c->run = test_decl_command(c->root, "run");
+    c->run = test_decl_command(program, "run");
     c->run_mode = test_decl_add(c->run, CLOPTS_OPTION_VALUE, "mode", '\0');
-    c->run_no_color = custom_flag(c->run, "no-color", '\0', false, false);
-    c->run_fast = custom_flag(c->run, "fast", '\0', false, true);
-    c->stop = custom_flag(c->run, "stop", 's', true, false);
+    c->run_no_color = test_decl_attach(c->run, custom_flag("no-color", '\0', false, false));
+    c->run_fast = test_decl_attach(c->run, custom_flag("fast", '\0', false, true));
+    c->stop = test_decl_attach(c->run, custom_flag("stop", 's', true, false));
     c->out = test_decl_option(CLOPTS_OPTION_VALUE, "out", 'o');
     test_decl_check(clopts_option_set_required(c->out, true));
     c->out = test_decl_attach(c->run, c->out);
     (void)test_decl_add_positional(c->run, "ARG");
 
-    c->idle = test_decl_command(c->root, "idle");
+    c->idle = test_decl_command(program, "idle");
 
-    c->program = test_decl_finish(c->root);
+    c->program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(c->program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 }
@@ -895,7 +895,7 @@ NAOS_TEST(help_consumed_as_a_value_is_not_help)
 
 /* ---- custom program: lookup order -------------------------------------- */
 
-NAOS_TEST(lookup_command_exact_shadows_root_exact)
+NAOS_TEST(lookup_command_exact_shadows_global_exact)
 {
     char *argv[] = { "shadow", "run", "--mode", "a", "-o", "b", NULL };
     custom_t c;
@@ -904,15 +904,15 @@ NAOS_TEST(lookup_command_exact_shadows_root_exact)
     result = parse_custom(&c, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_STR_EQ(clopts_result_value(result, c.run_mode), "a");
-    NAOS_CHECK_NULL(clopts_result_value(result, c.root_mode));
-    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_mode), CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_NULL(clopts_result_value(result, c.global_mode));
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.global_mode), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
     clopts_program_destroy(c.program);
 }
 
-NAOS_TEST(lookup_command_exact_shadows_root_negation)
+NAOS_TEST(lookup_command_exact_shadows_global_negation)
 {
-    /* --no-color is run's own FLAG, not the negation of the root's --color. */
+    /* --no-color is run's own FLAG, not the negation of the global --color. */
     char *argv[] = { "shadow", "run", "--no-color", "-o", "b", NULL };
     custom_t c;
     clopts_result_t *result;
@@ -920,14 +920,14 @@ NAOS_TEST(lookup_command_exact_shadows_root_negation)
     result = parse_custom(&c, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_TRUE(clopts_result_flag(result, c.run_no_color));
-    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_color), CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.global_color), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
     clopts_program_destroy(c.program);
 }
 
-NAOS_TEST(lookup_command_negation_shadows_root_exact)
+NAOS_TEST(lookup_command_negation_shadows_global_exact)
 {
-    /* --no-fast is the negation of run's --fast, not the root's --no-fast. */
+    /* --no-fast is the negation of run's --fast, not the global --no-fast. */
     char *argv[] = { "shadow", "run", "--fast", "--no-fast", "-o", "b", NULL };
     custom_t c;
     clopts_result_t *result;
@@ -936,15 +936,15 @@ NAOS_TEST(lookup_command_negation_shadows_root_exact)
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_FALSE(clopts_result_flag(result, c.run_fast));
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.run_fast), CLOPTS_SOURCE_EXPLICIT);
-    NAOS_CHECK_FALSE(clopts_result_flag(result, c.root_no_fast));
-    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_no_fast), CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_FALSE(clopts_result_flag(result, c.global_no_fast));
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.global_no_fast), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
     clopts_program_destroy(c.program);
 }
 
-NAOS_TEST(lookup_root_exact_and_negation_when_the_command_has_no_such_name)
+NAOS_TEST(lookup_global_exact_and_negation_when_the_command_has_no_such_name)
 {
-    /* idle shadows nothing: --no-fast is the root's FLAG, --no-color the root's negation. */
+    /* idle shadows nothing: --no-fast is the global FLAG, --no-color the global negation. */
     char *argv[] = { "shadow", "idle", "--mode", "a", "--no-fast", "--color", "--no-color", "--dry", NULL };
     custom_t c;
     clopts_result_t *result;
@@ -952,18 +952,18 @@ NAOS_TEST(lookup_root_exact_and_negation_when_the_command_has_no_such_name)
     result = parse_custom(&c, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_command(result), c.idle);
-    NAOS_CHECK_STR_EQ(clopts_result_value(result, c.root_mode), "a");
-    NAOS_CHECK_TRUE(clopts_result_flag(result, c.root_no_fast));
-    NAOS_CHECK_FALSE(clopts_result_flag(result, c.root_color));
-    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_color), CLOPTS_SOURCE_EXPLICIT);
-    NAOS_CHECK_TRUE(clopts_result_flag(result, c.root_dry));
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, c.global_mode), "a");
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.global_no_fast));
+    NAOS_CHECK_FALSE(clopts_result_flag(result, c.global_color));
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.global_color), CLOPTS_SOURCE_EXPLICIT);
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.global_dry));
     clopts_result_free(result);
     clopts_program_destroy(c.program);
 }
 
-NAOS_TEST(lookup_root_names_before_the_command)
+NAOS_TEST(lookup_global_names_before_the_command)
 {
-    /* Before run is selected only the root is searched, so nothing is shadowed yet. */
+    /* Before run is selected only the program is searched, so nothing is shadowed yet. */
     char *argv[] = { "shadow", "--mode", "a", "--no-color", "--no-fast", "run", "-o", "b", NULL };
     custom_t c;
     clopts_result_t *result;
@@ -971,27 +971,27 @@ NAOS_TEST(lookup_root_names_before_the_command)
     result = parse_custom(&c, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_command(result), c.run);
-    NAOS_CHECK_STR_EQ(clopts_result_value(result, c.root_mode), "a");
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, c.global_mode), "a");
     NAOS_CHECK_NULL(clopts_result_value(result, c.run_mode));
-    NAOS_CHECK_FALSE(clopts_result_flag(result, c.root_color));
-    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_color), CLOPTS_SOURCE_EXPLICIT);
+    NAOS_CHECK_FALSE(clopts_result_flag(result, c.global_color));
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.global_color), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_FALSE(clopts_result_flag(result, c.run_no_color));
-    NAOS_CHECK_TRUE(clopts_result_flag(result, c.root_no_fast));
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.global_no_fast));
     NAOS_CHECK_INT_EQ(clopts_result_source(result, c.run_fast), CLOPTS_SOURCE_NONE);
     clopts_result_free(result);
     clopts_program_destroy(c.program);
 }
 
-NAOS_TEST(lookup_unshadowed_root_name_from_the_command)
+NAOS_TEST(lookup_unshadowed_global_name_from_the_command)
 {
-    /* --dry is not in run: the root's is found. */
+    /* --dry is not in run: the global one is found. */
     char *argv[] = { "shadow", "run", "--dry", "-o", "b", NULL };
     custom_t c;
     clopts_result_t *result;
 
     result = parse_custom(&c, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    NAOS_CHECK_TRUE(clopts_result_flag(result, c.root_dry));
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.global_dry));
     clopts_result_free(result);
     clopts_program_destroy(c.program);
 }
@@ -1017,9 +1017,9 @@ NAOS_TEST(terminal_of_the_selected_command)
     clopts_program_destroy(c.program);
 }
 
-NAOS_TEST(root_terminal_reached_from_a_command)
+NAOS_TEST(global_terminal_reached_from_a_command)
 {
-    /* --quit is the root's; the extra positionals after it are not read. */
+    /* --quit is global; the extra positionals after it are not read. */
     char *argv[] = { "shadow", "run", "--quit", "x", "y", NULL };
     custom_t c;
     clopts_result_t *result;
@@ -1035,7 +1035,7 @@ NAOS_TEST(root_terminal_reached_from_a_command)
     clopts_program_destroy(c.program);
 }
 
-NAOS_TEST(root_terminal_before_the_command_has_no_command)
+NAOS_TEST(global_terminal_before_the_command_has_no_command)
 {
     char *argv[] = { "shadow", "--quit", "run", NULL };
     custom_t c;
@@ -1140,15 +1140,15 @@ NAOS_SUITE(long,
     NAOS_ADD_TEST(version_without_a_version_option_is_unknown),
     NAOS_ADD_TEST(version_with_equals_without_a_version_option_is_unknown),
     NAOS_ADD_TEST(help_consumed_as_a_value_is_not_help),
-    NAOS_ADD_TEST(lookup_command_exact_shadows_root_exact),
-    NAOS_ADD_TEST(lookup_command_exact_shadows_root_negation),
-    NAOS_ADD_TEST(lookup_command_negation_shadows_root_exact),
-    NAOS_ADD_TEST(lookup_root_exact_and_negation_when_the_command_has_no_such_name),
-    NAOS_ADD_TEST(lookup_root_names_before_the_command),
-    NAOS_ADD_TEST(lookup_unshadowed_root_name_from_the_command),
+    NAOS_ADD_TEST(lookup_command_exact_shadows_global_exact),
+    NAOS_ADD_TEST(lookup_command_exact_shadows_global_negation),
+    NAOS_ADD_TEST(lookup_command_negation_shadows_global_exact),
+    NAOS_ADD_TEST(lookup_global_exact_and_negation_when_the_command_has_no_such_name),
+    NAOS_ADD_TEST(lookup_global_names_before_the_command),
+    NAOS_ADD_TEST(lookup_unshadowed_global_name_from_the_command),
     NAOS_ADD_TEST(terminal_of_the_selected_command),
-    NAOS_ADD_TEST(root_terminal_reached_from_a_command),
-    NAOS_ADD_TEST(root_terminal_before_the_command_has_no_command),
+    NAOS_ADD_TEST(global_terminal_reached_from_a_command),
+    NAOS_ADD_TEST(global_terminal_before_the_command_has_no_command),
     NAOS_ADD_TEST(command_terminal_in_another_command_is_unknown),
     NAOS_ADD_TEST(terminal_with_equals_is_unexpected_value_on_that_flag),
     NAOS_ADD_TEST(terminal_after_dashdash_is_a_positional)

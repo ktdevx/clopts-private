@@ -4,9 +4,8 @@
  *
  * Suite layout: the whole help texts, the Usage line, the version line and
  * the usage hint, compared byte for byte; the filter of the shadowed global
- * options; and the declarations for the help texts
- * (clopts_help_add_help_option(), clopts_help_add_version_option(),
- * clopts_help_command_create() and clopts_help_target()).
+ * options; and the help command (clopts_help_command_create() and
+ * clopts_help_target()).
  *
  * It also checks that the fixtures it uses (tool, filt, bare) are built
  * without a declaration error. Nothing is reserved: -h/--help, --version
@@ -129,15 +128,15 @@ typedef struct layout_nover
 
 static void layout_nover_init(layout_nover_t *f)
 {
-    clopts_command_t *root;
+    clopts_program_t *program;
 
     memset(f, 0, sizeof(*f));
-    root = test_decl_root("nover");
-    f->init = test_decl_command(root, "init");
+    program = test_decl_begin("nover");
+    f->init = test_decl_command(program, "init");
     f->name = test_decl_positional("NAME");
     test_decl_check(clopts_positional_set_help(f->name, "Name to use"));
     f->name = test_decl_attach_positional(f->init, f->name);
-    f->program = test_decl_finish(root);
+    f->program = test_decl_finish(program);
     if (f->program == NULL)
     {
         memset(f, 0, sizeof(*f));
@@ -172,16 +171,6 @@ NAOS_TEST(help_tool_global)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, NULL, tool_help);
-    help_fixture_tool_free(&f);
-}
-
-NAOS_TEST(help_tool_root_is_the_global_help)
-{
-    help_fixture_tool_t f;
-
-    help_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    CHECK_HELP(f.program, f.root, tool_help);
     help_fixture_tool_free(&f);
 }
 
@@ -287,16 +276,6 @@ NAOS_TEST(help_filt_without_subcommands)
     help_fixture_filt_free(&f);
 }
 
-NAOS_TEST(help_filt_root_is_the_program_help)
-{
-    help_fixture_filt_t f;
-
-    help_fixture_filt_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    CHECK_HELP(f.program, f.root, filt_help);
-    help_fixture_filt_free(&f);
-}
-
 NAOS_TEST(help_bare_run_has_only_the_global_options)
 {
     /* run has no option and no positional: neither Arguments: nor Options: is written. */
@@ -338,7 +317,7 @@ NAOS_TEST(help_bare_global_without_description)
     help_fixture_bare_free(&f);
 }
 
-NAOS_TEST(help_without_root_options_has_no_options_and_no_run_line)
+NAOS_TEST(help_without_global_options_has_no_options_and_no_run_line)
 {
     /*
      * No fixed row: without a declared --help, --version or help command
@@ -398,7 +377,6 @@ NAOS_TEST(usage_global)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_USAGE(f.program, NULL, "Usage: tool [<options>] <command> [<arguments>]\n");
-    CHECK_USAGE(f.program, f.root, "Usage: tool [<options>] <command> [<arguments>]\n");
     help_fixture_tool_free(&f);
 }
 
@@ -427,7 +405,6 @@ NAOS_TEST(usage_without_subcommands)
     help_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_USAGE(f.program, NULL, "Usage: filt [<options>] <FILE>...\n");
-    CHECK_USAGE(f.program, f.root, "Usage: filt [<options>] <FILE>...\n");
     help_fixture_filt_free(&f);
 
     help_fixture_bare_init(&b);
@@ -553,7 +530,6 @@ NAOS_TEST(usage_hint_without_command)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HINT(f.program, NULL, "Run 'tool --help' for usage.\n");
-    CHECK_HINT(f.program, f.root, "Run 'tool --help' for usage.\n");
     help_fixture_tool_free(&f);
 
     help_fixture_filt_init(&g);
@@ -603,21 +579,31 @@ static clopts_option_t *layout_add_flag(clopts_command_t *command, const char *l
     return test_decl_attach(command, option);
 }
 
+/* As layout_add_flag(), for a global option of program. */
+static clopts_option_t *layout_add_global_flag(clopts_program_t *program, const char *long_name, char short_name,
+                                               const char *help)
+{
+    clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
+
+    test_decl_check(clopts_option_set_help(option, help));
+    return test_decl_global_attach(program, option);
+}
+
 static void layout_shad_init(layout_shad_t *f)
 {
-    clopts_command_t *root;
+    clopts_program_t *program;
     clopts_option_t *cache;
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    root = test_decl_root("shad");
-    layout_add_flag(root, "verbose", 'v', "Print more details");
-    layout_add_flag(root, "quiet", 'q', "Print less");
-    layout_add_flag(root, "no-cache", '\0', "Skip the cache");
-    layout_add_flag(root, NULL, 'x', "Extra checks");
-    layout_add_flag(root, "dry", '\0', "Change nothing");
+    program = test_decl_begin("shad");
+    layout_add_global_flag(program, "verbose", 'v', "Print more details");
+    layout_add_global_flag(program, "quiet", 'q', "Print less");
+    layout_add_global_flag(program, "no-cache", '\0', "Skip the cache");
+    layout_add_global_flag(program, NULL, 'x', "Extra checks");
+    layout_add_global_flag(program, "dry", '\0', "Change nothing");
 
-    f->run = test_decl_command(root, "run");
+    f->run = test_decl_command(program, "run");
     test_decl_check(clopts_command_set_summary(f->run, "Run the task"));
     layout_add_flag(f->run, "verbose", 'v', "Print the steps");
     layout_add_flag(f->run, "quiet", '\0', "Print no step");
@@ -627,8 +613,8 @@ static void layout_shad_init(layout_shad_t *f)
     test_decl_attach(f->run, cache);
     layout_add_flag(f->run, NULL, 'x', "Run the extra steps");
 
-    f->plain = test_decl_command(root, "plain");
-    f->program = test_decl_finish(root);
+    f->plain = test_decl_command(program, "plain");
+    f->program = test_decl_finish(program);
     if ((f->program == NULL) || (test_decl_failures != 0))
     {
         clopts_program_destroy(f->program);
@@ -668,10 +654,10 @@ NAOS_TEST(help_global_options_leave_out_the_shadowed_ones)
 NAOS_TEST(help_negatable_global_option_stays_while_its_negation_is_free)
 {
     /*
-     * The root has a negatable --color; the command has a plain --color.
-     * --no-color still reaches the root option there (the command has no
-     * no-color and its color is not negatable), so the root option stays in
-     * the Global Options. A negatable --color in the command hides it.
+     * The program has a negatable global --color; the command has a plain
+     * --color. --no-color still reaches the global option there (the command
+     * has no no-color and its color is not negatable), so the global option
+     * stays in the Global Options. A negatable --color in the command hides it.
      */
     static const char kept[] =
         "Usage: neg plain [<options>]\n"
@@ -686,28 +672,27 @@ NAOS_TEST(help_negatable_global_option_stays_while_its_negation_is_free)
         "\n"
         "Options:\n"
         "      --[no-]color  Paint\n";
-    clopts_command_t *root;
     clopts_command_t *plain;
     clopts_command_t *both;
     clopts_option_t *option;
     clopts_program_t *program;
 
     test_decl_reset();
-    root = test_decl_root("neg");
+    program = test_decl_begin("neg");
     option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
     test_decl_check(clopts_option_set_negatable(option, true));
     test_decl_check(clopts_option_set_help(option, "Colorize"));
-    (void)test_decl_attach(root, option);
-    plain = test_decl_command(root, "plain");
+    (void)test_decl_global_attach(program, option);
+    plain = test_decl_command(program, "plain");
     option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
     test_decl_check(clopts_option_set_help(option, "Paint"));
     (void)test_decl_attach(plain, option);
-    both = test_decl_command(root, "both");
+    both = test_decl_command(program, "both");
     option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
     test_decl_check(clopts_option_set_negatable(option, true));
     test_decl_check(clopts_option_set_help(option, "Paint"));
     (void)test_decl_attach(both, option);
-    program = test_decl_finish(root);
+    program = test_decl_finish(program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     NAOS_REQUIRE_NOT_NULL(program);
     CHECK_HELP(program, plain, kept);
@@ -737,7 +722,7 @@ NAOS_TEST(help_global_options_are_filtered_per_command)
 
 NAOS_TEST(help_program_lists_every_global_option)
 {
-    /* The program help lists the root options as they are: no filter, and no Run line without --help. */
+    /* The program help lists the global options as they are: no filter, and no Run line without --help. */
     static const char expected[] =
         "Usage: shad [<options>] <command> [<arguments>]\n"
         "\n"
@@ -770,17 +755,16 @@ NAOS_TEST(help_shadowed_help_option_is_left_out_of_the_global_options)
         "\n"
         "Global Options:\n"
         "      --version  Show version information\n";
-    clopts_command_t *root;
     clopts_command_t *sub;
     clopts_program_t *program;
 
     test_decl_reset();
-    root = test_decl_root("hid");
-    test_decl_check(clopts_help_add_help_option(root, NULL));
-    test_decl_check(clopts_help_add_version_option(root, NULL));
-    sub = test_decl_command(root, "sub");
-    test_decl_check(clopts_help_add_help_option(sub, NULL));
-    program = test_decl_finish(root);
+    program = test_decl_begin("hid");
+    (void)test_decl_global_attach(program, test_decl_help_option());
+    (void)test_decl_global_attach(program, test_decl_version_option());
+    sub = test_decl_command(program, "sub");
+    (void)test_decl_attach(sub, test_decl_help_option());
+    program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     CHECK_HELP(program, sub, expected);
@@ -790,32 +774,32 @@ NAOS_TEST(help_shadowed_help_option_is_left_out_of_the_global_options)
 /* ---- the closing Run line ---------------------------------------------- */
 
 /*
- * A program "run" with one subcommand "sub"; when root_long / root_short is
- * given, the root has a FLAG of that name, when sub_long is given, sub has
- * a FLAG of that name. NULL on failure.
+ * A program "run" with one subcommand "sub"; when global_long / global_short
+ * is given, the program has a global FLAG of that name, when sub_long is
+ * given, sub has a FLAG of that name. NULL on failure.
  */
-static clopts_program_t *layout_run_line_program(const char *root_long, char root_short, const char *sub_long)
+static clopts_program_t *layout_run_line_program(const char *global_long, char global_short, const char *sub_long)
 {
-    clopts_command_t *root;
+    clopts_program_t *program;
     clopts_command_t *sub;
 
     test_decl_reset();
-    root = test_decl_root("run");
-    if ((root_long != NULL) || (root_short != '\0'))
+    program = test_decl_begin("run");
+    if ((global_long != NULL) || (global_short != '\0'))
     {
-        test_decl_add(root, CLOPTS_OPTION_FLAG, root_long, root_short);
+        test_decl_global_add(program, CLOPTS_OPTION_FLAG, global_long, global_short);
     }
-    sub = test_decl_command(root, "sub");
+    sub = test_decl_command(program, "sub");
     if (sub_long != NULL)
     {
         test_decl_add(sub, CLOPTS_OPTION_FLAG, sub_long, '\0');
     }
     if (test_decl_failures != 0)
     {
-        test_decl_discard(root);
+        test_decl_discard(program);
         return NULL;
     }
-    return test_decl_finish(root);
+    return test_decl_finish(program);
 }
 
 /* The program help of program ends with the Run line exactly when expected. */
@@ -832,12 +816,12 @@ static void layout_check_run_line(const clopts_program_t *program, bool expected
     NAOS_CHECK_INT_EQ(strstr(rec.buf, "Run '") != NULL, expected);
 }
 
-NAOS_TEST(run_line_needs_a_root_long_option_named_help)
+NAOS_TEST(run_line_needs_a_global_long_option_named_help)
 {
     clopts_program_t *program;
 
     /* A plain FLAG --help (not terminal, without -h) is enough. */
-    NAOS_TRACE_PUSH("root --help");
+    NAOS_TRACE_PUSH("global --help");
     program = layout_run_line_program("help", '\0', NULL);
     NAOS_REQUIRE_NOT_NULL(program);
     layout_check_run_line(program, true);
@@ -845,7 +829,7 @@ NAOS_TEST(run_line_needs_a_root_long_option_named_help)
     NAOS_TRACE_POP();
 
     /* The short name h alone is not --help. */
-    NAOS_TRACE_PUSH("root -h");
+    NAOS_TRACE_PUSH("global -h");
     program = layout_run_line_program(NULL, 'h', NULL);
     NAOS_REQUIRE_NOT_NULL(program);
     layout_check_run_line(program, false);
@@ -853,7 +837,7 @@ NAOS_TEST(run_line_needs_a_root_long_option_named_help)
     NAOS_TRACE_POP();
 
     /* Another long name is not --help. */
-    NAOS_TRACE_PUSH("root --helps");
+    NAOS_TRACE_PUSH("global --helps");
     program = layout_run_line_program("helps", '\0', NULL);
     NAOS_REQUIRE_NOT_NULL(program);
     layout_check_run_line(program, false);
@@ -874,7 +858,7 @@ NAOS_TEST(run_line_is_not_in_the_help_of_a_program_without_subcommands)
     static help_recorder_t rec;
     help_fixture_filt_t f;
 
-    /* filt has a root --help but no subcommand. */
+    /* filt has a global --help but no subcommand. */
     help_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_INT_EQ(write_help(&rec, f.program, NULL), CLOPTS_WRITE_OK);
@@ -882,112 +866,10 @@ NAOS_TEST(run_line_is_not_in_the_help_of_a_program_without_subcommands)
     help_fixture_filt_free(&f);
 }
 
-/* ---- declarations for the help texts ----------------------------------- */
+/* ---- the help command ------------------------------------------------- */
 
 /* A value no clopts function returns, to see that an out pointer is written. */
 static const clopts_option_t *const layout_stale_option = (const clopts_option_t *)&layout_stale_option;
-
-NAOS_TEST(add_help_option_attributes)
-{
-    clopts_command_t *command = test_decl_root("t");
-    const clopts_option_t *option = NULL;
-
-    NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_REQUIRE_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_ERROR_NONE);
-    NAOS_REQUIRE_NOT_NULL(option);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(command), 1);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(command, 0), option);
-    NAOS_CHECK_INT_EQ(clopts_option_kind_of(option), CLOPTS_OPTION_FLAG);
-    NAOS_CHECK_STR_EQ(clopts_option_long_name(option), "help");
-    NAOS_CHECK_INT_EQ(clopts_option_short_name(option), 'h');
-    NAOS_CHECK_STR_EQ(clopts_option_help(option), "Show this help");
-    NAOS_CHECK_TRUE(clopts_option_terminal(option));
-    NAOS_CHECK_FALSE(clopts_option_negatable(option));
-    NAOS_CHECK_FALSE(clopts_option_required(option));
-    test_decl_discard(command);
-}
-
-NAOS_TEST(add_version_option_attributes)
-{
-    clopts_command_t *command = test_decl_root("t");
-    const clopts_option_t *option = NULL;
-
-    NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_REQUIRE_INT_EQ(clopts_help_add_version_option(command, &option), CLOPTS_ERROR_NONE);
-    NAOS_REQUIRE_NOT_NULL(option);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(command), 1);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(command, 0), option);
-    NAOS_CHECK_INT_EQ(clopts_option_kind_of(option), CLOPTS_OPTION_FLAG);
-    NAOS_CHECK_STR_EQ(clopts_option_long_name(option), "version");
-    NAOS_CHECK_INT_EQ(clopts_option_short_name(option), '\0');
-    NAOS_CHECK_STR_EQ(clopts_option_help(option), "Show version information");
-    NAOS_CHECK_TRUE(clopts_option_terminal(option));
-    NAOS_CHECK_FALSE(clopts_option_negatable(option));
-    test_decl_discard(command);
-}
-
-NAOS_TEST(add_options_accept_a_null_out)
-{
-    clopts_command_t *command = test_decl_root("t");
-
-    NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, NULL), CLOPTS_ERROR_NONE);
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(command, NULL), CLOPTS_ERROR_NONE);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(command), 2);
-    NAOS_CHECK_STR_EQ(clopts_option_long_name(clopts_command_option_at(command, 0)), "help");
-    NAOS_CHECK_STR_EQ(clopts_option_long_name(clopts_command_option_at(command, 1)), "version");
-    test_decl_discard(command);
-}
-
-NAOS_TEST(add_options_twice_in_a_command_fail_and_attach_nothing)
-{
-    clopts_command_t *command = test_decl_root("t");
-    const clopts_option_t *option;
-
-    NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_REQUIRE_INT_EQ(clopts_help_add_help_option(command, NULL), CLOPTS_ERROR_NONE);
-    NAOS_REQUIRE_INT_EQ(clopts_help_add_version_option(command, NULL), CLOPTS_ERROR_NONE);
-
-    option = layout_stale_option;
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_ERROR_DUPLICATE_OPTION);
-    NAOS_CHECK_NULL(option);
-    option = layout_stale_option;
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(command, &option), CLOPTS_ERROR_DUPLICATE_OPTION);
-    NAOS_CHECK_NULL(option);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(command), 2);
-    test_decl_discard(command);
-}
-
-NAOS_TEST(add_help_option_fails_on_a_taken_short_name)
-{
-    /* -h is taken by another option of the command: nothing is attached, not even --help. */
-    clopts_command_t *command = test_decl_root("t");
-    const clopts_option_t *option = layout_stale_option;
-
-    NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_REQUIRE_NOT_NULL(test_decl_add(command, CLOPTS_OPTION_VALUE, "host", 'h'));
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_ERROR_DUPLICATE_OPTION);
-    NAOS_CHECK_NULL(option);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(command), 1);
-    NAOS_CHECK_STR_EQ(clopts_option_long_name(clopts_command_option_at(command, 0)), "host");
-    test_decl_discard(command);
-}
-
-NAOS_TEST(add_options_in_several_commands)
-{
-    /* Option names are checked within a command only: root and subcommand may both have --help. */
-    clopts_command_t *root = test_decl_root("t");
-    clopts_command_t *sub = test_decl_command(root, "sub");
-
-    NAOS_REQUIRE_NOT_NULL(sub);
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(root, NULL), CLOPTS_ERROR_NONE);
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(sub, NULL), CLOPTS_ERROR_NONE);
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(root, NULL), CLOPTS_ERROR_NONE);
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(sub, NULL), CLOPTS_ERROR_NONE);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 2);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(sub), 2);
-    test_decl_discard(root);
-}
 
 NAOS_TEST(help_command_new_declaration)
 {
@@ -1012,24 +894,24 @@ NAOS_TEST(help_command_new_declaration)
 
 NAOS_TEST(help_command_new_gives_a_new_command_each_time)
 {
-    /* Two of them cannot be in one program (DUPLICATE_COMMAND), but each is a separate command. */
+    /*
+     * Two of them cannot be in one program (the second is a DUPLICATE_COMMAND
+     * and stays with the caller), but each is a separate command.
+     */
     clopts_command_t *first = NULL;
     clopts_command_t *second = NULL;
-    clopts_command_t *root = test_decl_root("t");
-    clopts_command_t *commands[2];
-    clopts_program_t *program = NULL;
+    clopts_program_t *program = test_decl_begin("t");
 
-    NAOS_REQUIRE_NOT_NULL(root);
+    NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&first), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&second), CLOPTS_ERROR_NONE);
     NAOS_CHECK_TRUE(first != second);
-    commands[0] = first;
-    commands[1] = second;
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, commands, 2, &program), CLOPTS_ERROR_DUPLICATE_COMMAND);
-    NAOS_CHECK_NULL(program);
+    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, first), CLOPTS_ERROR_NONE);
+    NAOS_CHECK_INT_EQ(clopts_program_add_command(program, second), CLOPTS_ERROR_DUPLICATE_COMMAND);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 0), first);
     clopts_command_destroy(second);
-    clopts_command_destroy(first);
-    test_decl_discard(root);
+    test_decl_discard(program);
 }
 
 /* Environment lookup that finds no variable, so the parses do not depend on the environment. */
@@ -1090,14 +972,14 @@ NAOS_TEST(help_target_names_a_known_command)
 NAOS_TEST(help_target_of_an_unknown_command_is_false)
 {
     char *argv[] = { "tool", "help", "bulid", NULL };
-    /* The root is not a subcommand. */
-    char *argv_root[] = { "tool", "help", "tool", NULL };
+    /* The program name is not a subcommand. */
+    char *argv_program[] = { "tool", "help", "tool", NULL };
     help_fixture_tool_t f;
 
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     layout_check_target(f.program, LAYOUT_ARGC(argv), argv, CLOPTS_OK, false, NULL);
-    layout_check_target(f.program, LAYOUT_ARGC(argv_root), argv_root, CLOPTS_OK, false, NULL);
+    layout_check_target(f.program, LAYOUT_ARGC(argv_program), argv_program, CLOPTS_OK, false, NULL);
     help_fixture_tool_free(&f);
 }
 
@@ -1306,12 +1188,10 @@ NAOS_TEST(every_text_of_the_fixtures_is_well_formed)
             const clopts_command_t *command;
         } texts[] = {
             { "tool", tool.program, NULL },
-            { "tool (root)", tool.program, tool.root },
             { "tool build", tool.program, tool.build },
             { "tool copy", tool.program, tool.copy },
             { "tool help", tool.program, tool.help_command },
             { "filt", filt.program, NULL },
-            { "filt (root)", filt.program, filt.root },
             { "bare", bare.program, NULL },
             { "bare run", bare.program, bare.run },
             { "bare help", bare.program, bare.help_command },
@@ -1340,15 +1220,13 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(fixture_bare_builds_ok),
     NAOS_ADD_TEST(fixture_free_accepts_a_cleared_struct),
     NAOS_ADD_TEST(help_tool_global),
-    NAOS_ADD_TEST(help_tool_root_is_the_global_help),
     NAOS_ADD_TEST(help_tool_build),
     NAOS_ADD_TEST(help_tool_copy_uses_the_summary),
     NAOS_ADD_TEST(help_tool_help_command),
     NAOS_ADD_TEST(help_filt_without_subcommands),
-    NAOS_ADD_TEST(help_filt_root_is_the_program_help),
     NAOS_ADD_TEST(help_bare_run_has_only_the_global_options),
     NAOS_ADD_TEST(help_bare_global_without_description),
-    NAOS_ADD_TEST(help_without_root_options_has_no_options_and_no_run_line),
+    NAOS_ADD_TEST(help_without_global_options_has_no_options_and_no_run_line),
     NAOS_ADD_TEST(help_subcommand_without_text_or_options),
     NAOS_ADD_TEST(usage_global),
     NAOS_ADD_TEST(usage_subcommand),
@@ -1364,14 +1242,8 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(help_global_options_are_filtered_per_command),
     NAOS_ADD_TEST(help_program_lists_every_global_option),
     NAOS_ADD_TEST(help_shadowed_help_option_is_left_out_of_the_global_options),
-    NAOS_ADD_TEST(run_line_needs_a_root_long_option_named_help),
+    NAOS_ADD_TEST(run_line_needs_a_global_long_option_named_help),
     NAOS_ADD_TEST(run_line_is_not_in_the_help_of_a_program_without_subcommands),
-    NAOS_ADD_TEST(add_help_option_attributes),
-    NAOS_ADD_TEST(add_version_option_attributes),
-    NAOS_ADD_TEST(add_options_accept_a_null_out),
-    NAOS_ADD_TEST(add_options_twice_in_a_command_fail_and_attach_nothing),
-    NAOS_ADD_TEST(add_help_option_fails_on_a_taken_short_name),
-    NAOS_ADD_TEST(add_options_in_several_commands),
     NAOS_ADD_TEST(help_command_new_declaration),
     NAOS_ADD_TEST(help_command_new_gives_a_new_command_each_time),
     NAOS_ADD_TEST(help_target_without_a_positional_is_the_program),

@@ -40,30 +40,24 @@ static int consumer_parse_check(void)
     char arg2[] = "ok";
     char *const args[] = { arg0, arg1, arg2 };
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_option_t *name;
     clopts_result_t *result;
     const char *value;
     int failed = 0;
 
-    if (clopts_command_create("consumer", &root) != CLOPTS_ERROR_NONE)
+    if (clopts_program_create("consumer", &program) != CLOPTS_ERROR_NONE)
     {
         return 1;
     }
     if (clopts_option_create(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_ERROR_NONE)
     {
-        clopts_command_destroy(root);
+        clopts_program_destroy(program);
         return 1;
     }
-    if (clopts_command_add_option(root, name) != CLOPTS_ERROR_NONE)
+    if (clopts_program_add_option(program, name) != CLOPTS_ERROR_NONE)
     {
         clopts_option_destroy(name);
-        clopts_command_destroy(root);
-        return 1;
-    }
-    if (clopts_program_create(root, NULL, 0, &program) != CLOPTS_ERROR_NONE)
-    {
-        clopts_command_destroy(root);
+        clopts_program_destroy(program);
         return 1;
     }
     result = clopts_parse(program, 3, args);
@@ -107,17 +101,11 @@ static int consumer_write_status_valid(clopts_write_status_t status)
 static int consumer_help_check(void)
 {
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_result_t *result;
     int failed = 0;
 
-    if (clopts_command_create("consumer", &root) != CLOPTS_ERROR_NONE)
+    if (clopts_program_create("consumer", &program) != CLOPTS_ERROR_NONE)
     {
-        return 1;
-    }
-    if (clopts_program_create(root, NULL, 0, &program) != CLOPTS_ERROR_NONE)
-    {
-        clopts_command_destroy(root);
         return 1;
     }
     result = clopts_parse(program, 0, NULL);

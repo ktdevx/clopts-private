@@ -546,8 +546,8 @@ NAOS_TEST(help_command_followed_by_dashdash_takes_a_positional)
 /* ---- recovery scan: a terminal option of a command ----------------------- */
 
 /*
- * A custom program (fictional): root "rec" with -q/--quit terminal FLAG and
- * a negatable terminal FLAG --info; command "run" with -s/--stop terminal FLAG
+ * A custom program (fictional): program "rec" with the global -q/--quit
+ * terminal FLAG and the global negatable terminal FLAG --info; command "run" with -s/--stop terminal FLAG
  * and -o/--out VALUE required; command "idle" with nothing.
  */
 typedef struct rec
@@ -560,33 +560,33 @@ typedef struct rec
     clopts_option_t *stop;
 } rec_t;
 
-static clopts_option_t *rec_terminal(clopts_command_t *command, const char *long_name, char short_name,
-                                     bool negatable)
+/* Makes an unattached terminal FLAG, negatable or not (NULL on failure). */
+static clopts_option_t *rec_terminal(const char *long_name, char short_name, bool negatable)
 {
     clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
 
     test_decl_check(clopts_option_set_terminal(option, true));
     test_decl_check(clopts_option_set_negatable(option, negatable));
-    return test_decl_attach(command, option);
+    return option;
 }
 
 static void rec_init(rec_t *r)
 {
-    clopts_command_t *root;
+    clopts_program_t *program;
     clopts_option_t *out;
 
     memset(r, 0, sizeof(*r));
     test_decl_reset();
-    root = test_decl_root("rec");
-    r->quit = rec_terminal(root, "quit", 'q', false);
-    r->info = rec_terminal(root, "info", '\0', true);
-    r->run = test_decl_command(root, "run");
-    r->stop = rec_terminal(r->run, "stop", 's', false);
+    program = test_decl_begin("rec");
+    r->quit = test_decl_global_attach(program, rec_terminal("quit", 'q', false));
+    r->info = test_decl_global_attach(program, rec_terminal("info", '\0', true));
+    r->run = test_decl_command(program, "run");
+    r->stop = test_decl_attach(r->run, rec_terminal("stop", 's', false));
     out = test_decl_option(CLOPTS_OPTION_VALUE, "out", 'o');
     test_decl_check(clopts_option_set_required(out, true));
     (void)test_decl_attach(r->run, out);
-    r->idle = test_decl_command(root, "idle");
-    r->program = test_decl_finish(root);
+    r->idle = test_decl_command(program, "idle");
+    r->program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(r->program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 }
@@ -595,19 +595,19 @@ NAOS_TEST(recovery_finds_a_terminal_of_the_selected_command)
 {
     char *argv_long[] = { "rec", "run", "--bad", "x", "--stop", NULL };
     char *argv_short[] = { "rec", "run", "-z", "-s", "-q", NULL };
-    char *argv_root[] = { "rec", "run", "--bad", "--quit", "--stop", NULL };
+    char *argv_global[] = { "rec", "run", "--bad", "--quit", "--stop", NULL };
     rec_t r;
 
     rec_init(&r);
     check_terminated(r.program, argv_long, r.stop, r.run);
     check_terminated(r.program, argv_short, r.stop, r.run);
-    check_terminated(r.program, argv_root, r.quit, r.run);
+    check_terminated(r.program, argv_global, r.quit, r.run);
     clopts_program_destroy(r.program);
 }
 
 NAOS_TEST(recovery_ignores_a_terminal_out_of_scope)
 {
-    /* Before the selection only the root is in scope; in idle, --stop of run is not. */
+    /* Before the selection only the program is in scope; in idle, --stop of run is not. */
     char *argv_before[] = { "rec", "--bad", "run", "--stop", NULL };
     char *argv_idle[] = { "rec", "idle", "--bad", "-s", NULL };
     rec_t r;

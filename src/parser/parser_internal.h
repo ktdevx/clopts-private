@@ -15,12 +15,13 @@
 
 /*
  * Internal declaration model: the only representation of a declaration, built
- * by the builder functions (option.c, positional.c, command.c and
+ * by the builder functions (option.c, positional.c, scope.c, command.c and
  * parser_program.c). The layouts of a program, a command and a positional are
  * private to parser_program.c, command.c and positional.c; options have their
- * own header. Everything outside those files (the rest of the parser and
- * help-and-messages included) reads them through the public read functions
- * only.
+ * own header. The program and every command embed a scope (below) that holds
+ * their options and positionals. Everything outside those files reads them
+ * through the read functions only: the public ones, and the scope functions
+ * inside the parser (help-and-messages reads the public ones only).
  *
  * Invariants, guaranteed by the builder:
  *   - Everything attached to a program satisfies every declaration rule:
@@ -31,9 +32,9 @@
  *   - The address of every handle stays the same until it is released:
  *     children are allocated one by one and the arrays hold pointers only.
  *   - Nothing points to its owner: an option or positional does not point to
- *     its command, and a command does not point to its program.
- *   - A program never changes after clopts_program_create(): its root and
- *     commands are attached (read-only) from then on.
+ *     its program or command, and a command does not point to its program.
+ *   - A program does not change once it is first parsed or written: this is
+ *     a contract of the caller (clopts/program.h), not checked.
  */
 
 /*
@@ -89,8 +90,8 @@ const clopts_scope_t *clopts_program_scope(const clopts_program_t *program);
  *
  * Names are compared byte by byte, exactly and case-sensitively; there is no
  * prefix matching. The checks of the builder look at one command only. The
- * lookups of the scanner search the selected command and then the root, so a
- * name of the command shadows the same name of the root.
+ * lookups of the scanner search the selected command and then the program,
+ * so a name of the command shadows the same global option.
  */
 
 /* Where a looked-up option was found. */
@@ -173,7 +174,7 @@ struct clopts_result
         size_t name_len;
         char short_name;
     } error;
-    clopts_parser_slot_t *global_slots;   /* one per root option */
+    clopts_parser_slot_t *global_slots;   /* one per global option */
     size_t global_count;
     clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */
     size_t command_count;
@@ -181,7 +182,7 @@ struct clopts_result
 };
 
 /*
- * Allocates a result for program with one slot per root option. Returns NULL
+ * Allocates a result for program with one slot per global option. Returns NULL
  * on failure (the caller returns the sentinel instead).
  */
 clopts_result_t *clopts_parser_result_new(const clopts_program_t *program);
@@ -238,14 +239,14 @@ clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, co
  * Fills the VALUE / LIST slots that got nothing from argv, from the
  * environment and then from the default value, in declaration order. A found
  * environment value is copied before the callback is called again. Only the
- * root is resolved when include_command is false. Returns 0, or -1 (out of
+ * global options are resolved when include_command is false. Returns 0, or -1 (out of
  * memory) when the lookup fails or a copy cannot be allocated.
  */
 int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *program,
                           clopts_getenv_fn getenv_fn, void *env_ctx, bool include_command);
 
 /*
- * Checks required options and positionals in declaration order (root
+ * Checks required options and positionals in declaration order (global
  * options, selected command options, positionals); an option counts as given
  * when its source is EXPLICIT or ENV. Returns 0 when nothing is missing;
  * otherwise records the first missing one in result->error and returns -1.

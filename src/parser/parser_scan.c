@@ -362,8 +362,8 @@ static void scan_option(scan_state_t *state)
 /*
  * Main-scan row for a positional token: a token not starting with "-", "-"
  * alone, or any token after "--". Positionals are taken by the declared
- * positionals of the scope in order (the selected command, or the root of a
- * program without subcommands); a variadic last positional takes every
+ * positionals of the scope in order (the selected command, or the program
+ * itself when it has no subcommands); a variadic last positional takes every
  * remaining one. A token beyond the declared ones without a variadic last
  * positional is an unexpected argument. Missing required positionals are
  * reported later by the required check.
@@ -541,7 +541,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
  * after the first usage error, which stays the only one reported. The tokens
  * from the one of the pending error up to, not including, "--" are searched
  * for an exact "--<long>" or "-<c>" of a terminal FLAG of the scope (the
- * selected command, then the root); the first one found is recorded and
+ * selected command, then the program); the first one found is recorded and
  * turns the outcome into TERMINATED. Nothing else is looked up or recorded:
  * any other token, option values and short groups included, is skipped.
  * When "--" was reached before the error, every remaining token follows

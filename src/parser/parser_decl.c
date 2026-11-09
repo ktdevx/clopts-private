@@ -7,8 +7,8 @@
  * Names are compared byte by byte, exactly and case-sensitively, with no
  * prefix matching. The checks of the builder look at one command only. The
  * find_* functions used by the scanner search the selected command (when
- * there is one) and then the root, so a name of the command shadows the same
- * name of the root; in each scope an exact long name comes before
+ * there is one) and then the program, so a name of the command shadows the
+ * same global option; in each scope an exact long name comes before
  * --no-<name>.
  */
 
