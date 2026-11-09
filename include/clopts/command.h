@@ -65,19 +65,19 @@ CLOPTS_API clopts_error_t clopts_command_add_positional(clopts_command_t *comman
 
 /* ---- read functions: a NULL command is a contract violation (assert) ---- */
 
-CLOPTS_API const char *clopts_command_name(const clopts_command_t *command);
+CLOPTS_API const char *clopts_command_get_name(const clopts_command_t *command);
 /* NULL when not set. */
-CLOPTS_API const char *clopts_command_summary(const clopts_command_t *command);
+CLOPTS_API const char *clopts_command_get_summary(const clopts_command_t *command);
 /* NULL when not set. */
-CLOPTS_API const char *clopts_command_description(const clopts_command_t *command);
+CLOPTS_API const char *clopts_command_get_description(const clopts_command_t *command);
 /* Number of attached options, in the order of attachment. */
-CLOPTS_API size_t clopts_command_option_count(const clopts_command_t *command);
-/* index must be less than clopts_command_option_count() (caught by assert). */
-CLOPTS_API const clopts_option_t *clopts_command_option_at(const clopts_command_t *command, size_t index);
+CLOPTS_API size_t clopts_command_get_option_count(const clopts_command_t *command);
+/* index must be less than clopts_command_get_option_count() (caught by assert). */
+CLOPTS_API const clopts_option_t *clopts_command_get_option_at(const clopts_command_t *command, size_t index);
 /* Number of attached positionals, in the order of attachment. */
-CLOPTS_API size_t clopts_command_positional_count(const clopts_command_t *command);
-/* index must be less than clopts_command_positional_count() (caught by assert). */
-CLOPTS_API const clopts_positional_t *clopts_command_positional_at(const clopts_command_t *command, size_t index);
+CLOPTS_API size_t clopts_command_get_positional_count(const clopts_command_t *command);
+/* index must be less than clopts_command_get_positional_count() (caught by assert). */
+CLOPTS_API const clopts_positional_t *clopts_command_get_positional_at(const clopts_command_t *command, size_t index);
 
 #ifdef __cplusplus
 }

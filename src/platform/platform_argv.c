@@ -75,27 +75,27 @@ clopts_argv_t *clopts_platform_argv_passthrough(int argc, char *const *argv)
     return (args == NULL) ? clopts_platform_argv_sentinel() : args;
 }
 
-clopts_argv_status_t clopts_argv_status(const clopts_argv_t *args)
+clopts_argv_status_t clopts_argv_get_status(const clopts_argv_t *args)
 {
     return platform_argv_read(args)->status;
 }
 
-int clopts_argv_count(const clopts_argv_t *args)
+int clopts_argv_get_count(const clopts_argv_t *args)
 {
     return platform_argv_read(args)->argc;
 }
 
-char *const *clopts_argv_values(const clopts_argv_t *args)
+char *const *clopts_argv_get_values(const clopts_argv_t *args)
 {
     return platform_argv_read(args)->argv;
 }
 
-int clopts_argv_error_index(const clopts_argv_t *args)
+int clopts_argv_get_error_index(const clopts_argv_t *args)
 {
     return platform_argv_read(args)->error_index;
 }
 
-void clopts_argv_free(clopts_argv_t *args)
+void clopts_argv_destroy(clopts_argv_t *args)
 {
     /* The handle, and on Windows its array and strings, are one block. */
     if ((args == NULL) || (args == &platform_argv_oom))

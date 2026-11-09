@@ -17,18 +17,18 @@ File Type: DLL
 
     ordinal hint RVA      name
 
-          1    0 00009440 clopts_argv_free = clopts_argv_free
-          2    1 000094E0 clopts_argv_from_wide = clopts_argv_from_wide
-          3    2 00009740 clopts_argv_get = clopts_argv_get
+          1    0 00009440 clopts_argv_destroy = clopts_argv_destroy
+          2    1 000094E0 clopts_argv_create_from_wide = clopts_argv_create_from_wide
+          3    2 00009740 clopts_argv_create = clopts_argv_create
           4    3 00003570 clopts_command_add_flag = clopts_command_add_flag
-          5    4 000096A0 clopts_env_free = clopts_env_free
-          6    5 00009650 clopts_env_new = clopts_env_new
+          5    4 000096A0 clopts_env_destroy = clopts_env_destroy
+          6    5 00009650 clopts_env_create = clopts_env_create
           7    6 00003800 clopts_option_set_help = clopts_option_set_help
           8    7 000056B0 clopts_parse = clopts_parse
           9    8 00002FD0 clopts_program_destroy = @ILT+4045(clopts_program_destroy)
          10    9 00002E30 clopts_program_create = @ILT+3625(clopts_program_create)
-         11    A 00006940 clopts_result_free = clopts_result_free
-         12    B 00006390 clopts_result_status = clopts_result_status
+         11    A 00006940 clopts_result_destroy = clopts_result_destroy
+         12    B 00006390 clopts_result_get_status = clopts_result_get_status
          13    C 000079F0 clopts_write_help = clopts_write_help
 
   Summary

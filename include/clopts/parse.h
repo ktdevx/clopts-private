@@ -19,7 +19,7 @@ extern "C" {
 
 /*
  * Parse API. clopts_parse*() return a result handle that is read with the
- * accessors below and released with clopts_result_free(). A program built
+ * accessors below and released with clopts_result_destroy(). A program built
  * with the builder functions of clopts/decl.h is always valid, so a parse
  * never reports a declaration error.
  *
@@ -32,7 +32,7 @@ extern "C" {
  *
  * Terminal options (clopts_option_set_terminal()): when argv gives one, the
  * scan stops right after it, the parse ends with CLOPTS_TERMINATED and
- * clopts_result_terminal() returns it. The tokens after it are not read and
+ * clopts_result_get_terminal_option() returns it. The tokens after it are not read and
  * the required options and positionals are not checked. A usage error found
  * before it is still replaced: after the first usage error, the following
  * tokens up to "--" are searched for an exact "--<long>" or "-<c>" of a
@@ -43,7 +43,7 @@ extern "C" {
  * positionals, error tokens) is valid until the result is released, and only
  * while the caller keeps both the program and argv alive. Accessors may only
  * be called before the program that produced the result is released;
- * clopts_result_free() may be called before or after clopts_program_destroy().
+ * clopts_result_destroy() may be called before or after clopts_program_destroy().
  *
  * Threads: parsing never writes to any stream, never calls exit() and never
  * writes to the program, so the same program may be parsed from several
@@ -65,7 +65,7 @@ typedef enum clopts_status
 {
     /* Parsed successfully. */
     CLOPTS_OK = 0,
-    /* A terminal option was given (clopts_result_terminal()). Required ones were not checked. */
+    /* A terminal option was given (clopts_result_get_terminal_option()). Required ones were not checked. */
     CLOPTS_TERMINATED = 1,
     /* The program has subcommands but none appeared. Only global option values are available. */
     CLOPTS_NO_COMMAND = 2,
@@ -117,31 +117,31 @@ CLOPTS_API clopts_result_t *clopts_parse(const clopts_program_t *program, int ar
 CLOPTS_API clopts_result_t *clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
                                                   clopts_getenv_fn getenv_fn, void *env_ctx);
 
-CLOPTS_API clopts_status_t clopts_result_status(const clopts_result_t *result);
+CLOPTS_API clopts_status_t clopts_result_get_status(const clopts_result_t *result);
 
 /* OK / TERMINATED / NO_COMMAND / USAGE_ERROR: the selected command. NULL without one. */
-CLOPTS_API const clopts_command_t *clopts_result_command(const clopts_result_t *result);
+CLOPTS_API const clopts_command_t *clopts_result_get_command(const clopts_result_t *result);
 
 /* TERMINATED: the terminal option that ended the parse. NULL for any other status. */
-CLOPTS_API const clopts_option_t *clopts_result_terminal(const clopts_result_t *result);
+CLOPTS_API const clopts_option_t *clopts_result_get_terminal_option(const clopts_result_t *result);
 
 /*
  * Error accessors. Meaningful when the status is USAGE_ERROR;
  * otherwise (and for fields an error does not set) they return NONE, NULL,
  * -1, 0 or '\0'. error_command is NULL when no command was selected.
  */
-CLOPTS_API clopts_usage_error_t clopts_result_usage_error(const clopts_result_t *result);
-CLOPTS_API const clopts_command_t *clopts_result_error_command(const clopts_result_t *result);
-CLOPTS_API const clopts_option_t *clopts_result_error_option(const clopts_result_t *result);
-CLOPTS_API const clopts_positional_t *clopts_result_error_positional(const clopts_result_t *result);
+CLOPTS_API clopts_usage_error_t clopts_result_get_usage_error(const clopts_result_t *result);
+CLOPTS_API const clopts_command_t *clopts_result_get_error_command(const clopts_result_t *result);
+CLOPTS_API const clopts_option_t *clopts_result_get_error_option(const clopts_result_t *result);
+CLOPTS_API const clopts_positional_t *clopts_result_get_error_positional(const clopts_result_t *result);
 /* The offending argv element. */
-CLOPTS_API const char *clopts_result_error_token(const clopts_result_t *result);
+CLOPTS_API const char *clopts_result_get_error_token(const clopts_result_t *result);
 /* The argv index of the token, or -1. */
-CLOPTS_API int clopts_result_error_argv_index(const clopts_result_t *result);
+CLOPTS_API int clopts_result_get_error_argv_index(const clopts_result_t *result);
 /* UNKNOWN_OPTION in long form: length of "--name" in the token, up to any "=". */
-CLOPTS_API size_t clopts_result_error_name_len(const clopts_result_t *result);
+CLOPTS_API size_t clopts_result_get_error_name_len(const clopts_result_t *result);
 /* The offending character inside a short option group. */
-CLOPTS_API char clopts_result_error_short_name(const clopts_result_t *result);
+CLOPTS_API char clopts_result_get_error_short_name(const clopts_result_t *result);
 
 /*
  * Value accessors. Meaningful when the status is OK, TERMINATED (the values
@@ -150,19 +150,20 @@ CLOPTS_API char clopts_result_error_short_name(const clopts_result_t *result);
  * command that was not selected, they return the unset value (false, 0,
  * NULL, 0 items, CLOPTS_SOURCE_NONE).
  */
-CLOPTS_API bool clopts_result_flag(const clopts_result_t *result, const clopts_option_t *option);
-CLOPTS_API unsigned clopts_result_count(const clopts_result_t *result, const clopts_option_t *option);
-CLOPTS_API const char *clopts_result_value(const clopts_result_t *result, const clopts_option_t *option);
-CLOPTS_API size_t clopts_result_list_count(const clopts_result_t *result, const clopts_option_t *option);
-/* index must be less than clopts_result_list_count(). */
-CLOPTS_API const char *clopts_result_list_at(const clopts_result_t *result, const clopts_option_t *option, size_t index);
-CLOPTS_API clopts_source_t clopts_result_source(const clopts_result_t *result, const clopts_option_t *option);
-CLOPTS_API size_t clopts_result_positional_count(const clopts_result_t *result);
-/* index must be less than clopts_result_positional_count(). Returns an argv element. */
-CLOPTS_API const char *clopts_result_positional_at(const clopts_result_t *result, size_t index);
+CLOPTS_API bool clopts_result_get_flag(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API unsigned clopts_result_get_count(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API const char *clopts_result_get_value(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API size_t clopts_result_get_list_count(const clopts_result_t *result, const clopts_option_t *option);
+/* index must be less than clopts_result_get_list_count(). */
+CLOPTS_API const char *clopts_result_get_list_at(const clopts_result_t *result, const clopts_option_t *option,
+                                                  size_t index);
+CLOPTS_API clopts_source_t clopts_result_get_source(const clopts_result_t *result, const clopts_option_t *option);
+CLOPTS_API size_t clopts_result_get_positional_count(const clopts_result_t *result);
+/* index must be less than clopts_result_get_positional_count(). Returns an argv element. */
+CLOPTS_API const char *clopts_result_get_positional_at(const clopts_result_t *result, size_t index);
 
 /* Releases result. NULL and the sentinel do nothing. May be called before or after clopts_program_destroy(). */
-CLOPTS_API void clopts_result_free(clopts_result_t *result);
+CLOPTS_API void clopts_result_destroy(clopts_result_t *result);
 
 #ifdef __cplusplus
 }

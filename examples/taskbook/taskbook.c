@@ -38,7 +38,7 @@ struct taskbook_options
 /* Ends the line, adding " (<source>)" when the option got a value. */
 static void print_source(const clopts_result_t *result, const clopts_option_t *option)
 {
-    switch (clopts_result_source(result, option))
+    switch (clopts_result_get_source(result, option))
     {
     case CLOPTS_SOURCE_EXPLICIT:
         fputs(" (explicit)", stdout);
@@ -57,26 +57,26 @@ static void print_source(const clopts_result_t *result, const clopts_option_t *o
 
 static void print_globals(const clopts_result_t *result, const struct taskbook_options *opts)
 {
-    printf("verbose: %u", clopts_result_count(result, opts->verbose));
+    printf("verbose: %u", clopts_result_get_count(result, opts->verbose));
     print_source(result, opts->verbose);
-    printf("color: %s", clopts_result_flag(result, opts->color) ? "true" : "false");
+    printf("color: %s", clopts_result_get_flag(result, opts->color) ? "true" : "false");
     print_source(result, opts->color);
 }
 
 static int run_add(const clopts_result_t *result, const struct taskbook_options *opts)
 {
-    size_t count = clopts_result_list_count(result, opts->tag);
+    size_t count = clopts_result_get_list_count(result, opts->tag);
     size_t i;
 
     printf("command: add\n");
-    printf("title: %s\n", clopts_result_positional_at(result, 0));
+    printf("title: %s\n", clopts_result_get_positional_at(result, 0));
     printf("tags:");
     for (i = 0; i < count; i++)
     {
-        printf("%s %s", (i > 0) ? "," : "", clopts_result_list_at(result, opts->tag, i));
+        printf("%s %s", (i > 0) ? "," : "", clopts_result_get_list_at(result, opts->tag, i));
     }
     print_source(result, opts->tag);
-    printf("priority: %s", clopts_result_value(result, opts->priority));
+    printf("priority: %s", clopts_result_get_value(result, opts->priority));
     print_source(result, opts->priority);
     print_globals(result, opts);
     return 0;
@@ -86,9 +86,9 @@ static int run_list(const clopts_result_t *result, const struct taskbook_options
 {
 
     printf("command: list\n");
-    printf("all: %s", clopts_result_flag(result, opts->all) ? "true" : "false");
+    printf("all: %s", clopts_result_get_flag(result, opts->all) ? "true" : "false");
     print_source(result, opts->all);
-    printf("format: %s", clopts_result_value(result, opts->format));
+    printf("format: %s", clopts_result_get_value(result, opts->format));
     print_source(result, opts->format);
     print_globals(result, opts);
     return 0;
@@ -96,14 +96,14 @@ static int run_list(const clopts_result_t *result, const struct taskbook_options
 
 static int run_done(const clopts_result_t *result, const struct taskbook_options *opts)
 {
-    size_t count = clopts_result_positional_count(result);
+    size_t count = clopts_result_get_positional_count(result);
     size_t i;
 
     printf("command: done\n");
     printf("ids:");
     for (i = 0; i < count; i++)
     {
-        printf("%s %s", (i > 0) ? "," : "", clopts_result_positional_at(result, i));
+        printf("%s %s", (i > 0) ? "," : "", clopts_result_get_positional_at(result, i));
     }
     fputc('\n', stdout);
     print_globals(result, opts);
@@ -259,7 +259,7 @@ fail:
 /* Runs the selected command. */
 static int run(const clopts_program_t *program, const clopts_result_t *result, const struct taskbook_options *opts)
 {
-    const clopts_command_t *command = clopts_result_command(result);
+    const clopts_command_t *command = clopts_result_get_command(result);
     const clopts_command_t *target;
 
     if (command == opts->add)
@@ -275,9 +275,9 @@ static int run(const clopts_program_t *program, const clopts_result_t *result, c
         return run_done(result, opts);
     }
     /* help [COMMAND] */
-    if (!clopts_help_target(program, result, &target))
+    if (!clopts_help_find_target(program, result, &target))
     {
-        fprintf(stderr, "taskbook: error: unknown command '%s'\n", clopts_result_positional_at(result, 0));
+        fprintf(stderr, "taskbook: error: unknown command '%s'\n", clopts_result_get_positional_at(result, 0));
         clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
         return 2;
     }
@@ -289,23 +289,23 @@ static int run(const clopts_program_t *program, const clopts_result_t *result, c
 static int finish(const clopts_program_t *program, const clopts_result_t *result,
                   const struct taskbook_options *opts)
 {
-    switch (clopts_result_status(result))
+    switch (clopts_result_get_status(result))
     {
     case CLOPTS_OK:
         return run(program, result, opts);
     case CLOPTS_TERMINATED:
-        if (clopts_result_terminal(result) == opts->version)
+        if (clopts_result_get_terminal_option(result) == opts->version)
         {
             clopts_write_version(program, "1.2.3", clopts_file_write, stdout);
         }
         else
         {
-            clopts_write_help(program, clopts_result_command(result), clopts_file_write, stdout);
+            clopts_write_help(program, clopts_result_get_command(result), clopts_file_write, stdout);
         }
         return 0;
     case CLOPTS_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
-        clopts_write_usage_hint(program, clopts_result_error_command(result), clopts_file_write, stderr);
+        clopts_write_usage_hint(program, clopts_result_get_error_command(result), clopts_file_write, stderr);
         return 2;
     case CLOPTS_NO_COMMAND:
         clopts_write_usage(program, NULL, clopts_file_write, stderr);
@@ -331,29 +331,30 @@ int main(int argc, char **argv)
     error = declare(&program, &opts);
     if (error != CLOPTS_ERROR_NONE)
     {
-        fprintf(stderr, "taskbook: error: invalid declaration: %s\n", clopts_error_message(error));
+        fprintf(stderr, "taskbook: error: invalid declaration: %s\n", clopts_error_get_message(error));
         return 1;
     }
 
     /* UTF-8 argv on every platform (on Windows, taken from the command line). */
-    args = clopts_argv_get(argc, argv);
-    if (clopts_argv_status(args) != CLOPTS_ARGV_OK)
+    args = clopts_argv_create(argc, argv);
+    if (clopts_argv_get_status(args) != CLOPTS_ARGV_OK)
     {
         fputs("taskbook: error: cannot read the command line arguments\n", stderr);
-        clopts_argv_free(args);
+        clopts_argv_destroy(args);
         clopts_program_destroy(program);
         return 1;
     }
 
-    /* If clopts_env_new failed, looking up TASKBOOK_FORMAT fails and the parse
+    /* If clopts_env_create failed, looking up TASKBOOK_FORMAT fails and the parse
        reports out of memory. */
-    env = clopts_env_new();
-    result = clopts_parse_with_env(program, clopts_argv_count(args), clopts_argv_values(args), clopts_env_lookup, env);
+    env = clopts_env_create();
+    result = clopts_parse_with_env(program, clopts_argv_get_count(args), clopts_argv_get_values(args),
+                                   clopts_env_lookup, env);
     code = finish(program, result, &opts);
 
-    clopts_result_free(result);
-    clopts_env_free(env);
-    clopts_argv_free(args);
+    clopts_result_destroy(result);
+    clopts_env_destroy(env);
+    clopts_argv_destroy(args);
     clopts_program_destroy(program);
     return code;
 }

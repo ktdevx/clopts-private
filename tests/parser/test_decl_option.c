@@ -106,9 +106,9 @@ NAOS_TEST(option_new_valid_names)
 
     EXPECT_OK(clopts_option_create(CLOPTS_OPTION_LIST, "no-", '4', &option));
     NAOS_REQUIRE_NOT_NULL(option);
-    NAOS_CHECK_INT_EQ(clopts_option_kind_of(option), CLOPTS_OPTION_LIST);
-    NAOS_CHECK_STR_EQ(clopts_option_long_name(option), "no-");
-    NAOS_CHECK_INT_EQ(clopts_option_short_name(option), '4');
+    NAOS_CHECK_INT_EQ(clopts_option_get_kind(option), CLOPTS_OPTION_LIST);
+    NAOS_CHECK_STR_EQ(clopts_option_get_long_name(option), "no-");
+    NAOS_CHECK_INT_EQ(clopts_option_get_short_name(option), '4');
     clopts_option_destroy(option);
 
     /* there are no reserved names: help, h and version are ordinary names */
@@ -130,13 +130,13 @@ NAOS_TEST(env_on_flag_or_count)
 
     option = make(CLOPTS_OPTION_FLAG, "force", 'f');
     NAOS_CHECK_INT_EQ(clopts_option_set_env(option, "TOOL_FORCE"), CLOPTS_ERROR_ENV_NOT_ALLOWED);
-    NAOS_CHECK_NULL(clopts_option_env(option));
+    NAOS_CHECK_NULL(clopts_option_get_env(option));
     clopts_option_destroy(option);
 
     /* the kind is checked before the empty name */
     option = make(CLOPTS_OPTION_COUNT, "verbose", 'v');
     NAOS_CHECK_INT_EQ(clopts_option_set_env(option, ""), CLOPTS_ERROR_ENV_NOT_ALLOWED);
-    NAOS_CHECK_NULL(clopts_option_env(option));
+    NAOS_CHECK_NULL(clopts_option_get_env(option));
     clopts_option_destroy(option);
 }
 
@@ -146,12 +146,12 @@ NAOS_TEST(env_empty_name)
 
     option = make(CLOPTS_OPTION_LIST, "include", 'I');
     NAOS_CHECK_INT_EQ(clopts_option_set_env(option, ""), CLOPTS_ERROR_INVALID_NAME);
-    NAOS_CHECK_NULL(clopts_option_env(option));
+    NAOS_CHECK_NULL(clopts_option_get_env(option));
 
     /* a failing call keeps the previous value */
     EXPECT_OK(clopts_option_set_env(option, "TOOL_INCLUDE"));
     NAOS_CHECK_INT_EQ(clopts_option_set_env(option, ""), CLOPTS_ERROR_INVALID_NAME);
-    NAOS_CHECK_STR_EQ(clopts_option_env(option), "TOOL_INCLUDE");
+    NAOS_CHECK_STR_EQ(clopts_option_get_env(option), "TOOL_INCLUDE");
     clopts_option_destroy(option);
 }
 
@@ -164,9 +164,9 @@ NAOS_TEST(env_unset_is_not_checked)
     value = make(CLOPTS_OPTION_VALUE, "output", 'o');
     EXPECT_OK(clopts_option_set_env(flag, NULL));
     EXPECT_OK(clopts_option_set_env(value, "TOOL_OUTPUT"));
-    NAOS_CHECK_STR_EQ(clopts_option_env(value), "TOOL_OUTPUT");
+    NAOS_CHECK_STR_EQ(clopts_option_get_env(value), "TOOL_OUTPUT");
     EXPECT_OK(clopts_option_set_env(value, NULL));
-    NAOS_CHECK_NULL(clopts_option_env(value));
+    NAOS_CHECK_NULL(clopts_option_get_env(value));
     clopts_option_destroy(flag);
     clopts_option_destroy(value);
 }
@@ -179,12 +179,12 @@ NAOS_TEST(default_on_flag_or_count)
 
     option = make(CLOPTS_OPTION_FLAG, "force", 'f');
     NAOS_CHECK_INT_EQ(clopts_option_set_default(option, "1"), CLOPTS_ERROR_DEFAULT_NOT_ALLOWED);
-    NAOS_CHECK_NULL(clopts_option_default(option));
+    NAOS_CHECK_NULL(clopts_option_get_default(option));
     clopts_option_destroy(option);
 
     option = make(CLOPTS_OPTION_COUNT, "verbose", 'v');
     NAOS_CHECK_INT_EQ(clopts_option_set_default(option, "2"), CLOPTS_ERROR_DEFAULT_NOT_ALLOWED);
-    NAOS_CHECK_NULL(clopts_option_default(option));
+    NAOS_CHECK_NULL(clopts_option_get_default(option));
     clopts_option_destroy(option);
 }
 
@@ -195,13 +195,13 @@ NAOS_TEST(default_on_required)
     option = make(CLOPTS_OPTION_VALUE, "output", 'o');
     EXPECT_OK(clopts_option_set_required(option, true));
     NAOS_CHECK_INT_EQ(clopts_option_set_default(option, "a.out"), CLOPTS_ERROR_REQUIRED_WITH_DEFAULT);
-    NAOS_CHECK_NULL(clopts_option_default(option));
-    NAOS_CHECK_TRUE(clopts_option_required(option));
+    NAOS_CHECK_NULL(clopts_option_get_default(option));
+    NAOS_CHECK_TRUE(clopts_option_is_required(option));
 
     /* allowed once required is reset */
     EXPECT_OK(clopts_option_set_required(option, false));
     EXPECT_OK(clopts_option_set_default(option, "a.out"));
-    NAOS_CHECK_STR_EQ(clopts_option_default(option), "a.out");
+    NAOS_CHECK_STR_EQ(clopts_option_get_default(option), "a.out");
     clopts_option_destroy(option);
 }
 
@@ -215,7 +215,7 @@ NAOS_TEST(default_unset_is_not_checked)
     EXPECT_OK(clopts_option_set_default(flag, NULL));
     EXPECT_OK(clopts_option_set_required(list, true));
     EXPECT_OK(clopts_option_set_default(list, NULL));
-    NAOS_CHECK_TRUE(clopts_option_required(list));
+    NAOS_CHECK_TRUE(clopts_option_is_required(list));
     clopts_option_destroy(flag);
     clopts_option_destroy(list);
 }
@@ -228,12 +228,12 @@ NAOS_TEST(required_on_flag_or_count)
 
     option = make(CLOPTS_OPTION_FLAG, "force", 'f');
     NAOS_CHECK_INT_EQ(clopts_option_set_required(option, true), CLOPTS_ERROR_REQUIRED_NOT_ALLOWED);
-    NAOS_CHECK_FALSE(clopts_option_required(option));
+    NAOS_CHECK_FALSE(clopts_option_is_required(option));
     clopts_option_destroy(option);
 
     option = make(CLOPTS_OPTION_COUNT, "verbose", 'v');
     NAOS_CHECK_INT_EQ(clopts_option_set_required(option, true), CLOPTS_ERROR_REQUIRED_NOT_ALLOWED);
-    NAOS_CHECK_FALSE(clopts_option_required(option));
+    NAOS_CHECK_FALSE(clopts_option_is_required(option));
     clopts_option_destroy(option);
 }
 
@@ -244,13 +244,13 @@ NAOS_TEST(required_on_option_with_default)
     option = make(CLOPTS_OPTION_LIST, "include", 'I');
     EXPECT_OK(clopts_option_set_default(option, "a,b"));
     NAOS_CHECK_INT_EQ(clopts_option_set_required(option, true), CLOPTS_ERROR_REQUIRED_WITH_DEFAULT);
-    NAOS_CHECK_FALSE(clopts_option_required(option));
-    NAOS_CHECK_STR_EQ(clopts_option_default(option), "a,b");
+    NAOS_CHECK_FALSE(clopts_option_is_required(option));
+    NAOS_CHECK_STR_EQ(clopts_option_get_default(option), "a,b");
 
     /* allowed once the default is reset */
     EXPECT_OK(clopts_option_set_default(option, NULL));
     EXPECT_OK(clopts_option_set_required(option, true));
-    NAOS_CHECK_TRUE(clopts_option_required(option));
+    NAOS_CHECK_TRUE(clopts_option_is_required(option));
     clopts_option_destroy(option);
 }
 
@@ -281,7 +281,7 @@ NAOS_TEST(negatable_on_non_flag)
         NAOS_NOTE("kind=%d", (int)kinds[i]);
         option = make(kinds[i], "color", '\0');
         NAOS_CHECK_INT_EQ(clopts_option_set_negatable(option, true), CLOPTS_ERROR_NOT_NEGATABLE);
-        NAOS_CHECK_FALSE(clopts_option_negatable(option));
+        NAOS_CHECK_FALSE(clopts_option_is_negatable(option));
         clopts_option_destroy(option);
     }
 }
@@ -293,18 +293,18 @@ NAOS_TEST(terminal_on_flag)
     clopts_option_t *option;
 
     option = make(CLOPTS_OPTION_FLAG, "help", 'h');
-    NAOS_CHECK_FALSE(clopts_option_terminal(option));
+    NAOS_CHECK_FALSE(clopts_option_is_terminal(option));
     EXPECT_OK(clopts_option_set_terminal(option, true));
-    NAOS_CHECK_TRUE(clopts_option_terminal(option));
-    NAOS_CHECK_TRUE(clopts_option_terminal(option));
+    NAOS_CHECK_TRUE(clopts_option_is_terminal(option));
+    NAOS_CHECK_TRUE(clopts_option_is_terminal(option));
     /* false resets it */
     EXPECT_OK(clopts_option_set_terminal(option, false));
-    NAOS_CHECK_FALSE(clopts_option_terminal(option));
+    NAOS_CHECK_FALSE(clopts_option_is_terminal(option));
     /* a terminal FLAG may be negatable too */
     EXPECT_OK(clopts_option_set_terminal(option, true));
     EXPECT_OK(clopts_option_set_negatable(option, true));
-    NAOS_CHECK_TRUE(clopts_option_terminal(option));
-    NAOS_CHECK_TRUE(clopts_option_negatable(option));
+    NAOS_CHECK_TRUE(clopts_option_is_terminal(option));
+    NAOS_CHECK_TRUE(clopts_option_is_negatable(option));
     clopts_option_destroy(option);
 }
 
@@ -319,7 +319,7 @@ NAOS_TEST(terminal_on_non_flag)
         NAOS_NOTE("kind=%d", (int)kinds[i]);
         option = make(kinds[i], "help", 'h');
         NAOS_CHECK_INT_EQ(clopts_option_set_terminal(option, true), CLOPTS_ERROR_ATTRIBUTE_KIND);
-        NAOS_CHECK_FALSE(clopts_option_terminal(option));
+        NAOS_CHECK_FALSE(clopts_option_is_terminal(option));
         /* false is not checked */
         EXPECT_OK(clopts_option_set_terminal(option, false));
         clopts_option_destroy(option);
@@ -339,7 +339,7 @@ NAOS_TEST(delimiter_on_non_list)
         NAOS_NOTE("kind=%d", (int)kinds[i]);
         option = make(kinds[i], "output", 'o');
         NAOS_CHECK_INT_EQ(clopts_option_set_delimiter(option, ','), CLOPTS_ERROR_ATTRIBUTE_KIND);
-        NAOS_CHECK_INT_EQ(clopts_option_delimiter(option), '\0');
+        NAOS_CHECK_INT_EQ(clopts_option_get_delimiter(option), '\0');
         clopts_option_destroy(option);
     }
 }
@@ -355,7 +355,7 @@ NAOS_TEST(count_max_on_non_count)
         NAOS_NOTE("kind=%d", (int)kinds[i]);
         option = make(kinds[i], "force", 'f');
         NAOS_CHECK_INT_EQ(clopts_option_set_count_max(option, 3), CLOPTS_ERROR_ATTRIBUTE_KIND);
-        NAOS_CHECK_UINT_EQ(clopts_option_count_max(option), 0);
+        NAOS_CHECK_UINT_EQ(clopts_option_get_count_max(option), 0);
         clopts_option_destroy(option);
     }
 }

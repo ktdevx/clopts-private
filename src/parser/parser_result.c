@@ -6,10 +6,10 @@
  * slots, the accessors, run and release.
  *
  * Every allocation goes through the allocation gateway of core. Whatever
- * was allocated is linked to the result at once, so clopts_result_free()
+ * was allocated is linked to the result at once, so clopts_result_destroy()
  * releases it even after a failure. A result does not point to its
  * program: every slot knows its option, and an option knows its index, so a
- * value is found in constant time. clopts_result_free() never reads the
+ * value is found in constant time. clopts_result_destroy() never reads the
  * declaration, so the result may be released after the program.
  */
 
@@ -362,23 +362,23 @@ static const clopts_parser_slot_t *find_slot(const clopts_result_t *result, cons
     return slot;
 }
 
-clopts_status_t clopts_result_status(const clopts_result_t *result)
+clopts_status_t clopts_result_get_status(const clopts_result_t *result)
 {
     return result_or_sentinel(result)->status;
 }
 
-const clopts_command_t *clopts_result_command(const clopts_result_t *result)
+const clopts_command_t *clopts_result_get_command(const clopts_result_t *result)
 {
     return result_or_sentinel(result)->command;
 }
 
-const clopts_option_t *clopts_result_terminal(const clopts_result_t *result)
+const clopts_option_t *clopts_result_get_terminal_option(const clopts_result_t *result)
 {
     result = result_or_sentinel(result);
     return (result->status == CLOPTS_TERMINATED) ? result->terminal : NULL;
 }
 
-clopts_usage_error_t clopts_result_usage_error(const clopts_result_t *result)
+clopts_usage_error_t clopts_result_get_usage_error(const clopts_result_t *result)
 {
     if (!result_has_error(result))
     {
@@ -387,7 +387,7 @@ clopts_usage_error_t clopts_result_usage_error(const clopts_result_t *result)
     return result->error.usage;
 }
 
-const clopts_command_t *clopts_result_error_command(const clopts_result_t *result)
+const clopts_command_t *clopts_result_get_error_command(const clopts_result_t *result)
 {
     if (!result_has_error(result))
     {
@@ -396,7 +396,7 @@ const clopts_command_t *clopts_result_error_command(const clopts_result_t *resul
     return result->error.command;
 }
 
-const clopts_option_t *clopts_result_error_option(const clopts_result_t *result)
+const clopts_option_t *clopts_result_get_error_option(const clopts_result_t *result)
 {
     if (!result_has_error(result))
     {
@@ -405,7 +405,7 @@ const clopts_option_t *clopts_result_error_option(const clopts_result_t *result)
     return result->error.option;
 }
 
-const clopts_positional_t *clopts_result_error_positional(const clopts_result_t *result)
+const clopts_positional_t *clopts_result_get_error_positional(const clopts_result_t *result)
 {
     if (!result_has_error(result))
     {
@@ -414,7 +414,7 @@ const clopts_positional_t *clopts_result_error_positional(const clopts_result_t 
     return result->error.positional;
 }
 
-const char *clopts_result_error_token(const clopts_result_t *result)
+const char *clopts_result_get_error_token(const clopts_result_t *result)
 {
     if (!result_has_error(result))
     {
@@ -423,7 +423,7 @@ const char *clopts_result_error_token(const clopts_result_t *result)
     return result->error.token;
 }
 
-int clopts_result_error_argv_index(const clopts_result_t *result)
+int clopts_result_get_error_argv_index(const clopts_result_t *result)
 {
     if (!result_has_error(result))
     {
@@ -432,7 +432,7 @@ int clopts_result_error_argv_index(const clopts_result_t *result)
     return result->error.argv_index;
 }
 
-size_t clopts_result_error_name_len(const clopts_result_t *result)
+size_t clopts_result_get_error_name_len(const clopts_result_t *result)
 {
     if (!result_has_error(result))
     {
@@ -441,7 +441,7 @@ size_t clopts_result_error_name_len(const clopts_result_t *result)
     return result->error.name_len;
 }
 
-char clopts_result_error_short_name(const clopts_result_t *result)
+char clopts_result_get_error_short_name(const clopts_result_t *result)
 {
     if (!result_has_error(result))
     {
@@ -450,40 +450,40 @@ char clopts_result_error_short_name(const clopts_result_t *result)
     return result->error.short_name;
 }
 
-bool clopts_result_flag(const clopts_result_t *result, const clopts_option_t *option)
+bool clopts_result_get_flag(const clopts_result_t *result, const clopts_option_t *option)
 {
     const clopts_parser_slot_t *slot = find_slot(result, option);
 
     return (slot != NULL) ? slot->flag : false;
 }
 
-unsigned clopts_result_count(const clopts_result_t *result, const clopts_option_t *option)
+unsigned clopts_result_get_count(const clopts_result_t *result, const clopts_option_t *option)
 {
     const clopts_parser_slot_t *slot = find_slot(result, option);
 
     return (slot != NULL) ? slot->count : 0u;
 }
 
-const char *clopts_result_value(const clopts_result_t *result, const clopts_option_t *option)
+const char *clopts_result_get_value(const clopts_result_t *result, const clopts_option_t *option)
 {
     const clopts_parser_slot_t *slot = find_slot(result, option);
 
     return (slot != NULL) ? slot->value : NULL;
 }
 
-size_t clopts_result_list_count(const clopts_result_t *result, const clopts_option_t *option)
+size_t clopts_result_get_list_count(const clopts_result_t *result, const clopts_option_t *option)
 {
     const clopts_parser_slot_t *slot = find_slot(result, option);
 
     return (slot != NULL) ? slot->items.len : 0u;
 }
 
-const char *clopts_result_list_at(const clopts_result_t *result, const clopts_option_t *option, size_t index)
+const char *clopts_result_get_list_at(const clopts_result_t *result, const clopts_option_t *option, size_t index)
 {
     const clopts_parser_slot_t *slot = find_slot(result, option);
     size_t count = (slot != NULL) ? slot->items.len : 0u;
 
-    assert((index < count) && "index must be less than clopts_result_list_count()");
+    assert((index < count) && "index must be less than clopts_result_get_list_count()");
     if (index >= count)
     {
         return NULL;
@@ -491,14 +491,14 @@ const char *clopts_result_list_at(const clopts_result_t *result, const clopts_op
     return *(char *const *)clopts_core_vec_at(&slot->items, index);
 }
 
-clopts_source_t clopts_result_source(const clopts_result_t *result, const clopts_option_t *option)
+clopts_source_t clopts_result_get_source(const clopts_result_t *result, const clopts_option_t *option)
 {
     const clopts_parser_slot_t *slot = find_slot(result, option);
 
     return (slot != NULL) ? slot->source : CLOPTS_SOURCE_NONE;
 }
 
-size_t clopts_result_positional_count(const clopts_result_t *result)
+size_t clopts_result_get_positional_count(const clopts_result_t *result)
 {
     result = result_or_sentinel(result);
     if (!result_has_values(result))
@@ -508,11 +508,11 @@ size_t clopts_result_positional_count(const clopts_result_t *result)
     return result->positionals.len;
 }
 
-const char *clopts_result_positional_at(const clopts_result_t *result, size_t index)
+const char *clopts_result_get_positional_at(const clopts_result_t *result, size_t index)
 {
-    size_t count = clopts_result_positional_count(result);
+    size_t count = clopts_result_get_positional_count(result);
 
-    assert((index < count) && "index must be less than clopts_result_positional_count()");
+    assert((index < count) && "index must be less than clopts_result_get_positional_count()");
     if (index >= count)
     {
         return NULL;
@@ -520,7 +520,7 @@ const char *clopts_result_positional_at(const clopts_result_t *result, size_t in
     return *(const char *const *)clopts_core_vec_at(&result->positionals, index);
 }
 
-void clopts_result_free(clopts_result_t *result)
+void clopts_result_destroy(clopts_result_t *result)
 {
     if ((result == NULL) || (result == &parser_result_sentinel))
     {

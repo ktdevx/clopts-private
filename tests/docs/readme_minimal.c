@@ -78,30 +78,30 @@ int main(int argc, char **argv)
     error = declare(&program, &greeting, &version);
     if (error != CLOPTS_ERROR_NONE)
     {
-        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_error_message(error));
+        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_error_get_message(error));
         return 1;
     }
 
     /* UTF-8 argv on every platform (on Windows, taken from the command line). */
-    args = clopts_argv_get(argc, argv);
-    if (clopts_argv_status(args) != CLOPTS_ARGV_OK)
+    args = clopts_argv_create(argc, argv);
+    if (clopts_argv_get_status(args) != CLOPTS_ARGV_OK)
     {
         fputs("hello: error: cannot read the command line arguments\n", stderr);
-        clopts_argv_free(args);
+        clopts_argv_destroy(args);
         clopts_program_destroy(program);
         return 1;
     }
 
-    result = clopts_parse(program, clopts_argv_count(args), clopts_argv_values(args));
-    switch (clopts_result_status(result))
+    result = clopts_parse(program, clopts_argv_get_count(args), clopts_argv_get_values(args));
+    switch (clopts_result_get_status(result))
     {
     case CLOPTS_OK:
-        printf("greeting: %s (%s)\n", clopts_result_value(result, greeting),
-               clopts_result_source(result, greeting) == CLOPTS_SOURCE_DEFAULT ? "default" : "explicit");
-        printf("name: %s\n", clopts_result_positional_at(result, 0));
+        printf("greeting: %s (%s)\n", clopts_result_get_value(result, greeting),
+               clopts_result_get_source(result, greeting) == CLOPTS_SOURCE_DEFAULT ? "default" : "explicit");
+        printf("name: %s\n", clopts_result_get_positional_at(result, 0));
         break;
     case CLOPTS_TERMINATED: /* -h / --help or --version */
-        if (clopts_result_terminal(result) == version)
+        if (clopts_result_get_terminal_option(result) == version)
         {
             clopts_write_version(program, "1.0.0", clopts_file_write, stdout);
         }
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
         break;
     case CLOPTS_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
-        clopts_write_usage_hint(program, clopts_result_error_command(result), clopts_file_write, stderr);
+        clopts_write_usage_hint(program, clopts_result_get_error_command(result), clopts_file_write, stderr);
         code = 2;
         break;
     case CLOPTS_NO_COMMAND:
@@ -127,8 +127,8 @@ int main(int argc, char **argv)
         break;
     }
 
-    clopts_result_free(result);
-    clopts_argv_free(args);
+    clopts_result_destroy(result);
+    clopts_argv_destroy(args);
     clopts_program_destroy(program);
     return code;
 }

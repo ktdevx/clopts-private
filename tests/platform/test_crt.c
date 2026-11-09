@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite crt (Windows only; built only on Windows): starts the probe
- * executable with raw command lines and compares clopts_argv_get with the
+ * executable with raw command lines and compares clopts_argv_create with the
  * CRT's __argc / __argv there.
  *
  * It also checks that a command line built with test_util can be compared
@@ -50,7 +50,7 @@ NAOS_TEST(u16_from_ascii_builds_a_wide_command_line)
 
 /*
  * Starts the probe with the raw command line cmdline (ASCII) and returns its
- * exit code: 0 match, 1 mismatch, 2 clopts_argv_get failed. Returns -1 when
+ * exit code: 0 match, 1 mismatch, 2 clopts_argv_create failed. Returns -1 when
  * the probe could not be started or did not finish in time.
  */
 static long platform_crt_run_probe(const char *cmdline)

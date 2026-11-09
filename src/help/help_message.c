@@ -64,14 +64,14 @@ static void message_write_token_name(clopts_help_out_t *out, const char *token)
 /* Writes "--<long>" of option, or "-<c>" when it has no long name. */
 static void message_write_option_name(clopts_help_out_t *out, const clopts_option_t *option)
 {
-    if (message_has_text(clopts_option_long_name(option)))
+    if (message_has_text(clopts_option_get_long_name(option)))
     {
         clopts_help_out_str(out, "--");
-        clopts_help_out_str(out, clopts_option_long_name(option));
+        clopts_help_out_str(out, clopts_option_get_long_name(option));
     }
     else
     {
-        message_write_short(out, clopts_option_short_name(option));
+        message_write_short(out, clopts_option_get_short_name(option));
     }
 }
 
@@ -81,29 +81,29 @@ static void message_write_option_name(clopts_help_out_t *out, const clopts_optio
  */
 static void message_write_written_option(clopts_help_out_t *out, const clopts_result_t *result)
 {
-    const char short_name = clopts_result_error_short_name(result);
-    const clopts_option_t *option = clopts_result_error_option(result);
+    const char short_name = clopts_result_get_error_short_name(result);
+    const clopts_option_t *option = clopts_result_get_error_option(result);
 
     if (message_is_ascii(short_name))
     {
         message_write_short(out, short_name);
     }
-    else if ((option != NULL) && (message_has_text(clopts_option_long_name(option)) || (clopts_option_short_name(option) != '\0')))
+    else if ((option != NULL) && (message_has_text(clopts_option_get_long_name(option)) || (clopts_option_get_short_name(option) != '\0')))
     {
         message_write_option_name(out, option);
     }
     else
     {
-        message_write_token_name(out, clopts_result_error_token(result));
+        message_write_token_name(out, clopts_result_get_error_token(result));
     }
 }
 
 /* Writes the argument of an UNKNOWN_OPTION error. */
 static void message_write_unknown_option(clopts_help_out_t *out, const clopts_result_t *result)
 {
-    const char short_name = clopts_result_error_short_name(result);
-    const size_t name_len = clopts_result_error_name_len(result);
-    const char *token = clopts_result_error_token(result);
+    const char short_name = clopts_result_get_error_short_name(result);
+    const size_t name_len = clopts_result_get_error_name_len(result);
+    const char *token = clopts_result_get_error_token(result);
 
     if (message_is_ascii(short_name))
     {
@@ -123,14 +123,14 @@ static void message_write_unknown_option(clopts_help_out_t *out, const clopts_re
 /* Writes the argument of an UNEXPECTED_VALUE error. */
 static void message_write_unexpected_value(clopts_help_out_t *out, const clopts_result_t *result)
 {
-    const clopts_option_t *option = clopts_result_error_option(result);
+    const clopts_option_t *option = clopts_result_get_error_option(result);
 
     if (option == NULL)
     {
         /* No option recorded: the token before "=". */
-        message_write_token_name(out, clopts_result_error_token(result));
+        message_write_token_name(out, clopts_result_get_error_token(result));
     }
-    else if (message_has_text(clopts_option_long_name(option)))
+    else if (message_has_text(clopts_option_get_long_name(option)))
     {
         message_write_option_name(out, option);
     }
@@ -155,7 +155,7 @@ static void message_write_usage_argument(clopts_help_out_t *out, const clopts_re
         break;
     case CLOPTS_USAGE_UNKNOWN_COMMAND:
     case CLOPTS_USAGE_UNEXPECTED_ARGUMENT:
-        message_write_str(out, clopts_result_error_token(result));
+        message_write_str(out, clopts_result_get_error_token(result));
         break;
     case CLOPTS_USAGE_UNKNOWN_OPTION:
         message_write_unknown_option(out, result);
@@ -167,17 +167,17 @@ static void message_write_usage_argument(clopts_help_out_t *out, const clopts_re
         message_write_unexpected_value(out, result);
         break;
     case CLOPTS_USAGE_MISSING_OPTION:
-        option = clopts_result_error_option(result);
+        option = clopts_result_get_error_option(result);
         if (option != NULL)
         {
             message_write_option_name(out, option);
         }
         break;
     case CLOPTS_USAGE_MISSING_ARGUMENT:
-        positional = clopts_result_error_positional(result);
+        positional = clopts_result_get_error_positional(result);
         if (positional != NULL)
         {
-            message_write_str(out, clopts_positional_name(positional));
+            message_write_str(out, clopts_positional_get_name(positional));
         }
         break;
     }
@@ -218,13 +218,13 @@ static void message_write_prefix(clopts_help_out_t *out, const clopts_program_t 
 {
     flags &= MESSAGE_PREFIX_DEFINED;
 
-    if (((flags & CLOPTS_PREFIX_PROGRAM) != 0u) && message_has_text(clopts_program_name(program)))
+    if (((flags & CLOPTS_PREFIX_PROGRAM) != 0u) && message_has_text(clopts_program_get_name(program)))
     {
-        clopts_help_out_str(out, clopts_program_name(program));
-        if ((command != NULL) && message_has_text(clopts_command_name(command)))
+        clopts_help_out_str(out, clopts_program_get_name(program));
+        if ((command != NULL) && message_has_text(clopts_command_get_name(command)))
         {
             clopts_help_out_char(out, ' ');
-            clopts_help_out_str(out, clopts_command_name(command));
+            clopts_help_out_str(out, clopts_command_get_name(command));
         }
         clopts_help_out_str(out, ": ");
     }
@@ -245,13 +245,13 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
     assert(program != NULL);
     assert(write_fn != NULL);
 
-    command = clopts_result_error_command(result);
+    command = clopts_result_get_error_command(result);
     assert((command == NULL) || clopts_help_has_command(program, command));
 
-    switch (clopts_result_status(result))
+    switch (clopts_result_get_status(result))
     {
     case CLOPTS_USAGE_ERROR:
-        kind = clopts_result_usage_error(result);
+        kind = clopts_result_get_usage_error(result);
         text = clopts_help_usage_text(kind);
         if (text == NULL)
         {

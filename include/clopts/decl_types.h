@@ -83,7 +83,7 @@ extern "C" {
  *     responsibility.
  *   - Setting a string attribute again replaces the previous copy (last call
  *     wins). NULL, false, '\0' or 0 resets an attribute.
- *   - The read functions (clopts_option_long_name() and the others) accept
+ *   - The read functions (clopts_option_get_long_name() and the others) accept
  *     attached and unattached handles alike; a NULL program, command,
  *     option or positional is a contract violation (caught by assert).
  */

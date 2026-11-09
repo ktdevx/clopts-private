@@ -48,7 +48,7 @@ NAOS_TEST(positional_name_invalid)
     positional = NULL;
     EXPECT_OK(clopts_positional_create("FILE", &positional));
     NAOS_REQUIRE_NOT_NULL(positional);
-    NAOS_CHECK_STR_EQ(clopts_positional_name(positional), "FILE");
+    NAOS_CHECK_STR_EQ(clopts_positional_get_name(positional), "FILE");
     clopts_positional_destroy(positional);
 }
 
@@ -65,9 +65,9 @@ NAOS_TEST(positional_setters_before_attach_never_fail)
     clopts_positional_set_required(positional, false);
     EXPECT_OK(clopts_positional_set_help(positional, "File."));
     EXPECT_OK(clopts_positional_set_help(positional, NULL));
-    NAOS_CHECK_FALSE(clopts_positional_required(positional));
-    NAOS_CHECK_FALSE(clopts_positional_variadic(positional));
-    NAOS_CHECK_NULL(clopts_positional_help(positional));
+    NAOS_CHECK_FALSE(clopts_positional_is_required(positional));
+    NAOS_CHECK_FALSE(clopts_positional_is_variadic(positional));
+    NAOS_CHECK_NULL(clopts_positional_get_help(positional));
     clopts_positional_destroy(positional);
 }
 

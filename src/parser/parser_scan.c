@@ -19,7 +19,7 @@
  *      selected.
  * Allocation and environment lookup failures after the result exists end
  * with CLOPTS_OUT_OF_MEMORY on that result, which stays releasable with
- * clopts_result_free(). The scanner never writes to program nor to argv, and
+ * clopts_result_destroy(). The scanner never writes to program nor to argv, and
  * it knows no built-in option or command.
  */
 
@@ -186,7 +186,7 @@ static void scan_select(scan_state_t *state, const clopts_command_t *command)
 static void scan_flag(scan_state_t *state, const clopts_parser_ref_t *ref)
 {
     clopts_parser_slot_set_flag(clopts_parser_result_slot(state->result, ref), !ref->negated, CLOPTS_SOURCE_EXPLICIT);
-    if (clopts_option_terminal(ref->option) && !ref->negated)
+    if (clopts_option_is_terminal(ref->option) && !ref->negated)
     {
         state->terminal = ref->option;
     }
@@ -220,11 +220,11 @@ static scan_error_t *scan_option_value(scan_state_t *state, const clopts_parser_
         value = scan_token(state);
         state->pos++;
     }
-    if (clopts_option_kind_of(ref->option) == CLOPTS_OPTION_VALUE)
+    if (clopts_option_get_kind(ref->option) == CLOPTS_OPTION_VALUE)
     {
         clopts_parser_slot_set_value(slot, value, CLOPTS_SOURCE_EXPLICIT);
     }
-    else if (clopts_parser_slot_append_list(slot, value, clopts_option_delimiter(ref->option),
+    else if (clopts_parser_slot_append_list(slot, value, clopts_option_get_delimiter(ref->option),
                                             CLOPTS_SOURCE_EXPLICIT) != 0)
     {
         state->out_of_memory = true;
@@ -260,7 +260,7 @@ static void scan_long_option(scan_state_t *state)
         return;
     }
 
-    switch (clopts_option_kind_of(ref.option))
+    switch (clopts_option_get_kind(ref.option))
     {
     case CLOPTS_OPTION_FLAG:
     case CLOPTS_OPTION_COUNT:
@@ -272,13 +272,13 @@ static void scan_long_option(scan_state_t *state)
                 error->option = ref.option;
             }
         }
-        else if (clopts_option_kind_of(ref.option) == CLOPTS_OPTION_FLAG)
+        else if (clopts_option_get_kind(ref.option) == CLOPTS_OPTION_FLAG)
         {
             scan_flag(state, &ref);
         }
         else
         {
-            clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), clopts_option_count_max(ref.option));
+            clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), clopts_option_get_count_max(ref.option));
         }
         break;
     case CLOPTS_OPTION_VALUE:
@@ -317,7 +317,7 @@ static void scan_short_option(scan_state_t *state)
             }
             return;
         }
-        switch (clopts_option_kind_of(ref.option))
+        switch (clopts_option_get_kind(ref.option))
         {
         case CLOPTS_OPTION_FLAG:
             scan_flag(state, &ref);
@@ -327,7 +327,7 @@ static void scan_short_option(scan_state_t *state)
             }
             break;
         case CLOPTS_OPTION_COUNT:
-            clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), clopts_option_count_max(ref.option));
+            clopts_parser_slot_add_count(clopts_parser_result_slot(state->result, &ref), clopts_option_get_count_max(ref.option));
             break;
         case CLOPTS_OPTION_VALUE:
         case CLOPTS_OPTION_LIST:
@@ -380,7 +380,7 @@ static void main_positional(scan_state_t *state)
         last = (declared == 0)
                    ? NULL
                    : clopts_scope_positional_at(scope, declared - 1);
-        if ((last == NULL) || !clopts_positional_variadic(last))
+        if ((last == NULL) || !clopts_positional_is_variadic(last))
         {
             (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, state->pos);
             state->pos++;
@@ -529,7 +529,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
         }
         *ref = clopts_parser_find_short(scan_global(state), scan_selected(state), token[1]);
     }
-    if ((ref->option == NULL) || (clopts_option_kind_of(ref->option) != CLOPTS_OPTION_FLAG) || !clopts_option_terminal(ref->option))
+    if ((ref->option == NULL) || (clopts_option_get_kind(ref->option) != CLOPTS_OPTION_FLAG) || !clopts_option_is_terminal(ref->option))
     {
         return NULL;
     }
@@ -627,7 +627,7 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
 
     /* 2. */
     scan_init(&state, program, argc, argv, result);
-    if (clopts_program_command_count(program) > 0)
+    if (clopts_program_get_command_count(program) > 0)
     {
         scan_prelude(&state);
         if ((state.command != NULL) && !scan_decided(&state))
@@ -648,7 +648,7 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
     }
 
     /* 4. */
-    selected_scope = ((clopts_program_command_count(program) == 0) || (state.command != NULL));
+    selected_scope = ((clopts_program_get_command_count(program) == 0) || (state.command != NULL));
     if (clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope) != 0)
     {
         finish(result, CLOPTS_OUT_OF_MEMORY);

@@ -106,8 +106,8 @@ NAOS_TEST(fixture_wide_builds_ok)
 
     /* With no argument (the positional is optional) it parses to OK. */
     result = clopts_parse(f.program, 0, NULL);
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    clopts_result_free(result);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    clopts_result_destroy(result);
 
     help_fixture_wide_free(&f);
     NAOS_CHECK_NULL(f.program);

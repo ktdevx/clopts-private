@@ -38,11 +38,11 @@ CLOPTS_API void clopts_positional_set_variadic(clopts_positional_t *positional, 
 
 /* ---- read functions ---- */
 
-CLOPTS_API const char *clopts_positional_name(const clopts_positional_t *positional);
+CLOPTS_API const char *clopts_positional_get_name(const clopts_positional_t *positional);
 /* NULL when not set. */
-CLOPTS_API const char *clopts_positional_help(const clopts_positional_t *positional);
-CLOPTS_API bool clopts_positional_required(const clopts_positional_t *positional);
-CLOPTS_API bool clopts_positional_variadic(const clopts_positional_t *positional);
+CLOPTS_API const char *clopts_positional_get_help(const clopts_positional_t *positional);
+CLOPTS_API bool clopts_positional_is_required(const clopts_positional_t *positional);
+CLOPTS_API bool clopts_positional_is_variadic(const clopts_positional_t *positional);
 
 #ifdef __cplusplus
 }

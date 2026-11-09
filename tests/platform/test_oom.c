@@ -91,20 +91,20 @@ static void oom_check_argv(const clopts_argv_t *args, const oom_argv_expect_t *e
     char *const *values;
     int i;
 
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), expect->status);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), expect->count);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), expect->error_index);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), expect->status);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), expect->count);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), expect->error_index);
+    values = clopts_argv_get_values(args);
     NAOS_CHECK_NOT_NULL(values);
     if (values == NULL)
     {
         return;
     }
-    for (i = 0; (i < expect->count) && (i < clopts_argv_count(args)); ++i)
+    for (i = 0; (i < expect->count) && (i < clopts_argv_get_count(args)); ++i)
     {
         NAOS_CHECK_STR_EQ(values[i], expect->values[i]);
     }
-    NAOS_CHECK_NULL(values[clopts_argv_count(args)]);
+    NAOS_CHECK_NULL(values[clopts_argv_get_count(args)]);
 }
 
 /*
@@ -132,9 +132,9 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
         {
             stats->oom_runs++;
             NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
-            NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OUT_OF_MEMORY);
-            NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-            NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+            NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OUT_OF_MEMORY);
+            NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+            NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
         }
         else
         {
@@ -145,7 +145,7 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
             stats->succeeded = true;
             NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
         }
-        clopts_argv_free(args);
+        clopts_argv_destroy(args);
         NAOS_CHECK_TRUE(test_alloc_end());
     }
 }
@@ -185,7 +185,7 @@ NAOS_TEST(sweep_env_new)
 
         NAOS_NOTE("env_new fault point %u", (unsigned)fail_at);
         test_alloc_begin(fail_at);
-        env = clopts_env_new();
+        env = clopts_env_create();
         if (env == NULL)
         {
             oom_runs++;
@@ -194,15 +194,15 @@ NAOS_TEST(sweep_env_new)
         }
         else
         {
-            NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
-            NAOS_CHECK_NULL(clopts_env_error_name(env));
+            NAOS_CHECK_INT_EQ(clopts_env_get_error(env), CLOPTS_ENV_ERROR_NONE);
+            NAOS_CHECK_NULL(clopts_env_get_error_name(env));
         }
         if (test_alloc.calls < fail_at)
         {
             succeeded = true;
             NAOS_CHECK_NOT_NULL(env);
         }
-        clopts_env_free(env);
+        clopts_env_destroy(env);
         NAOS_CHECK_TRUE(test_alloc_end());
     }
     NAOS_CHECK_TRUE(succeeded);
@@ -312,7 +312,7 @@ NAOS_TEST(sweep_env_lookup_long_value)
         NAOS_NOTE("env lookup fault point %u", (unsigned)offset);
         /* The context is created without failures; the sweep starts after it. */
         test_alloc_begin(0);
-        env = clopts_env_new();
+        env = clopts_env_create();
         NAOS_CHECK_NOT_NULL(env);
         if (env == NULL)
         {
@@ -325,8 +325,8 @@ NAOS_TEST(sweep_env_lookup_long_value)
         {
             oom_runs++;
             NAOS_CHECK_UINT_GE(test_alloc.calls, start + offset);
-            NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_OUT_OF_MEMORY);
-            NAOS_CHECK_NULL(clopts_env_error_name(env));
+            NAOS_CHECK_INT_EQ(clopts_env_get_error(env), CLOPTS_ENV_ERROR_OUT_OF_MEMORY);
+            NAOS_CHECK_NULL(clopts_env_get_error_name(env));
         }
         else
         {
@@ -337,7 +337,7 @@ NAOS_TEST(sweep_env_lookup_long_value)
                 NAOS_CHECK_UINT_EQ(strlen(value), (LONG_UNITS / 2) * 4);
                 NAOS_CHECK_INT_EQ(memcmp(value, "v\xe3\x81\x82", 4), 0);
             }
-            NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
+            NAOS_CHECK_INT_EQ(clopts_env_get_error(env), CLOPTS_ENV_ERROR_NONE);
         }
         if (test_alloc.calls < start + offset)
         {
@@ -345,7 +345,7 @@ NAOS_TEST(sweep_env_lookup_long_value)
             NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
         }
         test_alloc_set_fail_at(0);
-        clopts_env_free(env);
+        clopts_env_destroy(env);
         NAOS_CHECK_TRUE(test_alloc_end());
     }
     test_alloc_set_fail_at(0);

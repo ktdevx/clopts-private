@@ -190,7 +190,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program);
 /*
  * Returns the out-of-memory sentinel: a static const result with status
  * CLOPTS_OUT_OF_MEMORY, no error (NONE / argv_index -1) and no slots. No
- * function writes to it and clopts_result_free() ignores it.
+ * function writes to it and clopts_result_destroy() ignores it.
  */
 clopts_result_t *clopts_parser_result_oom(void);
 

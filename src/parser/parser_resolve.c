@@ -43,10 +43,10 @@ clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, co
 static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *option,
                         clopts_getenv_fn getenv_fn, void *env_ctx)
 {
-    clopts_option_kind_t kind = clopts_option_kind_of(option);
-    const char *env = clopts_option_env(option);
-    const char *default_value = clopts_option_default(option);
-    char delimiter = clopts_option_delimiter(option);
+    clopts_option_kind_t kind = clopts_option_get_kind(option);
+    const char *env = clopts_option_get_env(option);
+    const char *default_value = clopts_option_get_default(option);
+    char delimiter = clopts_option_get_delimiter(option);
 
     if ((kind != CLOPTS_OPTION_VALUE) && (kind != CLOPTS_OPTION_LIST))
     {
@@ -192,7 +192,7 @@ static const clopts_option_t *first_missing_option(const clopts_parser_slot_t *s
     {
         const clopts_option_t *option = clopts_scope_option_at(scope, i);
 
-        if (clopts_option_required(option) && !slot_given(&slots[i]))
+        if (clopts_option_is_required(option) && !slot_given(&slots[i]))
         {
             return option;
         }
@@ -235,7 +235,7 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
         }
         positional_scope = clopts_command_scope(command);
     }
-    else if (clopts_program_command_count(program) == 0)
+    else if (clopts_program_get_command_count(program) == 0)
     {
         positional_scope = clopts_program_scope(program);
     }
@@ -255,7 +255,7 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
     {
         const clopts_positional_t *positional = clopts_scope_positional_at(positional_scope, i);
 
-        if (clopts_positional_required(positional) && (i >= recorded))
+        if (clopts_positional_is_required(positional) && (i >= recorded))
         {
             set_missing(result, command, NULL, positional);
             return -1;

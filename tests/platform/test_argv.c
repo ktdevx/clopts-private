@@ -69,15 +69,15 @@ static void platform_argv_check_oom(const clopts_argv_t *args)
 {
     char *const *values;
 
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OUT_OF_MEMORY);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OUT_OF_MEMORY);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+    values = clopts_argv_get_values(args);
     NAOS_CHECK_NOT_NULL(values);
     if (values != NULL)
     {
         NAOS_CHECK_NULL(values[0]);
     }
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
 }
 
 NAOS_TEST(null_handle_reads_like_the_sentinel)
@@ -99,8 +99,8 @@ NAOS_TEST(free_ignores_null_and_the_sentinel)
     clopts_argv_t *sentinel = clopts_platform_argv_sentinel();
 
     test_alloc_begin(0);
-    clopts_argv_free(NULL);
-    clopts_argv_free(sentinel);
+    clopts_argv_destroy(NULL);
+    clopts_argv_destroy(sentinel);
     /* nothing is allocated, and nothing is passed to the allocator's free */
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 0);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -118,18 +118,18 @@ static void platform_argv_check_failure(clopts_argv_status_t status, int error_i
     args = clopts_platform_argv_failure(status, error_index);
     NAOS_CHECK_NOT_NULL(args);
     NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), status);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), status);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+    values = clopts_argv_get_values(args);
     NAOS_CHECK_NOT_NULL(values);
     if (values != NULL)
     {
         NAOS_CHECK_NULL(values[0]);
     }
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), expected_index);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), expected_index);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -155,10 +155,10 @@ NAOS_TEST(failure_handles_share_the_empty_array)
     b = clopts_platform_argv_failure(CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1);
     NAOS_CHECK_TRUE(a != clopts_platform_argv_sentinel());
     NAOS_CHECK_TRUE(b != clopts_platform_argv_sentinel());
-    NAOS_CHECK_PTR_EQ(clopts_argv_values(a), clopts_argv_values(b));
-    NAOS_CHECK_PTR_EQ(clopts_argv_values(a), clopts_argv_values(NULL));
-    clopts_argv_free(a);
-    clopts_argv_free(b);
+    NAOS_CHECK_PTR_EQ(clopts_argv_get_values(a), clopts_argv_get_values(b));
+    NAOS_CHECK_PTR_EQ(clopts_argv_get_values(a), clopts_argv_get_values(NULL));
+    clopts_argv_destroy(a);
+    clopts_argv_destroy(b);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -171,7 +171,7 @@ NAOS_TEST(failure_allocation_failure_returns_the_sentinel)
     NAOS_CHECK_PTR_EQ(args, clopts_platform_argv_sentinel());
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     platform_argv_check_oom(args);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -204,10 +204,10 @@ NAOS_TEST(passthrough_borrows_every_pointer)
     test_alloc_begin(0);
     args = clopts_platform_argv_passthrough(4, argv);
     NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 4);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 4);
+    values = clopts_argv_get_values(args);
     NAOS_CHECK_PTR_EQ(values, argv);
     if (values == argv)
     {
@@ -224,7 +224,7 @@ NAOS_TEST(passthrough_borrows_every_pointer)
     /* only the handle is allocated */
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
     NAOS_CHECK_PTR_EQ(argv[0], a0);
 }
@@ -238,26 +238,26 @@ NAOS_TEST(passthrough_with_argc_zero)
     test_alloc_begin(0);
     args = clopts_platform_argv_passthrough(0, empty);
     NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    NAOS_CHECK_PTR_EQ(clopts_argv_values(args), empty);
-    clopts_argv_free(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    NAOS_CHECK_PTR_EQ(clopts_argv_get_values(args), empty);
+    clopts_argv_destroy(args);
     NAOS_CHECK_INT_EQ(test_alloc.live, 0);
 
     args = clopts_platform_argv_passthrough(0, NULL);
     NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    values = clopts_argv_get_values(args);
     NAOS_CHECK_NOT_NULL(values);
     if (values != NULL)
     {
         NAOS_CHECK_NULL(values[0]);
     }
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     /* one handle per call */
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 2);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -276,7 +276,7 @@ NAOS_TEST(passthrough_allocation_failure_returns_the_sentinel)
     NAOS_CHECK_PTR_EQ(args, clopts_platform_argv_sentinel());
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     platform_argv_check_oom(args);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
     NAOS_CHECK_PTR_EQ(argv[0], a0);
     NAOS_CHECK_NULL(argv[1]);
@@ -293,16 +293,16 @@ NAOS_TEST(public_free_releases_a_passthrough_handle)
     argv[1] = NULL;
     test_alloc_begin(0);
     args = clopts_platform_argv_passthrough(1, argv);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 1);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 1);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
     NAOS_CHECK_PTR_EQ(argv[0], a0);
     NAOS_CHECK_STR_EQ(argv[0], "tool");
 }
 
 #ifndef _WIN32
-/* ---- outside Windows: clopts_argv_get passes argv through ---------------- */
+/* ---- outside Windows: clopts_argv_create passes argv through ---------------- */
 
 NAOS_TEST(argv_get_returns_the_callers_argv_unchanged)
 {
@@ -321,13 +321,13 @@ NAOS_TEST(argv_get_returns_the_callers_argv_unchanged)
     argv[3] = a3;
     argv[4] = NULL;
     test_alloc_begin(0);
-    args = clopts_argv_get(4, argv);
+    args = clopts_argv_create(4, argv);
     NAOS_CHECK_NOT_NULL(args);
     NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 4);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 4);
+    values = clopts_argv_get_values(args);
     /* neither the array nor the strings are copied or converted */
     NAOS_CHECK_PTR_EQ(values, argv);
     if (values == argv)
@@ -341,7 +341,7 @@ NAOS_TEST(argv_get_returns_the_callers_argv_unchanged)
     NAOS_CHECK_STR_EQ(a3, "\xe3\x83\x86\xff");
     /* only the handle is allocated */
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
     NAOS_CHECK_PTR_EQ(argv[0], a0);
     NAOS_CHECK_STR_EQ(argv[1], "--name");
@@ -354,31 +354,31 @@ NAOS_TEST(argv_get_with_argc_zero)
     char *const *values;
 
     test_alloc_begin(0);
-    args = clopts_argv_get(0, empty);
+    args = clopts_argv_create(0, empty);
     NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    NAOS_CHECK_PTR_EQ(clopts_argv_values(args), empty);
-    clopts_argv_free(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    NAOS_CHECK_PTR_EQ(clopts_argv_get_values(args), empty);
+    clopts_argv_destroy(args);
 
     /* argv may be NULL when argc is 0; values is still a NULL-terminated array */
-    args = clopts_argv_get(0, NULL);
+    args = clopts_argv_create(0, NULL);
     NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
-    NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    values = clopts_argv_get_values(args);
     NAOS_CHECK_NOT_NULL(values);
     if (values != NULL)
     {
         NAOS_CHECK_NULL(values[0]);
     }
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 #else /* _WIN32 */
-/* ---- Windows: clopts_argv_get splits the process command line ------------- */
+/* ---- Windows: clopts_argv_create splits the process command line ------------- */
 
 /*
  * The CRT's __argc / __argv. MinGW-w64 declares them in <stdlib.h> even with
@@ -414,10 +414,10 @@ static void platform_argv_check_matches_crt(const clopts_argv_t *args)
     int i;
 
     NAOS_REQUIRE_TRUE(args != clopts_platform_argv_sentinel());
-    NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OK);
-    NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
-    NAOS_REQUIRE_INT_EQ(clopts_argv_count(args), __argc);
-    values = clopts_argv_values(args);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
+    NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
+    NAOS_REQUIRE_INT_EQ(clopts_argv_get_count(args), __argc);
+    values = clopts_argv_get_values(args);
     NAOS_REQUIRE_NOT_NULL(values);
     for (i = 0; i < __argc; ++i)
     {
@@ -435,13 +435,13 @@ NAOS_TEST(argv_get_matches_the_crt_argv)
 
     NAOS_REQUIRE_TRUE(__argc >= 1);
     test_alloc_begin(0);
-    args = clopts_argv_get(0, NULL);
+    args = clopts_argv_create(0, NULL);
     platform_argv_check_matches_crt(args);
-    clopts_argv_free(args);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-/* The argc / argv given to clopts_argv_get are not read on Windows. */
+/* The argc / argv given to clopts_argv_create are not read on Windows. */
 NAOS_TEST(argv_get_ignores_the_given_argv)
 {
     char a0[] = "not-the-program";
@@ -451,10 +451,10 @@ NAOS_TEST(argv_get_ignores_the_given_argv)
     argv[0] = a0;
     argv[1] = NULL;
     test_alloc_begin(0);
-    args = clopts_argv_get(1, argv);
+    args = clopts_argv_create(1, argv);
     platform_argv_check_matches_crt(args);
-    NAOS_CHECK_TRUE(clopts_argv_values(args) != argv);
-    clopts_argv_free(args);
+    NAOS_CHECK_TRUE(clopts_argv_get_values(args) != argv);
+    clopts_argv_destroy(args);
     NAOS_CHECK_TRUE(test_alloc_end());
     NAOS_CHECK_STR_EQ(a0, "not-the-program");
 }

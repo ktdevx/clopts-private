@@ -11,13 +11,13 @@ clopts_option_set_help
 
 # clopts/parse.h
 clopts_parse
-clopts_result_status
+clopts_result_get_status
 clopts_result_take
-clopts_result_free
+clopts_result_destroy
 
 # clopts/platform.h
-clopts_argv_get
-clopts_argv_from_wide windows
-clopts_argv_free
-clopts_env_new
-clopts_env_free
+clopts_argv_create
+clopts_argv_create_from_wide windows
+clopts_argv_destroy
+clopts_env_create
+clopts_env_destroy

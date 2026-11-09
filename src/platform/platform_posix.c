@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-clopts_argv_t *clopts_argv_get(int argc, char *const *argv)
+clopts_argv_t *clopts_argv_create(int argc, char *const *argv)
 {
     assert(argc >= 0);
     assert(argc == 0 || argv != NULL);

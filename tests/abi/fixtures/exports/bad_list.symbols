@@ -9,6 +9,6 @@ clopts_program_create
 clopts_program_create
 parse_args
 Clopts_Parse
-clopts_argv_from_wide linux
-clopts_env_new windows extra
-clopts_env_free windows
+clopts_argv_create_from_wide linux
+clopts_env_create windows extra
+clopts_env_destroy windows

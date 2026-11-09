@@ -31,7 +31,7 @@ struct textcount_options
 /* Ends the line, adding " (<source>)" when the option got a value. */
 static void print_source(const clopts_result_t *result, const clopts_option_t *option)
 {
-    switch (clopts_result_source(result, option))
+    switch (clopts_result_get_source(result, option))
     {
     case CLOPTS_SOURCE_EXPLICIT:
         fputs(" (explicit)", stdout);
@@ -50,33 +50,33 @@ static void print_source(const clopts_result_t *result, const clopts_option_t *o
 
 static void print_flag(const clopts_result_t *result, const char *key, const clopts_option_t *option)
 {
-    printf("%s: %s", key, clopts_result_flag(result, option) ? "true" : "false");
+    printf("%s: %s", key, clopts_result_get_flag(result, option) ? "true" : "false");
     print_source(result, option);
 }
 
 static int run(const clopts_result_t *result, const struct textcount_options *opts)
 {
-    size_t count = clopts_result_positional_count(result);
+    size_t count = clopts_result_get_positional_count(result);
     size_t i;
 
     printf("files:");
     for (i = 0; i < count; i++)
     {
-        printf("%s %s", (i > 0) ? "," : "", clopts_result_positional_at(result, i));
+        printf("%s %s", (i > 0) ? "," : "", clopts_result_get_positional_at(result, i));
     }
     fputc('\n', stdout);
     print_flag(result, "lines", opts->lines);
     print_flag(result, "words", opts->words);
     print_flag(result, "total", opts->total);
-    printf("quiet: %u", clopts_result_count(result, opts->quiet));
+    printf("quiet: %u", clopts_result_get_count(result, opts->quiet));
     print_source(result, opts->quiet);
-    printf("encoding: %s", clopts_result_value(result, opts->encoding));
+    printf("encoding: %s", clopts_result_get_value(result, opts->encoding));
     print_source(result, opts->encoding);
-    count = clopts_result_list_count(result, opts->exclude);
+    count = clopts_result_get_list_count(result, opts->exclude);
     printf("exclude:");
     for (i = 0; i < count; i++)
     {
-        printf("%s %s", (i > 0) ? "," : "", clopts_result_list_at(result, opts->exclude, i));
+        printf("%s %s", (i > 0) ? "," : "", clopts_result_get_list_at(result, opts->exclude, i));
     }
     print_source(result, opts->exclude);
     return 0;
@@ -198,12 +198,12 @@ fail:
 static int finish(const clopts_program_t *program, const clopts_result_t *result,
                   const struct textcount_options *opts)
 {
-    switch (clopts_result_status(result))
+    switch (clopts_result_get_status(result))
     {
     case CLOPTS_OK:
         return run(result, opts);
     case CLOPTS_TERMINATED:
-        if (clopts_result_terminal(result) == opts->version)
+        if (clopts_result_get_terminal_option(result) == opts->version)
         {
             clopts_write_version(program, "0.4.0", clopts_file_write, stdout);
         }
@@ -214,7 +214,7 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
         return 0;
     case CLOPTS_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
-        clopts_write_usage_hint(program, clopts_result_error_command(result), clopts_file_write, stderr);
+        clopts_write_usage_hint(program, clopts_result_get_error_command(result), clopts_file_write, stderr);
         return 2;
     case CLOPTS_NO_COMMAND:
         /* Only programs with subcommands get this; kept for the common pattern. */
@@ -241,29 +241,30 @@ int main(int argc, char **argv)
     error = declare(&program, &opts);
     if (error != CLOPTS_ERROR_NONE)
     {
-        fprintf(stderr, "textcount: error: invalid declaration: %s\n", clopts_error_message(error));
+        fprintf(stderr, "textcount: error: invalid declaration: %s\n", clopts_error_get_message(error));
         return 1;
     }
 
     /* UTF-8 argv on every platform (on Windows, taken from the command line). */
-    args = clopts_argv_get(argc, argv);
-    if (clopts_argv_status(args) != CLOPTS_ARGV_OK)
+    args = clopts_argv_create(argc, argv);
+    if (clopts_argv_get_status(args) != CLOPTS_ARGV_OK)
     {
         fputs("textcount: error: cannot read the command line arguments\n", stderr);
-        clopts_argv_free(args);
+        clopts_argv_destroy(args);
         clopts_program_destroy(program);
         return 1;
     }
 
-    /* If clopts_env_new failed, looking up TEXTCOUNT_ENCODING fails and the
+    /* If clopts_env_create failed, looking up TEXTCOUNT_ENCODING fails and the
        parse reports out of memory. */
-    env = clopts_env_new();
-    result = clopts_parse_with_env(program, clopts_argv_count(args), clopts_argv_values(args), clopts_env_lookup, env);
+    env = clopts_env_create();
+    result = clopts_parse_with_env(program, clopts_argv_get_count(args), clopts_argv_get_values(args),
+                                   clopts_env_lookup, env);
     code = finish(program, result, &opts);
 
-    clopts_result_free(result);
-    clopts_env_free(env);
-    clopts_argv_free(args);
+    clopts_result_destroy(result);
+    clopts_env_destroy(env);
+    clopts_argv_destroy(args);
     clopts_program_destroy(program);
     return code;
 }

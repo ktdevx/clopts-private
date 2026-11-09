@@ -192,7 +192,7 @@ clopts_argv_t *clopts_platform_argv_from_cmdline(const wchar_t *cmdline)
     return args;
 }
 
-clopts_argv_t *clopts_argv_get(int argc, char *const *argv)
+clopts_argv_t *clopts_argv_create(int argc, char *const *argv)
 {
     /* argc and argv are not read: the process command line is the source on Windows. */
     (void)argc;
@@ -200,7 +200,7 @@ clopts_argv_t *clopts_argv_get(int argc, char *const *argv)
     return clopts_platform_argv_from_cmdline(GetCommandLineW());
 }
 
-clopts_argv_t *clopts_argv_from_wide(int argc, wchar_t *const *wargv)
+clopts_argv_t *clopts_argv_create_from_wide(int argc, wchar_t *const *wargv)
 {
     assert(argc >= 0);
     assert(wargv != NULL);

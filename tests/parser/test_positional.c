@@ -78,11 +78,11 @@ static void check_positionals(const clopts_result_t *result, char *const *expect
 {
     size_t i;
 
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(result), count);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_UINT_EQ(clopts_result_get_positional_count(result), count);
     for (i = 0; i < count; i++)
     {
-        NAOS_CHECK_PTR_EQ(clopts_result_positional_at(result, i), expected[i]);
+        NAOS_CHECK_PTR_EQ(clopts_result_get_positional_at(result, i), expected[i]);
     }
 }
 
@@ -91,9 +91,9 @@ static void check_positional(const clopts_positional_t *positional, const char *
                              bool required, bool variadic)
 {
     NAOS_REQUIRE_NOT_NULL(positional);
-    NAOS_CHECK_STR_EQ(clopts_positional_name(positional), name);
-    NAOS_CHECK_INT_EQ(clopts_positional_required(positional) ? 1 : 0, required ? 1 : 0);
-    NAOS_CHECK_INT_EQ(clopts_positional_variadic(positional) ? 1 : 0, variadic ? 1 : 0);
+    NAOS_CHECK_STR_EQ(clopts_positional_get_name(positional), name);
+    NAOS_CHECK_INT_EQ(clopts_positional_is_required(positional) ? 1 : 0, required ? 1 : 0);
+    NAOS_CHECK_INT_EQ(clopts_positional_is_variadic(positional) ? 1 : 0, variadic ? 1 : 0);
 }
 
 /* ---- sentinel ----------------------------------------------------------- */
@@ -103,9 +103,9 @@ NAOS_TEST(sentinel_has_no_positionals)
     clopts_result_t *result;
 
     result = clopts_parse(NULL, 0, NULL);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OUT_OF_MEMORY);
-    NAOS_CHECK_UINT_EQ(clopts_result_positional_count(result), 0);
-    clopts_result_free(result);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_CHECK_UINT_EQ(clopts_result_get_positional_count(result), 0);
+    clopts_result_destroy(result);
 }
 
 /* ---- fixtures ---------------------------------------------------------- */
@@ -129,8 +129,8 @@ NAOS_TEST(fixture_positionals_are_as_designed)
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
     check_positional(f.file, "FILE", false, true);
-    NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(f.program), 1);
-    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(f.program, 0), f.file);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_get_positional_count(f.program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_get_positional_at(f.program, 0), f.file);
     fixture_filt_free(&f);
 }
 
@@ -142,13 +142,13 @@ NAOS_TEST(fixture_programs_with_commands_have_no_program_positionals)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(t.program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(t.program), 0);
     fixture_tool_free(&t);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
-    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(s.program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(s.program), 0);
     fixture_strict_free(&s);
 }
 
@@ -161,10 +161,10 @@ NAOS_TEST(copy_takes_two_positionals_in_order)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    NAOS_CHECK_PTR_EQ(clopts_result_command(result), f.copy);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), f.copy);
     check_positionals(result, &argv[2], 2);
-    clopts_result_free(result);
+    clopts_result_destroy(result);
     fixture_tool_free(&f);
 }
 
@@ -175,14 +175,14 @@ NAOS_TEST(copy_without_dst_is_missing_argument)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
-    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), f.copy);
-    NAOS_CHECK_PTR_EQ(clopts_result_error_positional(result), f.copy_dst);
-    NAOS_REQUIRE_NOT_NULL(clopts_result_error_positional(result));
-    NAOS_CHECK_STR_EQ(clopts_positional_name(clopts_result_error_positional(result)), "DST");
-    NAOS_CHECK_NULL(clopts_result_error_option(result));
-    clopts_result_free(result);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_error_command(result), f.copy);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_error_positional(result), f.copy_dst);
+    NAOS_REQUIRE_NOT_NULL(clopts_result_get_error_positional(result));
+    NAOS_CHECK_STR_EQ(clopts_positional_get_name(clopts_result_get_error_positional(result)), "DST");
+    NAOS_CHECK_NULL(clopts_result_get_error_option(result));
+    clopts_result_destroy(result);
     fixture_tool_free(&f);
 }
 
@@ -193,17 +193,17 @@ NAOS_TEST(copy_with_a_third_token_is_unexpected_argument)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
-    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_UNEXPECTED_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), f.copy);
-    NAOS_CHECK_PTR_EQ(clopts_result_error_token(result), argv[4]);
-    NAOS_CHECK_STR_EQ(clopts_result_error_token(result), "c");
-    NAOS_CHECK_INT_EQ(clopts_result_error_argv_index(result), 4);
-    NAOS_CHECK_NULL(clopts_result_error_option(result));
-    NAOS_CHECK_NULL(clopts_result_error_positional(result));
-    NAOS_CHECK_UINT_EQ(clopts_result_error_name_len(result), 0);
-    NAOS_CHECK_INT_EQ(clopts_result_error_short_name(result), '\0');
-    clopts_result_free(result);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_UNEXPECTED_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_error_command(result), f.copy);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_error_token(result), argv[4]);
+    NAOS_CHECK_STR_EQ(clopts_result_get_error_token(result), "c");
+    NAOS_CHECK_INT_EQ(clopts_result_get_error_argv_index(result), 4);
+    NAOS_CHECK_NULL(clopts_result_get_error_option(result));
+    NAOS_CHECK_NULL(clopts_result_get_error_positional(result));
+    NAOS_CHECK_UINT_EQ(clopts_result_get_error_name_len(result), 0);
+    NAOS_CHECK_INT_EQ(clopts_result_get_error_short_name(result), '\0');
+    clopts_result_destroy(result);
     fixture_tool_free(&f);
 }
 
@@ -214,10 +214,10 @@ NAOS_TEST(cat_without_tokens_has_no_positionals)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    NAOS_CHECK_PTR_EQ(clopts_result_command(result), f.cat);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), f.cat);
     check_positionals(result, NULL, 0);
-    clopts_result_free(result);
+    clopts_result_destroy(result);
     fixture_tool_free(&f);
 }
 
@@ -228,9 +228,9 @@ NAOS_TEST(cat_variadic_takes_every_remaining_token)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
     check_positionals(result, &argv[2], 3);
-    clopts_result_free(result);
+    clopts_result_destroy(result);
     fixture_tool_free(&f);
 }
 
@@ -241,9 +241,9 @@ NAOS_TEST(cat_after_dashdash_dash_tokens_are_positionals)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
     check_positionals(result, &argv[3], 2);
-    clopts_result_free(result);
+    clopts_result_destroy(result);
     fixture_tool_free(&f);
 }
 
@@ -254,10 +254,10 @@ NAOS_TEST(cat_lone_dash_is_a_positional)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
     check_positionals(result, &argv[2], 1);
-    NAOS_CHECK_STR_EQ(clopts_result_positional_at(result, 0), "-");
-    clopts_result_free(result);
+    NAOS_CHECK_STR_EQ(clopts_result_get_positional_at(result, 0), "-");
+    clopts_result_destroy(result);
     fixture_tool_free(&f);
 }
 
@@ -271,10 +271,10 @@ NAOS_TEST(filt_without_subcommands_takes_positionals)
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
     result = parse_checked(f.program, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    NAOS_CHECK_NULL(clopts_result_command(result));
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_NULL(clopts_result_get_command(result));
     check_positionals(result, &argv[1], 2);
-    clopts_result_free(result);
+    clopts_result_destroy(result);
     fixture_filt_free(&f);
 }
 
@@ -288,12 +288,12 @@ NAOS_TEST(strict_without_tokens_checks_the_global_required_option)
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
     result = parse_checked(s.program, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_USAGE_ERROR);
-    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(clopts_result_error_option(result), s.token);
-    NAOS_CHECK_NULL(clopts_result_error_command(result));
-    NAOS_CHECK_NULL(clopts_result_command(result));
-    clopts_result_free(result);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), s.token);
+    NAOS_CHECK_NULL(clopts_result_get_error_command(result));
+    NAOS_CHECK_NULL(clopts_result_get_command(result));
+    clopts_result_destroy(result);
     fixture_strict_free(&s);
 }
 

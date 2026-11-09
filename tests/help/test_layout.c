@@ -5,7 +5,7 @@
  * Suite layout: the whole help texts, the Usage line, the version line and
  * the usage hint, compared byte for byte; the filter of the shadowed global
  * options; and the help command (clopts_help_command_create() and
- * clopts_help_target()).
+ * clopts_help_find_target()).
  *
  * It also checks that the fixtures it uses (tool, filt, bare) are built
  * without a declaration error. Nothing is reserved: -h/--help, --version
@@ -878,16 +878,16 @@ NAOS_TEST(help_command_new_declaration)
 
     NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&command), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_CHECK_STR_EQ(clopts_command_name(command), "help");
-    NAOS_CHECK_STR_EQ(clopts_command_summary(command), "Show help for a command");
-    NAOS_CHECK_NULL(clopts_command_description(command));
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(command), 0);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(command), 1);
-    positional = clopts_command_positional_at(command, 0);
-    NAOS_CHECK_STR_EQ(clopts_positional_name(positional), "COMMAND");
-    NAOS_CHECK_STR_EQ(clopts_positional_help(positional), "Command to show help for");
-    NAOS_CHECK_FALSE(clopts_positional_required(positional));
-    NAOS_CHECK_FALSE(clopts_positional_variadic(positional));
+    NAOS_CHECK_STR_EQ(clopts_command_get_name(command), "help");
+    NAOS_CHECK_STR_EQ(clopts_command_get_summary(command), "Show help for a command");
+    NAOS_CHECK_NULL(clopts_command_get_description(command));
+    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(command), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_command_get_positional_count(command), 1);
+    positional = clopts_command_get_positional_at(command, 0);
+    NAOS_CHECK_STR_EQ(clopts_positional_get_name(positional), "COMMAND");
+    NAOS_CHECK_STR_EQ(clopts_positional_get_help(positional), "Command to show help for");
+    NAOS_CHECK_FALSE(clopts_positional_is_required(positional));
+    NAOS_CHECK_FALSE(clopts_positional_is_variadic(positional));
     /* It is unattached: the caller owns it. */
     clopts_command_destroy(command);
 }
@@ -908,8 +908,8 @@ NAOS_TEST(help_command_new_gives_a_new_command_each_time)
     NAOS_CHECK_TRUE(first != second);
     NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, first), CLOPTS_ERROR_NONE);
     NAOS_CHECK_INT_EQ(clopts_program_add_command(program, second), CLOPTS_ERROR_DUPLICATE_COMMAND);
-    NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 1);
-    NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 0), first);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_get_command_count(program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_get_command_at(program, 0), first);
     clopts_command_destroy(second);
     test_decl_discard(program);
 }
@@ -928,7 +928,7 @@ static clopts_env_status_t layout_env_unset(void *ctx, const char *name, const c
 
 /*
  * Parses argv against program, requires the status, and checks that
- * clopts_help_target() returns expected and sets the target to
+ * clopts_help_find_target() returns expected and sets the target to
  * expected_target (from a stale value).
  */
 static void layout_check_target(const clopts_program_t *program, int argc, char *const *argv,
@@ -937,10 +937,10 @@ static void layout_check_target(const clopts_program_t *program, int argc, char 
     clopts_result_t *result = clopts_parse_with_env(program, argc, argv, layout_env_unset, NULL);
     const clopts_command_t *target = (const clopts_command_t *)&layout_stale_option;
 
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), status);
-    NAOS_CHECK_INT_EQ(clopts_help_target(program, result, &target), expected);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), status);
+    NAOS_CHECK_INT_EQ(clopts_help_find_target(program, result, &target), expected);
     NAOS_CHECK_PTR_EQ(target, expected_target);
-    clopts_result_free(result);
+    clopts_result_destroy(result);
 }
 
 NAOS_TEST(help_target_without_a_positional_is_the_program)
@@ -998,7 +998,7 @@ NAOS_TEST(help_target_of_a_status_other_than_ok_is_false)
     layout_check_target(f.program, LAYOUT_ARGC(argv_usage), argv_usage, CLOPTS_USAGE_ERROR, false, NULL);
 
     /* A NULL result reads as out of memory. */
-    NAOS_CHECK_FALSE(clopts_help_target(f.program, NULL, &target));
+    NAOS_CHECK_FALSE(clopts_help_find_target(f.program, NULL, &target));
     NAOS_CHECK_NULL(target);
     help_fixture_tool_free(&f);
 }
