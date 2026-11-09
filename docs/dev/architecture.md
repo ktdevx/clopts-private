@@ -8,23 +8,29 @@
 
 | モジュール | ディレクトリ | 役割 |
 |------------|--------------|------|
-| core | `src/core/` | アロケーターの窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、書き込みのコールバック、宣言エラーの説明 |
-| parser | `src/parser/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則と検索、argv の走査、環境変数と既定値の解決、結果のハンドル |
+| core | `src/core/` | アロケーターの窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、書き込みのコールバック |
+| decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則と比べ方、宣言エラーの説明 |
+| parser | `src/parser/` | 解析の入口と手順、名前での検索、argv の走査、環境変数と既定値の解決、必須の検査、結果のハンドル |
 | help | `src/help/` | ヘルプ・使い方・版・エラーの文面の出力と、help サブコマンドなどの宣言の補助 |
-| platform | `src/platform/` | Windows のコマンドラインの分割と UTF-8 への変換、環境変数の参照 |
+| platform | `src/platform/` | Windows のコマンドラインの分割と UTF-8 への変換、環境変数の参照（解析の既定の引き方も含む） |
 
 依存の向きは次のとおりである。
 
 ```mermaid
 flowchart LR
     help --> parser_api["clopts/*.h（公開 API）"]
+    parser --> decl
+    parser --> platform
+    decl --> core
     parser --> core
     help --> core
     platform --> core
 ```
 
-- parser、help、platform は core の内部ヘッダ `core/core_internal.h` を使う。core はほかのモジュールに依存しない。
-- help は parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。help は、ライブラリの利用者が書けることしかしていない。
+- decl、parser、help、platform は core の内部ヘッダ `core/core_internal.h` を使う。core はほかのモジュールに依存しない。
+- decl は解析を知らない。parser は decl の内部ヘッダ `decl/decl_internal.h`（Scope の読み取りと名前の比べ方）で宣言を読み、書き込まない。
+- parser は、`getenv_fn` が NULL のときの環境変数の引き方を platform の内部ヘッダ（`clopts_platform_getenv_default`）から使う。プロセスの環境を読むのは platform だけである。
+- help は decl と parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。help は、ライブラリの利用者が書けることしかしていない。
 - 各モジュールの内部ヘッダ（`<module>/<module>_internal.h`）の関数は、共有ライブラリから export しない。
 
 ## 宣言モデル
@@ -69,7 +75,7 @@ classDiagram
 
 - Program はプログラム自身の範囲である。名前（プログラムの名前）・説明・グローバルオプション・サブコマンドのないプログラムの位置引数を直接持つ。
 - Command はサブコマンドだけを表す。
-- Scope は内部だけの部品（`src/parser/scope.c`、`clopts_scope_t`）で、公開 API には出ない。オプションと位置引数の配列と、それに関わる検査（名前の重なり、否定形との衝突、位置引数の順序）をまとめる。Program と Command はこれを構造体に埋め込み、`clopts_program_scope()` / `clopts_command_scope()` で渡す。
+- Scope は内部だけの部品（`src/decl/scope.c`、`clopts_scope_t`）で、公開 API には出ない。オプションと位置引数の配列と、それに関わる検査（名前の重なり、否定形との衝突、位置引数の順序）をまとめる。Program と Command はこれを構造体に埋め込み、`clopts_program_scope()` / `clopts_command_scope()` で渡す。
 - 関係はすべてコンポジション（所有）である。子は親を指さない。オプションと位置引数は自分を渡したプログラムやコマンドを、コマンドは自分を渡したプログラムを知らない。
 - Program が位置引数を持つなら、サブコマンドは持てない（`CLOPTS_ERROR_MIXED_LAYOUT`）。この排他は型ではなく検査で守る（「[設計の判断](#設計の判断)」）。
 
@@ -79,11 +85,11 @@ classDiagram
 
 | 型 | 構造体の定義 |
 |----|--------------|
-| `clopts_program_t` | `src/parser/program.c` |
-| `clopts_command_t` | `src/parser/command.c` |
-| `clopts_option_t` | `src/parser/option.c` |
-| `clopts_positional_t` | `src/parser/positional.c` |
-| `clopts_scope_t` | `src/parser/parser_internal.h`（Program と Command に埋め込むため。読み書きは `scope.c` の関数だけで行う） |
+| `clopts_program_t` | `src/decl/program.c` |
+| `clopts_command_t` | `src/decl/command.c` |
+| `clopts_option_t` | `src/decl/option.c` |
+| `clopts_positional_t` | `src/decl/positional.c` |
+| `clopts_scope_t` | `src/decl/decl_internal.h`（Program と Command に埋め込むため。読み書きは `scope.c` の関数だけで行う） |
 | `clopts_result_t` | `src/parser/result.c`（解析のほかのファイルとテストは、`result.c` の関数で読み、記録する） |
 
 読み取り関数に NULL のハンドルを渡すのは契約違反で、`assert` で検出する。
@@ -101,7 +107,7 @@ help は公開 API だけを読むので、プログラム自身の範囲とサ�
 | サブコマンドの名前の重なり | `clopts_program_add_command` |
 | `MIXED_LAYOUT` | `clopts_program_add_command`（位置引数が既にあるとき、名前の重なりの後）と `clopts_program_add_positional`（サブコマンドが既にあるとき、Scope の検査の前） |
 
-名前の規則と検索は `names.c` にまとめてあり、ビルダーと走査が共有する。
+名前の規則と比べ方（バイト単位の完全一致）は `src/decl/names.c` にまとめてある。ビルダーの検査も、解析の検索（`src/parser/lookup.c`）も、名前はここの関数で比べる。
 
 ### 不変条件と契約
 
@@ -121,7 +127,7 @@ help は公開 API だけを読むので、プログラム自身の範囲とサ�
 6. 必須のオプションと位置引数を検査する（`check.c`）。
 7. `CLOPTS_OK`。サブコマンドがあるのに選ばれていなければ `CLOPTS_NO_COMMAND`。
 
-- オプションの検索は、選ばれたコマンドの Scope を先に、プログラムの Scope を後に探す（`clopts_parser_find_long/short`）。そのため、コマンドの名前が同じ名前のグローバルオプションを隠す。位置引数は、選ばれたコマンドの Scope か、サブコマンドのないプログラムの Scope から取る。
+- オプションの検索は、選ばれたコマンドの Scope を先に、プログラムの Scope を後に探す（`lookup.c` の `clopts_parser_find_long/short`）。そのため、コマンドの名前が同じ名前のグローバルオプションを隠す。位置引数は、選ばれたコマンドの Scope か、サブコマンドのないプログラムの Scope から取る。
 - 結果は、グローバルオプションと選ばれたコマンドのオプションそれぞれに、オプションと同じ添字のスロットを 1 つずつ持つ（`result.c`）。
 - 結果はプログラムを指さない。`clopts_result_destroy` は宣言を読まないので、結果はプログラムより後に解放してよい。
 - 結果ができた後の確保や環境変数の参照の失敗は、その結果を `CLOPTS_OUT_OF_MEMORY` にして終わる。
