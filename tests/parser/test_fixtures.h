@@ -12,7 +12,7 @@
  *   tool         with subcommands
  *     global: -v/--verbose COUNT, --color negatable FLAG,
  *             --config VALUE (env TOOL_CONFIG),
- *             -h/--help and --version terminal FLAGs (clopts/help.h)
+ *             -h/--help and --version terminal FLAGs
  *     build:  -o/--output VALUE required, -k/--keys LIST ',', -j COUNT max 8,
  *             SRC required, EXTRA variadic
  *     copy:   SRC required, DST required
@@ -27,7 +27,7 @@
  *
  * Each init function fills a struct of handles and sets ok when every
  * builder call succeeded. Every allocation of the assembly,
- * clopts_program_create() included, goes through the allocator set with
+ * clopts_program_create() and clopts_program_add_command() included, goes through the allocator set with
  * clopts_set_allocator(), so with the fault-injecting allocator of
  * tests/support/test_alloc.h each of them is a fault point. When an
  * allocation fails, the remaining builder calls get NULL handles and do
@@ -50,16 +50,15 @@ typedef struct fixture_tool
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of the init function succeeded */
-    clopts_command_t *root;
     clopts_command_t *build;
     clopts_command_t *copy;
     clopts_command_t *cat;
     clopts_command_t *help_command;  /* help [COMMAND] */
-    const clopts_option_t *help;     /* root: -h/--help terminal FLAG */
-    const clopts_option_t *version;  /* root: --version terminal FLAG */
-    clopts_option_t *verbose;   /* root:  -v/--verbose COUNT */
-    clopts_option_t *color;     /* root:  --color negatable FLAG */
-    clopts_option_t *config;    /* root:  --config VALUE, env TOOL_CONFIG */
+    const clopts_option_t *help;     /* global: -h/--help terminal FLAG */
+    const clopts_option_t *version;  /* global: --version terminal FLAG */
+    clopts_option_t *verbose;   /* global:  -v/--verbose COUNT */
+    clopts_option_t *color;     /* global:  --color negatable FLAG */
+    clopts_option_t *config;    /* global:  --config VALUE, env TOOL_CONFIG */
     clopts_option_t *output;    /* build: -o/--output VALUE required */
     clopts_option_t *keys;      /* build: -k/--keys LIST ',' */
     clopts_option_t *jobs;      /* build: -j COUNT max 8 */
@@ -80,7 +79,6 @@ typedef struct fixture_filt
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of the init function succeeded */
-    clopts_command_t *root;
     clopts_option_t *lines;     /* -n/--lines VALUE, default "10", env FILT_LINES */
     const clopts_option_t *help;  /* -h/--help terminal FLAG */
     clopts_positional_t *file;  /* FILE variadic */
@@ -95,10 +93,9 @@ typedef struct fixture_strict
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of the init function succeeded */
-    clopts_command_t *root;
     clopts_command_t *run;
-    clopts_option_t *token;     /* root: --token VALUE required */
-    const clopts_option_t *help;  /* root: -h/--help terminal FLAG */
+    clopts_option_t *token;     /* global: --token VALUE required */
+    const clopts_option_t *help;  /* global: -h/--help terminal FLAG */
 } fixture_strict_t;
 
 void fixture_strict_init(fixture_strict_t *f);

@@ -83,7 +83,7 @@ typedef struct clopts_help_row
  */
 void clopts_help_write_list(clopts_help_out_t *out, const clopts_help_row_t *rows, size_t count);
 
-/* True when command is the root or a subcommand of program. */
+/* True when command is a subcommand of program. */
 bool clopts_help_has_command(const clopts_program_t *program, const clopts_command_t *command);
 
 /* Body template of a usage error kind; NULL for CLOPTS_USAGE_NONE and values outside the enum. */

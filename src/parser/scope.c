@@ -19,15 +19,23 @@
 #include <assert.h>
 #include <string.h>
 
+/* Option index of scope; requires index < the option count. */
+static clopts_option_t *scope_option(const clopts_scope_t *scope, size_t index)
+{
+    return *(clopts_option_t **)clopts_core_vec_at(&scope->options, index);
+}
+
+/* Positional index of scope; requires index < the positional count. */
+static clopts_positional_t *scope_positional(const clopts_scope_t *scope, size_t index)
+{
+    return *(clopts_positional_t **)clopts_core_vec_at(&scope->positionals, index);
+}
+
 void clopts_scope_init(clopts_scope_t *scope)
 {
     assert(scope != NULL);
-    scope->options = NULL;
-    scope->option_count = 0;
-    scope->option_cap = 0;
-    scope->positionals = NULL;
-    scope->positional_count = 0;
-    scope->positional_cap = 0;
+    clopts_core_vec_init(&scope->options, sizeof(clopts_option_t *));
+    clopts_core_vec_init(&scope->positionals, sizeof(clopts_positional_t *));
 }
 
 void clopts_scope_release(clopts_scope_t *scope)
@@ -35,62 +43,17 @@ void clopts_scope_release(clopts_scope_t *scope)
     size_t i;
 
     assert(scope != NULL);
-    for (i = 0; i < scope->option_count; i++)
+    for (i = 0; i < scope->options.len; i++)
     {
-        clopts_option_destroy(scope->options[i]);
+        clopts_option_destroy(scope_option(scope, i));
     }
-    clopts_core_free(scope->options);
+    clopts_core_vec_free(&scope->options);
 
-    for (i = 0; i < scope->positional_count; i++)
+    for (i = 0; i < scope->positionals.len; i++)
     {
-        clopts_positional_destroy(scope->positionals[i]);
+        clopts_positional_destroy(scope_positional(scope, i));
     }
-    clopts_core_free(scope->positionals);
-    clopts_scope_init(scope);
-}
-
-/* Capacity of the first allocation of an attach array, in elements. */
-#define SCOPE_INITIAL_CAP ((size_t)8)
-
-/*
- * Makes room for one more element in the attach array items holding count
- * of cap elements of elem_size bytes: grows the capacity to 8, then doubles
- * it, when full. Returns the array to use (items itself when not full) and
- * updates *cap, or NULL on overflow or allocation failure, leaving items
- * and *cap unchanged.
- */
-static void *scope_reserve(void *items, size_t count, size_t *cap, size_t elem_size)
-{
-    size_t new_cap;
-    size_t new_bytes;
-    void *grown;
-
-    if (count < *cap)
-    {
-        return items;
-    }
-
-    if (*cap == 0)
-    {
-        new_cap = SCOPE_INITIAL_CAP;
-    }
-    else if (clopts_core_size_mul(*cap, 2, &new_cap) != 0)
-    {
-        return NULL;
-    }
-
-    if (clopts_core_size_mul(new_cap, elem_size, &new_bytes) != 0)
-    {
-        return NULL;
-    }
-
-    grown = clopts_core_realloc(items, new_bytes);
-    if (grown != NULL)
-    {
-        *cap = new_cap;
-    }
-
-    return grown;
+    clopts_core_vec_free(&scope->positionals);
 }
 
 /*
@@ -109,9 +72,9 @@ static bool scope_has_negation_name(const clopts_scope_t *scope, const char *lon
 {
     size_t i;
 
-    for (i = 0; i < scope->option_count; i++)
+    for (i = 0; i < scope->options.len; i++)
     {
-        const char *name = clopts_option_long_name(scope->options[i]);
+        const char *name = clopts_option_long_name(scope_option(scope, i));
 
         if ((name != NULL) && (strncmp(name, "no-", 3) == 0) && (strcmp(name + 3, long_name) == 0))
         {
@@ -147,7 +110,6 @@ static clopts_error_t scope_check_option(const clopts_scope_t *scope, const clop
 
 clopts_error_t clopts_scope_add_option(clopts_scope_t *scope, clopts_option_t *option)
 {
-    clopts_option_t **options;
     clopts_error_t error;
 
     assert(scope != NULL);
@@ -158,18 +120,7 @@ clopts_error_t clopts_scope_add_option(clopts_scope_t *scope, clopts_option_t *o
     {
         return error;
     }
-
-    options = (clopts_option_t **)scope_reserve(scope->options, scope->option_count, &scope->option_cap,
-                                                sizeof(*options));
-    if (options == NULL)
-    {
-        return CLOPTS_ERROR_OUT_OF_MEMORY;
-    }
-
-    scope->options = options;
-    scope->options[scope->option_count++] = option;
-
-    return CLOPTS_ERROR_NONE;
+    return (clopts_core_vec_push(&scope->options, &option) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
 /* Checks of clopts_scope_add_positional(scope, positional) against scope, in order. */
@@ -177,12 +128,12 @@ static clopts_error_t scope_check_positional(const clopts_scope_t *scope, const 
 {
     const clopts_positional_t *last;
 
-    if (scope->positional_count == 0)
+    if (scope->positionals.len == 0)
     {
         return CLOPTS_ERROR_NONE;
     }
 
-    last = scope->positionals[scope->positional_count - 1];
+    last = scope_positional(scope, scope->positionals.len - 1);
     if (clopts_positional_variadic(last))
     {
         return CLOPTS_ERROR_VARIADIC_POSITION;
@@ -199,7 +150,6 @@ static clopts_error_t scope_check_positional(const clopts_scope_t *scope, const 
 
 clopts_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_positional_t *positional)
 {
-    clopts_positional_t **positionals;
     clopts_error_t error;
 
     assert(scope != NULL);
@@ -210,18 +160,8 @@ clopts_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_positio
     {
         return error;
     }
-
-    positionals = (clopts_positional_t **)scope_reserve(scope->positionals, scope->positional_count,
-                                                        &scope->positional_cap, sizeof(*positionals));
-    if (positionals == NULL)
-    {
-        return CLOPTS_ERROR_OUT_OF_MEMORY;
-    }
-
-    scope->positionals = positionals;
-    scope->positionals[scope->positional_count++] = positional;
-
-    return CLOPTS_ERROR_NONE;
+    return (clopts_core_vec_push(&scope->positionals, &positional) == 0) ? CLOPTS_ERROR_NONE
+                                                                          : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
 /* ---- read functions ---- */
@@ -229,33 +169,33 @@ clopts_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_positio
 size_t clopts_scope_option_count(const clopts_scope_t *scope)
 {
     assert(scope != NULL);
-    return scope->option_count;
+    return scope->options.len;
 }
 
 const clopts_option_t *clopts_scope_option_at(const clopts_scope_t *scope, size_t index)
 {
     assert(scope != NULL);
-    assert((index < scope->option_count) && "index must be less than the option count");
-    if (index >= scope->option_count)
+    assert((index < scope->options.len) && "index must be less than the option count");
+    if (index >= scope->options.len)
     {
         return NULL;
     }
-    return scope->options[index];
+    return scope_option(scope, index);
 }
 
 size_t clopts_scope_positional_count(const clopts_scope_t *scope)
 {
     assert(scope != NULL);
-    return scope->positional_count;
+    return scope->positionals.len;
 }
 
 const clopts_positional_t *clopts_scope_positional_at(const clopts_scope_t *scope, size_t index)
 {
     assert(scope != NULL);
-    assert((index < scope->positional_count) && "index must be less than the positional count");
-    if (index >= scope->positional_count)
+    assert((index < scope->positionals.len) && "index must be less than the positional count");
+    if (index >= scope->positionals.len)
     {
         return NULL;
     }
-    return scope->positionals[index];
+    return scope_positional(scope, index);
 }

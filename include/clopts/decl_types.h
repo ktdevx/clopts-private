@@ -23,21 +23,22 @@ extern "C" {
  * clopts/program.h (all included by clopts/decl.h) and is referred to
  * through opaque handles only; their layout is private to the library.
  *
- * A declaration is built from the bottom up. Options and positionals are
- * created on their own, configured, and then attached to a command; commands
- * are created on their own, filled, and then handed to clopts_program_create()
- * together with the root:
+ * A program is created by name with clopts_program_create() and filled.
+ * Options and positionals are created on their own, configured, and then
+ * attached to the program (global options, positionals of a program without
+ * subcommands) or to a command; commands are created on their own, filled,
+ * and then added to the program:
  *
  *     clopts_option_t *verbose;
  *     if (clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_ERROR_NONE) ...
  *     clopts_option_set_help(verbose, "Print more details");
- *     if (clopts_command_add_option(root, verbose) != CLOPTS_ERROR_NONE) {
+ *     if (clopts_program_add_option(program, verbose) != CLOPTS_ERROR_NONE) {
  *         clopts_option_destroy(verbose);  // a failed attach leaves it with the caller
  *         ...
  *     }
  *
- * An option or positional does not know the command it is attached to, and
- * a command does not know the program it belongs to.
+ * An option or positional does not know the program or command it is
+ * attached to, and a command does not know the program it belongs to.
  *
  * Ownership and lifetime:
  *   - Every string passed to a builder function is copied; the caller may
@@ -45,24 +46,26 @@ extern "C" {
  *   - A new option, positional or command is owned by the caller until it is
  *     attached successfully; the caller releases an unattached one with
  *     clopts_option_destroy() / clopts_positional_destroy() /
- *     clopts_command_destroy(). A successful attach (clopts_command_add_option(),
- *     clopts_command_add_positional(), clopts_program_create()) moves ownership
- *     to the command or the program; a failed one changes nothing.
- *   - The program owns its root, its commands and everything attached to
- *     them. These handles stay valid, at the same address, until
+ *     clopts_command_destroy(). A successful attach (clopts_program_add_option(),
+ *     clopts_program_add_positional(), clopts_program_add_command(),
+ *     clopts_command_add_option(), clopts_command_add_positional()) moves
+ *     ownership to the program or the command; a failed one changes nothing.
+ *   - The program owns its options, positionals and commands and everything
+ *     attached to them. These handles stay valid, at the same address, until
  *     clopts_program_destroy().
  *
  * Errors: every builder function that can fail returns CLOPTS_ERROR_NONE on
  * success and another clopts_error_t right away on failure, leaving every
  * handle unchanged. clopts_positional_set_required() and
- * clopts_positional_set_variadic() cannot fail and return nothing. Nothing is recorded for later: a program built only from
- * successful calls is always valid. Checks that need only the option or
- * positional itself are made by its constructor and setters; checks against
- * the other options and positionals of the same command are made when it is
- * attached to the command; checks between commands (command names, the
- * layout of the root) are made by clopts_program_create(). Option names are not
- * checked between commands: a name of a command shadows the same name of the
- * root (clopts/parse.h).
+ * clopts_positional_set_variadic() cannot fail and return nothing. Nothing
+ * is recorded for later: a program built only from successful calls is
+ * always valid. Checks that need only the option or positional itself are
+ * made by its constructor and setters; checks against the other options and
+ * positionals of the same program or command are made when it is attached;
+ * checks between commands (command names, the layout of the program) are
+ * made by clopts_program_add_command() and clopts_program_add_positional().
+ * Option names are not checked between the program and its commands: a name
+ * of a command shadows the same global option (clopts/parse.h).
  *
  * Other rules:
  *   - A NULL handle or out pointer is a contract violation, caught by assert:
@@ -70,11 +73,14 @@ extern "C" {
  *     pointer is set to NULL.
  *   - Attached handles are read-only, and a handle is attached at most once.
  *     The library does not check either: calling a setter or an attach on an
- *     attached option, positional or command, attaching the same option or
- *     positional twice, or listing the same command twice (or root among the
- *     commands) in clopts_program_create() is a contract violation (the
- *     behavior is undefined). A program never changes after
- *     clopts_program_create().
+ *     attached option, positional or command, or attaching the same option,
+ *     positional or command twice, is a contract violation (the behavior is
+ *     undefined).
+ *   - A program must not change once it is first parsed or written
+ *     (clopts/program.h): calling a builder function on it or on anything
+ *     attached to it from then on is a contract violation (the behavior is
+ *     undefined; it is not detected). Keeping to this is the caller's
+ *     responsibility.
  *   - Setting a string attribute again replaces the previous copy (last call
  *     wins). NULL, false, '\0' or 0 resets an attribute.
  *   - The read functions (clopts_option_long_name() and the others) accept

@@ -24,9 +24,9 @@ extern "C" {
  * never reports a declaration error.
  *
  * Lookup: an option token is looked up in the selected command first and
- * then in the root (the global options). In each of them the exact long
+ * then in the program (the global options). In each of them the exact long
  * name comes first and --no-<name> of a negatable FLAG second, so a name of
- * a command shadows the same name of the root. The parser knows no built-in
+ * a command shadows the same global option. The parser knows no built-in
  * option or command: --help, --version and a help command are ordinary
  * declarations (clopts/help.h).
  *
@@ -53,7 +53,7 @@ extern "C" {
  * (status CLOPTS_OUT_OF_MEMORY). A NULL option makes a value accessor return
  * the unset value. Neither is a contract violation.
  *
- * An option that is attached neither to the root nor to the selected command
+ * An option that is attached neither to the program nor to the selected command
  * (an option of another command or program, or an unattached one) reads as
  * unset.
  *
@@ -119,7 +119,7 @@ CLOPTS_API clopts_result_t *clopts_parse_with_env(const clopts_program_t *progra
 
 CLOPTS_API clopts_status_t clopts_result_status(const clopts_result_t *result);
 
-/* OK / TERMINATED / NO_COMMAND / USAGE_ERROR: the selected command. NULL without one (and for the root). */
+/* OK / TERMINATED / NO_COMMAND / USAGE_ERROR: the selected command. NULL without one. */
 CLOPTS_API const clopts_command_t *clopts_result_command(const clopts_result_t *result);
 
 /* TERMINATED: the terminal option that ended the parse. NULL for any other status. */
@@ -128,7 +128,7 @@ CLOPTS_API const clopts_option_t *clopts_result_terminal(const clopts_result_t *
 /*
  * Error accessors. Meaningful when the status is USAGE_ERROR;
  * otherwise (and for fields an error does not set) they return NONE, NULL,
- * -1, 0 or '\0'. error_command is NULL for the root.
+ * -1, 0 or '\0'. error_command is NULL when no command was selected.
  */
 CLOPTS_API clopts_usage_error_t clopts_result_usage_error(const clopts_result_t *result);
 CLOPTS_API const clopts_command_t *clopts_result_error_command(const clopts_result_t *result);

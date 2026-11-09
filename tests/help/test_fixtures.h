@@ -33,7 +33,8 @@
  *     -h/--help, ファイル optional variadic
  *
  * Each init function fills a struct of handles; the program is NULL only
- * when clopts_program_create() failed (the other handles are then NULL too).
+ * when clopts_program_create() or clopts_program_add_command() failed (the
+ * other handles are then NULL too).
  * The free function releases the program (NULL is fine) and clears the
  * struct.
  */
@@ -52,15 +53,14 @@ typedef struct help_fixture_tool
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of the init function succeeded */
-    clopts_command_t *root;
     clopts_command_t *build;
     clopts_command_t *copy;
     clopts_command_t *help_command;  /* help [COMMAND] */
-    const clopts_option_t *help;     /* root: -h/--help */
-    const clopts_option_t *version;  /* root: --version */
-    clopts_option_t *verbose;   /* root:  -v/--verbose COUNT */
-    clopts_option_t *color;     /* root:  -c/--color negatable FLAG */
-    clopts_option_t *config;    /* root:  --config VALUE <FILE>, env TOOL_CONFIG */
+    const clopts_option_t *help;     /* global: -h/--help */
+    const clopts_option_t *version;  /* global: --version */
+    clopts_option_t *verbose;   /* global:  -v/--verbose COUNT */
+    clopts_option_t *color;     /* global:  -c/--color negatable FLAG */
+    clopts_option_t *config;    /* global:  --config VALUE <FILE>, env TOOL_CONFIG */
     clopts_option_t *output;    /* build: -o/--output VALUE <FILE> required */
     clopts_option_t *keys;      /* build: -k/--keys LIST <KEY> ',', default "a,b" */
     clopts_positional_t *build_src;    /* build: SRC required */
@@ -78,7 +78,6 @@ typedef struct help_fixture_filt
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of the init function succeeded */
-    clopts_command_t *root;
     clopts_option_t *lines;     /* -n/--lines VALUE <N>, default "10", env FILT_LINES */
     const clopts_option_t *help;  /* -h/--help */
     clopts_positional_t *file;  /* FILE required variadic */
@@ -93,7 +92,6 @@ typedef struct help_fixture_bare
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of the init function succeeded */
-    clopts_command_t *root;
     clopts_command_t *run;      /* summary only, no options, no positionals */
     clopts_command_t *help_command;  /* help [COMMAND] */
     const clopts_option_t *help;     /* -h/--help */
@@ -121,7 +119,6 @@ typedef struct help_fixture_wide
 {
     clopts_program_t *program;
     bool ok;                    /* every builder call of the init function succeeded */
-    clopts_command_t *root;
     clopts_option_t *naive;     /* --naïve FLAG */
     clopts_option_t *nihongo;   /* -j/--日本語 VALUE <値> */
     clopts_option_t *raw;       /* --raw VALUE <HELP_FIXTURE_RAW_VALUE_NAME> */

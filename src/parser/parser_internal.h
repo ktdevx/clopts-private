@@ -55,12 +55,8 @@
  */
 typedef struct clopts_scope
 {
-    clopts_option_t **options;          /* option_count in order of attachment; NULL when option_cap == 0 */
-    size_t option_count;
-    size_t option_cap;                  /* elements allocated */
-    clopts_positional_t **positionals;  /* positional_count in order of attachment; NULL when positional_cap == 0 */
-    size_t positional_count;
-    size_t positional_cap;              /* elements allocated */
+    clopts_core_vec_t options;      /* clopts_option_t * elements, in order of attachment */
+    clopts_core_vec_t positionals;  /* clopts_positional_t * elements, in order of attachment */
 } clopts_scope_t;
 
 /* Makes scope empty. */

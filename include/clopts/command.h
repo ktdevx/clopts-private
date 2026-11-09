@@ -16,19 +16,18 @@ extern "C" {
 #endif
 
 /*
- * Command (the root included): creation, release, texts, the attach of
- * options and positionals, and the read functions. A command is created on
- * its own, filled, and then handed to clopts_program_create() (clopts/program.h),
- * as the root or as a subcommand; it does not know its program. The attach
- * functions make the checks against the other options and positionals of the
- * same command. The rules shared by every builder function are in
- * clopts/decl_types.h.
+ * Subcommand: creation, release, texts, the attach of options and
+ * positionals, and the read functions. A command is created on its own,
+ * filled, and then added to a program with clopts_program_add_command()
+ * (clopts/program.h); it does not know its program. The attach functions make
+ * the checks against the other options and positionals of the same command.
+ * The rules shared by every builder function are in clopts/decl_types.h.
  */
 
 /*
  * Creates an unattached command named name (copied) into *out. The name must
  * not be NULL or empty, start with '-' or contain white space
- * (INVALID_NAME). For the root, the name is the program name.
+ * (INVALID_NAME).
  */
 CLOPTS_API clopts_error_t clopts_command_create(const char *name, clopts_command_t **out);
 
@@ -39,10 +38,10 @@ CLOPTS_API clopts_error_t clopts_command_create(const char *name, clopts_command
  */
 CLOPTS_API void clopts_command_destroy(clopts_command_t *command);
 
-/* One-line description in the program help. Not used for the root. */
+/* One-line description in the program help. */
 CLOPTS_API clopts_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary);
 
-/* Description in the command help. For the root, the program description. */
+/* Description in the command help. */
 CLOPTS_API clopts_error_t clopts_command_set_description(clopts_command_t *command, const char *description);
 
 /*

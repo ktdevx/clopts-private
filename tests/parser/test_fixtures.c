@@ -6,10 +6,10 @@
  *
  * The three programs reproduce the first-version declarations (names, kinds,
  * help texts, value names, environment variables, defaults, delimiters, count
- * limit and positionals) with the builder functions, bottom up: the root and
- * the commands first, then the program (test_decl_finish()). The terminal
- * options -h/--help and --version and the help command come from the
- * helpers of clopts/help.h.
+ * limit and positionals) with the builder functions: the program and its
+ * global options first, then the commands, which test_decl_finish() adds.
+ * The terminal options -h/--help and --version come from test_decl.h, the
+ * help command from clopts/help.h.
  */
 
 #include "test_fixtures.h"
@@ -28,10 +28,10 @@ void fixture_tool_init(fixture_tool_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->root = test_decl_root("tool");
-    if (f->root != NULL)
+    f->program = test_decl_begin("tool");
+    if (f->program != NULL)
     {
-        test_decl_check(clopts_command_set_description(f->root, "A fictional tool with subcommands."));
+        test_decl_check(clopts_program_set_description(f->program, "A fictional tool with subcommands."));
     }
 
     f->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
@@ -39,7 +39,7 @@ void fixture_tool_init(fixture_tool_t *f)
     {
         test_decl_check(clopts_option_set_help(f->verbose, "Increase verbosity."));
     }
-    f->verbose = test_decl_attach(f->root, f->verbose);
+    f->verbose = test_decl_global_attach(f->program, f->verbose);
 
     f->color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
     if (f->color != NULL)
@@ -50,7 +50,7 @@ void fixture_tool_init(fixture_tool_t *f)
     {
         test_decl_check(clopts_option_set_negatable(f->color, true));
     }
-    f->color = test_decl_attach(f->root, f->color);
+    f->color = test_decl_global_attach(f->program, f->color);
 
     f->config = test_decl_option(CLOPTS_OPTION_VALUE, "config", '\0');
     if (f->config != NULL)
@@ -65,16 +65,13 @@ void fixture_tool_init(fixture_tool_t *f)
     {
         test_decl_check(clopts_option_set_env(f->config, "TOOL_CONFIG"));
     }
-    f->config = test_decl_attach(f->root, f->config);
+    f->config = test_decl_global_attach(f->program, f->config);
 
-    if (f->root != NULL)
-    {
-        test_decl_check(clopts_help_add_help_option(f->root, &f->help));
-        test_decl_check(clopts_help_add_version_option(f->root, &f->version));
-    }
+    f->help = test_decl_global_attach(f->program, test_decl_help_option());
+    f->version = test_decl_global_attach(f->program, test_decl_version_option());
 
     /* build */
-    f->build = test_decl_command(f->root, "build");
+    f->build = test_decl_command(f->program, "build");
     if (f->build != NULL)
     {
         test_decl_check(clopts_command_set_summary(f->build, "Build a source."));
@@ -144,7 +141,7 @@ void fixture_tool_init(fixture_tool_t *f)
     f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
 
     /* copy */
-    f->copy = test_decl_command(f->root, "copy");
+    f->copy = test_decl_command(f->program, "copy");
     if (f->copy != NULL)
     {
         test_decl_check(clopts_command_set_summary(f->copy, "Copy a file."));
@@ -173,7 +170,7 @@ void fixture_tool_init(fixture_tool_t *f)
     f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
 
     /* cat */
-    f->cat = test_decl_command(f->root, "cat");
+    f->cat = test_decl_command(f->program, "cat");
     if (f->cat != NULL)
     {
         test_decl_check(clopts_command_set_summary(f->cat, "Show files."));
@@ -214,16 +211,16 @@ void fixture_tool_init(fixture_tool_t *f)
     f->cat_file = test_decl_attach_positional(f->cat, f->cat_file);
 
     /* help */
-    if (f->root != NULL)
+    if (f->program != NULL)
     {
         test_decl_check(clopts_help_command_create(&f->help_command));
-        f->help_command = test_decl_adopt(f->root, f->help_command);
+        f->help_command = test_decl_adopt(f->program, f->help_command);
     }
 
-    f->program = test_decl_finish(f->root);
+    f->program = test_decl_finish(f->program);
     if (f->program == NULL)
     {
-        /* Everything was released with the root. */
+        /* Everything was released with the program. */
         memset(f, 0, sizeof(*f));
     }
     f->ok = (test_decl_failures == 0);
@@ -245,10 +242,10 @@ void fixture_filt_init(fixture_filt_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->root = test_decl_root("filt");
-    if (f->root != NULL)
+    f->program = test_decl_begin("filt");
+    if (f->program != NULL)
     {
-        test_decl_check(clopts_command_set_description(f->root, "A fictional filter without subcommands."));
+        test_decl_check(clopts_program_set_description(f->program, "A fictional filter without subcommands."));
     }
 
     f->lines = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
@@ -268,7 +265,7 @@ void fixture_filt_init(fixture_filt_t *f)
     {
         test_decl_check(clopts_option_set_env(f->lines, "FILT_LINES"));
     }
-    f->lines = test_decl_attach(f->root, f->lines);
+    f->lines = test_decl_global_attach(f->program, f->lines);
 
     f->file = test_decl_positional("FILE");
     if (f->file != NULL)
@@ -279,13 +276,10 @@ void fixture_filt_init(fixture_filt_t *f)
     {
         clopts_positional_set_variadic(f->file, true);
     }
-    f->file = test_decl_attach_positional(f->root, f->file);
+    f->file = test_decl_global_attach_positional(f->program, f->file);
 
-    if (f->root != NULL)
-    {
-        test_decl_check(clopts_help_add_help_option(f->root, &f->help));
-    }
-    f->program = test_decl_finish(f->root);
+    f->help = test_decl_global_attach(f->program, test_decl_help_option());
+    f->program = test_decl_finish(f->program);
     if (f->program == NULL)
     {
         memset(f, 0, sizeof(*f));
@@ -309,10 +303,10 @@ void fixture_strict_init(fixture_strict_t *f)
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
-    f->root = test_decl_root("strict");
-    if (f->root != NULL)
+    f->program = test_decl_begin("strict");
+    if (f->program != NULL)
     {
-        test_decl_check(clopts_command_set_description(f->root, "A fictional program with a required global option."));
+        test_decl_check(clopts_program_set_description(f->program, "A fictional program with a required global option."));
     }
 
     f->token = test_decl_option(CLOPTS_OPTION_VALUE, "token", '\0');
@@ -328,19 +322,16 @@ void fixture_strict_init(fixture_strict_t *f)
     {
         test_decl_check(clopts_option_set_required(f->token, true));
     }
-    f->token = test_decl_attach(f->root, f->token);
+    f->token = test_decl_global_attach(f->program, f->token);
 
-    if (f->root != NULL)
-    {
-        test_decl_check(clopts_help_add_help_option(f->root, &f->help));
-    }
+    f->help = test_decl_global_attach(f->program, test_decl_help_option());
 
-    f->run = test_decl_command(f->root, "run");
+    f->run = test_decl_command(f->program, "run");
     if (f->run != NULL)
     {
         test_decl_check(clopts_command_set_summary(f->run, "Run it."));
     }
-    f->program = test_decl_finish(f->root);
+    f->program = test_decl_finish(f->program);
     if (f->program == NULL)
     {
         memset(f, 0, sizeof(*f));
