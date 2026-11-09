@@ -11,7 +11,7 @@
  * changes nothing (the out pointer NULL, the attribute unchanged).
  */
 
-#include "parser/parser_internal.h"
+#include "decl/decl_internal.h"
 #include "test_decl.h"
 
 #include <naos/naos.h>

@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite decl: the immediate checks of the program, command and attach
- * functions, the lookups shared with the scanner, and how a parse resolves
- * the names those checks allow. The checks of an option or a positional
+ * functions, the name comparisons of one scope (names.c), and how a parse
+ * resolves the names those checks allow. The lookups of the scanner across
+ * the selected command and the program are in the lookup suite of the parser
+ * tests. The checks of an option or a positional
  * alone are in the decl_option and decl_positional suites.
  *
  * Every builder function returns its clopts_error_t right away, and a
@@ -30,11 +32,12 @@
  * value.
  *
  * Calls whose error is checked go to the API directly; the helpers of
- * test_decl.h build the surrounding declarations. The model and the lookups
- * are internal and are read or called directly.
+ * test_decl.h build the surrounding declarations. The model and the name
+ * comparisons are internal and are read or called directly.
  */
 
-#include "parser/parser_internal.h"
+#include "clopts/parse.h"
+#include "decl/decl_internal.h"
 #include "test_alloc.h"
 #include "test_decl.h"
 
@@ -58,21 +61,6 @@ static char sentinel_program_storage;
 #define SENTINEL_PROGRAM ((clopts_program_t *)&sentinel_program_storage)
 static char sentinel_command_storage;
 #define SENTINEL_COMMAND ((clopts_command_t *)&sentinel_command_storage)
-
-/* clopts_parser_find_long() in the program and command (NULL: none selected). */
-static clopts_parser_ref_t find_long(const clopts_program_t *program, const clopts_command_t *command,
-                                     const char *name, size_t name_len)
-{
-    return clopts_parser_find_long(clopts_program_scope(program),
-                                   (command != NULL) ? clopts_command_scope(command) : NULL, name, name_len);
-}
-
-/* clopts_parser_find_short() in the program and command (NULL: none selected). */
-static clopts_parser_ref_t find_short(const clopts_program_t *program, const clopts_command_t *command, char c)
-{
-    return clopts_parser_find_short(clopts_program_scope(program),
-                                    (command != NULL) ? clopts_command_scope(command) : NULL, c);
-}
 
 /*
  * What options and positionals are attached to: the program (its global
@@ -1398,152 +1386,32 @@ NAOS_TEST(find_command_is_exact_and_case_sensitive)
     clopts_program_destroy(f.program);
 }
 
-NAOS_TEST(find_long_searches_command_then_global)
+NAOS_TEST(index_of_long_and_short_compare_exactly_in_one_command)
 {
     lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
+    const clopts_scope_t *global = clopts_program_scope(f.program);
+    const clopts_scope_t *build = clopts_command_scope(f.build);
+    const size_t global_count = clopts_scope_option_count(global);
+    const size_t build_count = clopts_scope_option_count(build);
 
-    ref = find_long(f.program, f.build, "output", 6);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_output);
-    NAOS_CHECK_FALSE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 0);
-    NAOS_CHECK_FALSE(ref.negated);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "output", 6), 0);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "outputs", 6), 0);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "no-color", 8), 3);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(global, "quiet", 5), 2);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "Output", 6), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "out", 3), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "", 0), build_count);
+    /* a name of the program is not found in a command, nor the other way round */
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "verbose", 7), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(global, "output", 6), global_count);
+    /* no negation here: that is the lookup of the parser */
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(global, "no-color", 8), global_count);
 
-    ref = find_long(f.program, f.copy, "output", 6);
-    NAOS_CHECK_PTR_EQ(ref.option, f.copy_output);
-
-    ref = find_long(f.program, f.build, "quiet", 5);
-    NAOS_CHECK_PTR_EQ(ref.option, f.quiet);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 2);
-
-    /* without a selected command only the global options are searched */
-    ref = find_long(f.program, NULL, "output", 6);
-    NAOS_CHECK_NULL(ref.option);
-    ref = find_long(f.program, NULL, "verbose", 7);
-    NAOS_CHECK_PTR_EQ(ref.option, f.verbose);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 0);
-
-    /* other commands are not searched */
-    ref = find_long(f.program, f.copy, "cache", 5);
-    NAOS_CHECK_NULL(ref.option);
-    clopts_program_destroy(f.program);
-}
-
-NAOS_TEST(find_long_is_exact_case_sensitive_and_uses_name_len)
-{
-    lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
-
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "Output", 6).option);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "out", 3).option);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "outputs", 7).option);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "", 0).option);
-
-    /* name_len bytes only: "output=x" with name_len 6 */
-    ref = find_long(f.program, f.build, "output=x", 6);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_output);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "output=x", 5).option);
-    clopts_program_destroy(f.program);
-}
-
-NAOS_TEST(find_long_negation_only_for_negatable_flags_with_long_name)
-{
-    lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
-
-    ref = find_long(f.program, NULL, "no-color", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.color);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 1);
-    NAOS_CHECK_TRUE(ref.negated);
-
-    ref = find_long(f.program, f.build, "no-cache", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_cache);
-    NAOS_CHECK_FALSE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 1);
-    NAOS_CHECK_TRUE(ref.negated);
-
-    ref = find_long(f.program, f.copy, "no-color=1", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.color);
-    NAOS_CHECK_TRUE(ref.negated);
-
-    /* not negatable, not a FLAG, not selected, malformed */
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "no-quiet", 8).option);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "no-output", 9).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "no-", 3).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "No-color", 8).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "no-Color", 8).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "no-col", 6).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "nocolor", 7).option);
-    /* a negatable FLAG without a long name has no negation */
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "no-r", 4).option);
-    clopts_program_destroy(f.program);
-}
-
-/*
- * The scopes are searched one after the other, each one completely (exact
- * name, then negation): a command name, exact or negated, shadows the global one.
- */
-NAOS_TEST(find_long_resolves_each_scope_completely)
-{
-    lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
-
-    /* the exact no-color of build beats the negation of the global color */
-    ref = find_long(f.program, f.build, "no-color", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_no_color);
-    NAOS_CHECK_FALSE(ref.global);
-    NAOS_CHECK_FALSE(ref.negated);
-
-    /* the negation of the cache of build beats the exact global no-cache */
-    ref = find_long(f.program, f.build, "no-cache", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_cache);
-    NAOS_CHECK_TRUE(ref.negated);
-
-    /* without a command, and from another command, the global names */
-    ref = find_long(f.program, NULL, "no-cache", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.no_cache);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_FALSE(ref.negated);
-    ref = find_long(f.program, f.copy, "no-cache", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.no_cache);
-    ref = find_long(f.program, f.copy, "no-color", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.color);
-    NAOS_CHECK_TRUE(ref.negated);
-    clopts_program_destroy(f.program);
-}
-
-NAOS_TEST(find_short_searches_command_then_global)
-{
-    lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
-
-    ref = find_short(f.program, f.build, 'o');
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_output);
-    NAOS_CHECK_FALSE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 0);
-    NAOS_CHECK_FALSE(ref.negated);
-
-    ref = find_short(f.program, f.build, 'r');
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_release);
-    NAOS_CHECK_UINT_EQ(ref.index, 2);
-
-    ref = find_short(f.program, f.copy, 'v');
-    NAOS_CHECK_PTR_EQ(ref.option, f.verbose);
-    NAOS_CHECK_TRUE(ref.global);
-
-    ref = find_short(f.program, NULL, 'q');
-    NAOS_CHECK_PTR_EQ(ref.option, f.quiet);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 2);
-
-    NAOS_CHECK_NULL(find_short(f.program, NULL, 'o').option);
-    NAOS_CHECK_NULL(find_short(f.program, f.copy, 'c').option);
-    NAOS_CHECK_NULL(find_short(f.program, f.build, 'V').option);
-    NAOS_CHECK_NULL(find_short(f.program, f.build, 'O').option);
-    NAOS_CHECK_NULL(find_short(f.program, f.build, '\0').option);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(build, 'r'), 2);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(global, 'q'), 2);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(build, 'O'), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(build, 'v'), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(build, '\0'), build_count);
     clopts_program_destroy(f.program);
 }
 
@@ -1847,11 +1715,7 @@ NAOS_SUITE(decl,
     NAOS_ADD_TEST(failed_attach_leaves_ownership_with_the_caller),
     NAOS_ADD_TEST(tool_like_declaration_is_ok),
     NAOS_ADD_TEST(find_command_is_exact_and_case_sensitive),
-    NAOS_ADD_TEST(find_long_searches_command_then_global),
-    NAOS_ADD_TEST(find_long_is_exact_case_sensitive_and_uses_name_len),
-    NAOS_ADD_TEST(find_long_negation_only_for_negatable_flags_with_long_name),
-    NAOS_ADD_TEST(find_long_resolves_each_scope_completely),
-    NAOS_ADD_TEST(find_short_searches_command_then_global),
+    NAOS_ADD_TEST(index_of_long_and_short_compare_exactly_in_one_command),
     NAOS_ADD_TEST(find_conflict_and_named_search_one_command),
     NAOS_ADD_TEST(shadowed_long_name_resolves_by_position),
     NAOS_ADD_TEST(shadowed_short_name_resolves_by_position),

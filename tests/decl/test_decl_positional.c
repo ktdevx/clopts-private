@@ -8,7 +8,7 @@
  * positionals is checked when one is attached (decl suite).
  */
 
-#include "parser/parser_internal.h"
+#include "decl/decl_internal.h"
 #include "test_decl.h"
 
 #include <naos/naos.h>
