@@ -108,12 +108,12 @@ static void check_token_error(const clopts_result_t *result, clopts_usage_error_
 /* Checks that the error fields of result are still empty (TERMINATED). */
 static void check_error_untouched(const clopts_result_t *result)
 {
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_NONE);
-    NAOS_CHECK_NULL(result->error.command);
-    NAOS_CHECK_NULL(result->error.option);
-    NAOS_CHECK_NULL(result->error.positional);
-    NAOS_CHECK_NULL(result->error.token);
-    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_NONE);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->command);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->option);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->positional);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->token);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->argv_index, -1);
 }
 
 /* Checks that the FLAG option was not given (false, no source). */
@@ -255,8 +255,8 @@ NAOS_TEST(parse_leaves_the_program_unchanged)
     NAOS_CHECK_UINT_EQ(clopts_program_get_option_count(t.program), 5);
     NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(t.build), 3);
     NAOS_CHECK_NULL(clopts_option_get_default(t.output));
-    NAOS_CHECK_PTR_EQ(result->command, t.build);
-    NAOS_CHECK_NULL(result->terminal);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), t.build);
+    NAOS_CHECK_NULL(clopts_parser_result_get_terminal(result));
     clopts_result_destroy(result);
     fixture_tool_free(&t);
 }
@@ -792,7 +792,7 @@ NAOS_TEST(tool_long_help_is_terminated)
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     check_terminated(result, t.help, NULL);
-    NAOS_CHECK_PTR_EQ(result->terminal, t.help);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_terminal(result), t.help);
     /* The global scope is resolved (TOOL_CONFIG), no command scope. */
     NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
     NAOS_CHECK_UINT_EQ(env.query_count, 1);

@@ -756,8 +756,8 @@ NAOS_TEST(help_after_the_command_terminates_in_that_command)
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.help), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.version));
     NAOS_CHECK_UINT_EQ(clopts_result_get_positional_count(result), 1);
-    NAOS_CHECK_NULL(result->error.token);
-    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->token);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->argv_index, -1);
     clopts_result_destroy(result);
     fixture_tool_free(&f);
 }

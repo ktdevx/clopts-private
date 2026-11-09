@@ -240,25 +240,10 @@ static void sample_init(sample_t *s)
 /* Returns the slot of option (a global option or one of the selected command), found by its address. */
 static clopts_parser_slot_t *slot_of(clopts_result_t *result, const clopts_option_t *option)
 {
-    size_t i;
+    clopts_parser_slot_t *slot = clopts_parser_result_find_slot(result, option);
 
-    for (i = 0; i < result->global_count; i++)
-    {
-        if (result->global_slots[i].option == option)
-        {
-            return &result->global_slots[i];
-        }
-    }
-    NAOS_REQUIRE_NOT_NULL(result->command);
-    for (i = 0; i < result->command_count; i++)
-    {
-        if (result->command_slots[i].option == option)
-        {
-            return &result->command_slots[i];
-        }
-    }
-    NAOS_REQUIRE_TRUE(false);
-    return NULL;
+    NAOS_REQUIRE_NOT_NULL(slot);
+    return slot;
 }
 
 /* Returns item index of the LIST slot. */
@@ -723,8 +708,8 @@ NAOS_TEST(required_satisfied_by_env)
 
     NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), 0);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_NONE);
-    NAOS_CHECK_INT_EQ(result->status, CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_NONE);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
 
     SAMPLE_END(s, result);
 }
@@ -741,15 +726,15 @@ NAOS_TEST(missing_option_reports_global_before_command)
 
     NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result->error.option, s.token);
-    NAOS_CHECK_PTR_EQ(result->error.command, s.build);
-    NAOS_CHECK_NULL(result->error.positional);
-    NAOS_CHECK_NULL(result->error.token);
-    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
-    NAOS_CHECK_UINT_EQ(result->error.name_len, 0);
-    NAOS_CHECK_INT_EQ(result->error.short_name, '\0');
-    NAOS_CHECK_INT_EQ(result->status, CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.token);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->command, s.build);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->positional);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->token);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->argv_index, -1);
+    NAOS_CHECK_UINT_EQ(clopts_parser_result_get_error(result)->name_len, 0);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->short_name, '\0');
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
 
     SAMPLE_END(s, result);
 }
@@ -764,10 +749,10 @@ NAOS_TEST(missing_option_in_the_selected_command)
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_EXPLICIT);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result->error.option, s.mode);
-    NAOS_CHECK_PTR_EQ(result->error.command, s.build);
-    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.mode);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->command, s.build);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->argv_index, -1);
 
     SAMPLE_END(s, result);
 }
@@ -782,8 +767,8 @@ NAOS_TEST(default_source_does_not_satisfy_required)
     clopts_parser_slot_set_value(slot_of(result, s.token), "d", CLOPTS_SOURCE_DEFAULT);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result->error.option, s.token);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.token);
 
     SAMPLE_END(s, result);
 }
@@ -799,11 +784,11 @@ NAOS_TEST(missing_required_positional)
     clopts_parser_slot_set_value(slot_of(result, s.mode), "m", CLOPTS_SOURCE_EXPLICIT);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(result->error.positional, s.src);
-    NAOS_CHECK_NULL(result->error.option);
-    NAOS_CHECK_PTR_EQ(result->error.command, s.build);
-    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->positional, s.src);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->option);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->command, s.build);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->argv_index, -1);
 
     SAMPLE_END(s, result);
 }
@@ -819,9 +804,9 @@ NAOS_TEST(required_variadic_needs_one_token)
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_ENV);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(result->error.positional, s.files);
-    NAOS_CHECK_PTR_EQ(result->error.command, s.copy);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->positional, s.files);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->command, s.copy);
 
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_add_positional(result, first), 0);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), 0);
@@ -839,9 +824,9 @@ NAOS_TEST(include_command_false_checks_only_the_global_options)
 
     /* Global option missing: reported without a command. */
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, false), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result->error.option, s.token);
-    NAOS_CHECK_NULL(result->error.command);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.token);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->command);
 
     /* Global option satisfied: the command's missing option and positional are ignored. */
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_EXPLICIT);
@@ -859,7 +844,7 @@ NAOS_TEST(no_selected_command_checks_only_global_options)
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_EXPLICIT);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), 0);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_NONE);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_NONE);
 
     SAMPLE_END(s, result);
 }
@@ -895,13 +880,13 @@ NAOS_TEST(program_without_subcommands_checks_program_positionals)
     NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, program, counting_getenv, &calls, true), 0);
     NAOS_CHECK_INT_EQ(calls, 0);
     /* level is the only global option: slot 0. */
-    NAOS_CHECK_INT_EQ(result->global_slots[0].source, CLOPTS_SOURCE_DEFAULT);
-    NAOS_CHECK_STR_EQ(result->global_slots[0].value, "1");
+    NAOS_CHECK_INT_EQ(slot_of(result, level)->source, CLOPTS_SOURCE_DEFAULT);
+    NAOS_CHECK_STR_EQ(slot_of(result, level)->value, "1");
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(result->error.positional, input);
-    NAOS_CHECK_NULL(result->error.command);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->positional, input);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->command);
 
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_add_positional(result, token), 0);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, program, true), 0);
