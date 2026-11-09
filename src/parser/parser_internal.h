@@ -6,7 +6,35 @@
 #ifndef CLOPTS_PARSER_INTERNAL_H
 #define CLOPTS_PARSER_INTERNAL_H
 
-#include "parser/parser_model.h"
+#include "clopts/command.h"
+#include "clopts/option.h"
+#include "clopts/parse.h"
+#include "clopts/positional.h"
+#include "clopts/program.h"
+#include "core/core_internal.h"
+
+/*
+ * Internal declaration model: the only representation of a declaration, built
+ * by the builder functions (option.c, positional.c, command.c and
+ * parser_program.c). The layouts of a program, a command and a positional are
+ * private to parser_program.c, command.c and positional.c; options have their
+ * own header. Everything outside those files (the rest of the parser and
+ * help-and-messages included) reads them through the public read functions
+ * only.
+ *
+ * Invariants, guaranteed by the builder:
+ *   - Everything attached to a program satisfies every declaration rule:
+ *     a builder call that would break one fails and changes nothing. This
+ *     holds as long as the caller keeps the ownership contract (no setter or
+ *     attach after the attach, no handle attached twice), which is not
+ *     checked.
+ *   - The address of every handle stays the same until it is released:
+ *     children are allocated one by one and the arrays hold pointers only.
+ *   - Nothing points to its owner: an option or positional does not point to
+ *     its command, and a command does not point to its program.
+ *   - A program never changes after clopts_program_create(): its root and
+ *     commands are attached (read-only) from then on.
+ */
 
 /*
  * Internal contracts of the parser module, shared by the builder
@@ -56,9 +84,6 @@ const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *comma
  * at name, or NULL (used for the no-x conflict checks).
  */
 const clopts_option_t *clopts_parser_find_named(const clopts_command_t *command, const char *name, size_t name_len);
-
-/* Returns the command of program named name, or NULL. */
-const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program, const char *name);
 
 /*
  * Looks up the long name given by the name_len bytes at name in command

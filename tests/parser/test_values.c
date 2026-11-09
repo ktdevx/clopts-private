@@ -578,10 +578,10 @@ NAOS_TEST(nosub_declaration_is_valid)
     nosub_init(&n);
     NAOS_REQUIRE_NOT_NULL(n.program);
     NAOS_REQUIRE_TRUE(n.ok);
-    NAOS_CHECK_PTR_EQ(n.program->root, n.root);
+    NAOS_CHECK_PTR_EQ(clopts_program_root(n.program), n.root);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(n.root), 7);
     NAOS_CHECK_UINT_EQ(clopts_command_positional_count(n.root), 2);
-    NAOS_CHECK_UINT_EQ(n.program->command_count, 0);
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(n.program), 0);
     NAOS_CHECK_TRUE(clopts_option_terminal(n.help));
     NAOS_CHECK_TRUE(clopts_option_terminal(n.version));
     NAOS_CHECK_UINT_EQ(clopts_option_count_max(n.verbose), 3);

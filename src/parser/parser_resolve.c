@@ -142,7 +142,7 @@ int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *progr
         getenv_fn = clopts_parser_getenv_default;
     }
 
-    if (resolve_scope(result->global_slots, result->global_count, program->root,
+    if (resolve_scope(result->global_slots, result->global_count, clopts_program_root(program),
                       getenv_fn, env_ctx) != 0)
     {
         return -1;
@@ -214,7 +214,7 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
 
     command = include_command ? result->command : NULL;
 
-    missing = first_missing_option(result->global_slots, result->global_count, program->root);
+    missing = first_missing_option(result->global_slots, result->global_count, clopts_program_root(program));
     if (missing != NULL)
     {
         set_missing(result, command, missing, NULL);
@@ -235,9 +235,9 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
         }
         positional_scope = command;
     }
-    else if (program->command_count == 0)
+    else if (clopts_program_command_count(program) == 0)
     {
-        positional_scope = program->root;
+        positional_scope = clopts_program_root(program);
     }
     else
     {

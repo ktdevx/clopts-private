@@ -189,9 +189,10 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
 static clopts_parser_ref_t decl_lookup(const clopts_program_t *program, const clopts_command_t *command,
                                        const decl_query_t *query)
 {
+    const clopts_command_t *root = clopts_program_root(program);
     clopts_parser_ref_t ref = decl_no_ref();
 
-    if ((command != NULL) && (command != program->root))
+    if ((command != NULL) && (command != root))
     {
         ref = decl_lookup_in(command, false, query);
         if (ref.option != NULL)
@@ -199,22 +200,7 @@ static clopts_parser_ref_t decl_lookup(const clopts_program_t *program, const cl
             return ref;
         }
     }
-    return decl_lookup_in(program->root, true, query);
-}
-
-const clopts_command_t *clopts_parser_find_command(const clopts_program_t *program, const char *name)
-{
-    size_t i;
-
-    assert((program != NULL) && (name != NULL));
-    for (i = 0; i < program->command_count; i++)
-    {
-        if (strcmp(clopts_command_name(program->commands[i]), name) == 0)
-        {
-            return program->commands[i];
-        }
-    }
-    return NULL;
+    return decl_lookup_in(root, true, query);
 }
 
 clopts_parser_ref_t clopts_parser_find_long(const clopts_program_t *program, const clopts_command_t *command,

@@ -49,7 +49,8 @@
  * Objects whose address an out pointer holds before a call, so that a test
  * can see the call set it to NULL. They are never read or written.
  */
-static clopts_program_t sentinel_program;
+static char sentinel_program_storage;
+#define SENTINEL_PROGRAM ((clopts_program_t *)&sentinel_program_storage)
 static char sentinel_command_storage;
 #define SENTINEL_COMMAND ((clopts_command_t *)&sentinel_command_storage)
 
@@ -205,7 +206,7 @@ static void expect_program_error(clopts_command_t *root, clopts_command_t *const
     clopts_command_t *all[MAX_PROGRAM_COMMANDS + 1];
     size_t options[MAX_PROGRAM_COMMANDS + 1];
     size_t positionals[MAX_PROGRAM_COMMANDS + 1];
-    clopts_program_t *out = &sentinel_program;
+    clopts_program_t *out = SENTINEL_PROGRAM;
     size_t n = 0;
     size_t i;
 
@@ -345,7 +346,7 @@ NAOS_TEST(command_named_help_is_accepted)
     commands[0] = new_command("build");
     commands[1] = new_command("help");
     program = program_new(root, commands, 2);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_command(program, "help"), commands[1]);
+    NAOS_CHECK_PTR_EQ(clopts_program_find_command(program, "help"), commands[1]);
     clopts_program_destroy(program);
 }
 
@@ -369,7 +370,7 @@ NAOS_TEST(program_new_duplicate_command)
     expect_program_error(root, pair, 2, CLOPTS_ERROR_DUPLICATE_COMMAND);
     clopts_command_destroy(commands[2]);
     program = program_new(root, commands, 2);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_command(program, "build"), commands[0]);
+    NAOS_CHECK_PTR_EQ(clopts_program_find_command(program, "build"), commands[0]);
     clopts_program_destroy(program);
 }
 
@@ -1034,14 +1035,14 @@ NAOS_TEST(find_command_is_exact_and_case_sensitive)
 {
     lookup_fixture_t f = make_lookup_fixture();
 
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_command(f.program, "build"), f.build);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_command(f.program, "copy"), f.copy);
-    NAOS_CHECK_NULL(clopts_parser_find_command(f.program, "Build"));
-    NAOS_CHECK_NULL(clopts_parser_find_command(f.program, "bui"));
-    NAOS_CHECK_NULL(clopts_parser_find_command(f.program, "builds"));
-    NAOS_CHECK_NULL(clopts_parser_find_command(f.program, ""));
-    NAOS_CHECK_NULL(clopts_parser_find_command(f.program, "tool"));
-    NAOS_CHECK_NULL(clopts_parser_find_command(f.program, "help"));
+    NAOS_CHECK_PTR_EQ(clopts_program_find_command(f.program, "build"), f.build);
+    NAOS_CHECK_PTR_EQ(clopts_program_find_command(f.program, "copy"), f.copy);
+    NAOS_CHECK_NULL(clopts_program_find_command(f.program, "Build"));
+    NAOS_CHECK_NULL(clopts_program_find_command(f.program, "bui"));
+    NAOS_CHECK_NULL(clopts_program_find_command(f.program, "builds"));
+    NAOS_CHECK_NULL(clopts_program_find_command(f.program, ""));
+    NAOS_CHECK_NULL(clopts_program_find_command(f.program, "tool"));
+    NAOS_CHECK_NULL(clopts_program_find_command(f.program, "help"));
     clopts_program_destroy(f.program);
 }
 

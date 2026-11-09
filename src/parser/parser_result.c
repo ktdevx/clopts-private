@@ -118,7 +118,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     {
         return NULL;
     }
-    if (alloc_slots(program->root, &global_slots) != 0)
+    if (alloc_slots(clopts_program_root(program), &global_slots) != 0)
     {
         clopts_core_free(result);
         return NULL;
@@ -135,7 +135,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     result->error.name_len = 0;
     result->error.short_name = '\0';
     result->global_slots = global_slots;
-    result->global_count = clopts_command_option_count(program->root);
+    result->global_count = clopts_command_option_count(clopts_program_root(program));
     result->command_slots = NULL;
     result->command_count = 0;
     clopts_core_vec_init(&result->positionals, sizeof(const char *));

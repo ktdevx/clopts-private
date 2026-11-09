@@ -41,7 +41,9 @@ CLOPTS_API clopts_error_t clopts_program_create(clopts_command_t *root,
 /* Releases program and everything attached to it. NULL does nothing. */
 CLOPTS_API void clopts_program_destroy(clopts_program_t *program);
 
-/* The root of program (NULL for NULL). */
+/* ---- read functions: a NULL program is a contract violation (assert) ---- */
+
+/* The root of program. */
 CLOPTS_API const clopts_command_t *clopts_program_root(const clopts_program_t *program);
 
 /* Number of subcommands, in the order given to clopts_program_create(). */
@@ -50,7 +52,7 @@ CLOPTS_API size_t clopts_program_command_count(const clopts_program_t *program);
 /* Subcommand index; index must be less than clopts_program_command_count() (caught by assert). */
 CLOPTS_API const clopts_command_t *clopts_program_command_at(const clopts_program_t *program, size_t index);
 
-/* The subcommand named name (exact, case-sensitive), or NULL. */
+/* The subcommand named name (exact, case-sensitive), or NULL. name must not be NULL (caught by assert). */
 CLOPTS_API const clopts_command_t *clopts_program_find_command(const clopts_program_t *program, const char *name);
 
 #ifdef __cplusplus

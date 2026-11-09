@@ -19,6 +19,18 @@
 #include <assert.h>
 #include <string.h>
 
+/*
+ * A program: the root and the subcommands, in the order given. It is created
+ * in one call and never changes afterwards. Everything outside this file reads
+ * it through the public read functions.
+ */
+struct clopts_program
+{
+    clopts_command_t *root;         /* the root scope; its name is the program name */
+    clopts_command_t **commands;    /* command_count elements, in the order given; NULL when there are none */
+    size_t command_count;
+};
+
 /* Checks of clopts_program_create(root, commands, count), in order. */
 static clopts_error_t program_check_new(const clopts_command_t *root, clopts_command_t *const *commands,
                                              size_t count)
@@ -106,20 +118,21 @@ void clopts_program_destroy(clopts_program_t *program)
 
 const clopts_command_t *clopts_program_root(const clopts_program_t *program)
 {
-    return (program != NULL) ? program->root : NULL;
+    assert(program != NULL);
+    return program->root;
 }
 
 size_t clopts_program_command_count(const clopts_program_t *program)
 {
-    return (program != NULL) ? program->command_count : 0u;
+    assert(program != NULL);
+    return program->command_count;
 }
 
 const clopts_command_t *clopts_program_command_at(const clopts_program_t *program, size_t index)
 {
-    size_t count = clopts_program_command_count(program);
-
-    assert((index < count) && "index must be less than clopts_program_command_count()");
-    if (index >= count)
+    assert(program != NULL);
+    assert((index < program->command_count) && "index must be less than clopts_program_command_count()");
+    if (index >= program->command_count)
     {
         return NULL;
     }
@@ -128,9 +141,15 @@ const clopts_command_t *clopts_program_command_at(const clopts_program_t *progra
 
 const clopts_command_t *clopts_program_find_command(const clopts_program_t *program, const char *name)
 {
-    if ((program == NULL) || (name == NULL))
+    size_t i;
+
+    assert((program != NULL) && (name != NULL));
+    for (i = 0; i < program->command_count; i++)
     {
-        return NULL;
+        if (strcmp(clopts_command_name(program->commands[i]), name) == 0)
+        {
+            return program->commands[i];
+        }
     }
-    return clopts_parser_find_command(program, name);
+    return NULL;
 }

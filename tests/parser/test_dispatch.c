@@ -151,12 +151,12 @@ NAOS_TEST(fixture_commands_are_shaped_as_designed)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_PTR_EQ(t.program->root, t.root);
-    NAOS_REQUIRE_UINT_EQ(t.program->command_count, 4);
-    NAOS_CHECK_PTR_EQ(t.program->commands[0], t.build);
-    NAOS_CHECK_PTR_EQ(t.program->commands[1], t.copy);
-    NAOS_CHECK_PTR_EQ(t.program->commands[2], t.cat);
-    NAOS_CHECK_PTR_EQ(t.program->commands[3], t.help_command);
+    NAOS_CHECK_PTR_EQ(clopts_program_root(t.program), t.root);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(t.program), 4);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(t.program, 0), t.build);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(t.program, 1), t.copy);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(t.program, 2), t.cat);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(t.program, 3), t.help_command);
 
     /* Root: the global options, then the terminal options of clopts/help.h. */
     NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(t.root), 5);
@@ -203,8 +203,7 @@ NAOS_TEST(fixture_filt_has_no_commands_and_a_help_option)
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
-    NAOS_CHECK_UINT_EQ(f.program->command_count, 0);
-    NAOS_CHECK_NULL(f.program->commands);
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(f.program), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(f.root), 2);
     NAOS_CHECK_PTR_EQ(clopts_command_option_at(f.root, 0), f.lines);
     NAOS_CHECK_PTR_EQ(clopts_command_option_at(f.root, 1), f.help);
@@ -246,8 +245,8 @@ NAOS_TEST(parse_leaves_the_program_unchanged)
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 6, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    NAOS_CHECK_PTR_EQ(t.program->root, t.root);
-    NAOS_CHECK_UINT_EQ(t.program->command_count, 4);
+    NAOS_CHECK_PTR_EQ(clopts_program_root(t.program), t.root);
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(t.program), 4);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(t.root), 5);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(t.build), 3);
     NAOS_CHECK_NULL(clopts_option_default(t.output));

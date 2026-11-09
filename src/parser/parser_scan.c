@@ -358,7 +358,7 @@ static void scan_option(scan_state_t *state)
  */
 static void main_positional(scan_state_t *state)
 {
-    const clopts_command_t *scope = (state->command != NULL) ? state->command : state->program->root;
+    const clopts_command_t *scope = (state->command != NULL) ? state->command : clopts_program_root(state->program);
     const size_t declared = clopts_command_positional_count(scope);
     const size_t taken = state->result->positionals.len;
     const clopts_positional_t *last;
@@ -432,7 +432,7 @@ static void prelude_command(scan_state_t *state)
 {
     const clopts_command_t *command;
 
-    command = clopts_parser_find_command(state->program, scan_token(state));
+    command = clopts_program_find_command(state->program, scan_token(state));
     if (state->dashdash || (command == NULL))
     {
         (void)scan_fail(state, CLOPTS_USAGE_UNKNOWN_COMMAND, state->pos);
@@ -615,7 +615,7 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
 
     /* 2. */
     scan_init(&state, program, argc, argv, result);
-    if (program->command_count > 0)
+    if (clopts_program_command_count(program) > 0)
     {
         scan_prelude(&state);
         if ((state.command != NULL) && !scan_decided(&state))
@@ -636,7 +636,7 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
     }
 
     /* 4. */
-    selected_scope = ((program->command_count == 0) || (state.command != NULL));
+    selected_scope = ((clopts_program_command_count(program) == 0) || (state.command != NULL));
     if (clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope) != 0)
     {
         finish(result, CLOPTS_OUT_OF_MEMORY);

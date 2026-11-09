@@ -252,10 +252,12 @@ root は `clopts_program_create` の最初の引数に渡すコマンドで、�
 |------|--------------|
 | `clopts_program_create`（`root, commands, command_count, out`） | root と、`commands` の `command_count` 個のサブコマンド（`command_count` が 0 なら `commands` は NULL でよい）からプログラムを作り、`*out` に入れる。成功するとプログラムが root とすべてのコマンドを持ち、それらは読み取り専用になる。失敗すると何も変わらず、コマンドは呼び出し側が持ったままになる。NULL の `out`・root・コマンドは契約違反で、`assert` で検出される。失敗の理由は検査の順に、同じ名前のサブコマンド（`CLOPTS_ERROR_DUPLICATE_COMMAND`）、サブコマンドがあるのに root に位置引数がある（`CLOPTS_ERROR_MIXED_LAYOUT`） |
 | `clopts_program_destroy`（`program`） | プログラムと、それが持つすべてのもの（root、コマンド、渡されたオプションと位置引数）を解放する。NULL なら何もしない |
-| `clopts_program_root`（`program`） | root を返す。`program` が NULL なら NULL |
+| `clopts_program_root`（`program`） | root を返す |
 | `clopts_program_command_count`（`program`） | サブコマンドの数 |
 | `clopts_program_command_at`（`program, index`） | `index` 番目のサブコマンド（`clopts_program_create` に渡した順）。`index` は `clopts_program_command_count` の値より小さくなければならない |
-| `clopts_program_find_command`（`program, name`） | 名前が `name` と一致する（大文字と小文字を区別し、前方一致はしない）サブコマンド。なければ NULL |
+| `clopts_program_find_command`（`program, name`） | 名前が `name` と一致する（大文字と小文字を区別し、前方一致はしない）サブコマンド。なければ NULL。NULL の `name` は契約違反で、`assert` で検出される |
+
+NULL のプログラムを読み取りの関数に渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
 
 プログラムは作った後は変わらないので、同じプログラムを複数のスレッドから同時に解析し、読んでよい。
 
@@ -278,7 +280,7 @@ NULL のコマンドを読み取りの関数に渡すのは契約違反で、`as
 
 root にするコマンドに渡したオプションはグローバルオプションに、サブコマンドに渡したオプションはそのコマンドのオプションになる。コマンドに渡す関数が検査するのは、そのコマンドの中の関係だけである。root とサブコマンドの間で名前が重なってもよく、そのときはサブコマンドの名前が root の名前を隠す（「[名前の規則](#名前の規則)」）。
 
-読み取りの関数（`clopts_command_name` などの、`clopts_command_`・`clopts_program_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のプログラムは空（NULL、0）として読まれる。NULL のコマンド・オプション・位置引数は契約違反で、`assert` で検出される（「[コマンド（root を含む）](#コマンドroot-を含む)」「[オプションの属性](#オプションの属性)」「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/help.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
+読み取りの関数（`clopts_command_name` などの、`clopts_command_`・`clopts_program_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のプログラム・コマンド・オプション・位置引数は契約違反で、`assert` で検出される（「[プログラム](#プログラム)」「[コマンド（root を含む）](#コマンドroot-を含む)」「[オプションの属性](#オプションの属性)」「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/help.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
 
 ### オプション
 

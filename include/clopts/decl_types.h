@@ -78,9 +78,8 @@ extern "C" {
  *   - Setting a string attribute again replaces the previous copy (last call
  *     wins). NULL, false, '\0' or 0 resets an attribute.
  *   - The read functions (clopts_option_long_name() and the others) accept
- *     attached and unattached handles alike; a NULL option is a
- *     contract violation (caught by assert), and a NULL command, positional
- *     or program reads as empty (NULL, 0, false or '\0').
+ *     attached and unattached handles alike; a NULL program, command,
+ *     option or positional is a contract violation (caught by assert).
  */
 
 typedef struct clopts_program clopts_program_t;
