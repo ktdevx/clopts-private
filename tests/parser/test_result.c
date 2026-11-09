@@ -103,14 +103,14 @@ static void sample_init(sample_t *s)
     s->ok = (test_decl_failures == 0);
 }
 
-/* Sets *index to the position of option in the option vec of scope; false when it is not there. */
+/* Sets *index to the position of option in the options of scope; false when it is not there. */
 static bool index_in(const clopts_command_t *scope, const clopts_option_t *option, size_t *index)
 {
     size_t i;
 
-    for (i = 0; i < scope->options.len; i++)
+    for (i = 0; i < scope->option_count; i++)
     {
-        if (*(clopts_option_t *const *)clopts_core_vec_at(&scope->options, i) == option)
+        if (scope->options[i] == option)
         {
             *index = i;
             return true;
@@ -121,7 +121,7 @@ static bool index_in(const clopts_command_t *scope, const clopts_option_t *optio
 
 /*
  * Returns the slot of option of s (in the root or the selected command),
- * found by its position in the option vec of its scope (not by its index,
+ * found by its position in the options of its scope (not by its index,
  * which the tests below check on their own).
  */
 static clopts_parser_slot_t *slot_of(const sample_t *s, clopts_result_t *result, const clopts_option_t *option)
@@ -201,7 +201,7 @@ NAOS_TEST(new_allocates_one_slot_per_root_option)
     {
         /* Slot i records option i of the root. */
         NAOS_CHECK_PTR_EQ(result->global_slots[i].option,
-                          *(clopts_option_t *const *)clopts_core_vec_at(&s.root->options, i));
+                          s.root->options[i]);
         NAOS_CHECK_INT_EQ(result->global_slots[i].source, CLOPTS_SOURCE_NONE);
         NAOS_CHECK_NULL(result->global_slots[i].value);
         NAOS_CHECK_NULL(result->global_slots[i].owned);

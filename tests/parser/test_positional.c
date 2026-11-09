@@ -140,13 +140,13 @@ NAOS_TEST(fixture_programs_with_commands_have_no_program_positionals)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_UINT_EQ(t.root->positionals.len, 0);
+    NAOS_CHECK_UINT_EQ(t.root->positional_count, 0);
     fixture_tool_free(&t);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
-    NAOS_CHECK_UINT_EQ(s.root->positionals.len, 0);
+    NAOS_CHECK_UINT_EQ(s.root->positional_count, 0);
     fixture_strict_free(&s);
 }
 

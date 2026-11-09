@@ -39,7 +39,7 @@ static clopts_error_t program_check_new(const clopts_command_t *root, clopts_com
             }
         }
     }
-    if ((count > 0) && (root->positionals.len > 0))
+    if ((count > 0) && (root->positional_count > 0))
     {
         return CLOPTS_ERROR_MIXED_LAYOUT;
     }

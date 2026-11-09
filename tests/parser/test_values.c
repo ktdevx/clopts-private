@@ -579,8 +579,8 @@ NAOS_TEST(nosub_declaration_is_valid)
     NAOS_REQUIRE_NOT_NULL(n.program);
     NAOS_REQUIRE_TRUE(n.ok);
     NAOS_CHECK_PTR_EQ(n.program->root, n.root);
-    NAOS_CHECK_UINT_EQ(n.root->options.len, 7);
-    NAOS_CHECK_UINT_EQ(n.root->positionals.len, 2);
+    NAOS_CHECK_UINT_EQ(n.root->option_count, 7);
+    NAOS_CHECK_UINT_EQ(n.root->positional_count, 2);
     NAOS_CHECK_UINT_EQ(n.program->command_count, 0);
     NAOS_CHECK_TRUE(clopts_option_terminal(n.help));
     NAOS_CHECK_TRUE(clopts_option_terminal(n.version));

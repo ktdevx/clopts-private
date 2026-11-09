@@ -53,7 +53,7 @@ static const struct clopts_result parser_result_sentinel = {
  */
 static int alloc_slots(const clopts_command_t *scope, clopts_parser_slot_t **out)
 {
-    const size_t count = scope->options.len;
+    const size_t count = scope->option_count;
     clopts_parser_slot_t *slots;
     size_t i;
 
@@ -69,7 +69,7 @@ static int alloc_slots(const clopts_command_t *scope, clopts_parser_slot_t **out
     }
     for (i = 0; i < count; i++)
     {
-        slots[i].option = *(const clopts_option_t *const *)clopts_core_vec_at(&scope->options, i);
+        slots[i].option = scope->options[i];
         slots[i].source = CLOPTS_SOURCE_NONE;
         slots[i].flag = false;
         slots[i].count = 0;
@@ -135,7 +135,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     result->error.name_len = 0;
     result->error.short_name = '\0';
     result->global_slots = global_slots;
-    result->global_count = program->root->options.len;
+    result->global_count = program->root->option_count;
     result->command_slots = NULL;
     result->command_count = 0;
     clopts_core_vec_init(&result->positionals, sizeof(const char *));
@@ -162,7 +162,7 @@ int clopts_parser_result_select(clopts_result_t *result, const clopts_command_t 
     }
     result->command = command;
     result->command_slots = command_slots;
-    result->command_count = command->options.len;
+    result->command_count = command->option_count;
     return 0;
 }
 

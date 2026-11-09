@@ -60,7 +60,7 @@ bool clopts_parser_valid_short_name(char c)
 /* Returns option index of scope. */
 static const clopts_option_t *decl_option_at(const clopts_command_t *scope, size_t index)
 {
-    return *(clopts_option_t *const *)clopts_core_vec_at(&scope->options, index);
+    return scope->options[index];
 }
 
 /* True when long_name is exactly the name_len bytes at name. */
@@ -87,19 +87,19 @@ static bool decl_matches(const clopts_option_t *option, const decl_query_t *quer
     return ((query->short_name != '\0') && (clopts_option_short_name(option) == query->short_name));
 }
 
-/* Returns the index in scope of the first option matching query, or scope->options.len. */
+/* Returns the index in scope of the first option matching query, or scope->option_count. */
 static size_t decl_index_in(const clopts_command_t *scope, const decl_query_t *query)
 {
     size_t i;
 
-    for (i = 0; i < scope->options.len; i++)
+    for (i = 0; i < scope->option_count; i++)
     {
         if (decl_matches(decl_option_at(scope, i), query))
         {
             return i;
         }
     }
-    return scope->options.len;
+    return scope->option_count;
 }
 
 /* Returns the first option matching query in scope, or NULL. */
@@ -107,7 +107,7 @@ static const clopts_option_t *decl_find_in(const clopts_command_t *scope, const 
 {
     size_t index = decl_index_in(scope, query);
 
-    return (index < scope->options.len) ? decl_option_at(scope, index) : NULL;
+    return (index < scope->option_count) ? decl_option_at(scope, index) : NULL;
 }
 
 const clopts_option_t *clopts_parser_find_conflict(const clopts_command_t *command, const char *l, char s)
@@ -152,7 +152,7 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
     size_t index;
 
     index = decl_index_in(scope, query);
-    if (index < scope->options.len)
+    if (index < scope->option_count)
     {
         ref.option = decl_option_at(scope, index);
         ref.global = global;
@@ -167,7 +167,7 @@ static clopts_parser_ref_t decl_lookup_in(const clopts_command_t *scope, bool gl
     negation.long_len = query->long_len - 3;
     negation.short_name = '\0';
     index = decl_index_in(scope, &negation);
-    if (index < scope->options.len)
+    if (index < scope->option_count)
     {
         const clopts_option_t *option = decl_option_at(scope, index);
 

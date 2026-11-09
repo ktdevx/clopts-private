@@ -52,8 +52,12 @@ clopts_error_t clopts_command_create(const char *name, clopts_command_t **out)
 
     command->summary = NULL;
     command->description = NULL;
-    clopts_core_vec_init(&command->options, sizeof(clopts_option_t *));
-    clopts_core_vec_init(&command->positionals, sizeof(clopts_positional_t *));
+    command->options = NULL;
+    command->option_count = 0;
+    command->option_cap = 0;
+    command->positionals = NULL;
+    command->positional_count = 0;
+    command->positional_cap = 0;
 
     *out = command;
 
@@ -69,17 +73,17 @@ void clopts_command_destroy(clopts_command_t *command)
         return;
     }
 
-    for (i = 0; i < command->options.len; i++)
+    for (i = 0; i < command->option_count; i++)
     {
-        clopts_option_destroy(*(clopts_option_t **)clopts_core_vec_at(&command->options, i));
+        clopts_option_destroy(command->options[i]);
     }
-    clopts_core_vec_free(&command->options);
+    clopts_core_free(command->options);
 
-    for (i = 0; i < command->positionals.len; i++)
+    for (i = 0; i < command->positional_count; i++)
     {
-        clopts_positional_destroy(*(clopts_positional_t **)clopts_core_vec_at(&command->positionals, i));
+        clopts_positional_destroy(command->positionals[i]);
     }
-    clopts_core_vec_free(&command->positionals);
+    clopts_core_free(command->positionals);
 
     clopts_core_free(command->name);
     clopts_core_free(command->summary);
@@ -97,6 +101,50 @@ clopts_error_t clopts_command_set_description(clopts_command_t *command, const c
 {
     assert(command != NULL);
     return (clopts_core_replace_string(&command->description, description) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+}
+
+/* Capacity of the first allocation of an attach array, in elements. */
+#define COMMAND_INITIAL_CAP ((size_t)8)
+
+/*
+ * Makes room for one more element in the attach array items holding count
+ * of cap elements of elem_size bytes: grows the capacity to 8, then doubles
+ * it, when full. Returns the array to use (items itself when not full) and
+ * updates *cap, or NULL on overflow or allocation failure, leaving items
+ * and *cap unchanged.
+ */
+static void *command_reserve(void *items, size_t count, size_t *cap, size_t elem_size)
+{
+    size_t new_cap;
+    size_t new_bytes;
+    void *grown;
+
+    if (count < *cap)
+    {
+        return items;
+    }
+
+    if (*cap == 0)
+    {
+        new_cap = COMMAND_INITIAL_CAP;
+    }
+    else if (clopts_core_size_mul(*cap, 2, &new_cap) != 0)
+    {
+        return NULL;
+    }
+
+    if (clopts_core_size_mul(new_cap, elem_size, &new_bytes) != 0)
+    {
+        return NULL;
+    }
+
+    grown = clopts_core_realloc(items, new_bytes);
+    if (grown != NULL)
+    {
+        *cap = new_cap;
+    }
+
+    return grown;
 }
 
 /*
@@ -174,6 +222,7 @@ static clopts_error_t command_check_attach_option(const clopts_command_t *comman
 
 clopts_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option)
 {
+    clopts_option_t **options;
     clopts_error_t error;
 
     assert(command != NULL);
@@ -185,10 +234,15 @@ clopts_error_t clopts_command_add_option(clopts_command_t *command, clopts_optio
         return error;
     }
 
-    if (clopts_core_vec_push(&command->options, &option) != 0)
+    options = (clopts_option_t **)command_reserve(command->options, command->option_count, &command->option_cap,
+                                                  sizeof(*options));
+    if (options == NULL)
     {
         return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
+
+    command->options = options;
+    command->options[command->option_count++] = option;
 
     return CLOPTS_ERROR_NONE;
 }
@@ -199,12 +253,12 @@ static clopts_error_t command_check_attach_positional(const clopts_command_t *co
 {
     const clopts_positional_t *last;
 
-    if (command->positionals.len == 0)
+    if (command->positional_count == 0)
     {
         return CLOPTS_ERROR_NONE;
     }
 
-    last = *(clopts_positional_t *const *)clopts_core_vec_at(&command->positionals, command->positionals.len - 1);
+    last = command->positionals[command->positional_count - 1];
     if (clopts_positional_variadic(last))
     {
         return CLOPTS_ERROR_VARIADIC_POSITION;
@@ -221,6 +275,7 @@ static clopts_error_t command_check_attach_positional(const clopts_command_t *co
 
 clopts_error_t clopts_command_add_positional(clopts_command_t *command, clopts_positional_t *positional)
 {
+    clopts_positional_t **positionals;
     clopts_error_t error;
 
     assert(command != NULL);
@@ -232,10 +287,15 @@ clopts_error_t clopts_command_add_positional(clopts_command_t *command, clopts_p
         return error;
     }
 
-    if (clopts_core_vec_push(&command->positionals, &positional) != 0)
+    positionals = (clopts_positional_t **)command_reserve(command->positionals, command->positional_count,
+                                                          &command->positional_cap, sizeof(*positionals));
+    if (positionals == NULL)
     {
         return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
+
+    command->positionals = positionals;
+    command->positionals[command->positional_count++] = positional;
 
     return CLOPTS_ERROR_NONE;
 }
@@ -259,7 +319,7 @@ const char *clopts_command_description(const clopts_command_t *command)
 
 size_t clopts_command_option_count(const clopts_command_t *command)
 {
-    return (command != NULL) ? command->options.len : 0u;
+    return (command != NULL) ? command->option_count : 0u;
 }
 
 const clopts_option_t *clopts_command_option_at(const clopts_command_t *command, size_t index)
@@ -272,12 +332,12 @@ const clopts_option_t *clopts_command_option_at(const clopts_command_t *command,
         return NULL;
     }
 
-    return *(const clopts_option_t *const *)clopts_core_vec_at(&command->options, index);
+    return command->options[index];
 }
 
 size_t clopts_command_positional_count(const clopts_command_t *command)
 {
-    return (command != NULL) ? command->positionals.len : 0u;
+    return (command != NULL) ? command->positional_count : 0u;
 }
 
 const clopts_positional_t *clopts_command_positional_at(const clopts_command_t *command, size_t index)
@@ -290,5 +350,5 @@ const clopts_positional_t *clopts_command_positional_at(const clopts_command_t *
         return NULL;
     }
 
-    return *(const clopts_positional_t *const *)clopts_core_vec_at(&command->positionals, index);
+    return command->positionals[index];
 }
