@@ -2,20 +2,36 @@
 
 ## オプションを単独で作り、コマンドにアタッチする API へ変更する（破壊的変更）
 
-状態: 検討中（未実装）。現行設計との互換は考えず、親子関係として綺麗な形を前提に検討する。
+状態: 検討中（未実装）。API・ABI の互換は考えず、親子関係として綺麗な形を前提に検討する。
 
 ### 動機
 
 現在、`clopts_option_t` は `clopts_command_add_flag` / `_count` / `_value` / `_list` でしか作れず、生成と同時にスコープへ登録される（`src/parser/parser_build.c` の `build_add_option`）。「オプションを作る → 設定する → コマンドに渡す（所有権を移す）」の方が操作概念として自然なので、そちらへ寄せる。
 
-### 現状が親（program / scope）に依存している点
+### 方針 0: オプションは親を知らない
 
-`struct clopts_option`（`src/parser/parser_model.h`）の `program` / `scope` は所有のためだけではなく、次に使われている。分離するにはこれらの扱いを決め直す必要がある。
+子が親へのポインタを持つと、生成時に親が必要になり、「単独で作ってから渡す」と相容れない。オプションは自分の属性（種類、名前、ヘルプ、既定値など）だけを持ち、`program` / `scope` / `index` を持たないようにする。
 
-1. **エラーの記録先**: 宣言エラーは program に最初の 1 件だけ記録され（sticky）、`clopts_parse` / `clopts_validate` の結果（`CLOPTS_DECL_ERROR`）で返る。setter のエラーも `option->program` に書く（`build_reject_option`）。
-2. **凍結・エラー済みの判定**: すべての setter が `build_begin(option->program)` を通る。
-3. **スコープを見る検査**: 重複（`CLOPTS_DECL_DUPLICATE_OPTION`）、予約名（`help` / `h` / `version`）、`set_negatable` での `no-x` との衝突（`build_has_negation_name`）。root とサブコマンドの間もまたいで調べる（`decl_find_in_range`）。
-4. **`index`**: スコープの vec 内の位置で、結果のスロット番号と一致する。
+現状 `struct clopts_option`（`src/parser/parser_model.h`）の `program` / `scope` / `index` は次に使われている。それぞれ親なしで済ませる方法:
+
+| 現状の用途 | 使っている場所 | 親なしでの扱い |
+|------------|----------------|----------------|
+| 宣言エラーの記録先（program に最初の 1 件だけ記録） | setter（`build_reject_option`） | 方針 2 で即座に戻り値で返すので、記録先が要らない |
+| 凍結・エラー済みの判定 | setter の `build_begin(option->program)` | アタッチ後の setter を禁止する（下記 1）ので、program の凍結を見る必要がない。オプション自身の `attached` フラグ 1 つで判定する |
+| スコープを見る検査（重複、予約名、否定形の衝突。root とサブコマンドの間もまたぐ） | 追加時と `set_negatable`（`build_has_negation_name`） | アタッチの関数が、受け取る側（command と program）の情報で判定する。オプションが親を知る必要はない |
+| 結果のスロットを引く（`option->scope` で root かサブコマンドかを判定、`option->index` でスロット番号） | `find_slot`（`src/parser/parser_result.c`） | 結果がポインタで引く（下記） |
+| 結果のアクセサの「別の program のオプション」の assert | `find_slot` | 失う。見つからないオプションは「値なし」として扱う |
+
+解析中の参照（`src/parser/parser_decl.c` の `ref.index`）はすでにスコープの vec 内の位置から index を計算しているので、`option->index` に依存していない。
+
+**結果のスロットをポインタで引く方法**: `clopts_result_flag(result, option)` などは、root と選ばれたコマンドのオプション vec から `option` と同じポインタを探し、その位置のスロットを返す。
+
+- 単純には線形探索（1 回のアクセスで O(root のオプション数 + コマンドのオプション数)）。CLI のオプション数なら十分。
+- 気になるなら、解析の終わりに結果がポインタでソートした表を作り、二分探索にする（結果の確保が増える）。
+
+オプションに残る「状態」は `attached`（アタッチ済みか）だけになる。これは親を指すものではなく、二重アタッチとアタッチ後の setter を契約違反として止めるためのもの。
+
+同じ考え方は位置引数にも適用する（`program` / `scope` / `index` を持たない）。コマンドについては「その他の決めること」の 3 を参照。
 
 ### 方針 1: 所有権は成功したときだけ移る（失敗時は副作用なし）
 
@@ -39,7 +55,7 @@
 
 | 分類 | 種別 | 判定する場所 |
 |------|------|--------------|
-| オプション単体で決まる（コマンドの使い方に関係しない） | `INVALID_NAME`（名前の形式）、`NO_NAME`、`NOT_NEGATABLE`、`DEFAULT_NOT_ALLOWED`、`ENV_NOT_ALLOWED`、`REQUIRED_WITH_DEFAULT`、`REQUIRED_NOT_ALLOWED`、`ATTRIBUTE_KIND` | `clopts_option_new_*` / `clopts_option_set_*` が即座に返す |
+| オプション単体で決まる（コマンドの使い方に関係しない） | `INVALID_NAME`（名前の形式）、`NO_NAME`、`NOT_NEGATABLE`、`DEFAULT_NOT_ALLOWED`、`ENV_NOT_ALLOWED`、`REQUIRED_WITH_DEFAULT`、`REQUIRED_NOT_ALLOWED`、`ATTRIBUTE_KIND` | `clopts_option_new` / `clopts_option_set_*` が即座に返す |
 | 兄弟・親との関係で決まる（コマンドの使い方＝CLI の形に関係する） | `DUPLICATE_OPTION`、`RESERVED_NAME`、`NEGATION_CONFLICT`、（位置引数）`POSITIONAL_ORDER`、`VARIADIC_POSITION`、（コマンド）`DUPLICATE_COMMAND`、`MIXED_LAYOUT` | アタッチ（`clopts_command_add_*` / `clopts_program_add_command`）が即座に返す |
 
 後者もアタッチの時点で判定でき、しかも方針 1（失敗したら何も変えない）を守るにはアタッチの戻り値で返すしかない。したがって後者も溜めずに即座に返す。
@@ -52,19 +68,36 @@
 
 代償: 呼び出しごとに戻り値を見る必要がある。見なければ、そのオプションが黙って無いだけになる。`CLOPTS_NODISCARD`（`warn_unused_result` / `[[nodiscard]]`）を付けてコンパイラに警告させる。
 
+### 方針 3: 生成関数は種類を引数で受ける 1 つにする
+
+種類ごとに `clopts_option_new_flag` / `_count` / `_value` / `_list` を分けず、種類を公開の enum で渡す 1 つの関数にする。
+
+- 公開の関数が 4 つから 1 つになる（ABI の記号も減る）。
+- 種類を値として扱えるので、表（配列）からオプションをまとめて宣言する、といった書き方ができる。
+- 代償: 範囲外の種類を渡せてしまう。`CLOPTS_DECL_INVALID_KIND`（仮）を返す（assert も併用）。
+- 種類の enum は ABI の一部になるので、値を明示して固定する。内部の `clopts_parser_kind_t` はこの公開 enum に置き換える。
+- 位置引数は名前の規則（短い名前なし、`<NAME>` 表記）も属性も違うので、オプションの種類には含めず別の生成関数のままにする。
+
 ### 提案 API
 
 ```c
-/* 生成。不正な名前と OOM を区別するため、戻り値はエラー、オブジェクトは out で返す */
-CLOPTS_API clopts_decl_error_t clopts_option_new_flag (const char *long_name, char short_name, clopts_option_t **out);
-CLOPTS_API clopts_decl_error_t clopts_option_new_count(const char *long_name, char short_name, clopts_option_t **out);
-CLOPTS_API clopts_decl_error_t clopts_option_new_value(const char *long_name, char short_name, clopts_option_t **out);
-CLOPTS_API clopts_decl_error_t clopts_option_new_list (const char *long_name, char short_name, clopts_option_t **out);
+/* 種類。値は ABI の一部 */
+typedef enum clopts_option_kind
+{
+    CLOPTS_OPTION_FLAG = 0,   /* 値を取らない。与えられたら true、否定可能なら --no-<name> で false */
+    CLOPTS_OPTION_COUNT = 1,  /* 値を取らない。出現回数を数える */
+    CLOPTS_OPTION_VALUE = 2,  /* 値を 1 つ取る。繰り返したら最後が勝つ */
+    CLOPTS_OPTION_LIST = 3    /* 値を取り、繰り返しを連結して区切り文字で分ける */
+} clopts_option_kind_t;
+
+/* 生成。不正な名前・種類と OOM を区別するため、戻り値はエラー、オブジェクトは out で返す */
+CLOPTS_API clopts_decl_error_t clopts_option_new(clopts_option_kind_t kind, const char *long_name, char short_name,
+                                                 clopts_option_t **out);
 
 /* 未アタッチのオプションだけを解放する。アタッチ済みを渡すのは契約違反（assert）。NULL は何もしない */
 CLOPTS_API void clopts_option_free(clopts_option_t *option);
 
-/* setter はすべてエラーを返す（失敗時は属性を変えない） */
+/* setter はすべてエラーを返す（失敗時は属性を変えない）。アタッチ後に呼ぶのは契約違反 */
 CLOPTS_API clopts_decl_error_t clopts_option_set_default(clopts_option_t *option, const char *default_value);
 /* ...他の setter も同様 */
 
@@ -79,7 +112,7 @@ CLOPTS_API clopts_decl_error_t clopts_command_add_option(clopts_command_t *comma
 ```c
 clopts_option_t *verbose;
 
-if (clopts_option_new_count("verbose", 'v', &verbose) != CLOPTS_DECL_NONE) { /* ... */ }
+if (clopts_option_new(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_DECL_NONE) { /* ... */ }
 clopts_option_set_help(verbose, "Print more details");
 clopts_option_set_count_max(verbose, 3);
 if (clopts_command_add_option(root, verbose) != CLOPTS_DECL_NONE)
@@ -93,30 +126,32 @@ if (clopts_command_add_option(root, verbose) != CLOPTS_DECL_NONE)
 ### その他の決めること（推奨案）
 
 1. **アタッチ後の setter → 禁止する（設定 → アタッチ → 読み取り専用）**
-   - 許すと、`set_negatable` などの setter がアタッチ前（単体の検査だけ）とアタッチ後（兄弟との検査も）で 2 通りの意味を持つ。
+   - 許すと、`set_negatable` などの setter がアタッチ後は兄弟との検査も要るようになり、オプションが親を知る必要が戻ってくる（方針 0 と矛盾する）。
    - 禁止すれば、関係の検査はアタッチの 1 か所だけになる。
 2. **二重アタッチ → `CLOPTS_DECL_ALREADY_ATTACHED`（仮）を返し、何も変えない**
-   - DOM のような付け替え（元の親から外して移す）はしない。`index` と結果のスロットがスコープごとで、外すと兄弟の `index` がずれるため。
+   - DOM のような付け替え（元の親から外して移す）はしない。オプションは親を知らないので、元の親から外せない。
    - 同じ定義を複数のコマンドで使いたい場合は、作る関数を呼び分ける。必要なら `clopts_option_clone` を後で検討する。
 3. **位置引数・コマンドへの展開**
-   - 位置引数: 揃える（`clopts_positional_new` + `clopts_command_add_positional(cmd, pos)`）。
-   - コマンド: 方針 2 の即時エラーは `clopts_program_add_command` などにも適用する。`clopts_command_new` + アタッチの形にまで揃えるかは別途判断（program とスコープの関係、`MIXED_LAYOUT`、root の扱いが強いので、今回は対象外でもよい）。
+   - 位置引数: 揃える（`clopts_positional_new` + `clopts_command_add_positional(cmd, pos)`）。親を持たない点も同じ。
+   - コマンド: 方針 2 の即時エラーは `clopts_program_add_command` などにも適用する。`clopts_command_new` + アタッチの形にし、コマンドからも `program` を外すかは別途判断（root の扱い、`MIXED_LAYOUT`、`clopts_write_help` などが program からコマンドをたどる作りとの関係を見る）。
 
 ### 未決
 
 - [ ] 宣言 API の戻り値の型: `clopts_decl_error_t` に OOM を足すか、`clopts_decl_status_t` のような別の enum を作るか。
 - [ ] `CLOPTS_NODISCARD` をどの API に付けるか（全 setter か、new とアタッチだけか）。
 - [ ] 宣言エラーの文面（今の `clopts_write_error` の `invalid declaration: ...`）を残すか。残すなら `clopts_decl_error_name(kind)` のような、種別から文面を引く関数にする。
+- [ ] 結果のスロットの引き方: 線形探索で足りるか、ポインタの表を作るか。
 
 ### 影響範囲
 
 - [ ] `src/parser/parser_build.c`: new とアタッチの分離、setter の戻り値化、関係の検査をアタッチへ集約、`build_begin` / `build_record_*` の整理
-- [ ] `src/parser/parser_model.h`: `program->error` の削除、未アタッチ状態（`scope == NULL`）の扱い
-- [ ] `src/parser/parser_scan.c`・`parser_result.c`: 宣言エラーを結果で返す経路の削除
+- [ ] `src/parser/parser_model.h`: `struct clopts_option` / `struct clopts_positional` から `program` / `scope` / `index` を外して `attached` を足す、`program->error` の削除、`clopts_parser_kind_t` を公開 enum に置き換え
+- [ ] `src/parser/parser_result.c`: `find_slot` をポインタでの探索に変える
+- [ ] `src/parser/parser_scan.c`: 宣言エラーを結果で返す経路の削除
 - [ ] `src/help/help_message.c`・`help_layout.c`: `CLOPTS_DECL_ERROR` の文面と `program->error.status` 参照の削除
-- [ ] `include/clopts/decl.h`・`parse.h`・`help.h`: API の差し替え、`CLOPTS_DECL_ERROR` / `clopts_validate` の削除
+- [ ] `include/clopts/decl.h`・`parse.h`・`help.h`: API の差し替え、`clopts_option_kind_t` の追加、`CLOPTS_DECL_ERROR` / `clopts_validate` の削除
 - [ ] `abi/clopts.symbols`
 - [ ] `docs/api.md`: 宣言、メモリの所有と寿命、宣言エラーの表
 - [ ] `README.md`、`examples/taskbook/taskbook.c`、`examples/textcount/textcount.c`
-- [ ] `tests/parser/`（`test_build.c`、`test_decl_check.c`、`test_errors.c`、`test_oom.c` など）、`tests/help/`
+- [ ] `tests/parser/`（`test_build.c`、`test_decl_check.c`、`test_errors.c`、`test_oom.c`、`test_result.c` など）、`tests/help/`
 - [ ] `CHANGELOG.md`: 破壊的変更として記載する
