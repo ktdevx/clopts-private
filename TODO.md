@@ -27,10 +27,10 @@
 /* include/clopts/alloc.h（新規） */
 typedef struct clopts_allocator
 {
-    void *(*malloc)(size_t size);
-    void *(*calloc)(size_t count, size_t size);
-    void *(*realloc)(void *ptr, size_t size);
-    void (*free)(void *ptr);
+    void *(*malloc_fn)(size_t size);
+    void *(*calloc_fn)(size_t count, size_t size);
+    void *(*realloc_fn)(void *ptr, size_t size);
+    void (*free_fn)(void *ptr);
 } clopts_allocator_t;  /* 凍結: メンバーの追加・削除・並べ替え・型の変更をしない */
 
 /* allocator の 4 つの関数を写して使う。NULL なら malloc / calloc / realloc / free に戻す */
@@ -38,19 +38,20 @@ CLOPTS_API void clopts_set_allocator(const clopts_allocator_t *allocator);
 ```
 
 - 各関数の引数と意味は、標準の `malloc` / `calloc` / `realloc` / `free` と同じにする。`ctx` は持たない。
+- メンバー名に `_fn` を付ける。利用側やライブラリの中で `malloc` などがマクロになっていても（MSVC の `_CRTDBG_MAP_ALLOC` など）、メンバーの宣言と呼び出しが展開されないようにするため。
 - 既定に戻すときは `clopts_set_allocator(NULL)` を呼ぶ。いまの設定を読む関数（`clopts_get_allocator`）は持たない。
 - 構造体はポインタで渡し、ライブラリは値を写して持つ。呼び出しの後に利用側の構造体を変えても、解放しても影響しない。
 - 4 つすべてが非 NULL であること。1 つでも NULL なら、契約違反として `assert` で捕まえる。混ぜて使うと、ある関数で確保したものを別の系統の関数で解放することになるため、項目ごとに既定へ戻すことはしない。
 - ライブラリが関数をどう使うか:
-  - `malloc`: 1 ブロックの確保と文字列の複製（`strdup` / `strndup` はライブラリの中で `malloc` と `memcpy` で作る）。
-  - `calloc`: いま `calloc` を使っているところ（スロットの配列など）。`count * size` のオーバーフローは、呼ぶ前にライブラリが検査する。
-  - `realloc`: vec を伸ばすときだけ。失敗したときは、元のブロックが残っている前提で扱う（標準の `realloc` と同じ）。
-  - `free`: NULL を渡さない。
+  - `malloc_fn`: 1 ブロックの確保と文字列の複製（`strdup` / `strndup` はライブラリの中で `malloc_fn` と `memcpy` で作る）。
+  - `calloc_fn`: いま `calloc` を使っているところ（スロットの配列など）。`count * size` のオーバーフローは、呼ぶ前にライブラリが検査する。
+  - `realloc_fn`: vec を伸ばすときだけ。失敗したときは、元のブロックが残っている前提で扱う（標準の `realloc` と同じ）。
+  - `free_fn`: NULL を渡さない。
   - サイズ 0 では呼ばない（ライブラリが 1 に丸める）。そのため NULL は必ず失敗を意味する。
 - **設定してよい時機**: ライブラリが確保したもの（プログラム、結果、argv のハンドル、環境変数の文脈）が 1 つも生きていないときだけ。生きている間に変えると、別のアロケーターで解放されてしまうので、契約違反とする。通常は `main` の最初で 1 回呼ぶ。
 - **スレッド**: `clopts_set_allocator` は同期しない。ほかのスレッドがライブラリを使っていない間に呼ぶ。設定した関数そのものは、利用側でスレッド安全にする。
 - 番兵（メモリ不足の結果、argv の番兵）はこれまでどおり静的オブジェクトとし、アロケーターとは関係しない。
-- CRT の境界の規則（「ライブラリが確保したものはライブラリの関数で解放する」）は変わらない。ライブラリは、設定された `free` で解放する。
+- CRT の境界の規則（「ライブラリが確保したものはライブラリの関数で解放する」）は変わらない。ライブラリは、設定された `free_fn` で解放する。
 
 ### 公開ヘッダの構造体の扱い
 
@@ -66,14 +67,13 @@ tech.md の「公開ヘッダに構造体の定義を置かない」という規
 - `src/core/core_alloc.c` に、現在のアロケーター（`static clopts_allocator_t`、初期値は標準関数）と、`clopts_set_allocator` を置く。
 - `core_internal.h` に窓口を宣言する: `clopts_core_malloc`、`clopts_core_calloc`、`clopts_core_realloc`、`clopts_core_strdup`、`clopts_core_strndup`、`clopts_core_free`、`clopts_core_malloc_array`。窓口でサイズ 0 の丸めとオーバーフローの検査を行う。
 - 窓口は引数を増やさない（`clopts_core_malloc(size)` の形）。ハンドルにアロケーターを持たせる必要もない。
-- メンバーの呼び出しは `(current.malloc)(size)` のように括弧で囲んで書く。MSVC の `_CRTDBG_MAP_ALLOC` などで `malloc` が関数形式のマクロになっていても、展開されないようにするため（ヘッダの宣言 `void *(*malloc)(size_t size);` は、名前の後が `(` ではないので、もともと展開されない）。
 
 ## 決定事項
 
 - 生きているハンドルがある間の `clopts_set_allocator` の呼び出しは、デバッグビルドでも検出しない。生きているハンドルを数えるには、グローバルな計数器をスレッドを考えて更新しなければならないため。文書の契約にとどめる。
 - `clopts_get_allocator` は持たない。既定に戻すには `clopts_set_allocator(NULL)` を使う。
 - ヘッダは新しく `include/clopts/alloc.h` を作り、`clopts.h` から取り込む。
-- メンバー名は `malloc` / `calloc` / `realloc` / `free`（`_fn` を付けない）。
+- メンバー名は `malloc_fn` / `calloc_fn` / `realloc_fn` / `free_fn`（標準関数のマクロ置き換えと衝突しないように `_fn` を付ける）。
 - 「公開ヘッダに構造体の定義を置かない」は廃止し、「公開構造体は凍結する」に置き換える。
 
 ## TODO
