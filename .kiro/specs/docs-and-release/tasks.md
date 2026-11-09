@@ -99,7 +99,7 @@
   - _Depends: 2.2_
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 6.3, 6.4_
 
-- [ ] 4.4 (P) Windows での注意の章を書く
+- [x] 4.4 (P) Windows での注意の章を書く
   - 設計の WindowsDoc どおりに書く。UTF-8 の argv の取得と解放の順序、`wmain` と `clopts_argv_from_wide`、環境変数の UTF-8 での取得と差し込み、`activeCodePage` との関係、DLL 名と PATH の衝突（`docs/abi.md` へのリンク）、コンソールのコードページ
   - 完了条件: 内容が `include/clopts/platform.h` の注釈（所有、寿命、他の OS でのパススルー）と矛盾しない。links を直接呼ぶと、この章のリンクが解決する
   - _Boundary: WindowsDoc_
