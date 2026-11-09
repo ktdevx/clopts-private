@@ -39,12 +39,12 @@ extern "C" {
     X(OUT_OF_MEMORY, "out of memory")
 
 /* Outcome of a builder function. */
-#define CLOPTS_ERROR_ENUMERATOR(name, message) CLOPTS_ERROR_##name,
 typedef enum clopts_error
 {
-    CLOPTS_ERROR_LIST(CLOPTS_ERROR_ENUMERATOR)
+#define CLOPTS_ERROR_ENUM(name, message) CLOPTS_ERROR_##name,
+    CLOPTS_ERROR_LIST(CLOPTS_ERROR_ENUM)
+#undef CLOPTS_ERROR_ENUM
 } clopts_error_t;
-#undef CLOPTS_ERROR_ENUMERATOR
 
 /*
  * Returns a static English description of error (for example "duplicate

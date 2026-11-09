@@ -14,9 +14,9 @@ const char *clopts_error_message(clopts_error_t error)
     switch (error)
     {
 #define CLOPTS_ERROR_CASE(name, message) \
-    case CLOPTS_ERROR_##name:                   \
+    case CLOPTS_ERROR_##name:            \
         return message;
-        CLOPTS_ERROR_LIST(CLOPTS_ERROR_CASE)
+    CLOPTS_ERROR_LIST(CLOPTS_ERROR_CASE)
 #undef CLOPTS_ERROR_CASE
     }
     return NULL;
