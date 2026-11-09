@@ -145,7 +145,7 @@ tech.md の「公開ヘッダに構造体の定義を置かない」という規
 - [x] `grep -rnE "probe|\b(malloc|calloc|realloc|free)\(" src` を実行し、`core_alloc.c` の既定値（標準関数のアドレス）以外に該当がないことを確かめる。
 - [x] `clopts_testing` がまだ必要かを見直す（実施: 内部関数を呼ぶテストのために残す）。
 - [x] 静的・共有ビルドの両方、全ラベル（core / parser / platform / help / abi / docs / integration）で CTest を通す。
-- [ ] Windows（MSVC / MinGW）で、platform の OOM スイープと `platform_probe` が通ることを確かめる。
+- [x] Windows（MSVC / MinGW）で、platform の OOM スイープと `platform_probe` が通ることを確かめる（実施: PR #16 の CI で、MSVC と MinGW の静的版・共有版がすべて通った）。
 
 ## 完了条件
 
