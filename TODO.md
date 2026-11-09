@@ -134,9 +134,12 @@
 
 - [ ] `clopts_decl_error_message()` を `help.h` から `decl_types.h` 側へ移す（宣言エラーのメッセージなので）
 - [ ] `platform.h` が `parse.h` を include しているのをやめる。`clopts_getenv_fn` と `clopts_env_status_t` を小さなヘッダーに切り出し、platform を parser に依存させない
-- [ ] （見送り候補）`clopts_set_allocator` のグローバル状態を program ごとの allocator にする。分離の効果に対して API の負担が大きい
 
 ### まとめると
 
 - 1 と 2 は上の再設計（封印と内側優先）と強く噛み合う。1 で MIXED_LAYOUT が縮み、2 で予約名の扱いがまるごと消える
 - すべて入れると、program 側の検証は「コマンド名の重複」と「root の positional」の2つだけになる
+
+### 見送り
+
+- `clopts_set_allocator` のグローバル状態を program ごとの allocator にする案。分離の効果に対して API の負担が大きいため、やらない
