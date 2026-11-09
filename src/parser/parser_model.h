@@ -16,10 +16,10 @@
 
 /*
  * Internal declaration model: the only representation of a declaration, built
- * by the builder functions (option.c, parser_positional.c,
+ * by the builder functions (option.c, positional.c,
  * command.c and parser_program.c). This header holds the program;
  * commands and options have their own headers, and the layout of a
- * positional is private to parser_positional.c. Everything
+ * positional is private to positional.c. Everything
  * outside the parser module (help-and-messages included) reads it through the
  * public read functions only.
  *

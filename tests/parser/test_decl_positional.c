@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite decl_positional: the checks of a positional alone, made by
- * clopts_positional_create() and the positional setters (parser_positional.c).
+ * clopts_positional_create() and the positional setters (positional.c).
  * None of these tests creates a program or a command. The order of the
  * positionals is checked when one is attached (decl suite).
  */
