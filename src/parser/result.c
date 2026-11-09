@@ -3,14 +3,16 @@
  * SPDX-License-Identifier: MIT
  *
  * Result handle: allocation, the out-of-memory sentinel, recording into
- * slots, the accessors, run and release.
+ * slots, the accessors and release.
  *
  * Every allocation goes through the allocation gateway of core. Whatever
  * was allocated is linked to the result at once, so clopts_result_destroy()
  * releases it even after a failure. A result does not point to its
- * program: every slot knows its option, and an option knows its index, so a
- * value is found in constant time. clopts_result_destroy() never reads the
- * declaration, so the result may be released after the program.
+ * program: every slot knows its option, and an accessor finds the slot of an
+ * option by its address, searching the global slots and then the slots of
+ * the selected command (an option does not know its index).
+ * clopts_result_destroy() never reads the declaration, so the result may be
+ * released after the program.
  */
 
 #include "parser/parser_internal.h"

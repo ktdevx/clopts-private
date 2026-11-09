@@ -16,9 +16,9 @@
 /*
  * Internal declaration model: the only representation of a declaration, built
  * by the builder functions (option.c, positional.c, scope.c, command.c and
- * program.c). The layouts of a program, a command and a positional are
- * private to program.c, command.c and positional.c; options have their
- * own header. The program and every command embed a scope (below) that holds
+ * program.c). The layouts of a program, a command, an option and a
+ * positional are private to program.c, command.c, option.c and positional.c.
+ * The program and every command embed a scope (below) that holds
  * their options and positionals. Everything outside those files reads them
  * through the read functions only: the public ones, and the scope functions
  * inside the parser (help-and-messages reads the public ones only).
@@ -39,10 +39,9 @@
 
 /*
  * Internal contracts of the parser module, shared by the builder
- * (program.c, command.c, option.c, positional.c), the name rules and
- * lookups (names.c), the scanner (scan.c), the resolver
- * (resolve.c) and the result handle (result.c). None of these
- * symbols is exported from the shared library. Every allocation goes through
+ * (program.c, command.c, option.c, positional.c, scope.c), the name rules
+ * and lookups (names.c), the scanner (scan.c), the resolver (resolve.c) and
+ * the result handle (result.c). None of these symbols is exported from the shared library. Every allocation goes through
  * the allocation gateway of core (clopts_core_malloc and the others,
  * core/core_internal.h).
  */
