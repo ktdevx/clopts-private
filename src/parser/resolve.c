@@ -83,8 +83,7 @@ static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *optio
             }
             if (kind == CLOPTS_OPTION_VALUE)
             {
-                clopts_parser_slot_own(slot, copy);
-                clopts_parser_slot_set_value(slot, copy, CLOPTS_SOURCE_ENV);
+                clopts_parser_slot_set_owned_value(slot, copy, CLOPTS_SOURCE_ENV);
                 return 0;
             }
             else
@@ -165,14 +164,17 @@ int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *progr
 static void set_missing(clopts_result_t *result, const clopts_command_t *command,
                         const clopts_option_t *option, const clopts_positional_t *positional)
 {
-    result->error.usage = (option != NULL) ? CLOPTS_USAGE_MISSING_OPTION : CLOPTS_USAGE_MISSING_ARGUMENT;
-    result->error.command = command;
-    result->error.option = option;
-    result->error.positional = positional;
-    result->error.token = NULL;
-    result->error.argv_index = -1;
-    result->error.name_len = 0;
-    result->error.short_name = '\0';
+    clopts_parser_error_t error;
+
+    error.usage = (option != NULL) ? CLOPTS_USAGE_MISSING_OPTION : CLOPTS_USAGE_MISSING_ARGUMENT;
+    error.command = command;
+    error.option = option;
+    error.positional = positional;
+    error.token = NULL;
+    error.argv_index = -1;
+    error.name_len = 0;
+    error.short_name = '\0';
+    clopts_parser_result_set_error(result, &error);
 }
 
 /* Returns true when slot got a value that satisfies required (from argv or the environment). */

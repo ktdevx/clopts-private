@@ -49,19 +49,6 @@ static clopts_result_t *scan_enter(const clopts_program_t *program)
     return result;
 }
 
-/* A pending usage error: the fields of result->error a usage error sets. */
-typedef struct scan_error
-{
-    clopts_usage_error_t usage;
-    const clopts_command_t *command;
-    const clopts_option_t *option;
-    const clopts_positional_t *positional;
-    const char *token;
-    int argv_index;
-    size_t name_len;
-    char short_name;
-} scan_error_t;
-
 /*
  * State of one scan. Every row of the scan tables is a small function taking
  * this struct: it reads argv[pos], records into the result and advances pos.
@@ -78,7 +65,7 @@ typedef struct scan_state
     const clopts_command_t *command;
     /* A usage error is pending in pending_error (only the first one is kept). */
     bool has_pending;
-    scan_error_t pending_error;
+    clopts_parser_error_t pending_error;
     /* "--" was reached: every following token is a positional. */
     bool dashdash;
     /* The terminal option that ended the scan, or NULL. */
@@ -141,9 +128,9 @@ static const char *scan_token(const scan_state_t *state)
  * selected command, or NULL before the selection. Returns the pending error
  * so that the caller can complete it, or NULL when none was recorded.
  */
-static scan_error_t *scan_fail(scan_state_t *state, clopts_usage_error_t usage, int index)
+static clopts_parser_error_t *scan_fail(scan_state_t *state, clopts_usage_error_t usage, int index)
 {
-    scan_error_t *error = &state->pending_error;
+    clopts_parser_error_t *error = &state->pending_error;
 
     assert((index >= 0) && (index < state->argc));
     if (state->has_pending)
@@ -200,11 +187,11 @@ static void scan_flag(scan_state_t *state, const clopts_parser_ref_t *ref)
  * none was recorded. VALUE keeps the last one given; LIST appends the split
  * items.
  */
-static scan_error_t *scan_option_value(scan_state_t *state, const clopts_parser_ref_t *ref, const char *value,
-                                       int index)
+static clopts_parser_error_t *scan_option_value(scan_state_t *state, const clopts_parser_ref_t *ref,
+                                                const char *value, int index)
 {
     clopts_parser_slot_t *slot = clopts_parser_result_slot(state->result, ref);
-    scan_error_t *error;
+    clopts_parser_error_t *error;
 
     if (value == NULL)
     {
@@ -246,7 +233,7 @@ static void scan_long_option(scan_state_t *state)
     const size_t name_len = strcspn(name, "=");
     const char *value = (name[name_len] == '=') ? (name + name_len + 1) : NULL;
     clopts_parser_ref_t ref;
-    scan_error_t *error;
+    clopts_parser_error_t *error;
 
     state->pos++;
     ref = clopts_parser_find_long(scan_global(state), scan_selected(state), name, name_len);
@@ -301,7 +288,7 @@ static void scan_short_option(scan_state_t *state)
     const int index = state->pos;
     const char *chars = scan_token(state) + 1;
     clopts_parser_ref_t ref;
-    scan_error_t *error;
+    clopts_parser_error_t *error;
     size_t i;
 
     state->pos++;
@@ -576,25 +563,6 @@ static void scan_recover(scan_state_t *state)
     }
 }
 
-/* Finishes the parse with status: the only place that writes result->status after scan_enter(). */
-static void finish(clopts_result_t *result, clopts_status_t status)
-{
-    result->status = status;
-}
-
-/* Copies the pending usage error into result->error. */
-static void store_pending_error(clopts_result_t *result, const scan_error_t *error)
-{
-    result->error.usage = error->usage;
-    result->error.command = error->command;
-    result->error.option = error->option;
-    result->error.positional = error->positional;
-    result->error.token = error->token;
-    result->error.argv_index = error->argv_index;
-    result->error.name_len = error->name_len;
-    result->error.short_name = error->short_name;
-}
-
 /* Step 3 of the procedure: a pending usage error, or out of memory, ends the parse. Returns true when it did. */
 static bool scan_failed(scan_state_t *state)
 {
@@ -602,7 +570,7 @@ static bool scan_failed(scan_state_t *state)
 
     if (state->out_of_memory)
     {
-        finish(result, CLOPTS_OUT_OF_MEMORY);
+        clopts_parser_result_finish(result, CLOPTS_OUT_OF_MEMORY);
         return true;
     }
     if (state->has_pending)
@@ -611,8 +579,8 @@ static bool scan_failed(scan_state_t *state)
     }
     if (state->has_pending)
     {
-        store_pending_error(result, &state->pending_error);
-        finish(result, CLOPTS_USAGE_ERROR);
+        clopts_parser_result_set_error(result, &state->pending_error);
+        clopts_parser_result_finish(result, CLOPTS_USAGE_ERROR);
         return true;
     }
     return false;
@@ -651,27 +619,27 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
     selected_scope = ((clopts_program_get_command_count(program) == 0) || (state.command != NULL));
     if (clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope) != 0)
     {
-        finish(result, CLOPTS_OUT_OF_MEMORY);
+        clopts_parser_result_finish(result, CLOPTS_OUT_OF_MEMORY);
         return;
     }
 
     /* 5. */
     if (state.terminal != NULL)
     {
-        result->terminal = state.terminal;
-        finish(result, CLOPTS_TERMINATED);
+        clopts_parser_result_set_terminal(result, state.terminal);
+        clopts_parser_result_finish(result, CLOPTS_TERMINATED);
         return;
     }
 
     /* 6. */
     if (clopts_parser_check_required(result, program, selected_scope) != 0)
     {
-        finish(result, CLOPTS_USAGE_ERROR);
+        clopts_parser_result_finish(result, CLOPTS_USAGE_ERROR);
         return;
     }
 
     /* 7. */
-    finish(result, selected_scope ? CLOPTS_OK : CLOPTS_NO_COMMAND);
+    clopts_parser_result_finish(result, selected_scope ? CLOPTS_OK : CLOPTS_NO_COMMAND);
 }
 
 /* Shared body of clopts_parse() and clopts_parse_with_env(). */

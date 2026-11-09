@@ -157,22 +157,29 @@ typedef struct clopts_parser_slot
     clopts_core_vec_t items;  /* LIST: char * elements, each owned by the slot */
 } clopts_parser_slot_t;
 
+/* The fields of a usage error (the error of a result). */
+typedef struct clopts_parser_error
+{
+    clopts_usage_error_t usage;
+    const clopts_command_t *command;
+    const clopts_option_t *option;
+    const clopts_positional_t *positional;
+    const char *token;   /* an argv element, or NULL */
+    int argv_index;      /* -1 when there is none */
+    size_t name_len;
+    char short_name;
+} clopts_parser_error_t;
+
+/*
+ * Only the functions of result.c write to a result; everything else in src/
+ * records into it through them.
+ */
 struct clopts_result
 {
     clopts_status_t status;
     const clopts_command_t *command;  /* selected command, or NULL */
     const clopts_option_t *terminal;  /* TERMINATED: the terminal option, else NULL */
-    struct
-    {
-        clopts_usage_error_t usage;
-        const clopts_command_t *command;
-        const clopts_option_t *option;
-        const clopts_positional_t *positional;
-        const char *token;            /* an argv element, or NULL */
-        int argv_index;               /* -1 when there is none */
-        size_t name_len;
-        char short_name;
-    } error;
+    clopts_parser_error_t error;
     clopts_parser_slot_t *global_slots;   /* one per global option */
     size_t global_count;
     clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */
@@ -217,11 +224,23 @@ void clopts_parser_slot_set_value(clopts_parser_slot_t *slot, const char *value,
 int clopts_parser_slot_append_list(clopts_parser_slot_t *slot, const char *value,
                                    char delimiter, clopts_source_t source);
 
-/* VALUE: moves ownership of owned (an environment value copy) to slot, releasing the previous owned copy. */
-void clopts_parser_slot_own(clopts_parser_slot_t *slot, char *owned);
+/*
+ * VALUE: records owned (an environment value copy) as the value with source,
+ * and moves its ownership to slot, releasing the previous owned copy.
+ */
+void clopts_parser_slot_set_owned_value(clopts_parser_slot_t *slot, char *owned, clopts_source_t source);
 
 /* Appends token (an argv element) as a positional. Returns 0 or -1. */
 int clopts_parser_result_add_positional(clopts_result_t *result, const char *token);
+
+/* Records error as the usage error of result. The status is left unchanged. */
+void clopts_parser_result_set_error(clopts_result_t *result, const clopts_parser_error_t *error);
+
+/* Records option as the terminal option of result. The status is left unchanged. */
+void clopts_parser_result_set_terminal(clopts_result_t *result, const clopts_option_t *option);
+
+/* Writes the final status of result. */
+void clopts_parser_result_finish(clopts_result_t *result, clopts_status_t status);
 
 /*
  * Resolver (resolve.c).

@@ -503,8 +503,7 @@ NAOS_TEST(environment_copy_is_owned_by_the_slot)
     before = test_alloc.live;
     copy = clopts_core_strdup("from-env");
     NAOS_REQUIRE_NOT_NULL(copy);
-    clopts_parser_slot_own(slot, copy);
-    clopts_parser_slot_set_value(slot, copy, CLOPTS_SOURCE_ENV);
+    clopts_parser_slot_set_owned_value(slot, copy, CLOPTS_SOURCE_ENV);
     NAOS_CHECK_PTR_EQ(slot->owned, copy);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, s.config), copy);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, s.config), CLOPTS_SOURCE_ENV);
@@ -513,7 +512,7 @@ NAOS_TEST(environment_copy_is_owned_by_the_slot)
     /* owning a new copy releases the previous one */
     second = clopts_core_strdup("again");
     NAOS_REQUIRE_NOT_NULL(second);
-    clopts_parser_slot_own(slot, second);
+    clopts_parser_slot_set_owned_value(slot, second, CLOPTS_SOURCE_ENV);
     NAOS_CHECK_PTR_EQ(slot->owned, second);
     NAOS_CHECK_PTR_EQ(slot->value, second);
     NAOS_CHECK_INT_EQ(test_alloc.live, before + 1);
@@ -987,8 +986,7 @@ NAOS_TEST(free_after_the_program_releases_everything)
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_select(result, s.build), 0);
     copy = clopts_core_strdup("env");
     NAOS_REQUIRE_NOT_NULL(copy);
-    clopts_parser_slot_own(slot_of(&s, result, s.config), copy);
-    clopts_parser_slot_set_value(slot_of(&s, result, s.config), copy, CLOPTS_SOURCE_ENV);
+    clopts_parser_slot_set_owned_value(slot_of(&s, result, s.config), copy, CLOPTS_SOURCE_ENV);
     NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot_of(&s, result, s.include), "a,b,c", ',',
                                                        CLOPTS_SOURCE_EXPLICIT), 0);
     clopts_parser_slot_set_value(slot_of(&s, result, s.build_output), "o", CLOPTS_SOURCE_EXPLICIT);

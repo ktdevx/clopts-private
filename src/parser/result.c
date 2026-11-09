@@ -280,7 +280,7 @@ int clopts_parser_slot_append_list(clopts_parser_slot_t *slot, const char *value
     }
 }
 
-void clopts_parser_slot_own(clopts_parser_slot_t *slot, char *owned)
+void clopts_parser_slot_set_owned_value(clopts_parser_slot_t *slot, char *owned, clopts_source_t source)
 {
     assert(slot != NULL);
     assert(owned != NULL);
@@ -291,6 +291,7 @@ void clopts_parser_slot_own(clopts_parser_slot_t *slot, char *owned)
     }
     slot->owned = owned;
     slot->value = owned;
+    slot->source = source;
 }
 
 int clopts_parser_result_add_positional(clopts_result_t *result, const char *token)
@@ -300,6 +301,31 @@ int clopts_parser_result_add_positional(clopts_result_t *result, const char *tok
     assert(token != NULL);
 
     return clopts_core_vec_push(&result->positionals, &token);
+}
+
+void clopts_parser_result_set_error(clopts_result_t *result, const clopts_parser_error_t *error)
+{
+    assert(result != NULL);
+    assert(result != &parser_result_sentinel);
+    assert(error != NULL);
+
+    result->error = *error;
+}
+
+void clopts_parser_result_set_terminal(clopts_result_t *result, const clopts_option_t *option)
+{
+    assert(result != NULL);
+    assert(result != &parser_result_sentinel);
+
+    result->terminal = option;
+}
+
+void clopts_parser_result_finish(clopts_result_t *result, clopts_status_t status)
+{
+    assert(result != NULL);
+    assert(result != &parser_result_sentinel);
+
+    result->status = status;
 }
 
 /* ---- public accessors ---- */
