@@ -114,6 +114,12 @@ void clopts_program_destroy(clopts_program_t *program)
     clopts_core_free(program);
 }
 
+const clopts_scope_t *clopts_program_scope(const clopts_program_t *program)
+{
+    assert(program != NULL);
+    return clopts_command_scope(program->root);
+}
+
 /* ---- read functions ---- */
 
 const clopts_command_t *clopts_program_root(const clopts_program_t *program)

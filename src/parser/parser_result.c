@@ -51,9 +51,9 @@ static const struct clopts_result parser_result_sentinel = {
  * gateway. No options give NULL without allocating. Returns 0, or -1 leaving
  * *out unchanged.
  */
-static int alloc_slots(const clopts_command_t *scope, clopts_parser_slot_t **out)
+static int alloc_slots(const clopts_scope_t *scope, clopts_parser_slot_t **out)
 {
-    const size_t count = clopts_command_option_count(scope);
+    const size_t count = clopts_scope_option_count(scope);
     clopts_parser_slot_t *slots;
     size_t i;
 
@@ -69,7 +69,7 @@ static int alloc_slots(const clopts_command_t *scope, clopts_parser_slot_t **out
     }
     for (i = 0; i < count; i++)
     {
-        slots[i].option = clopts_command_option_at(scope, i);
+        slots[i].option = clopts_scope_option_at(scope, i);
         slots[i].source = CLOPTS_SOURCE_NONE;
         slots[i].flag = false;
         slots[i].count = 0;
@@ -118,7 +118,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     {
         return NULL;
     }
-    if (alloc_slots(clopts_program_root(program), &global_slots) != 0)
+    if (alloc_slots(clopts_program_scope(program), &global_slots) != 0)
     {
         clopts_core_free(result);
         return NULL;
@@ -135,7 +135,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     result->error.name_len = 0;
     result->error.short_name = '\0';
     result->global_slots = global_slots;
-    result->global_count = clopts_command_option_count(clopts_program_root(program));
+    result->global_count = clopts_scope_option_count(clopts_program_scope(program));
     result->command_slots = NULL;
     result->command_count = 0;
     clopts_core_vec_init(&result->positionals, sizeof(const char *));
@@ -156,13 +156,13 @@ int clopts_parser_result_select(clopts_result_t *result, const clopts_command_t 
     assert(command != NULL);
     assert((result->command == NULL) && (result->command_slots == NULL));
 
-    if (alloc_slots(command, &command_slots) != 0)
+    if (alloc_slots(clopts_command_scope(command), &command_slots) != 0)
     {
         return -1;
     }
     result->command = command;
     result->command_slots = command_slots;
-    result->command_count = clopts_command_option_count(command);
+    result->command_count = clopts_scope_option_count(clopts_command_scope(command));
     return 0;
 }
 
