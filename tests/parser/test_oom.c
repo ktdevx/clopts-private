@@ -6,8 +6,9 @@
  * The allocations are counted and made to fail by the fault-injecting
  * allocator of tests/support/test_alloc.h, installed with
  * clopts_set_allocator(): each malloc, calloc or realloc call of the library
- * is one fault point (test_decl_program() included), and every block must
- * have been released through it at the end of each run. The allocation
+ * is one fault point (from the first clopts_command_new() of the assembly to
+ * clopts_program_new() at its end), and every block must have been released
+ * through it at the end of each run. The allocation
  * gateway itself (clopts_core_malloc and the others, the overflow checks and
  * the vec growth) is tested in the core suite.
  */
@@ -30,7 +31,7 @@
  * points were passed in the swept part (test_alloc.calls < n, counted from
  * the start of that part). Every parse must end with OUT_OF_MEMORY or with
  * the same outcome as a run without failures (a fault point in the assembly
- * instead leaves a partial program, see scenario (a)), and test_alloc_end()
+ * instead leaves no program at all, see scenario (a)), and test_alloc_end()
  * must report no live block and no bad release once the result and the
  * program are released. The sweeps stop at SWEEP_LIMIT runs at most.
  */
@@ -226,17 +227,31 @@ static clopts_status_t parse_and_snap(fixture_tool_t *t, int argc, char *const *
     return status;
 }
 
-/* Parses argv against a tool built without failures and returns the snapshot. */
+/*
+ * Parses argv against a tool built without failures and returns the
+ * snapshot. When not NULL, *build_calls gets the number of fault points of
+ * the assembly and *parse_calls that of the parse.
+ */
 static void reference_parse(int argc, char *const *argv, const fixture_env_var_t *vars, size_t var_count,
-                            snapshot_t *snap)
+                            snapshot_t *snap, size_t *build_calls, size_t *parse_calls)
 {
     fixture_tool_t t;
+    size_t built;
 
     test_alloc_begin(0);
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
+    built = test_alloc.calls;
     (void)parse_and_snap(&t, argc, argv, vars, var_count, snap);
+    if (build_calls != NULL)
+    {
+        *build_calls = built;
+    }
+    if (parse_calls != NULL)
+    {
+        *parse_calls = test_alloc.calls - built;
+    }
     fixture_tool_free(&t);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
@@ -302,153 +317,38 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
     }
 }
 
-/* Number of non-NULL handles among the count handles at handles. */
-static size_t count_present(const void *const *handles, size_t count)
-{
-    size_t present = 0;
-    size_t i;
-
-    for (i = 0; i < count; i++)
-    {
-        if (handles[i] != NULL)
-        {
-            present++;
-        }
-    }
-    return present;
-}
-
-/* Checks that the option and positional vecs of scope hold exactly the given handles, in order. */
-static void check_scope_holds(const clopts_command_t *scope, const void *const *options, size_t option_count,
-                              const void *const *positionals, size_t positional_count)
-{
-    size_t i;
-    size_t at = 0;
-
-    NAOS_REQUIRE_UINT_EQ(scope->options.len, count_present(options, option_count));
-    for (i = 0; i < option_count; i++)
-    {
-        if (options[i] != NULL)
-        {
-            NAOS_CHECK_PTR_EQ(*(clopts_option_t *const *)clopts_core_vec_at(&scope->options, at), options[i]);
-            NAOS_CHECK_TRUE(((const clopts_option_t *)options[i])->attached);
-            at++;
-        }
-    }
-    at = 0;
-    NAOS_REQUIRE_UINT_EQ(scope->positionals.len, count_present(positionals, positional_count));
-    for (i = 0; i < positional_count; i++)
-    {
-        if (positionals[i] != NULL)
-        {
-            NAOS_CHECK_PTR_EQ(*(clopts_positional_t *const *)clopts_core_vec_at(&scope->positionals, at),
-                              positionals[i]);
-            NAOS_CHECK_TRUE(((const clopts_positional_t *)positionals[i])->attached);
-            at++;
-        }
-    }
-}
-
 /*
- * Checks that a (possibly partial) tool holds exactly what its handles say:
- * every handle that is not NULL is attached where the fixture attaches it,
- * nothing else is attached, and the handles of a command that could not be
- * created are NULL. A failed builder call changes nothing, and a helper
- * releases an option or positional whose attach failed, so this holds after
- * any fault point.
- */
-static void check_partial_tool(const fixture_tool_t *t)
-{
-    const void *root_options[3];
-    const void *build_options[3];
-    const void *build_positionals[2];
-    const void *copy_positionals[2];
-    const void *cat_options[1];
-    const void *cat_positionals[1];
-    const void *commands[3];
-    size_t i;
-    size_t at = 0;
-
-    root_options[0] = t->verbose;
-    root_options[1] = t->color;
-    root_options[2] = t->config;
-    build_options[0] = t->output;
-    build_options[1] = t->keys;
-    build_options[2] = t->jobs;
-    build_positionals[0] = t->build_src;
-    build_positionals[1] = t->build_extra;
-    copy_positionals[0] = t->copy_src;
-    copy_positionals[1] = t->copy_dst;
-    cat_options[0] = t->tags;
-    cat_positionals[0] = t->cat_file;
-    commands[0] = t->build;
-    commands[1] = t->copy;
-    commands[2] = t->cat;
-
-    NAOS_REQUIRE_NOT_NULL(t->root);
-    check_scope_holds(t->root, root_options, 3, NULL, 0);
-    NAOS_REQUIRE_UINT_EQ(t->program->commands.len, count_present(commands, 3));
-    for (i = 0; i < 3; i++)
-    {
-        if (commands[i] != NULL)
-        {
-            NAOS_CHECK_PTR_EQ(*(clopts_command_t *const *)clopts_core_vec_at(&t->program->commands, at),
-                              commands[i]);
-            at++;
-        }
-    }
-    if (t->build != NULL)
-    {
-        check_scope_holds(t->build, build_options, 3, build_positionals, 2);
-    }
-    else
-    {
-        NAOS_CHECK_UINT_EQ(count_present(build_options, 3) + count_present(build_positionals, 2), 0);
-    }
-    if (t->copy != NULL)
-    {
-        check_scope_holds(t->copy, NULL, 0, copy_positionals, 2);
-    }
-    else
-    {
-        NAOS_CHECK_UINT_EQ(count_present(copy_positionals, 2), 0);
-    }
-    if (t->cat != NULL)
-    {
-        check_scope_holds(t->cat, cat_options, 1, cat_positionals, 1);
-    }
-    else
-    {
-        NAOS_CHECK_UINT_EQ(count_present(cat_options, 1) + count_present(cat_positionals, 1), 0);
-    }
-}
-
-/*
- * Scenario (a): building tool, then parsing it. fail_at counts from
- * test_decl_program(), which is the first fault point: fail_at = 1 leaves
- * the fixture without a program.
+ * Scenario (a): building tool, then parsing it. fail_at counts from the
+ * first allocation of the assembly (the root's clopts_command_new()), and
+ * every fault point from fail_at on fails.
  *
  * A failed allocation during the assembly makes that builder call return
- * CLOPTS_DECL_OUT_OF_MEMORY and change nothing, so every fault point of the
- * assembly either lets it complete with ok, or leaves ok false with a valid,
- * partial program whose handles are NULL where creation or attach failed.
- * Such a program parses like any other (here with every later allocation
- * succeeding): never OUT_OF_MEMORY, and when it still accepts argv the
- * outcome is that of the complete tool. No run leaks a block.
+ * CLOPTS_DECL_OUT_OF_MEMORY and change nothing; the later builder calls get
+ * NULL handles, and clopts_program_new() at the end (which allocates) fails
+ * as well, so the fixture releases the root with everything attached to it
+ * and the commands, and leaves the whole struct zeroed. So every fault point
+ * of the assembly gives no program, no handle and no live block, and a
+ * parse of the NULL program is the sentinel without any allocation or
+ * environment lookup. A fault point after the assembly gives the complete
+ * tool, whose parse is OUT_OF_MEMORY or the outcome of the reference run.
+ * Every fault point of the assembly and of the parse is reached exactly once.
  */
 NAOS_TEST(sweep_tool_build_then_parse)
 {
+    static const fixture_tool_t zero;
     char *argv[] = { "tool", "build", "-k", "a,b", "-o", "x", "src", NULL };
     snapshot_t expected;
+    size_t build_calls = 0;
+    size_t parse_calls = 0;
     size_t fail_at;
-    size_t new_oom_runs = 0;
     size_t build_oom_runs = 0;
-    size_t partial_ok_runs = 0;
     size_t later_oom_runs = 0;
     bool succeeded = false;
 
-    reference_parse(7, argv, NULL, 0, &expected);
+    reference_parse(7, argv, NULL, 0, &expected, &build_calls, &parse_calls);
     NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_OK);
+    NAOS_REQUIRE_UINT_GT(build_calls, 0);
+    NAOS_REQUIRE_UINT_GT(parse_calls, 0);
 
     for (fail_at = 1; (fail_at <= SWEEP_LIMIT) && (!succeeded); fail_at++)
     {
@@ -466,24 +366,11 @@ NAOS_TEST(sweep_tool_build_then_parse)
         {
             size_t calls_after_build = test_alloc.calls;
 
-            /*
-             * test_decl_program() failed. The options and positionals are
-             * created on their own, so their constructors still try to
-             * allocate, but every later fault point fails too: every handle
-             * is NULL and nothing is left allocated.
-             */
-            new_oom_runs++;
-            NAOS_CHECK_UINT_EQ(fail_at, 1);
+            build_oom_runs++;
+            NAOS_CHECK_UINT_LE(fail_at, build_calls);
+            NAOS_CHECK_UINT_GE(calls_after_build, fail_at);
             NAOS_CHECK_FALSE(t.ok);
-            NAOS_CHECK_NULL(t.root);
-            NAOS_CHECK_NULL(t.build);
-            NAOS_CHECK_NULL(t.copy);
-            NAOS_CHECK_NULL(t.cat);
-            NAOS_CHECK_NULL(t.verbose);
-            NAOS_CHECK_NULL(t.output);
-            NAOS_CHECK_NULL(t.tags);
-            NAOS_CHECK_NULL(t.build_src);
-            NAOS_CHECK_NULL(t.cat_file);
+            NAOS_CHECK_TRUE(memcmp(&t, &zero, sizeof(t)) == 0);
             NAOS_CHECK_INT_EQ(test_alloc.live, 0);
             test_alloc_set_fail_at(0);
             parsed = clopts_parse_with_env(t.program, 7, argv, fixture_env_getenv, &env);
@@ -492,27 +379,11 @@ NAOS_TEST(sweep_tool_build_then_parse)
             NAOS_CHECK_FALSE(env.query_count > 0);
             clopts_result_free(parsed);
         }
-        else if (test_alloc.calls >= fail_at)
-        {
-            build_oom_runs++;
-            NAOS_CHECK_FALSE(t.ok);
-            check_partial_tool(&t);
-            /* Let every later allocation succeed: the partial program is valid. */
-            test_alloc_set_fail_at(0);
-            parsed = clopts_parse_with_env(t.program, 7, argv, fixture_env_getenv, &env);
-            NAOS_REQUIRE_NOT_NULL(parsed);
-            NAOS_CHECK_TRUE(parsed != clopts_parser_result_oom());
-            snap_take(&snap, parsed, &t);
-            clopts_result_free(parsed);
-            NAOS_CHECK_INT_NE(snap.status, CLOPTS_OUT_OF_MEMORY);
-            if (snap.status == CLOPTS_OK)
-            {
-                partial_ok_runs++;
-                check_snapshot_eq(&snap, &expected);
-            }
-        }
         else
         {
+            /* The assembly passed no failing fault point. */
+            NAOS_CHECK_UINT_GT(fail_at, build_calls);
+            NAOS_CHECK_UINT_EQ(test_alloc.calls, build_calls);
             NAOS_CHECK_TRUE(t.ok);
             parsed = clopts_parse_with_env(t.program, 7, argv, fixture_env_getenv, &env);
             NAOS_REQUIRE_NOT_NULL(parsed);
@@ -521,6 +392,7 @@ NAOS_TEST(sweep_tool_build_then_parse)
             if (snap.status == CLOPTS_OUT_OF_MEMORY)
             {
                 later_oom_runs++;
+                NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
             }
             else
             {
@@ -539,11 +411,11 @@ NAOS_TEST(sweep_tool_build_then_parse)
     }
 
     NAOS_CHECK_TRUE(succeeded);
-    NAOS_CHECK_UINT_EQ(new_oom_runs, 1);
-    NAOS_CHECK_UINT_GT(build_oom_runs, 0);
-    /* A fault point late in the assembly (in cat) leaves build complete. */
-    NAOS_CHECK_UINT_GT(partial_ok_runs, 0);
-    NAOS_CHECK_UINT_GT(later_oom_runs, 0);
+    /* Every fault point of the assembly (clopts_program_new() included) was failed once. */
+    NAOS_CHECK_UINT_EQ(build_oom_runs, build_calls);
+    /* Every fault point of the parse ended it with OUT_OF_MEMORY. */
+    NAOS_CHECK_UINT_EQ(later_oom_runs, parse_calls);
+    NAOS_CHECK_UINT_EQ(fail_at - 1, build_calls + parse_calls + 1);
 }
 
 /* Scenario (b): the parse of tool build -k a,b -o x src, result allocation included. */
@@ -553,7 +425,7 @@ NAOS_TEST(sweep_parse_build_command)
     snapshot_t expected;
     sweep_stats_t stats;
 
-    reference_parse(7, argv, NULL, 0, &expected);
+    reference_parse(7, argv, NULL, 0, &expected, NULL, NULL);
     NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_OK);
     NAOS_CHECK_INT_EQ(expected.command, 1);
     NAOS_CHECK_STR_EQ(expected.output.text, "x");
@@ -581,7 +453,7 @@ NAOS_TEST(sweep_resolve_env_list)
     snapshot_t expected;
     sweep_stats_t stats;
 
-    reference_parse(3, argv, vars, ARRAY_LEN(vars), &expected);
+    reference_parse(3, argv, vars, ARRAY_LEN(vars), &expected, NULL, NULL);
     NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_OK);
     NAOS_CHECK_INT_EQ(expected.command, 3);
     NAOS_CHECK_STR_EQ(expected.config.text, "cfg");
@@ -606,7 +478,7 @@ NAOS_TEST(sweep_resolve_default_list)
     snapshot_t expected;
     sweep_stats_t stats;
 
-    reference_parse(3, argv, vars, ARRAY_LEN(vars), &expected);
+    reference_parse(3, argv, vars, ARRAY_LEN(vars), &expected, NULL, NULL);
     NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_OK);
     NAOS_CHECK_STR_EQ(expected.config.text, "cfg");
     NAOS_REQUIRE_UINT_EQ(expected.tags.count, 2);

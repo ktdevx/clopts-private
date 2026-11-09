@@ -1,11 +1,15 @@
 /*
  * Suite errors: fields of the structured error, the first error wins, the
- * recovery scan and the priority between help, version and errors.
+ * recovery scan and the priority between terminal options (the -h/--help
+ * and --version of the fixtures, and a terminal option of a command) and
+ * usage errors.
  *
  * Ported from the first-version errors suite onto the builder fixtures of
  * test_fixtures.c (handles instead of index constants) and the result handle
- * accessors. Every case uses the same argv as the first version. The status
- * is always checked with NAOS_REQUIRE_INT_EQ before anything else is read.
+ * accessors. Every case uses the same argv as the first version, except one
+ * case of unknown_command_fields: "tool help nope" now selects the help
+ * command, an ordinary command. The status is always checked with
+ * NAOS_REQUIRE_INT_EQ before anything else is read.
  */
 
 #include "parser/parser_internal.h"
@@ -104,25 +108,21 @@ static void check_no_error(const clopts_result_t *result)
     NAOS_CHECK_INT_EQ(clopts_result_error_short_name(result), '\0');
 }
 
-/* Parses argv for program and checks that it is HELP of command (NULL: the whole program). */
-static void check_help(clopts_program_t *program, char **argv, const clopts_command_t *command)
+/*
+ * Parses argv for program and checks that it is TERMINATED by the terminal
+ * option terminal (recorded as given), with command selected (NULL: none)
+ * and no error.
+ */
+static void check_terminated(clopts_program_t *program, char **argv, const clopts_option_t *terminal,
+                             const clopts_command_t *command)
 {
     clopts_result_t *result;
 
     result = parse_checked(program, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_HELP);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_TERMINATED);
+    NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), terminal);
     NAOS_CHECK_PTR_EQ(clopts_result_command(result), command);
-    check_no_error(result);
-    clopts_result_free(result);
-}
-
-/* Parses argv for program and checks that it is VERSION. */
-static void check_version(clopts_program_t *program, char **argv)
-{
-    clopts_result_t *result;
-
-    result = parse_checked(program, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_VERSION);
+    NAOS_CHECK_TRUE(clopts_result_flag(result, terminal));
     check_no_error(result);
     clopts_result_free(result);
 }
@@ -234,66 +234,66 @@ NAOS_TEST(only_the_first_of_different_errors_is_reported)
     fixture_tool_free(&t);
 }
 
-/* ---- recovery scan: help / version win over usage errors (10.7, 10.8) --- */
+/* ---- recovery scan: a terminal option wins over usage errors (10.7, 10.8) */
 
-NAOS_TEST(short_help_after_unknown_option_is_help_of_command)
+NAOS_TEST(short_help_after_unknown_option_terminates_in_the_command)
 {
     char *argv[] = { "tool", "build", "x", "-o", "y", "--bad", "-h", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv, t.build);
+    check_terminated(t.program, argv, t.help, t.build);
     fixture_tool_free(&t);
 }
 
-NAOS_TEST(long_help_after_unknown_option_is_help_of_command)
+NAOS_TEST(long_help_after_unknown_option_terminates_in_the_command)
 {
     char *argv[] = { "tool", "build", "--bad", "x", "--help", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv, t.build);
+    check_terminated(t.program, argv, t.help, t.build);
     fixture_tool_free(&t);
 }
 
-NAOS_TEST(help_after_error_before_selection_is_whole_program_help)
+NAOS_TEST(help_after_error_before_selection_terminates_without_a_command)
 {
     /* The scan stops at --bad, so build is never selected. */
     char *argv[] = { "tool", "--bad", "build", "--help", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv, NULL);
+    check_terminated(t.program, argv, t.help, NULL);
     fixture_tool_free(&t);
 }
 
-NAOS_TEST(help_after_unknown_command_is_whole_program_help)
+NAOS_TEST(help_after_unknown_command_terminates_without_a_command)
 {
     char *argv[] = { "tool", "bulid", "-h", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv, NULL);
+    check_terminated(t.program, argv, t.help, NULL);
     fixture_tool_free(&t);
 }
 
-NAOS_TEST(help_after_unexpected_argument_is_help_of_command)
+NAOS_TEST(help_after_unexpected_argument_terminates_in_the_command)
 {
     char *argv[] = { "tool", "copy", "a", "b", "c", "--help", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv, t.copy);
+    check_terminated(t.program, argv, t.help, t.copy);
     fixture_tool_free(&t);
 }
 
-NAOS_TEST(help_after_unexpected_value_is_help_of_command)
+NAOS_TEST(help_after_unexpected_value_terminates_in_the_command)
 {
     char *argv[] = { "tool", "build", "x", "--output=y", "--color=1", "-h", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv, t.build);
+    check_terminated(t.program, argv, t.help, t.build);
     fixture_tool_free(&t);
 }
 
@@ -306,28 +306,28 @@ NAOS_TEST(help_skips_required_check)
     fixture_strict_t s;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv_build, t.build);
-    check_help(t.program, argv_copy, t.copy);
+    check_terminated(t.program, argv_build, t.help, t.build);
+    check_terminated(t.program, argv_copy, t.help, t.copy);
     fixture_tool_free(&t);
 
     STRICT_BEGIN(s);
-    check_help(s.program, argv_strict, NULL);
+    check_terminated(s.program, argv_strict, s.help, NULL);
     fixture_strict_free(&s);
 }
 
-NAOS_TEST(version_after_unknown_option_is_version)
+NAOS_TEST(version_after_unknown_option_terminates)
 {
     char *argv[] = { "tool", "build", "x", "-o", "y", "--bad", "--version", NULL };
     char *argv_unknown[] = { "tool", "nope", "--version", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_version(t.program, argv);
-    check_version(t.program, argv_unknown);
+    check_terminated(t.program, argv, t.version, t.build);
+    check_terminated(t.program, argv_unknown, t.version, NULL);
     fixture_tool_free(&t);
 }
 
-NAOS_TEST(version_without_version_string_does_not_recover)
+NAOS_TEST(version_without_a_version_option_does_not_recover)
 {
     char *argv[] = { "filt", "--bad", "--version", NULL };
     const expected_error_t expected = { CLOPTS_USAGE_UNKNOWN_OPTION, NULL, NULL, NULL, 1, 5, '\0' };
@@ -344,11 +344,11 @@ NAOS_TEST(help_recovers_without_subcommands)
     fixture_filt_t f;
 
     FILT_BEGIN(f);
-    check_help(f.program, argv, NULL);
+    check_terminated(f.program, argv, f.help, NULL);
     fixture_filt_free(&f);
 }
 
-/* ---- help and version: the first one wins (10.9) ------------------------ */
+/* ---- terminal options: the first one wins (10.9) ------------------------ */
 
 NAOS_TEST(first_of_help_and_version_wins_after_an_error)
 {
@@ -357,8 +357,8 @@ NAOS_TEST(first_of_help_and_version_wins_after_an_error)
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv_help, NULL);
-    check_version(t.program, argv_version);
+    check_terminated(t.program, argv_help, t.help, NULL);
+    check_terminated(t.program, argv_version, t.version, t.build);
     fixture_tool_free(&t);
 }
 
@@ -369,8 +369,8 @@ NAOS_TEST(first_of_help_and_version_wins_without_an_error)
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv_help, t.build);
-    check_version(t.program, argv_version);
+    check_terminated(t.program, argv_help, t.help, t.build);
+    check_terminated(t.program, argv_version, t.version, t.build);
     fixture_tool_free(&t);
 }
 
@@ -461,10 +461,11 @@ NAOS_TEST(only_exact_tokens_count_in_recovery)
     fixture_tool_free(&t);
 }
 
-/* ---- the error token itself is a request (3.6 recovery scan, 10.1) ------ */
+/* ---- the help command of the fixture: an ordinary command (10.1) -------- */
 
-NAOS_TEST(help_command_followed_by_help_option_is_help)
+NAOS_TEST(help_command_followed_by_help_option_terminates)
 {
+    /* help is a declared command: --help / -h after it terminate in it, whatever its COMMAND. */
     char *argv_long[] = { "tool", "help", "--help", NULL };
     char *argv_short[] = { "tool", "help", "-h", NULL };
     char *argv_copy[] = { "tool", "help", "copy", "--help", NULL };
@@ -472,46 +473,168 @@ NAOS_TEST(help_command_followed_by_help_option_is_help)
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv_long, NULL);
-    check_help(t.program, argv_short, NULL);
-    check_help(t.program, argv_copy, t.copy);
-    check_help(t.program, argv_copy_short, t.copy);
+    check_terminated(t.program, argv_long, t.help, t.help_command);
+    check_terminated(t.program, argv_short, t.help, t.help_command);
+    check_terminated(t.program, argv_copy, t.help, t.help_command);
+    check_terminated(t.program, argv_copy_short, t.help, t.help_command);
     fixture_tool_free(&t);
 }
 
-NAOS_TEST(help_command_followed_by_version_is_version)
+NAOS_TEST(help_command_followed_by_version_terminates)
 {
     char *argv[] = { "tool", "help", "--version", NULL };
     char *argv_copy[] = { "tool", "help", "copy", "--version", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_version(t.program, argv);
-    check_version(t.program, argv_copy);
+    check_terminated(t.program, argv, t.version, t.help_command);
+    check_terminated(t.program, argv_copy, t.version, t.help_command);
     fixture_tool_free(&t);
 }
 
 NAOS_TEST(help_command_errors_recover_on_later_tokens)
 {
+    /* nope is the COMMAND positional (the parser does not check it); x is an unexpected argument. */
     char *argv_nope[] = { "tool", "help", "nope", "--help", NULL };
     char *argv_extra[] = { "tool", "help", "copy", "x", "-h", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
-    check_help(t.program, argv_nope, NULL);
-    check_help(t.program, argv_extra, t.copy);
+    check_terminated(t.program, argv_nope, t.help, t.help_command);
+    check_terminated(t.program, argv_extra, t.help, t.help_command);
     fixture_tool_free(&t);
 }
 
-NAOS_TEST(help_command_followed_by_dashdash_does_not_recover)
+NAOS_TEST(help_command_takes_any_name_as_its_positional)
 {
-    char *argv[] = { "tool", "help", "--", "--help", NULL };
-    const expected_error_t expected = { CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, NULL, NULL, 2, 0, '\0' };
+    char *argv[] = { "tool", "help", "nope", NULL };
     fixture_tool_t t;
+    clopts_result_t *result;
 
     TOOL_BEGIN(t);
-    check_usage(t.program, argv, &expected);
+    result = parse_checked(t.program, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_command(result), t.help_command);
+    NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(result), 1);
+    NAOS_CHECK_STR_EQ(clopts_result_positional_at(result, 0), "nope");
+    check_no_error(result);
+    clopts_result_free(result);
     fixture_tool_free(&t);
+}
+
+NAOS_TEST(help_command_followed_by_dashdash_takes_a_positional)
+{
+    /* After "--", --help is the COMMAND positional of help, not a terminal option. */
+    char *argv[] = { "tool", "help", "--", "--help", NULL };
+    fixture_tool_t t;
+    clopts_result_t *result;
+
+    TOOL_BEGIN(t);
+    result = parse_checked(t.program, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_command(result), t.help_command);
+    NAOS_CHECK_NULL(clopts_result_terminal(result));
+    NAOS_REQUIRE_UINT_EQ(clopts_result_positional_count(result), 1);
+    NAOS_CHECK_STR_EQ(clopts_result_positional_at(result, 0), "--help");
+    clopts_result_free(result);
+    fixture_tool_free(&t);
+}
+
+/* ---- recovery scan: a terminal option of a command ----------------------- */
+
+/*
+ * A custom program (fictional): root "rec" with -q/--quit terminal FLAG and
+ * a negatable terminal FLAG --info; command "run" with -s/--stop terminal FLAG
+ * and -o/--out VALUE required; command "idle" with nothing.
+ */
+typedef struct rec
+{
+    clopts_program_t *program;
+    clopts_command_t *run;
+    clopts_command_t *idle;
+    clopts_option_t *quit;
+    clopts_option_t *info;
+    clopts_option_t *stop;
+} rec_t;
+
+static clopts_option_t *rec_terminal(clopts_command_t *command, const char *long_name, char short_name,
+                                     bool negatable)
+{
+    clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
+
+    test_decl_check(clopts_option_set_terminal(option, true));
+    test_decl_check(clopts_option_set_negatable(option, negatable));
+    return test_decl_attach(command, option);
+}
+
+static void rec_init(rec_t *r)
+{
+    clopts_command_t *root;
+    clopts_option_t *out;
+
+    memset(r, 0, sizeof(*r));
+    test_decl_reset();
+    root = test_decl_root("rec");
+    r->quit = rec_terminal(root, "quit", 'q', false);
+    r->info = rec_terminal(root, "info", '\0', true);
+    r->run = test_decl_command(root, "run");
+    r->stop = rec_terminal(r->run, "stop", 's', false);
+    out = test_decl_option(CLOPTS_OPTION_VALUE, "out", 'o');
+    test_decl_check(clopts_option_set_required(out, true));
+    (void)test_decl_attach(r->run, out);
+    r->idle = test_decl_command(root, "idle");
+    r->program = test_decl_finish(root);
+    NAOS_REQUIRE_NOT_NULL(r->program);
+    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
+}
+
+NAOS_TEST(recovery_finds_a_terminal_of_the_selected_command)
+{
+    char *argv_long[] = { "rec", "run", "--bad", "x", "--stop", NULL };
+    char *argv_short[] = { "rec", "run", "-z", "-s", "-q", NULL };
+    char *argv_root[] = { "rec", "run", "--bad", "--quit", "--stop", NULL };
+    rec_t r;
+
+    rec_init(&r);
+    check_terminated(r.program, argv_long, r.stop, r.run);
+    check_terminated(r.program, argv_short, r.stop, r.run);
+    check_terminated(r.program, argv_root, r.quit, r.run);
+    clopts_program_free(r.program);
+}
+
+NAOS_TEST(recovery_ignores_a_terminal_out_of_scope)
+{
+    /* Before the selection only the root is in scope; in idle, --stop of run is not. */
+    char *argv_before[] = { "rec", "--bad", "run", "--stop", NULL };
+    char *argv_idle[] = { "rec", "idle", "--bad", "-s", NULL };
+    rec_t r;
+
+    rec_init(&r);
+    {
+        const expected_error_t expected_before = { CLOPTS_USAGE_UNKNOWN_OPTION, NULL, NULL, NULL, 1, 5, '\0' };
+        const expected_error_t expected_idle = { CLOPTS_USAGE_UNKNOWN_OPTION, r.idle, NULL, NULL, 2, 5, '\0' };
+
+        check_usage(r.program, argv_before, &expected_before);
+        check_usage(r.program, argv_idle, &expected_idle);
+    }
+    clopts_program_free(r.program);
+}
+
+NAOS_TEST(recovery_ignores_the_negation_of_a_terminal)
+{
+    /* --no-info negates the terminal --info: it is not an exact name, so it does not recover. */
+    char *argv[] = { "rec", "idle", "--bad", "--no-info", NULL };
+    char *argv_exact[] = { "rec", "idle", "--bad", "--info", NULL };
+    rec_t r;
+
+    rec_init(&r);
+    {
+        const expected_error_t expected = { CLOPTS_USAGE_UNKNOWN_OPTION, r.idle, NULL, NULL, 2, 5, '\0' };
+
+        check_usage(r.program, argv, &expected);
+    }
+    check_terminated(r.program, argv_exact, r.info, r.idle);
+    clopts_program_free(r.program);
 }
 
 /* ---- fields of each usage error kind (11.3, 11.4) ----------------------- */
@@ -519,14 +642,14 @@ NAOS_TEST(help_command_followed_by_dashdash_does_not_recover)
 NAOS_TEST(unknown_command_fields)
 {
     char *argv[] = { "tool", "bulid", NULL };
-    char *argv_help[] = { "tool", "help", "nope", NULL };
+    char *argv_dashdash[] = { "tool", "--", "build", NULL };
     const expected_error_t expected = { CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, NULL, NULL, 1, 0, '\0' };
-    const expected_error_t expected_help = { CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, NULL, NULL, 2, 0, '\0' };
+    const expected_error_t expected_dashdash = { CLOPTS_USAGE_UNKNOWN_COMMAND, NULL, NULL, NULL, 2, 0, '\0' };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
     check_usage(t.program, argv, &expected);
-    check_usage(t.program, argv_help, &expected_help);
+    check_usage(t.program, argv_dashdash, &expected_dashdash);
     fixture_tool_free(&t);
 }
 
@@ -587,16 +710,16 @@ NAOS_TEST(missing_value_fields)
 NAOS_TEST(unexpected_value_fields)
 {
     char *argv[] = { "tool", "--color=yes", NULL };
-    char *argv_reserved[] = { "tool", "build", "x", "--help=1", NULL };
+    char *argv_terminal[] = { "tool", "build", "x", "--help=1", NULL };
     fixture_tool_t t;
 
     TOOL_BEGIN(t);
     {
         const expected_error_t expected = { CLOPTS_USAGE_UNEXPECTED_VALUE, NULL, t.color, NULL, 1, 0, '\0' };
-        const expected_error_t expected_reserved = { CLOPTS_USAGE_UNEXPECTED_VALUE, t.build, NULL, NULL, 3, 0, '\0' };
+        const expected_error_t expected_terminal = { CLOPTS_USAGE_UNEXPECTED_VALUE, t.build, t.help, NULL, 3, 0, '\0' };
 
         check_usage(t.program, argv, &expected);
-        check_usage(t.program, argv_reserved, &expected_reserved);
+        check_usage(t.program, argv_terminal, &expected_terminal);
     }
     fixture_tool_free(&t);
 }
@@ -648,7 +771,8 @@ NAOS_TEST(unexpected_argument_fields)
     TOOL_BEGIN(t);
     {
         const expected_error_t expected = { CLOPTS_USAGE_UNEXPECTED_ARGUMENT, t.copy, NULL, NULL, 4, 0, '\0' };
-        const expected_error_t expected_help = { CLOPTS_USAGE_UNEXPECTED_ARGUMENT, t.copy, NULL, NULL, 3, 0, '\0' };
+        const expected_error_t expected_help = { CLOPTS_USAGE_UNEXPECTED_ARGUMENT, t.help_command, NULL, NULL, 3, 0,
+                                                 '\0' };
 
         check_usage(t.program, argv, &expected);
         check_usage(t.program, argv_help, &expected_help);
@@ -661,15 +785,15 @@ NAOS_SUITE(errors,
     NAOS_ADD_TEST(fixture_required_options_are_as_designed),
     NAOS_ADD_TEST(only_the_first_of_two_unknown_options_is_reported),
     NAOS_ADD_TEST(only_the_first_of_different_errors_is_reported),
-    NAOS_ADD_TEST(short_help_after_unknown_option_is_help_of_command),
-    NAOS_ADD_TEST(long_help_after_unknown_option_is_help_of_command),
-    NAOS_ADD_TEST(help_after_error_before_selection_is_whole_program_help),
-    NAOS_ADD_TEST(help_after_unknown_command_is_whole_program_help),
-    NAOS_ADD_TEST(help_after_unexpected_argument_is_help_of_command),
-    NAOS_ADD_TEST(help_after_unexpected_value_is_help_of_command),
+    NAOS_ADD_TEST(short_help_after_unknown_option_terminates_in_the_command),
+    NAOS_ADD_TEST(long_help_after_unknown_option_terminates_in_the_command),
+    NAOS_ADD_TEST(help_after_error_before_selection_terminates_without_a_command),
+    NAOS_ADD_TEST(help_after_unknown_command_terminates_without_a_command),
+    NAOS_ADD_TEST(help_after_unexpected_argument_terminates_in_the_command),
+    NAOS_ADD_TEST(help_after_unexpected_value_terminates_in_the_command),
     NAOS_ADD_TEST(help_skips_required_check),
-    NAOS_ADD_TEST(version_after_unknown_option_is_version),
-    NAOS_ADD_TEST(version_without_version_string_does_not_recover),
+    NAOS_ADD_TEST(version_after_unknown_option_terminates),
+    NAOS_ADD_TEST(version_without_a_version_option_does_not_recover),
     NAOS_ADD_TEST(help_recovers_without_subcommands),
     NAOS_ADD_TEST(first_of_help_and_version_wins_after_an_error),
     NAOS_ADD_TEST(first_of_help_and_version_wins_without_an_error),
@@ -678,10 +802,14 @@ NAOS_SUITE(errors,
     NAOS_ADD_TEST(recovery_stops_at_dashdash),
     NAOS_ADD_TEST(help_after_dashdash_is_not_a_request),
     NAOS_ADD_TEST(only_exact_tokens_count_in_recovery),
-    NAOS_ADD_TEST(help_command_followed_by_help_option_is_help),
-    NAOS_ADD_TEST(help_command_followed_by_version_is_version),
+    NAOS_ADD_TEST(help_command_followed_by_help_option_terminates),
+    NAOS_ADD_TEST(help_command_followed_by_version_terminates),
     NAOS_ADD_TEST(help_command_errors_recover_on_later_tokens),
-    NAOS_ADD_TEST(help_command_followed_by_dashdash_does_not_recover),
+    NAOS_ADD_TEST(help_command_takes_any_name_as_its_positional),
+    NAOS_ADD_TEST(help_command_followed_by_dashdash_takes_a_positional),
+    NAOS_ADD_TEST(recovery_finds_a_terminal_of_the_selected_command),
+    NAOS_ADD_TEST(recovery_ignores_a_terminal_out_of_scope),
+    NAOS_ADD_TEST(recovery_ignores_the_negation_of_a_terminal),
     NAOS_ADD_TEST(unknown_command_fields),
     NAOS_ADD_TEST(unknown_option_fields_long_form),
     NAOS_ADD_TEST(unknown_option_fields_short_form),

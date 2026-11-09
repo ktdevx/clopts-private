@@ -108,9 +108,13 @@ NAOS_TEST(option_new_valid_names)
     NAOS_CHECK_INT_EQ(option->short_name, '4');
     clopts_option_free(option);
 
-    /* names checked only at attach (reserved ones) are accepted here */
+    /* there are no reserved names: help, h and version are ordinary names */
     option = NULL;
     EXPECT_OK(clopts_option_new(CLOPTS_OPTION_FLAG, "help", 'h', &option));
+    NAOS_REQUIRE_NOT_NULL(option);
+    clopts_option_free(option);
+    option = NULL;
+    EXPECT_OK(clopts_option_new(CLOPTS_OPTION_VALUE, "version", 'V', &option));
     NAOS_REQUIRE_NOT_NULL(option);
     clopts_option_free(option);
 }
@@ -279,6 +283,52 @@ NAOS_TEST(negatable_on_non_flag)
     }
 }
 
+/* ---- terminal ---------------------------------------------------------- */
+
+NAOS_TEST(terminal_on_flag)
+{
+    clopts_option_t *option;
+
+    option = make(CLOPTS_OPTION_FLAG, "help", 'h');
+    NAOS_CHECK_FALSE(option->terminal);
+    EXPECT_OK(clopts_option_set_terminal(option, true));
+    NAOS_CHECK_TRUE(option->terminal);
+    NAOS_CHECK_TRUE(clopts_option_terminal(option));
+    /* false resets it */
+    EXPECT_OK(clopts_option_set_terminal(option, false));
+    NAOS_CHECK_FALSE(option->terminal);
+    /* a terminal FLAG may be negatable too */
+    EXPECT_OK(clopts_option_set_terminal(option, true));
+    EXPECT_OK(clopts_option_set_negatable(option, true));
+    NAOS_CHECK_TRUE(option->terminal);
+    NAOS_CHECK_TRUE(option->negatable);
+    clopts_option_free(option);
+}
+
+NAOS_TEST(terminal_on_non_flag)
+{
+    static const clopts_option_kind_t kinds[] = { CLOPTS_OPTION_COUNT, CLOPTS_OPTION_VALUE, CLOPTS_OPTION_LIST };
+    clopts_option_t *option;
+    size_t i;
+
+    for (i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++)
+    {
+        NAOS_NOTE("kind=%d", (int)kinds[i]);
+        option = make(kinds[i], "help", 'h');
+        NAOS_CHECK_INT_EQ(clopts_option_set_terminal(option, true), CLOPTS_DECL_ATTRIBUTE_KIND);
+        NAOS_CHECK_FALSE(option->terminal);
+        /* false is not checked */
+        EXPECT_OK(clopts_option_set_terminal(option, false));
+        clopts_option_free(option);
+    }
+}
+
+NAOS_TEST(terminal_null_option)
+{
+    NAOS_CHECK_INT_EQ(clopts_option_set_terminal(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_FALSE(clopts_option_terminal(NULL));
+}
+
 /* ---- delimiter and count maximum ------------------------------------- */
 
 NAOS_TEST(delimiter_on_non_list)
@@ -339,6 +389,9 @@ NAOS_SUITE(decl_option,
     NAOS_ADD_TEST(required_on_option_with_default),
     NAOS_ADD_TEST(required_unset_is_not_checked),
     NAOS_ADD_TEST(negatable_on_non_flag),
+    NAOS_ADD_TEST(terminal_on_flag),
+    NAOS_ADD_TEST(terminal_on_non_flag),
+    NAOS_ADD_TEST(terminal_null_option),
     NAOS_ADD_TEST(delimiter_on_non_list),
     NAOS_ADD_TEST(count_max_on_non_count),
     NAOS_ADD_TEST(delimiter_and_count_max_unset_are_not_checked)

@@ -17,6 +17,8 @@
 #include "test_fixtures.h"
 #include "test_decl.h"
 
+#include "clopts/help.h"
+
 #include <clopts/parse.h>
 
 #include <naos/naos.h>
@@ -450,16 +452,17 @@ NAOS_TEST(parse_cat_tags_explicit_is_split_and_wins)
 
 /*
  * A program without subcommands. fixture_filt covers
- * long / short / "=" / positional mix / default / env / HELP; the fictional
- * program nosub below covers the rest: "--", "-" alone, --no-x, the count
- * limit, list concatenation and splitting, required checks, VERSION and the
- * HELP / VERSION order. It is assembled with the builder for each test and
- * released at the end of the test.
+ * long / short / "=" / positional mix / default / env / -h/--help; the
+ * fictional program nosub below covers the rest: "--", "-" alone, --no-x,
+ * the count limit, list concatenation and splitting, required checks, the
+ * terminal --version and the order of the terminal options. It is assembled
+ * with the builder for each test and released at the end of the test.
  *
- *   nosub 0.9    without subcommands, no handler
+ *   nosub        without subcommands
  *     --color negatable FLAG, -v/--verbose COUNT max 3, -k/--keys LIST ',',
  *     -o/--output VALUE required, -m/--mode VALUE (default "fast",
- *     env NOSUB_MODE), SRC required, REST variadic
+ *     env NOSUB_MODE), -h/--help and --version terminal FLAGs
+ *     (clopts/help.h), SRC required, REST variadic
  */
 
 typedef struct nosub
@@ -472,6 +475,8 @@ typedef struct nosub
     clopts_option_t *keys;
     clopts_option_t *output;
     clopts_option_t *mode;
+    const clopts_option_t *help;     /* -h/--help terminal FLAG */
+    const clopts_option_t *version;  /* --version terminal FLAG */
     clopts_positional_t *src;
     clopts_positional_t *rest;
 } nosub_t;
@@ -481,9 +486,7 @@ static void nosub_init(nosub_t *n)
 {
     memset(n, 0, sizeof(*n));
     test_decl_reset();
-    n->program = test_decl_program("nosub");
-    test_decl_check(clopts_program_set_version(n->program, "0.9"));
-    n->root = clopts_program_root(n->program);
+    n->root = test_decl_root("nosub");
 
     n->color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
     test_decl_check(clopts_option_set_negatable(n->color, true));
@@ -513,6 +516,18 @@ static void nosub_init(nosub_t *n)
     n->rest = test_decl_positional("REST");
     test_decl_check(clopts_positional_set_variadic(n->rest, true));
     n->rest = test_decl_attach_positional(n->root, n->rest);
+
+    if (n->root != NULL)
+    {
+        test_decl_check(clopts_help_add_help_option(n->root, &n->help));
+        test_decl_check(clopts_help_add_version_option(n->root, &n->version));
+    }
+    n->program = test_decl_finish(n->root);
+    if (n->program == NULL)
+    {
+        /* Everything was released with the root. */
+        memset(n, 0, sizeof(*n));
+    }
     n->ok = (test_decl_failures == 0);
 }
 
@@ -560,11 +575,12 @@ NAOS_TEST(nosub_declaration_is_valid)
     nosub_init(&n);
     NAOS_REQUIRE_NOT_NULL(n.program);
     NAOS_REQUIRE_TRUE(n.ok);
-    NAOS_CHECK_UINT_EQ(n.root->options.len, 5);
+    NAOS_CHECK_PTR_EQ(n.program->root, n.root);
+    NAOS_CHECK_UINT_EQ(n.root->options.len, 7);
     NAOS_CHECK_UINT_EQ(n.root->positionals.len, 2);
-    NAOS_CHECK_UINT_EQ(n.program->commands.len, 0);
-    NAOS_REQUIRE_NOT_NULL(n.program->version);
-    NAOS_CHECK_STR_EQ(n.program->version, "0.9");
+    NAOS_CHECK_UINT_EQ(n.program->command_count, 0);
+    NAOS_CHECK_TRUE(n.help->terminal);
+    NAOS_CHECK_TRUE(n.version->terminal);
     NAOS_CHECK_UINT_EQ(n.verbose->count_max, 3);
     NAOS_CHECK_INT_EQ(n.keys->delimiter, ',');
     NAOS_CHECK_TRUE(n.output->required);
@@ -790,7 +806,17 @@ NAOS_TEST(nosub_missing_required_positional)
     nosub_free(&n);
 }
 
-NAOS_TEST(nosub_version_is_reported)
+/* Checks that result is TERMINATED by terminal (recorded as given), without a command. */
+static void check_nosub_terminated(const clopts_result_t *result, const clopts_option_t *terminal)
+{
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_TERMINATED);
+    NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), terminal);
+    NAOS_CHECK_TRUE(clopts_result_flag(result, terminal));
+    NAOS_CHECK_NULL(clopts_result_command(result));
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_NONE);
+}
+
+NAOS_TEST(nosub_version_terminates)
 {
     char *argv[] = { "nosub", "--version", NULL };
     char *argv_late[] = { "nosub", "-o", "out", "src", "--version", NULL };
@@ -798,14 +824,19 @@ NAOS_TEST(nosub_version_is_reported)
     clopts_result_t *result;
 
     nosub_init(&n);
-    /* Required option and positional are missing, but VERSION skips the check. */
+    /* Required option and positional are missing, but a terminal option skips the check. */
     result = parse_nosub(&n, argv, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_VERSION);
-    NAOS_CHECK_NULL(clopts_result_command(result));
+    check_nosub_terminated(result, n.version);
+    NAOS_CHECK_FALSE(clopts_result_flag(result, n.help));
     clopts_result_free(result);
 
+    /* The values before it are kept, and the defaults are resolved. */
     result = parse_nosub(&n, argv_late, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_VERSION);
+    check_nosub_terminated(result, n.version);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, n.output), "out");
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, n.mode), "fast");
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, n.mode), CLOPTS_SOURCE_DEFAULT);
+    NAOS_CHECK_UINT_EQ(clopts_result_positional_count(result), 1);
     clopts_result_free(result);
     nosub_free(&n);
 }
@@ -820,15 +851,15 @@ NAOS_TEST(nosub_version_wins_over_an_earlier_usage_error)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv_unknown, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_VERSION);
+    check_nosub_terminated(result, n.version);
     clopts_result_free(result);
 
     result = parse_nosub(&n, argv_value, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_VERSION);
+    check_nosub_terminated(result, n.version);
     clopts_result_free(result);
 
     result = parse_nosub(&n, argv_group, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_VERSION);
+    check_nosub_terminated(result, n.version);
     clopts_result_free(result);
     nosub_free(&n);
 }
@@ -846,6 +877,7 @@ NAOS_TEST(nosub_version_consumed_as_value_or_after_dashdash_is_not_a_request)
     result = parse_nosub(&n, argv_value, NULL, 0);
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_value(result, n.output), argv_value[2]);
+    NAOS_CHECK_FALSE(clopts_result_flag(result, n.version));
     clopts_result_free(result);
 
     result = parse_nosub(&n, argv_dashdash, NULL, 0);
@@ -871,27 +903,28 @@ NAOS_TEST(nosub_first_of_help_and_version_wins)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv_help_first, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_HELP);
-    NAOS_CHECK_NULL(clopts_result_command(result));
+    check_nosub_terminated(result, n.help);
+    NAOS_CHECK_FALSE(clopts_result_flag(result, n.version));
     clopts_result_free(result);
 
     result = parse_nosub(&n, argv_version_first, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_VERSION);
+    check_nosub_terminated(result, n.version);
+    NAOS_CHECK_FALSE(clopts_result_flag(result, n.help));
     clopts_result_free(result);
 
+    /* -vh: v is counted, then h ends the scan. */
     result = parse_nosub(&n, argv_group_help, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_HELP);
-    NAOS_CHECK_NULL(clopts_result_command(result));
+    check_nosub_terminated(result, n.help);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(result, n.verbose), 1);
     clopts_result_free(result);
 
     /* After a usage error the recovery scan also keeps the argv order. */
     result = parse_nosub(&n, argv_error_version, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_VERSION);
+    check_nosub_terminated(result, n.version);
     clopts_result_free(result);
 
     result = parse_nosub(&n, argv_error_help, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_HELP);
-    NAOS_CHECK_NULL(clopts_result_command(result));
+    check_nosub_terminated(result, n.help);
     clopts_result_free(result);
     nosub_free(&n);
 }
@@ -928,7 +961,7 @@ NAOS_SUITE(values,
     NAOS_ADD_TEST(nosub_env_fallback_and_source),
     NAOS_ADD_TEST(nosub_missing_required_option),
     NAOS_ADD_TEST(nosub_missing_required_positional),
-    NAOS_ADD_TEST(nosub_version_is_reported),
+    NAOS_ADD_TEST(nosub_version_terminates),
     NAOS_ADD_TEST(nosub_version_wins_over_an_earlier_usage_error),
     NAOS_ADD_TEST(nosub_version_consumed_as_value_or_after_dashdash_is_not_a_request),
     NAOS_ADD_TEST(nosub_first_of_help_and_version_wins)

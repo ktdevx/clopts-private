@@ -1,6 +1,7 @@
 /*
- * Suite short: short option groups, attached values, -h and unknown short
- * options.
+ * Suite short: short option groups, attached values, terminal options in a
+ * group (-h of the fixtures and those of a custom program), the lookup order
+ * of short names and unknown short options.
  *
  * Ported from the first-version short suite onto the builder fixtures of
  * test_fixtures.c (handles instead of index constants) and the result handle
@@ -10,6 +11,7 @@
 
 #include "parser/parser_internal.h"
 #include "test_fixtures.h"
+#include "test_decl.h"
 
 #include <clopts/parse.h>
 
@@ -76,6 +78,64 @@ static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
 }
 
 /*
+ * A custom program for the terminal options and the lookup order of short
+ * names (fictional):
+ *
+ *   shadow   root: -x/--root-x FLAG, -v/--verbose COUNT, -q/--quit terminal FLAG
+ *     run:   -x/--run-x FLAG, -s/--stop terminal FLAG, -o/--out VALUE required
+ */
+typedef struct custom
+{
+    clopts_program_t *program;
+    clopts_command_t *root;
+    clopts_command_t *run;
+    clopts_option_t *root_x;   /* root: -x/--root-x FLAG */
+    clopts_option_t *verbose;  /* root: -v/--verbose COUNT */
+    clopts_option_t *quit;     /* root: -q/--quit terminal FLAG */
+    clopts_option_t *run_x;    /* run:  -x/--run-x FLAG */
+    clopts_option_t *stop;     /* run:  -s/--stop terminal FLAG */
+    clopts_option_t *out;      /* run:  -o/--out VALUE required */
+} custom_t;
+
+/* Attaches a terminal FLAG to command (NULL on failure). */
+static clopts_option_t *custom_terminal(clopts_command_t *command, const char *long_name, char short_name)
+{
+    clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
+
+    test_decl_check(clopts_option_set_terminal(option, true));
+    return test_decl_attach(command, option);
+}
+
+/* Builds the custom program into c (every builder call must succeed). */
+static void custom_init(custom_t *c)
+{
+    memset(c, 0, sizeof(*c));
+    test_decl_reset();
+    c->root = test_decl_root("shadow");
+    c->root_x = test_decl_add(c->root, CLOPTS_OPTION_FLAG, "root-x", 'x');
+    c->verbose = test_decl_add(c->root, CLOPTS_OPTION_COUNT, "verbose", 'v');
+    c->quit = custom_terminal(c->root, "quit", 'q');
+
+    c->run = test_decl_command(c->root, "run");
+    c->run_x = test_decl_add(c->run, CLOPTS_OPTION_FLAG, "run-x", 'x');
+    c->stop = custom_terminal(c->run, "stop", 's');
+    c->out = test_decl_option(CLOPTS_OPTION_VALUE, "out", 'o');
+    test_decl_check(clopts_option_set_required(c->out, true));
+    c->out = test_decl_attach(c->run, c->out);
+
+    c->program = test_decl_finish(c->root);
+    NAOS_REQUIRE_NOT_NULL(c->program);
+    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
+}
+
+/* Builds the custom program into c and parses argv with it. */
+static clopts_result_t *parse_custom(custom_t *c, char **argv)
+{
+    custom_init(c);
+    return parse_checked(c->program, argv);
+}
+
+/*
  * Checks a usage error of kind usage on argv[index] for the short option
  * character short_name, naming option (may be NULL), with command as the
  * error command.
@@ -130,6 +190,10 @@ NAOS_TEST(fixture_short_names_are_as_designed)
     NAOS_CHECK_UINT_EQ(t.jobs->count_max, 8);
 
     NAOS_CHECK_INT_EQ(t.tags->short_name, '\0');
+    NAOS_CHECK_INT_EQ(t.help->short_name, 'h');
+    NAOS_CHECK_TRUE(t.help->terminal);
+    NAOS_CHECK_INT_EQ(t.version->short_name, '\0');
+    NAOS_CHECK_TRUE(t.version->terminal);
     fixture_tool_free(&t);
 
     fixture_filt_init(&f);
@@ -478,58 +542,190 @@ NAOS_TEST(trailing_value_option_without_subcommands_is_a_missing_value)
     fixture_filt_free(&f);
 }
 
-/* ---- h in a group (10.1) ---------------------------------------------- */
+/* ---- -h: the terminal FLAG of the fixtures (10.1) --------------------- */
 
-NAOS_TEST(h_in_a_group_after_the_command_is_help_of_the_command)
+NAOS_TEST(h_in_a_group_after_the_command_counts_v_then_terminates)
 {
+    /* -vh: v is counted, then h is terminal; the required --output is not checked. */
     char *argv[] = { "tool", "build", "x", "-vh", NULL };
     fixture_tool_t f;
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_HELP);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_TERMINATED);
+    NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), f.help);
     NAOS_CHECK_PTR_EQ(clopts_result_command(result), f.build);
+    NAOS_CHECK_TRUE(clopts_result_flag(result, f.help));
+    NAOS_CHECK_UINT_EQ(clopts_result_count(result, f.verbose), 1);
+    NAOS_CHECK_INT_EQ(clopts_result_usage_error(result), CLOPTS_USAGE_NONE);
     clopts_result_free(result);
     fixture_tool_free(&f);
 }
 
-NAOS_TEST(h_in_a_group_before_the_command_is_help_of_the_program)
+NAOS_TEST(h_in_a_group_before_the_command_terminates_without_a_command)
 {
     char *argv[] = { "tool", "-vh", NULL };
     fixture_tool_t f;
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_HELP);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_TERMINATED);
+    NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), f.help);
     NAOS_CHECK_NULL(clopts_result_command(result));
+    NAOS_CHECK_UINT_EQ(clopts_result_count(result, f.verbose), 1);
     clopts_result_free(result);
     fixture_tool_free(&f);
 }
 
-NAOS_TEST(h_after_the_command_is_help_of_the_command)
+NAOS_TEST(h_after_the_command_terminates_in_the_command)
 {
     char *argv[] = { "tool", "build", "-h", NULL };
     fixture_tool_t f;
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_HELP);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_TERMINATED);
+    NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), f.help);
     NAOS_CHECK_PTR_EQ(clopts_result_command(result), f.build);
     clopts_result_free(result);
     fixture_tool_free(&f);
 }
 
-NAOS_TEST(h_in_a_group_without_subcommands_is_help_of_the_program)
+NAOS_TEST(h_stops_the_group_without_subcommands)
 {
+    /* -hn: the scan stops at h, so n is not read (no missing value). */
     char *argv[] = { "filt", "-hn", NULL };
     fixture_filt_t f;
     clopts_result_t *result;
 
     result = parse_filt(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_HELP);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_TERMINATED);
+    NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), f.help);
     NAOS_CHECK_NULL(clopts_result_command(result));
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, f.lines), "10");
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, f.lines), CLOPTS_SOURCE_DEFAULT);
     clopts_result_free(result);
     fixture_filt_free(&f);
+}
+
+/* ---- custom program: lookup order and terminal options in a group ----- */
+
+NAOS_TEST(custom_command_short_shadows_the_root_short)
+{
+    /* -x before the command is the root's; after it, the command's -x shadows the root's. */
+    char *argv[] = { "shadow", "-x", "run", "-xv", "-o", "a", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_PTR_EQ(clopts_result_command(result), c.run);
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.root_x));
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.run_x));
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.run_x), CLOPTS_SOURCE_EXPLICIT);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(result, c.verbose), 1);
+    clopts_result_free(result);
+    clopts_program_free(c.program);
+}
+
+NAOS_TEST(custom_command_short_shadow_leaves_the_root_unset)
+{
+    /* -x after the command is only the command's. */
+    char *argv[] = { "shadow", "run", "-x", "-o", "a", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.run_x));
+    NAOS_CHECK_FALSE(clopts_result_flag(result, c.root_x));
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.root_x), CLOPTS_SOURCE_NONE);
+    clopts_result_free(result);
+    clopts_program_free(c.program);
+}
+
+NAOS_TEST(custom_root_short_is_reached_from_the_command)
+{
+    /* The command has no -v of its own: -v is looked up in the root. */
+    char *argv[] = { "shadow", "run", "-o", "a", "-vv", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_UINT_EQ(clopts_result_count(result, c.verbose), 2);
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, c.out), "a");
+    clopts_result_free(result);
+    clopts_program_free(c.program);
+}
+
+NAOS_TEST(custom_command_terminal_stops_the_group)
+{
+    /* -vsx: v counted, s terminal; x is not read and the required -o is not checked. */
+    char *argv[] = { "shadow", "run", "-vsx", "-o", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_TERMINATED);
+    NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), c.stop);
+    NAOS_CHECK_PTR_EQ(clopts_result_command(result), c.run);
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.stop));
+    NAOS_CHECK_UINT_EQ(clopts_result_count(result, c.verbose), 1);
+    NAOS_CHECK_FALSE(clopts_result_flag(result, c.run_x));
+    NAOS_CHECK_INT_EQ(clopts_result_source(result, c.run_x), CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_NULL(clopts_result_value(result, c.out));
+    clopts_result_free(result);
+    clopts_program_free(c.program);
+}
+
+NAOS_TEST(custom_root_terminal_in_a_group_after_the_command)
+{
+    /* -xqv after the command: x is the command's, q the root's terminal, v is not read. */
+    char *argv[] = { "shadow", "run", "-xqv", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_TERMINATED);
+    NAOS_CHECK_PTR_EQ(clopts_result_terminal(result), c.quit);
+    NAOS_CHECK_PTR_EQ(clopts_result_command(result), c.run);
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.quit));
+    NAOS_CHECK_TRUE(clopts_result_flag(result, c.run_x));
+    NAOS_CHECK_FALSE(clopts_result_flag(result, c.root_x));
+    NAOS_CHECK_UINT_EQ(clopts_result_count(result, c.verbose), 0);
+    clopts_result_free(result);
+    clopts_program_free(c.program);
+}
+
+NAOS_TEST(custom_command_terminal_before_the_command_is_unknown)
+{
+    /* -s belongs to run only: before the command it is unknown (no recovery: -q is not given). */
+    char *argv[] = { "shadow", "-s", "run", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    check_short_error(result, CLOPTS_USAGE_UNKNOWN_OPTION, NULL, NULL, argv, 1, 's');
+    NAOS_CHECK_NULL(clopts_result_terminal(result));
+    clopts_result_free(result);
+    clopts_program_free(c.program);
+}
+
+NAOS_TEST(custom_terminal_after_a_value_in_a_group_is_the_value)
+{
+    /* -os: the rest of the group is the value of -o, so s is not a terminal option here. */
+    char *argv[] = { "shadow", "run", "-os", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
+    NAOS_CHECK_NULL(clopts_result_terminal(result));
+    NAOS_CHECK_STR_EQ(clopts_result_value(result, c.out), "s");
+    NAOS_CHECK_FALSE(clopts_result_flag(result, c.stop));
+    clopts_result_free(result);
+    clopts_program_free(c.program);
 }
 
 NAOS_SUITE(short,
@@ -557,8 +753,15 @@ NAOS_SUITE(short,
     NAOS_ADD_TEST(trailing_value_option_is_a_missing_value),
     NAOS_ADD_TEST(trailing_value_option_in_a_group_is_a_missing_value),
     NAOS_ADD_TEST(trailing_value_option_without_subcommands_is_a_missing_value),
-    NAOS_ADD_TEST(h_in_a_group_after_the_command_is_help_of_the_command),
-    NAOS_ADD_TEST(h_in_a_group_before_the_command_is_help_of_the_program),
-    NAOS_ADD_TEST(h_after_the_command_is_help_of_the_command),
-    NAOS_ADD_TEST(h_in_a_group_without_subcommands_is_help_of_the_program)
+    NAOS_ADD_TEST(h_in_a_group_after_the_command_counts_v_then_terminates),
+    NAOS_ADD_TEST(h_in_a_group_before_the_command_terminates_without_a_command),
+    NAOS_ADD_TEST(h_after_the_command_terminates_in_the_command),
+    NAOS_ADD_TEST(h_stops_the_group_without_subcommands),
+    NAOS_ADD_TEST(custom_command_short_shadows_the_root_short),
+    NAOS_ADD_TEST(custom_command_short_shadow_leaves_the_root_unset),
+    NAOS_ADD_TEST(custom_root_short_is_reached_from_the_command),
+    NAOS_ADD_TEST(custom_command_terminal_stops_the_group),
+    NAOS_ADD_TEST(custom_root_terminal_in_a_group_after_the_command),
+    NAOS_ADD_TEST(custom_command_terminal_before_the_command_is_unknown),
+    NAOS_ADD_TEST(custom_terminal_after_a_value_in_a_group_is_the_value)
 )
