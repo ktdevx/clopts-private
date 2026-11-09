@@ -10,7 +10,7 @@
  *
  * consumer_parse_check() runs declaration -> parse -> lookup -> release with
  * public functions only. consumer_help_check() calls the five text writers
- * of clopts/help.h and clopts_decl_error_message() of clopts/error.h
+ * of clopts/help.h and clopts_error_message() of clopts/error.h
  * through the umbrella header (in a shared build, each call
  * must resolve against an exported symbol). consumer_platform_check() calls
  * every function of clopts/platform.h (clopts_argv_from_wide only on Windows)
@@ -127,7 +127,7 @@ static int consumer_help_check(void)
         !consumer_write_status_valid(clopts_write_usage_hint(program, NULL, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR,
                                                         consumer_discard, NULL)) ||
-        (clopts_decl_error_message(CLOPTS_ERROR_DUPLICATE_OPTION) == NULL))
+        (clopts_error_message(CLOPTS_ERROR_DUPLICATE_OPTION) == NULL))
     {
         failed = 1;
     }

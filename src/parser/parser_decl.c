@@ -9,7 +9,7 @@
  * find_* functions used by the scanner search the selected command (when
  * there is one) and then the root, so a name of the command shadows the same
  * name of the root; in each scope an exact long name comes before
- * --no-<name>. The declaration error messages live here too.
+ * --no-<name>.
  */
 
 #include "parser/parser_internal.h"
@@ -242,50 +242,4 @@ clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, co
     query.long_len = 0;
     query.short_name = c;
     return decl_lookup(program, command, &query);
-}
-
-/* ---- declaration error messages -------------------------------------------- */
-
-const char *clopts_decl_error_message(clopts_error_t error)
-{
-    switch (error)
-    {
-    case CLOPTS_ERROR_NONE:
-        return NULL;
-    case CLOPTS_ERROR_INVALID_NAME:
-        return "invalid name";
-    case CLOPTS_ERROR_NO_NAME:
-        return "option has neither a long nor a short name";
-    case CLOPTS_ERROR_DUPLICATE_COMMAND:
-        return "duplicate command name";
-    case CLOPTS_ERROR_DUPLICATE_OPTION:
-        return "duplicate option name";
-    case CLOPTS_ERROR_NOT_NEGATABLE:
-        return "only a flag can be negatable";
-    case CLOPTS_ERROR_NEGATION_CONFLICT:
-        return "conflicts with the negated form of a flag";
-    case CLOPTS_ERROR_DEFAULT_NOT_ALLOWED:
-        return "a flag or count cannot have a default value";
-    case CLOPTS_ERROR_ENV_NOT_ALLOWED:
-        return "a flag or count cannot have an environment variable";
-    case CLOPTS_ERROR_REQUIRED_WITH_DEFAULT:
-        return "a required option cannot have a default value";
-    case CLOPTS_ERROR_REQUIRED_NOT_ALLOWED:
-        return "a flag or count cannot be required";
-    case CLOPTS_ERROR_POSITIONAL_ORDER:
-        return "a required argument cannot follow an optional one";
-    case CLOPTS_ERROR_VARIADIC_POSITION:
-        return "only the last argument can be variadic";
-    case CLOPTS_ERROR_ATTRIBUTE_KIND:
-        return "attribute does not apply to this kind of option";
-    case CLOPTS_ERROR_MIXED_LAYOUT:
-        return "a program with subcommands cannot have root arguments";
-    case CLOPTS_ERROR_INVALID_KIND:
-        return "invalid option kind";
-    case CLOPTS_ERROR_INVALID_ARGUMENT:
-        return "invalid argument";
-    case CLOPTS_ERROR_OUT_OF_MEMORY:
-        return "out of memory";
-    }
-    return NULL;
 }

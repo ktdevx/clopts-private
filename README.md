@@ -88,7 +88,7 @@ int main(int argc, char **argv)
     error = declare(&program, &greeting, &version);
     if (error != CLOPTS_ERROR_NONE)
     {
-        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_decl_error_message(error));
+        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_error_message(error));
         return 1;
     }
 

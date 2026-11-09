@@ -44,7 +44,7 @@ clopts_command_positional_count
 clopts_command_positional_at
 
 # clopts/error.h
-clopts_decl_error_message
+clopts_error_message
 
 # clopts/help.h
 clopts_write_help

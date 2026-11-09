@@ -7,7 +7,7 @@
 | ヘッダ | 内容 |
 |--------|------|
 | `clopts/decl.h` | 宣言の API 全体（次の 5 つのヘッダをまとめて取り込む） |
-| `clopts/error.h` | エラーの型（`clopts_error_t`）とその説明（`clopts_decl_error_message`） |
+| `clopts/error.h` | エラーの型（`clopts_error_t`）とその説明（`clopts_error_message`） |
 | `clopts/decl_types.h` | ハンドルの型と、ビルダー関数に共通の規則 |
 | `clopts/program.h` | プログラムの関数（root とサブコマンドからの作成、解放、読み取り） |
 | `clopts/command.h` | コマンド（root を含む）の関数（作成、解放、説明、オプションと位置引数を渡す関数、読み取り） |
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
     error = declare(&program, &opts);
     if (error != CLOPTS_ERROR_NONE)
     {
-        fprintf(stderr, "taskbook: error: invalid declaration: %s\n", clopts_decl_error_message(error));
+        fprintf(stderr, "taskbook: error: invalid declaration: %s\n", clopts_error_message(error));
         return 1;
     }
 
@@ -357,7 +357,7 @@ root にするコマンドに渡したオプションはグローバルオプシ
 - メモリの確保に失敗すると `CLOPTS_ERROR_OUT_OF_MEMORY` が返る。
 - NULL のハンドルや NULL の `out` を渡すのは契約違反で、`assert` で検出される（`NDEBUG` のビルドでは検査されず、動作は未定義）。エラーは返らない。そのため、作る関数が失敗したら、NULL のハンドルを次の呼び出しに渡さず、その場で後始末して戻る（taskbook と textcount の書き方）。コマンドに渡せなかったオプションと位置引数は、呼び出し側が解放する。
 - 渡した後のオプション・位置引数・コマンドに属性の関数や渡す関数を呼ぶことと、同じものを 2 回渡すことは検査しない（契約違反で、動作は未定義）。
-- 宣言エラーの短い説明（英語）は、`clopts/error.h` の `clopts_decl_error_message` で得られる。
+- 宣言エラーの短い説明（英語）は、`clopts/error.h` の `clopts_error_message` で得られる。
 
 `clopts_program_create`、`clopts_command_create`、`clopts_option_create`、`clopts_positional_create`、`clopts_command_add_option`、`clopts_command_add_positional` と `clopts/help.h` の宣言の関数の戻り値を捨てると、GCC と Clang では警告が出る（捨てるとハンドルを失うか、渡せなかったものが解放されないため）。
 
@@ -545,7 +545,7 @@ Run 'taskbook add --help' for usage.
 
 ## 宣言エラーの種類
 
-`clopts_error_t` は、ビルダー関数の結果を示す（`CLOPTS_ERROR_NONE` は成功）。表の「説明」は `clopts_decl_error_message` が返す文字列である。
+`clopts_error_t` は、ビルダー関数の結果を示す（`CLOPTS_ERROR_NONE` は成功）。表の「説明」は `clopts_error_message` が返す文字列である。
 
 | 種別 | 返す関数と起きる例 | 説明 |
 |------|--------------------|------|
@@ -581,7 +581,7 @@ taskbook と textcount は、宣言エラーがあれば `<program>: error: inva
 | `clopts_write_usage_hint`（`program, command, write_fn, ctx`） | `Run '<program> [<command>] --help' for usage.` の 1 行 |
 | `clopts_write_error`（`program, result, flags, write_fn, ctx`） | 状態が `CLOPTS_USAGE_ERROR`、`CLOPTS_OUT_OF_MEMORY` の結果について、エラーの 1 行。それ以外の状態では `CLOPTS_WRITE_UNAVAILABLE` |
 
-宣言エラーの種別の短い説明（英語、静的な文字列）は、`clopts/error.h` の `clopts_decl_error_message`（`error`）が返す。`CLOPTS_ERROR_NONE` と、列挙にない値では NULL を返す。
+宣言エラーの種別の短い説明（英語、静的な文字列）は、`clopts/error.h` の `clopts_error_message`（`error`）が返す。`CLOPTS_ERROR_NONE` と、列挙にない値では NULL を返す。
 
 `clopts_write_error` の `flags` は接頭辞を選ぶ。`CLOPTS_PREFIX_PROGRAM` は `<program>: ` または `<program> <command>: ` を、`CLOPTS_PREFIX_ERROR` は `error: ` を前に付ける。両方を指定するときは `CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR` と書く。定義されていないビットは無視される。メモリ不足の結果では、本文は `out of memory` になる。使い方の案内は `clopts_write_error` の行に含まれないので、必要なら `clopts_write_usage_hint` を続けて呼ぶ。
 

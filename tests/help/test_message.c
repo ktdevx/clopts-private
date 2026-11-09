@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite message: the texts of every usage error kind, the out-of-memory
- * line, the prefixes, the texts of clopts_decl_error_message() and the
+ * line, the prefixes, the texts of clopts_error_message() and the
  * coverage of the text tables.
  *
  * The usage errors are caused by parsing real argv against the fictional
@@ -618,7 +618,7 @@ NAOS_TEST(decl_error_message_of_every_kind)
     NAOS_CHECK_UINT_EQ(sizeof(cases) / sizeof(cases[0]), MESSAGE_DECL_KIND_MAX);
     for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
-        const char *text = clopts_decl_error_message(cases[i].kind);
+        const char *text = clopts_error_message(cases[i].kind);
 
         NAOS_TRACE_PUSH("kind %d", (int)cases[i].kind);
         NAOS_REQUIRE_NOT_NULL(text);
@@ -640,7 +640,7 @@ NAOS_TEST(decl_error_message_of_a_builder_error)
     second = test_decl_add(root, CLOPTS_OPTION_FLAG, "out", '\0');
     NAOS_CHECK_NULL(second);
     NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_ERROR_DUPLICATE_OPTION);
-    NAOS_CHECK_STR_EQ(clopts_decl_error_message(test_decl_last), "duplicate option name");
+    NAOS_CHECK_STR_EQ(clopts_error_message(test_decl_last), "duplicate option name");
     test_decl_discard(root);
 }
 
@@ -672,11 +672,11 @@ NAOS_TEST(decl_error_message_covers_every_kind)
     int i;
     int j;
 
-    NAOS_CHECK_NULL(clopts_decl_error_message(CLOPTS_ERROR_NONE));
-    NAOS_CHECK_NULL(clopts_decl_error_message((clopts_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
+    NAOS_CHECK_NULL(clopts_error_message(CLOPTS_ERROR_NONE));
+    NAOS_CHECK_NULL(clopts_error_message((clopts_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
     for (i = 1; i <= MESSAGE_DECL_KIND_MAX; i++)
     {
-        texts[i] = clopts_decl_error_message((clopts_error_t)i);
+        texts[i] = clopts_error_message((clopts_error_t)i);
         NAOS_REQUIRE_NOT_NULL(texts[i]);
         NAOS_CHECK_TRUE(texts[i][0] != '\0');
         for (j = 1; j < i; j++)
