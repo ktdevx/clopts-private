@@ -15,9 +15,9 @@
 #   abi.symbols_selftest.bad_list
 #                              every format error of a list is reported with
 #                              its line
-#   abi.header_rules           the public headers under include/clopts have no
-#                              struct / union definition and CLOPTS_API on
-#                              every function (check_header_rules.cmake)
+#   abi.header_rules           the public headers under include/clopts have
+#                              CLOPTS_API on every function
+#                              (check_header_rules.cmake)
 #   abi.header_rules_selftest.good / .<case>
 #                              fixtures/header_rules/good passes; each
 #                              fixtures/header_rules/bad/<case> reports the
@@ -155,11 +155,7 @@ set(_clopts_abi_bad_missing_api
     "missing_api\\.h:10: function 'bad_unmarked' lacks CLOPTS_API")
 set(_clopts_abi_bad_missing_api_multiline
     "missing_api_multiline\\.h:12: function 'bad_unmarked_multiline' lacks CLOPTS_API")
-set(_clopts_abi_bad_struct_def
-    "struct_def\\.h:6: struct or union definition")
-set(_clopts_abi_bad_union_def
-    "union_def\\.h:8: struct or union definition")
-foreach(_clopts_abi_case IN ITEMS missing_api missing_api_multiline struct_def union_def)
+foreach(_clopts_abi_case IN ITEMS missing_api missing_api_multiline)
     _clopts_abi_add_script_test("header_rules_selftest.${_clopts_abi_case}" check_header_rules.cmake
         ARGS "-DHEADER_DIR=${_clopts_abi_fixtures}/header_rules/bad/${_clopts_abi_case}"
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_abi_bad_${_clopts_abi_case}}")

@@ -37,7 +37,7 @@ clopts_env_status_t clopts_parser_getenv_default(void *ctx, const char *name, co
  * first, then the default value. Returns 0, or -1 when the lookup fails or a
  * copy cannot be allocated (the default is not used then).
  */
-static int resolve_slot(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const clopts_option_t *option,
+static int resolve_slot(clopts_parser_slot_t *slot, const clopts_option_t *option,
                         clopts_getenv_fn getenv_fn, void *env_ctx)
 {
     if ((option->kind != CLOPTS_PARSER_VALUE) && (option->kind != CLOPTS_PARSER_LIST))
@@ -68,23 +68,23 @@ static int resolve_slot(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot
                 return -1;
             }
             /* Copy before the callback is called again; the loan ends there. */
-            copy = clopts_parser_strdup(probe, borrowed);
+            copy = clopts_core_strdup(borrowed);
             if (copy == NULL)
             {
                 return -1;
             }
             if (option->kind == CLOPTS_PARSER_VALUE)
             {
-                clopts_parser_slot_own(probe, slot, copy);
-                clopts_parser_slot_set_value(probe, slot, copy, CLOPTS_SOURCE_ENV);
+                clopts_parser_slot_own(slot, copy);
+                clopts_parser_slot_set_value(slot, copy, CLOPTS_SOURCE_ENV);
                 return 0;
             }
             else
             {
-                int rc = clopts_parser_slot_append_list(probe, slot, copy, option->delimiter, CLOPTS_SOURCE_ENV);
+                int rc = clopts_parser_slot_append_list(slot, copy, option->delimiter, CLOPTS_SOURCE_ENV);
 
                 /* The items are copies of their own; the whole string is no longer needed. */
-                clopts_parser_free(probe, copy);
+                clopts_core_free(copy);
                 return rc;
             }
         }
@@ -95,17 +95,17 @@ static int resolve_slot(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot
         if (option->kind == CLOPTS_PARSER_VALUE)
         {
             /* Borrows the model's copy, which outlives the result's use of it. */
-            clopts_parser_slot_set_value(probe, slot, option->default_value, CLOPTS_SOURCE_DEFAULT);
+            clopts_parser_slot_set_value(slot, option->default_value, CLOPTS_SOURCE_DEFAULT);
             return 0;
         }
-        return clopts_parser_slot_append_list(probe, slot, option->default_value, option->delimiter,
+        return clopts_parser_slot_append_list(slot, option->default_value, option->delimiter,
                                               CLOPTS_SOURCE_DEFAULT);
     }
     return 0;
 }
 
 /* Resolves the slots of the options of scope in declaration order. Returns 0 or -1. */
-static int resolve_scope(clopts_parser_probe_t *probe, clopts_parser_slot_t *slots, size_t slot_count,
+static int resolve_scope(clopts_parser_slot_t *slots, size_t slot_count,
                          const clopts_command_t *scope, clopts_getenv_fn getenv_fn, void *env_ctx)
 {
     size_t i;
@@ -115,7 +115,7 @@ static int resolve_scope(clopts_parser_probe_t *probe, clopts_parser_slot_t *slo
     {
         const clopts_option_t *option = *(clopts_option_t *const *)clopts_core_vec_at(&scope->options, i);
 
-        if (resolve_slot(probe, &slots[i], option, getenv_fn, env_ctx) != 0)
+        if (resolve_slot(&slots[i], option, getenv_fn, env_ctx) != 0)
         {
             return -1;
         }
@@ -136,14 +136,14 @@ int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *progr
         getenv_fn = clopts_parser_getenv_default;
     }
 
-    if (resolve_scope(result->probe, result->global_slots, result->global_count, &program->root,
+    if (resolve_scope(result->global_slots, result->global_count, &program->root,
                       getenv_fn, env_ctx) != 0)
     {
         return -1;
     }
     if (include_command && (result->command != NULL))
     {
-        if (resolve_scope(result->probe, result->command_slots, result->command_count, result->command,
+        if (resolve_scope(result->command_slots, result->command_count, result->command,
                           getenv_fn, env_ctx) != 0)
         {
             return -1;

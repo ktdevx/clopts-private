@@ -1,6 +1,7 @@
 #ifndef CLOPTS_CLOPTS_H
 #define CLOPTS_CLOPTS_H
 
+#include "clopts/alloc.h"
 #include "clopts/decl.h"
 #include "clopts/help.h"
 #include "clopts/parse.h"

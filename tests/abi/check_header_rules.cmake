@@ -1,7 +1,8 @@
-# Checks the rules for the public headers (requirements 4.1-4.6, 4.8): no
-# struct or union definition, and CLOPTS_API at the start of every function
-# declaration. Run with `cmake -P`; registered by tests/abi/CMakeLists.txt
-# (label: abi).
+# Checks the rules for the public headers (requirements 4.1, 4.4-4.6, 4.8):
+# CLOPTS_API at the start of every function declaration. Struct and union
+# definitions are allowed (requirements 4.2 and 4.3 were retired: a public
+# struct is frozen instead, docs/abi.md). Run with `cmake -P`; registered by
+# tests/abi/CMakeLists.txt (label: abi).
 #
 # Variables (-D):
 #   HEADER_DIR  Required. The directory of the public headers. Every *.h
@@ -22,18 +23,16 @@
 #     definition), ends where its body { ... } closes.
 # Each statement is classified by its head (the text before its first "{", or
 # the whole statement when it has no body):
-#   - a body after struct / union and an optional tag (with or without
-#     typedef; __attribute__((...)) and __declspec(...) are skipped)
-#                                      -> "struct or union definition"
-#   - otherwise starting with typedef (forward declarations, enums, function
-#     pointer types)                   -> allowed
+#   - starting with typedef (forward declarations, struct / union / enum
+#     definitions, function pointer types)
+#                                      -> allowed
 #   - otherwise starting with static (static inline definitions)
 #                                      -> not checked for CLOPTS_API
 #   - otherwise containing "<identifier> (" (a function declaration): the name
 #     is the identifier just before the first "("; the first word must be
 #     CLOPTS_API                       -> else "function '<name>' lacks CLOPTS_API"
-#   - anything else (enum definitions without typedef, struct forward
-#     declarations)                    -> not checked
+#   - anything else (struct / union / enum definitions without typedef,
+#     struct forward declarations)     -> not checked
 # Every violation is collected and reported as <file>:<line>: <reason> (the
 # line where the statement starts) before the script fails. Without violations
 # the numbers of headers and function declarations checked are printed.
@@ -147,15 +146,8 @@ set(_function_count 0)
 macro(_check_header_rules_classify file)
     string(REGEX REPLACE "[ \t]+" " " _head "${_stmt_head}")
     string(STRIP "${_head}" _head)
-    # Attributes that may stand between struct / union and the tag.
-    string(REGEX REPLACE "__attribute__ ?\\(\\(([^()]|\\([^()]*\\))*\\)\\)" " " _bare "${_head}")
-    string(REGEX REPLACE "__declspec ?\\(([^()]|\\([^()]*\\))*\\)" " " _bare "${_bare}")
-    string(REGEX REPLACE " +" " " _bare "${_bare}")
-    string(STRIP "${_bare}" _bare)
-    if(_stmt_has_body AND _bare MATCHES "(^| )(struct|union)( ${_ident})?$")
-        list(APPEND _violations "${file}:${_stmt_line}: struct or union definition")
-    elseif(_head MATCHES "^typedef([^A-Za-z0-9_]|$)")
-        # Forward declarations, enums and function pointer types.
+    if(_head MATCHES "^typedef([^A-Za-z0-9_]|$)")
+        # Forward declarations, struct / union / enum definitions and function pointer types.
     elseif(_head MATCHES "^static([^A-Za-z0-9_]|$)")
         # static inline definitions are not exported.
     elseif(_head MATCHES "${_ident} ?\\(")
@@ -260,7 +252,7 @@ if(_violation_count GREATER 0)
     string(REPLACE "${_backslash}" "\\" _report "${_report}")
     message(FATAL_ERROR
         " check_header_rules: ${_violation_count} violation(s) in the public headers under ${HEADER_DIR}"
-        " (no struct or union definition, CLOPTS_API on every function; see requirement 4):\n ${_report}")
+        " (CLOPTS_API on every function; see requirement 4):\n ${_report}")
 endif()
 message(STATUS
     "check_header_rules: ${_header_count} header(s), ${_function_count} function declaration(s) checked"

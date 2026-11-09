@@ -83,7 +83,6 @@ struct clopts_program
         clopts_option_t *option;
         clopts_positional_t *positional;
     } error;
-    struct clopts_parser_probe *probe;  /* tests only; normally NULL */
 };
 
 #endif /* CLOPTS_PARSER_MODEL_H */

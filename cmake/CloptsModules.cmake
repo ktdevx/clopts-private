@@ -84,7 +84,8 @@ function(clopts_add_module_tests module)
         LIBRARIES "${link}"
         LABELS "${module}"
     )
-    target_include_directories("${target}" PRIVATE "${PROJECT_SOURCE_DIR}/src")
+    target_include_directories("${target}" PRIVATE "${PROJECT_SOURCE_DIR}/src"
+        "${PROJECT_SOURCE_DIR}/tests/support")
     clopts_apply_compiler_options("${target}")
 
     # Naos uses <math.h> but does not link libm itself. Not needed with current

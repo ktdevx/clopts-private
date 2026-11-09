@@ -8,23 +8,22 @@
 #include <assert.h>
 #include <string.h>
 
-/* Releases the recorded name, if any, through the context's probe. */
+/* Releases the recorded name, if any. */
 static void platform_env_drop_name(clopts_env_t *env)
 {
-    clopts_platform_free(env->probe, env->error_name);
+    clopts_core_free(env->error_name);
     env->error_name = NULL;
 }
 
-clopts_env_t *clopts_platform_env_new(clopts_platform_probe_t *probe)
+clopts_env_t *clopts_env_new(void)
 {
     clopts_env_t *env;
 
-    env = (clopts_env_t *)clopts_platform_malloc(probe, sizeof(*env));
+    env = (clopts_env_t *)clopts_core_malloc(sizeof(*env));
     if (env == NULL)
     {
         return NULL;
     }
-    env->probe = probe;
     env->error = CLOPTS_ENV_ERROR_NONE;
     env->error_name = NULL;
     env->value = NULL;
@@ -54,7 +53,7 @@ void clopts_platform_env_fail(clopts_env_t *env, clopts_env_error_t kind, const 
     copy = NULL;
     if (clopts_core_size_add(strlen(name), 1, &bytes) == 0)
     {
-        copy = (char *)clopts_platform_malloc(env->probe, bytes);
+        copy = (char *)clopts_core_malloc(bytes);
     }
     if (copy == NULL)
     {
@@ -76,12 +75,12 @@ int clopts_platform_env_reserve_value(clopts_env_t *env, size_t bytes)
         return 0;
     }
     /* The old contents need not survive (7.7), so the buffer is replaced, not copied. */
-    grown = (char *)clopts_platform_malloc(env->probe, bytes);
+    grown = (char *)clopts_core_malloc(bytes);
     if (grown == NULL)
     {
         return -1;
     }
-    clopts_platform_free(env->probe, env->value);
+    clopts_core_free(env->value);
     env->value = grown;
     env->value_cap = bytes;
     return 0;
@@ -97,35 +96,27 @@ int clopts_platform_env_reserve_wide(clopts_env_t *env, size_t units)
         return 0;
     }
     /* NULL both when units * sizeof(clopts_platform_u16_t) overflows and when the allocation fails. */
-    grown = clopts_platform_malloc_array(env->probe, units, sizeof(clopts_platform_u16_t));
+    grown = clopts_core_malloc_array(units, sizeof(clopts_platform_u16_t));
     if (grown == NULL)
     {
         return -1;
     }
-    clopts_platform_free(env->probe, env->wide);
+    clopts_core_free(env->wide);
     env->wide = grown;
     env->wide_cap = units;
     return 0;
 }
 
-clopts_env_t *clopts_env_new(void)
-{
-    return clopts_platform_env_new(NULL);
-}
-
 void clopts_env_free(clopts_env_t *env)
 {
-    clopts_platform_probe_t *probe;
-
     if (env == NULL)
     {
         return;
     }
-    probe = env->probe;
-    clopts_platform_free(probe, env->error_name);
-    clopts_platform_free(probe, env->value);
-    clopts_platform_free(probe, env->wide);
-    clopts_platform_free(probe, env);
+    clopts_core_free(env->error_name);
+    clopts_core_free(env->value);
+    clopts_core_free(env->wide);
+    clopts_core_free(env);
 }
 
 clopts_env_error_t clopts_env_error(const clopts_env_t *env)

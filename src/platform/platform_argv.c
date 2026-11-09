@@ -20,12 +20,12 @@ static const clopts_argv_t *platform_argv_read(const clopts_argv_t *args)
 }
 
 /* Allocates a handle without elements of its own; NULL when the allocation fails. */
-static clopts_argv_t *platform_argv_new(clopts_platform_probe_t *probe, clopts_argv_status_t status, int argc,
+static clopts_argv_t *platform_argv_new(clopts_argv_status_t status, int argc,
                                         int error_index, char *const *argv)
 {
     clopts_argv_t *args;
 
-    args = (clopts_argv_t *)clopts_platform_malloc(probe, sizeof(*args));
+    args = (clopts_argv_t *)clopts_core_malloc(sizeof(*args));
     if (args == NULL)
     {
         return NULL;
@@ -43,8 +43,7 @@ clopts_argv_t *clopts_platform_argv_sentinel(void)
     return (clopts_argv_t *)&platform_argv_oom;
 }
 
-clopts_argv_t *clopts_platform_argv_failure(clopts_platform_probe_t *probe, clopts_argv_status_t status,
-                                            int error_index)
+clopts_argv_t *clopts_platform_argv_failure(clopts_argv_status_t status, int error_index)
 {
     clopts_argv_t *args;
 
@@ -58,29 +57,19 @@ clopts_argv_t *clopts_platform_argv_failure(clopts_platform_probe_t *probe, clop
     {
         error_index = -1;
     }
-    args = platform_argv_new(probe, status, 0, error_index, platform_argv_empty);
+    args = platform_argv_new(status, 0, error_index, platform_argv_empty);
     return (args == NULL) ? clopts_platform_argv_sentinel() : args;
 }
 
-clopts_argv_t *clopts_platform_argv_passthrough(clopts_platform_probe_t *probe, int argc, char *const *argv)
+clopts_argv_t *clopts_platform_argv_passthrough(int argc, char *const *argv)
 {
     clopts_argv_t *args;
 
     assert(argc >= 0);
     assert((argv != NULL) || (argc == 0));
     assert((argv == NULL) || (argv[argc] == NULL));
-    args = platform_argv_new(probe, CLOPTS_ARGV_OK, argc, -1, (argv == NULL) ? platform_argv_empty : argv);
+    args = platform_argv_new(CLOPTS_ARGV_OK, argc, -1, (argv == NULL) ? platform_argv_empty : argv);
     return (args == NULL) ? clopts_platform_argv_sentinel() : args;
-}
-
-void clopts_platform_argv_free(clopts_platform_probe_t *probe, clopts_argv_t *args)
-{
-    /* The handle, and on Windows its array and strings, are one block. */
-    if ((args == NULL) || (args == &platform_argv_oom))
-    {
-        return;
-    }
-    clopts_platform_free(probe, args);
 }
 
 clopts_argv_status_t clopts_argv_status(const clopts_argv_t *args)
@@ -105,5 +94,10 @@ int clopts_argv_error_index(const clopts_argv_t *args)
 
 void clopts_argv_free(clopts_argv_t *args)
 {
-    clopts_platform_argv_free(NULL, args);
+    /* The handle, and on Windows its array and strings, are one block. */
+    if ((args == NULL) || (args == &platform_argv_oom))
+    {
+        return;
+    }
+    clopts_core_free(args);
 }
