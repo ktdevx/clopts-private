@@ -28,10 +28,11 @@
  * Each sweep moves the failing fault point n = 1, 2, ... until a run passes
  * no failing fault point: the run with n completes and fewer than n fault
  * points were passed in the swept part (test_alloc.calls < n, counted from
- * the start of that part). Every run must end with OUT_OF_MEMORY or with the
- * same outcome as a run without failures, and test_alloc_end() must report
- * no live block once the result and the program are released. The sweeps
- * stop at SWEEP_LIMIT runs at most.
+ * the start of that part). Every parse must end with OUT_OF_MEMORY or with
+ * the same outcome as a run without failures (a fault point in the assembly
+ * instead leaves a partial program, see scenario (a)), and test_alloc_end()
+ * must report no live block and no bad release once the result and the
+ * program are released. The sweeps stop at SWEEP_LIMIT runs at most.
  */
 #define SWEEP_LIMIT 1000
 #define SNAP_TEXT_SIZE 32
@@ -234,7 +235,7 @@ static void reference_parse(int argc, char *const *argv, const fixture_env_var_t
     test_alloc_begin(0);
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_INT_EQ(t.program->error.status, CLOPTS_OK);
+    NAOS_REQUIRE_TRUE(t.ok);
     (void)parse_and_snap(&t, argc, argv, vars, var_count, snap);
     fixture_tool_free(&t);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -272,7 +273,7 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
         test_alloc_begin(0);
         fixture_tool_init(&t);
         NAOS_REQUIRE_NOT_NULL(t.program);
-        NAOS_REQUIRE_INT_EQ(t.program->error.status, CLOPTS_OK);
+        NAOS_REQUIRE_TRUE(t.ok);
 
         base = test_alloc.calls;
         test_alloc_set_fail_at(base + offset);
@@ -301,18 +302,148 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
     }
 }
 
+/* Number of non-NULL handles among the count handles at handles. */
+static size_t count_present(const void *const *handles, size_t count)
+{
+    size_t present = 0;
+    size_t i;
+
+    for (i = 0; i < count; i++)
+    {
+        if (handles[i] != NULL)
+        {
+            present++;
+        }
+    }
+    return present;
+}
+
+/* Checks that the option and positional vecs of scope hold exactly the given handles, in order. */
+static void check_scope_holds(const clopts_command_t *scope, const void *const *options, size_t option_count,
+                              const void *const *positionals, size_t positional_count)
+{
+    size_t i;
+    size_t at = 0;
+
+    NAOS_REQUIRE_UINT_EQ(scope->options.len, count_present(options, option_count));
+    for (i = 0; i < option_count; i++)
+    {
+        if (options[i] != NULL)
+        {
+            NAOS_CHECK_PTR_EQ(*(clopts_option_t *const *)clopts_core_vec_at(&scope->options, at), options[i]);
+            NAOS_CHECK_TRUE(((const clopts_option_t *)options[i])->attached);
+            at++;
+        }
+    }
+    at = 0;
+    NAOS_REQUIRE_UINT_EQ(scope->positionals.len, count_present(positionals, positional_count));
+    for (i = 0; i < positional_count; i++)
+    {
+        if (positionals[i] != NULL)
+        {
+            NAOS_CHECK_PTR_EQ(*(clopts_positional_t *const *)clopts_core_vec_at(&scope->positionals, at),
+                              positionals[i]);
+            NAOS_CHECK_TRUE(((const clopts_positional_t *)positionals[i])->attached);
+            at++;
+        }
+    }
+}
+
 /*
- * Scenario (a): building tool, then validating and parsing it. fail_at counts
- * from test_decl_program(), which is the first fault point: fail_at = 1
- * leaves the fixture without a program.
+ * Checks that a (possibly partial) tool holds exactly what its handles say:
+ * every handle that is not NULL is attached where the fixture attaches it,
+ * nothing else is attached, and the handles of a command that could not be
+ * created are NULL. A failed builder call changes nothing, and a helper
+ * releases an option or positional whose attach failed, so this holds after
+ * any fault point.
  */
-NAOS_TEST(sweep_tool_build_then_validate_and_parse)
+static void check_partial_tool(const fixture_tool_t *t)
+{
+    const void *root_options[3];
+    const void *build_options[3];
+    const void *build_positionals[2];
+    const void *copy_positionals[2];
+    const void *cat_options[1];
+    const void *cat_positionals[1];
+    const void *commands[3];
+    size_t i;
+    size_t at = 0;
+
+    root_options[0] = t->verbose;
+    root_options[1] = t->color;
+    root_options[2] = t->config;
+    build_options[0] = t->output;
+    build_options[1] = t->keys;
+    build_options[2] = t->jobs;
+    build_positionals[0] = t->build_src;
+    build_positionals[1] = t->build_extra;
+    copy_positionals[0] = t->copy_src;
+    copy_positionals[1] = t->copy_dst;
+    cat_options[0] = t->tags;
+    cat_positionals[0] = t->cat_file;
+    commands[0] = t->build;
+    commands[1] = t->copy;
+    commands[2] = t->cat;
+
+    NAOS_REQUIRE_NOT_NULL(t->root);
+    check_scope_holds(t->root, root_options, 3, NULL, 0);
+    NAOS_REQUIRE_UINT_EQ(t->program->commands.len, count_present(commands, 3));
+    for (i = 0; i < 3; i++)
+    {
+        if (commands[i] != NULL)
+        {
+            NAOS_CHECK_PTR_EQ(*(clopts_command_t *const *)clopts_core_vec_at(&t->program->commands, at),
+                              commands[i]);
+            at++;
+        }
+    }
+    if (t->build != NULL)
+    {
+        check_scope_holds(t->build, build_options, 3, build_positionals, 2);
+    }
+    else
+    {
+        NAOS_CHECK_UINT_EQ(count_present(build_options, 3) + count_present(build_positionals, 2), 0);
+    }
+    if (t->copy != NULL)
+    {
+        check_scope_holds(t->copy, NULL, 0, copy_positionals, 2);
+    }
+    else
+    {
+        NAOS_CHECK_UINT_EQ(count_present(copy_positionals, 2), 0);
+    }
+    if (t->cat != NULL)
+    {
+        check_scope_holds(t->cat, cat_options, 1, cat_positionals, 1);
+    }
+    else
+    {
+        NAOS_CHECK_UINT_EQ(count_present(cat_options, 1) + count_present(cat_positionals, 1), 0);
+    }
+}
+
+/*
+ * Scenario (a): building tool, then parsing it. fail_at counts from
+ * test_decl_program(), which is the first fault point: fail_at = 1 leaves
+ * the fixture without a program.
+ *
+ * A failed allocation during the assembly makes that builder call return
+ * CLOPTS_DECL_OUT_OF_MEMORY and change nothing, so every fault point of the
+ * assembly either lets it complete with ok, or leaves ok false with a valid,
+ * partial program whose handles are NULL where creation or attach failed.
+ * Such a program parses like any other (here with every later allocation
+ * succeeding): never OUT_OF_MEMORY, and when it still accepts argv the
+ * outcome is that of the complete tool. No run leaks a block.
+ */
+NAOS_TEST(sweep_tool_build_then_parse)
 {
     char *argv[] = { "tool", "build", "-k", "a,b", "-o", "x", "src", NULL };
     snapshot_t expected;
     size_t fail_at;
     size_t new_oom_runs = 0;
     size_t build_oom_runs = 0;
+    size_t partial_ok_runs = 0;
     size_t later_oom_runs = 0;
     bool succeeded = false;
 
@@ -323,8 +454,8 @@ NAOS_TEST(sweep_tool_build_then_validate_and_parse)
     {
         fixture_tool_t t;
         fixture_env_t env;
-        clopts_result_t *validated;
         clopts_result_t *parsed;
+        snapshot_t snap;
 
         NAOS_NOTE("build fault point %u", (unsigned)fail_at);
         test_alloc_begin(fail_at);
@@ -333,51 +464,56 @@ NAOS_TEST(sweep_tool_build_then_validate_and_parse)
 
         if (t.program == NULL)
         {
-            /* test_decl_program() failed; every later builder call got NULL. */
+            size_t calls_after_build = test_alloc.calls;
+
+            /*
+             * test_decl_program() failed. The options and positionals are
+             * created on their own, so their constructors still try to
+             * allocate, but every later fault point fails too: every handle
+             * is NULL and nothing is left allocated.
+             */
             new_oom_runs++;
-            NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
+            NAOS_CHECK_UINT_EQ(fail_at, 1);
+            NAOS_CHECK_FALSE(t.ok);
             NAOS_CHECK_NULL(t.root);
             NAOS_CHECK_NULL(t.build);
+            NAOS_CHECK_NULL(t.copy);
+            NAOS_CHECK_NULL(t.cat);
+            NAOS_CHECK_NULL(t.verbose);
+            NAOS_CHECK_NULL(t.output);
+            NAOS_CHECK_NULL(t.tags);
+            NAOS_CHECK_NULL(t.build_src);
+            NAOS_CHECK_NULL(t.cat_file);
+            NAOS_CHECK_INT_EQ(test_alloc.live, 0);
             test_alloc_set_fail_at(0);
             parsed = clopts_parse_with_env(t.program, 7, argv, fixture_env_getenv, &env);
             NAOS_CHECK_PTR_EQ(parsed, clopts_parser_result_oom());
-            NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
+            NAOS_CHECK_UINT_EQ(test_alloc.calls, calls_after_build);
             NAOS_CHECK_FALSE(env.query_count > 0);
             clopts_result_free(parsed);
         }
         else if (test_alloc.calls >= fail_at)
         {
-            size_t calls_after_build = test_alloc.calls;
-
             build_oom_runs++;
-            NAOS_CHECK_INT_EQ(t.program->error.status, CLOPTS_OUT_OF_MEMORY);
-            /*
-             * Let every later allocation succeed: the sentinel then comes
-             * from the recorded OUT_OF_MEMORY, not from a failing result
-             * allocation.
-             */
+            NAOS_CHECK_FALSE(t.ok);
+            check_partial_tool(&t);
+            /* Let every later allocation succeed: the partial program is valid. */
             test_alloc_set_fail_at(0);
-            validated = clopts_program_validate(t.program);
             parsed = clopts_parse_with_env(t.program, 7, argv, fixture_env_getenv, &env);
-            NAOS_CHECK_PTR_EQ(validated, clopts_parser_result_oom());
-            NAOS_CHECK_PTR_EQ(parsed, clopts_parser_result_oom());
-            NAOS_CHECK_UINT_EQ(test_alloc.calls, calls_after_build);
-            NAOS_CHECK_FALSE(env.query_count > 0);
-            clopts_result_free(validated);
+            NAOS_REQUIRE_NOT_NULL(parsed);
+            NAOS_CHECK_TRUE(parsed != clopts_parser_result_oom());
+            snap_take(&snap, parsed, &t);
             clopts_result_free(parsed);
+            NAOS_CHECK_INT_NE(snap.status, CLOPTS_OUT_OF_MEMORY);
+            if (snap.status == CLOPTS_OK)
+            {
+                partial_ok_runs++;
+                check_snapshot_eq(&snap, &expected);
+            }
         }
         else
         {
-            clopts_status_t validate_status;
-            snapshot_t snap;
-
-            NAOS_CHECK_INT_EQ(t.program->error.status, CLOPTS_OK);
-            validated = clopts_program_validate(t.program);
-            NAOS_REQUIRE_NOT_NULL(validated);
-            validate_status = clopts_result_status(validated);
-            NAOS_CHECK_TRUE((validate_status == CLOPTS_OK) || (validate_status == CLOPTS_OUT_OF_MEMORY));
-            clopts_result_free(validated);
-
+            NAOS_CHECK_TRUE(t.ok);
             parsed = clopts_parse_with_env(t.program, 7, argv, fixture_env_getenv, &env);
             NAOS_REQUIRE_NOT_NULL(parsed);
             snap_take(&snap, parsed, &t);
@@ -393,7 +529,6 @@ NAOS_TEST(sweep_tool_build_then_validate_and_parse)
             if (test_alloc.calls < fail_at)
             {
                 succeeded = true;
-                NAOS_CHECK_INT_EQ(validate_status, CLOPTS_OK);
                 NAOS_CHECK_INT_EQ(snap.status, CLOPTS_OK);
             }
             test_alloc_set_fail_at(0);
@@ -406,6 +541,8 @@ NAOS_TEST(sweep_tool_build_then_validate_and_parse)
     NAOS_CHECK_TRUE(succeeded);
     NAOS_CHECK_UINT_EQ(new_oom_runs, 1);
     NAOS_CHECK_UINT_GT(build_oom_runs, 0);
+    /* A fault point late in the assembly (in cat) leaves build complete. */
+    NAOS_CHECK_UINT_GT(partial_ok_runs, 0);
     NAOS_CHECK_UINT_GT(later_oom_runs, 0);
 }
 
@@ -483,7 +620,7 @@ NAOS_TEST(sweep_resolve_default_list)
 }
 
 NAOS_SUITE(oom,
-    NAOS_ADD_TEST(sweep_tool_build_then_validate_and_parse),
+    NAOS_ADD_TEST(sweep_tool_build_then_parse),
     NAOS_ADD_TEST(sweep_parse_build_command),
     NAOS_ADD_TEST(sweep_resolve_env_list),
     NAOS_ADD_TEST(sweep_resolve_default_list)

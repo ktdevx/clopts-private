@@ -465,6 +465,7 @@ NAOS_TEST(parse_cat_tags_explicit_is_split_and_wins)
 typedef struct nosub
 {
     clopts_program_t *program;
+    bool ok;                    /* every builder call of nosub_init() succeeded */
     clopts_command_t *root;
     clopts_option_t *color;
     clopts_option_t *verbose;
@@ -479,6 +480,7 @@ typedef struct nosub
 static void nosub_init(nosub_t *n)
 {
     memset(n, 0, sizeof(*n));
+    test_decl_reset();
     n->program = test_decl_program("nosub");
     test_decl_check(clopts_program_set_version(n->program, "0.9"));
     n->root = clopts_program_root(n->program);
@@ -511,6 +513,7 @@ static void nosub_init(nosub_t *n)
     n->rest = test_decl_positional("REST");
     test_decl_check(clopts_positional_set_variadic(n->rest, true));
     n->rest = test_decl_attach_positional(n->root, n->rest);
+    n->ok = (test_decl_failures == 0);
 }
 
 /* Releases the program of n and clears it. */
@@ -525,6 +528,7 @@ static clopts_result_t *parse_nosub(nosub_t *n, char **argv, const fixture_env_v
                                     size_t var_count)
 {
     NAOS_REQUIRE_NOT_NULL(n->program);
+    NAOS_REQUIRE_TRUE(n->ok);
     return parse_checked(n->program, argv, vars, var_count);
 }
 
@@ -552,15 +556,12 @@ static void check_nosub_usage(const clopts_result_t *result, char **argv,
 NAOS_TEST(nosub_declaration_is_valid)
 {
     nosub_t n;
-    clopts_result_t *result;
 
     nosub_init(&n);
     NAOS_REQUIRE_NOT_NULL(n.program);
     NAOS_REQUIRE_TRUE(n.ok);
-    result = clopts_program_validate(n.program);
-    NAOS_REQUIRE_NOT_NULL(result);
-    NAOS_CHECK_INT_EQ(clopts_result_status(result), CLOPTS_OK);
-    clopts_result_free(result);
+    NAOS_CHECK_UINT_EQ(n.root->options.len, 5);
+    NAOS_CHECK_UINT_EQ(n.root->positionals.len, 2);
     NAOS_CHECK_UINT_EQ(n.program->commands.len, 0);
     NAOS_REQUIRE_NOT_NULL(n.program->version);
     NAOS_CHECK_STR_EQ(n.program->version, "0.9");
