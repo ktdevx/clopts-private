@@ -842,7 +842,7 @@ static clopts_decl_error_t help_add_terminal(clopts_command_t *command, const ch
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
-    error = clopts_option_new(CLOPTS_OPTION_FLAG, l, s, &option);
+    error = clopts_option_create(CLOPTS_OPTION_FLAG, l, s, &option);
     if (error == CLOPTS_DECL_NONE)
     {
         error = clopts_option_set_terminal(option, true);
@@ -857,7 +857,7 @@ static clopts_decl_error_t help_add_terminal(clopts_command_t *command, const ch
     }
     if (error != CLOPTS_DECL_NONE)
     {
-        clopts_option_free(option);
+        clopts_option_destroy(option);
         return error;
     }
     if (out != NULL)

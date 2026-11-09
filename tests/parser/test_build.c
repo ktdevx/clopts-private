@@ -165,7 +165,7 @@ NAOS_TEST(free_null_does_nothing)
 {
     clopts_program_free(NULL);
     clopts_command_free(NULL);
-    clopts_option_free(NULL);
+    clopts_option_destroy(NULL);
     clopts_positional_free(NULL);
     NAOS_CHECK_NULL(clopts_program_root(NULL));
 }
@@ -251,7 +251,7 @@ NAOS_TEST(new_option_and_positional_start_reset_and_unattached)
     {
         NAOS_NOTE("kind=%d", (int)kinds[i]);
         option = &sentinel_option;
-        EXPECT_OK(clopts_option_new(kinds[i], long_name, 'o', &option));
+        EXPECT_OK(clopts_option_create(kinds[i], long_name, 'o', &option));
         NAOS_REQUIRE_NOT_NULL(option);
         NAOS_REQUIRE_TRUE(option != &sentinel_option);
         NAOS_CHECK_FALSE(option->attached);
@@ -268,15 +268,15 @@ NAOS_TEST(new_option_and_positional_start_reset_and_unattached)
         NAOS_CHECK_FALSE(option->required);
         NAOS_CHECK_FALSE(option->negatable);
         NAOS_CHECK_FALSE(option->terminal);
-        clopts_option_free(option);
+        clopts_option_destroy(option);
     }
 
     option = make(CLOPTS_OPTION_VALUE, NULL, 'o');
     NAOS_CHECK_NULL(option->long_name);
-    clopts_option_free(option);
+    clopts_option_destroy(option);
     option = make(CLOPTS_OPTION_FLAG, "force", '\0');
     NAOS_CHECK_INT_EQ(option->short_name, '\0');
-    clopts_option_free(option);
+    clopts_option_destroy(option);
 
     positional = &sentinel_positional;
     EXPECT_OK(clopts_positional_new(pos_name, &positional));
@@ -314,7 +314,7 @@ NAOS_TEST(unattached_objects_are_released_by_their_free)
     EXPECT_OK(clopts_positional_set_help(positional, "Source."));
     NAOS_CHECK_INT_GT(test_alloc.live, 0);
 
-    clopts_option_free(option);
+    clopts_option_destroy(option);
     clopts_positional_free(positional);
     NAOS_CHECK_INT_EQ(test_alloc.live, 0);
 
@@ -359,7 +359,7 @@ NAOS_TEST(free_of_an_owned_handle_does_nothing)
     NAOS_REQUIRE_NOT_NULL(src);
     program = make_program(root, &build, 1);
 
-    clopts_option_free(flag);
+    clopts_option_destroy(flag);
     clopts_positional_free(src);
     clopts_command_free(build);
     clopts_command_free(root);
@@ -822,12 +822,12 @@ NAOS_TEST(program_new_seals_root_and_commands)
     NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_DECL_ALREADY_ATTACHED);
     NAOS_CHECK_FALSE(option->attached);
     EXPECT_OK(clopts_option_set_help(option, "Still writable."));
-    clopts_option_free(option);
+    clopts_option_destroy(option);
 
     /* the sealed check comes before the name checks */
     option = make(CLOPTS_OPTION_FLAG, "force", 'f');
     NAOS_CHECK_INT_EQ(clopts_command_add_option(root, option), CLOPTS_DECL_ALREADY_ATTACHED);
-    clopts_option_free(option);
+    clopts_option_destroy(option);
     NAOS_CHECK_INT_EQ(clopts_command_add_option(root, flag), CLOPTS_DECL_ALREADY_ATTACHED);
 
     positional = make_positional("file");
@@ -1182,7 +1182,7 @@ NAOS_TEST(set_terminal_is_for_unattached_flags)
         }
         else
         {
-            clopts_option_free(option);
+            clopts_option_destroy(option);
         }
     }
 
@@ -1307,7 +1307,7 @@ NAOS_TEST(string_set_from_its_own_copy)
     EXPECT_OK(clopts_option_set_help(output, "Output file."));
     EXPECT_OK(clopts_option_set_help(output, output->help));
     NAOS_CHECK_STR_EQ(output->help, "Output file.");
-    clopts_option_free(output);
+    clopts_option_destroy(output);
 }
 
 /* ---- setting again --------------------------------------------------------- */
@@ -1590,7 +1590,7 @@ static void oom_command_unchanged(oom_call_t *c)
 static clopts_decl_error_t oom_option_new(oom_call_t *c)
 {
     c->option_out = &sentinel_option;
-    return clopts_option_new(CLOPTS_OPTION_VALUE, "output", 'o', &c->option_out);
+    return clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &c->option_out);
 }
 
 static void oom_option_new_unchanged(oom_call_t *c)
@@ -1942,7 +1942,7 @@ NAOS_TEST(parse_leaves_the_program_as_it_is)
     option = make(CLOPTS_OPTION_VALUE, "output", 'o');
     EXPECT_OK(clopts_option_set_help(option, "Output file."));
     NAOS_CHECK_INT_EQ(clopts_command_add_option(root, option), CLOPTS_DECL_ALREADY_ATTACHED);
-    clopts_option_free(option);
+    clopts_option_destroy(option);
 
     clopts_program_free(program);
     NAOS_CHECK_TRUE(test_alloc_end());

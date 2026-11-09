@@ -97,7 +97,7 @@ static clopts_option_t *attach_option(clopts_decl_error_t *first, clopts_command
 {
     if ((*first != CLOPTS_DECL_NONE) || !check(first, clopts_command_add_option(command, option)))
     {
-        clopts_option_free(option);
+        clopts_option_destroy(option);
         return NULL;
     }
     return option;
@@ -117,26 +117,26 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct textcount_opti
     check(&e, clopts_command_new("textcount", &root));
     check(&e, clopts_command_set_description(root, "Count the lines and words of text files."));
 
-    check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "lines", 'l', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "lines", 'l', &option));
     check(&e, clopts_option_set_help(option, "Count lines"));
     opts->lines = attach_option(&e, root, option);
-    check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "words", 'w', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "words", 'w', &option));
     check(&e, clopts_option_set_help(option, "Count words"));
     opts->words = attach_option(&e, root, option);
-    check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "total", '\0', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "total", '\0', &option));
     check(&e, clopts_option_set_negatable(option, true));
     check(&e, clopts_option_set_help(option, "Print a total line"));
     opts->total = attach_option(&e, root, option);
-    check(&e, clopts_option_new(CLOPTS_OPTION_COUNT, "quiet", 'q', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_COUNT, "quiet", 'q', &option));
     check(&e, clopts_option_set_help(option, "Print less (repeat for even less)"));
     opts->quiet = attach_option(&e, root, option);
-    check(&e, clopts_option_new(CLOPTS_OPTION_VALUE, "encoding", 'e', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "encoding", 'e', &option));
     check(&e, clopts_option_set_value_name(option, "NAME"));
     check(&e, clopts_option_set_env(option, "TEXTCOUNT_ENCODING"));
     check(&e, clopts_option_set_default(option, "utf-8"));
     check(&e, clopts_option_set_help(option, "Text encoding of the files"));
     opts->encoding = attach_option(&e, root, option);
-    check(&e, clopts_option_new(CLOPTS_OPTION_LIST, "exclude", 'x', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_LIST, "exclude", 'x', &option));
     check(&e, clopts_option_set_value_name(option, "PATTERN"));
     check(&e, clopts_option_set_delimiter(option, ','));
     check(&e, clopts_option_set_help(option, "Skip files matching the patterns"));

@@ -50,14 +50,14 @@ static int consumer_parse_check(void)
     {
         return 1;
     }
-    if (clopts_option_new(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_DECL_NONE)
+    if (clopts_option_create(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_DECL_NONE)
     {
         clopts_command_free(root);
         return 1;
     }
     if (clopts_command_add_option(root, name) != CLOPTS_DECL_NONE)
     {
-        clopts_option_free(name);
+        clopts_option_destroy(name);
         clopts_command_free(root);
         return 1;
     }

@@ -704,7 +704,7 @@ NAOS_TEST(option_at_the_same_index_elsewhere_reads_as_unset)
     /* An unattached option. */
     CHECK_UNSET(result, loose);
 
-    clopts_option_free(loose);
+    clopts_option_destroy(loose);
     clopts_result_free(result);
     clopts_program_free(other.program);
     clopts_program_free(s.program);

@@ -125,7 +125,7 @@ static clopts_option_t *attach_option(clopts_decl_error_t *first, clopts_command
 {
     if ((*first != CLOPTS_DECL_NONE) || !check(first, clopts_command_add_option(command, option)))
     {
-        clopts_option_free(option);
+        clopts_option_destroy(option);
         return NULL;
     }
     return option;
@@ -158,11 +158,11 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
 
     check(&e, clopts_command_new("taskbook", &root));
     check(&e, clopts_command_set_description(root, "Keep a small list of tasks."));
-    check(&e, clopts_option_new(CLOPTS_OPTION_COUNT, "verbose", 'v', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &option));
     check(&e, clopts_option_set_count_max(option, 3));
     check(&e, clopts_option_set_help(option, "Print more details (up to 3 times)"));
     opts->verbose = attach_option(&e, root, option);
-    check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "color", '\0', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "color", '\0', &option));
     check(&e, clopts_option_set_negatable(option, true));
     check(&e, clopts_option_set_help(option, "Colorize the output"));
     opts->color = attach_option(&e, root, option);
@@ -172,12 +172,12 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     check(&e, clopts_command_new("add", &add));
     check(&e, clopts_command_set_summary(add, "Add a task"));
     check(&e, clopts_command_set_description(add, "Add a task with the given title."));
-    check(&e, clopts_option_new(CLOPTS_OPTION_LIST, "tag", 't', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_LIST, "tag", 't', &option));
     check(&e, clopts_option_set_value_name(option, "TAG"));
     check(&e, clopts_option_set_delimiter(option, ','));
     check(&e, clopts_option_set_help(option, "Tags of the task"));
     opts->tag = attach_option(&e, add, option);
-    check(&e, clopts_option_new(CLOPTS_OPTION_VALUE, "priority", 'p', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "priority", 'p', &option));
     check(&e, clopts_option_set_value_name(option, "LEVEL"));
     check(&e, clopts_option_set_default(option, "normal"));
     check(&e, clopts_option_set_help(option, "Priority: low, normal or high"));
@@ -190,10 +190,10 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     check(&e, clopts_command_new("list", &list));
     check(&e, clopts_command_set_summary(list, "List tasks"));
     check(&e, clopts_command_set_description(list, "List the open tasks."));
-    check(&e, clopts_option_new(CLOPTS_OPTION_FLAG, "all", 'a', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "all", 'a', &option));
     check(&e, clopts_option_set_help(option, "Include finished tasks"));
     opts->all = attach_option(&e, list, option);
-    check(&e, clopts_option_new(CLOPTS_OPTION_VALUE, "format", '\0', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "format", '\0', &option));
     check(&e, clopts_option_set_value_name(option, "FORMAT"));
     check(&e, clopts_option_set_env(option, "TASKBOOK_FORMAT"));
     check(&e, clopts_option_set_default(option, "text"));

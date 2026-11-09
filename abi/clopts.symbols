@@ -58,8 +58,8 @@ clopts_help_command_new
 clopts_help_target
 
 # clopts/option.h
-clopts_option_new
-clopts_option_free
+clopts_option_create
+clopts_option_destroy
 clopts_option_set_help
 clopts_option_set_value_name
 clopts_option_set_env

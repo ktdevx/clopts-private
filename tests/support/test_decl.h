@@ -76,7 +76,7 @@ clopts_program_t *test_decl_program(const char *name);
 /* Releases root and its remembered commands without making a program. NULL is fine. */
 void test_decl_discard(clopts_command_t *root);
 
-/* clopts_option_new(kind, long_name, short_name); NULL on failure. */
+/* clopts_option_create(kind, long_name, short_name); NULL on failure. */
 clopts_option_t *test_decl_option(clopts_option_kind_t kind, const char *long_name, char short_name);
 
 /* clopts_positional_new(name); NULL on failure. */

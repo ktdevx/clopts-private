@@ -46,7 +46,7 @@ static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t *
     check(&e, clopts_command_new("hello", &root));
     check(&e, clopts_command_set_description(root, "Greet someone."));
 
-    check(&e, clopts_option_new(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
+    check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
     check(&e, clopts_option_set_value_name(option, "TEXT"));
     check(&e, clopts_option_set_default(option, "Hello"));
     check(&e, clopts_option_set_help(option, "Word to greet with"));
@@ -56,7 +56,7 @@ static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t *
     }
     else
     {
-        clopts_option_free(option); /* not attached: still ours */
+        clopts_option_destroy(option); /* not attached: still ours */
     }
 
     check(&e, clopts_positional_new("NAME", &name));

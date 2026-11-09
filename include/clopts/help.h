@@ -78,7 +78,7 @@ CLOPTS_API clopts_write_status_t clopts_write_error(const clopts_program_t *prog
  * Creates the terminal FLAG -h / --help ("Show this help") and attaches it to
  * command, usually the root: a global option is found in every subcommand
  * too. *out gets the option (NULL on failure); out may be NULL. Errors of
- * clopts_option_new() and clopts_command_add_option(); on failure nothing is
+ * clopts_option_create() and clopts_command_add_option(); on failure nothing is
  * attached.
  */
 CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_help_add_help_option(clopts_command_t *command,

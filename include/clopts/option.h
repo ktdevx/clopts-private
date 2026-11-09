@@ -35,15 +35,15 @@ typedef enum clopts_option_kind
  * leading "--" (NULL for none); short_name is '\0' for none. At least one of
  * them is required (NO_NAME). INVALID_KIND, INVALID_NAME.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_option_new(clopts_option_kind_t kind, const char *long_name,
-                                                                  char short_name, clopts_option_t **out);
+CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_name,
+                                                                     char short_name, clopts_option_t **out);
 
 /*
  * Releases an unattached option. NULL does nothing. Passing an attached
  * option is a contract violation caught by assert (without assert it does
  * nothing).
  */
-CLOPTS_API void clopts_option_free(clopts_option_t *option);
+CLOPTS_API void clopts_option_destroy(clopts_option_t *option);
 
 /* One-line description in help. */
 CLOPTS_API clopts_decl_error_t clopts_option_set_help(clopts_option_t *option, const char *help);

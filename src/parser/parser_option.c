@@ -37,7 +37,7 @@ static bool option_valid_kind(clopts_option_kind_t kind)
             || (kind == CLOPTS_OPTION_LIST));
 }
 
-/* Checks of clopts_option_new(kind, l, s), in order. */
+/* Checks of clopts_option_create(kind, l, s), in order. */
 static clopts_decl_error_t option_check_new(clopts_option_kind_t kind, const char *l, char s)
 {
     if (!option_valid_kind(kind))
@@ -55,8 +55,8 @@ static clopts_decl_error_t option_check_new(clopts_option_kind_t kind, const cha
     return CLOPTS_DECL_NONE;
 }
 
-clopts_decl_error_t clopts_option_new(clopts_option_kind_t kind, const char *long_name, char short_name,
-                                      clopts_option_t **out)
+clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_name, char short_name,
+                                         clopts_option_t **out)
 {
     clopts_option_t *option;
     clopts_decl_error_t error;
@@ -100,7 +100,7 @@ clopts_decl_error_t clopts_option_new(clopts_option_kind_t kind, const char *lon
     return CLOPTS_DECL_NONE;
 }
 
-void clopts_option_free(clopts_option_t *option)
+void clopts_option_destroy(clopts_option_t *option)
 {
     if (option == NULL)
     {

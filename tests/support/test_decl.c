@@ -167,7 +167,7 @@ clopts_option_t *test_decl_option(clopts_option_kind_t kind, const char *long_na
 {
     clopts_option_t *option = NULL;
 
-    test_decl_check(clopts_option_new(kind, long_name, short_name, &option));
+    test_decl_check(clopts_option_create(kind, long_name, short_name, &option));
     return option;
 }
 
@@ -184,7 +184,7 @@ clopts_option_t *test_decl_attach(clopts_command_t *command, clopts_option_t *op
     test_decl_check(clopts_command_add_option(command, option));
     if (test_decl_last != CLOPTS_DECL_NONE)
     {
-        clopts_option_free(option);
+        clopts_option_destroy(option);
         return NULL;
     }
     return option;

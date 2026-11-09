@@ -471,11 +471,11 @@ static void platform_env_tool_init(platform_env_tool_t *tool, const char *env_na
     {
         return;
     }
-    if ((clopts_option_new(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_DECL_NONE)
+    if ((clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_DECL_NONE)
         || (clopts_option_set_env(output, env_name) != CLOPTS_DECL_NONE)
         || (clopts_command_add_option(root, output) != CLOPTS_DECL_NONE))
     {
-        clopts_option_free(output);
+        clopts_option_destroy(output);
         output = NULL;
     }
     if (clopts_program_new(root, NULL, 0, &tool->program) != CLOPTS_DECL_NONE)

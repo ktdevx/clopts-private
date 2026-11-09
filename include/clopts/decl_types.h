@@ -23,10 +23,10 @@ extern "C" {
  * together with the root:
  *
  *     clopts_option_t *verbose;
- *     if (clopts_option_new(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_DECL_NONE) ...
+ *     if (clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_DECL_NONE) ...
  *     clopts_option_set_help(verbose, "Print more details");
  *     if (clopts_command_add_option(root, verbose) != CLOPTS_DECL_NONE) {
- *         clopts_option_free(verbose);  // a failed attach leaves it with the caller
+ *         clopts_option_destroy(verbose);  // a failed attach leaves it with the caller
  *         ...
  *     }
  *
@@ -38,7 +38,7 @@ extern "C" {
  *     change or release it right after the call.
  *   - A new option, positional or command is owned by the caller until it is
  *     attached successfully; the caller releases an unattached one with
- *     clopts_option_free() / clopts_positional_free() /
+ *     clopts_option_destroy() / clopts_positional_free() /
  *     clopts_command_free(). A successful attach (clopts_command_add_option(),
  *     clopts_command_add_positional(), clopts_program_new()) moves ownership
  *     to the command or the program; a failed one changes nothing.

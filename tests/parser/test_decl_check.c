@@ -173,7 +173,7 @@ static void expect_attach_error(clopts_command_t *scope, clopts_option_t *option
     NAOS_CHECK_FALSE(option->attached);
     if (!option->attached)
     {
-        clopts_option_free(option);
+        clopts_option_destroy(option);
     }
 }
 
@@ -1188,7 +1188,7 @@ NAOS_TEST(null_handles_are_invalid_arguments)
     /* the releases accept NULL */
     clopts_program_free(NULL);
     clopts_command_free(NULL);
-    clopts_option_free(NULL);
+    clopts_option_destroy(NULL);
     clopts_positional_free(NULL);
 
     /* nothing changed: the handles are still the caller's */
@@ -1197,7 +1197,7 @@ NAOS_TEST(null_handles_are_invalid_arguments)
     NAOS_CHECK_FALSE(root->attached);
     NAOS_CHECK_UINT_EQ(root->options.len, 0);
     NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
-    clopts_option_free(option);
+    clopts_option_destroy(option);
     clopts_positional_free(positional);
     clopts_command_free(root);
 }
@@ -1210,8 +1210,8 @@ NAOS_TEST(null_out_pointers_are_invalid_arguments)
     NAOS_CHECK_INT_EQ(clopts_command_new("tool", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_command_new(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_command_new("", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_new(CLOPTS_OPTION_FLAG, "force", 'f', NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_new((clopts_option_kind_t)9, NULL, '\0', NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_option_create(CLOPTS_OPTION_FLAG, "force", 'f', NULL), CLOPTS_DECL_INVALID_ARGUMENT);
+    NAOS_CHECK_INT_EQ(clopts_option_create((clopts_option_kind_t)9, NULL, '\0', NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_positional_new("file", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_positional_new(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_INT_EQ(clopts_program_new(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
@@ -1257,7 +1257,7 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     NAOS_CHECK_FALSE(option->attached);
     NAOS_CHECK_STR_EQ(option->help, "Force.");
     EXPECT_OK(clopts_option_set_help(option, "Still mine."));
-    clopts_option_free(option);
+    clopts_option_destroy(option);
     NAOS_CHECK_INT_LT(test_alloc.live, live);
 
     /* attached elsewhere after the failure, then released with the program */
