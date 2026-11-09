@@ -121,8 +121,10 @@ int clopts_core_replace_string(char **field, const char *value)
     {
         return -1;
     }
+
     clopts_core_free(*field);
     *field = copy;
+
     return 0;
 }
 

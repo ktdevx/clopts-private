@@ -121,6 +121,7 @@ static clopts_decl_error_t option_check_call(const clopts_option_t *option)
     {
         return CLOPTS_DECL_INVALID_ARGUMENT;
     }
+
     return option->attached ? CLOPTS_DECL_ALREADY_ATTACHED : CLOPTS_DECL_NONE;
 }
 
@@ -132,6 +133,7 @@ clopts_decl_error_t clopts_option_set_help(clopts_option_t *option, const char *
     {
         return error;
     }
+
     return (clopts_core_replace_string(&option->help, help) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
@@ -143,6 +145,7 @@ clopts_decl_error_t clopts_option_set_value_name(clopts_option_t *option, const 
     {
         return error;
     }
+
     return (clopts_core_replace_string(&option->value_name, value_name) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
@@ -154,14 +157,17 @@ clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *e
     {
         return error;
     }
+
     if ((env != NULL) && option_takes_no_value(option->kind))
     {
         return CLOPTS_DECL_ENV_NOT_ALLOWED;
     }
+
     if ((env != NULL) && (env[0] == '\0'))
     {
         return CLOPTS_DECL_INVALID_NAME;
     }
+
     return (clopts_core_replace_string(&option->env, env) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
@@ -173,14 +179,17 @@ clopts_decl_error_t clopts_option_set_default(clopts_option_t *option, const cha
     {
         return error;
     }
+
     if ((default_value != NULL) && option_takes_no_value(option->kind))
     {
         return CLOPTS_DECL_DEFAULT_NOT_ALLOWED;
     }
+
     if ((default_value != NULL) && option->required)
     {
         return CLOPTS_DECL_REQUIRED_WITH_DEFAULT;
     }
+
     return (clopts_core_replace_string(&option->default_value, default_value) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
@@ -192,15 +201,19 @@ clopts_decl_error_t clopts_option_set_required(clopts_option_t *option, bool req
     {
         return error;
     }
+
     if (required && option_takes_no_value(option->kind))
     {
         return CLOPTS_DECL_REQUIRED_NOT_ALLOWED;
     }
+
     if (required && (option->default_value != NULL))
     {
         return CLOPTS_DECL_REQUIRED_WITH_DEFAULT;
     }
+
     option->required = required;
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -212,11 +225,14 @@ clopts_decl_error_t clopts_option_set_negatable(clopts_option_t *option, bool ne
     {
         return error;
     }
+
     if (negatable && (option->kind != CLOPTS_OPTION_FLAG))
     {
         return CLOPTS_DECL_NOT_NEGATABLE;
     }
+
     option->negatable = negatable;
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -228,11 +244,14 @@ clopts_decl_error_t clopts_option_set_delimiter(clopts_option_t *option, char de
     {
         return error;
     }
+
     if ((delimiter != '\0') && (option->kind != CLOPTS_OPTION_LIST))
     {
         return CLOPTS_DECL_ATTRIBUTE_KIND;
     }
+
     option->delimiter = delimiter;
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -244,11 +263,14 @@ clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *option, unsigne
     {
         return error;
     }
+
     if ((count_max != 0) && (option->kind != CLOPTS_OPTION_COUNT))
     {
         return CLOPTS_DECL_ATTRIBUTE_KIND;
     }
+
     option->count_max = count_max;
+
     return CLOPTS_DECL_NONE;
 }
 
@@ -260,11 +282,14 @@ clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool ter
     {
         return error;
     }
+
     if (terminal && (option->kind != CLOPTS_OPTION_FLAG))
     {
         return CLOPTS_DECL_ATTRIBUTE_KIND;
     }
+
     option->terminal = terminal;
+
     return CLOPTS_DECL_NONE;
 }
 
