@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Shared driver for the build-configuration tests (tests/toolchain/,
 # tests/integration/). Run with `cmake -P`: configures, builds, optionally
 # installs CLOpts first and runs the fixture, then checks the outcome against

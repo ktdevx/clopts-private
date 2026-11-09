@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite layout: the whole help texts, the Usage line, the version line and
  * the usage hint, compared byte for byte; the filter of the shadowed global
  * options; and the declarations for the help texts

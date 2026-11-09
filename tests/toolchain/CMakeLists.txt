@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Build-configuration tests (label: toolchain). Each test drives a fixture
 # project under fixtures/ through tests/cmake/run_fixture.cmake:
 #

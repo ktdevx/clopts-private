@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite build: the builder functions, the releases, string copies, the
  * last-call-wins and reset rules, handle stability, out of memory in every
  * allocating builder function, the one-shot creation of a program from a root

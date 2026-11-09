@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * HelpMessage: error line of a result, its prefix, and the message tables.
  *
  * The line is [prefix] + body + "\n". The status of the result selects the

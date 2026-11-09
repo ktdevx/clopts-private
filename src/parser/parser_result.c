@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Result handle: allocation, the out-of-memory sentinel, recording into
  * slots, the accessors, run and release.
  *

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Shared helpers for the platform tests (see test_util.h).
  */
 

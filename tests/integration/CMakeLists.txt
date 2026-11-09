@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Consumer integration tests (label: integration), driven by
 # tests/cmake/run_fixture.cmake. All of them use the form (static or shared)
 # of this build tree:

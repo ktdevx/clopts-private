@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Checks the public symbol list (abi/clopts.symbols) and compares it with the
 # symbols the shared library exports.
 # Run with `cmake -P`; registered by tests/abi/CMakeLists.txt (label: abi).

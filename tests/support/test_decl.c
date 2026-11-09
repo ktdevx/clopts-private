@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ */
+
 /* Declaration helpers for the unit tests (see test_decl.h). */
 
 #include "test_decl.h"

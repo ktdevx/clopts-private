@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * platform_probe (Windows only): compares clopts_argv_get() with the CRT's
  * __argc / __argv of this process. Suite crt starts it with raw command
  * lines.

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * argv handles: the out-of-memory sentinel, failure and passthrough handles,
  * the public accessors and the release function.
  */

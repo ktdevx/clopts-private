@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * taskbook: a fictional task manager showing a CLOpts program with
  * subcommands.
  *

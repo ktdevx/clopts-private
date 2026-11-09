@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Self-test driver for check_changelog.cmake MODE=release on a valid input.
 # Run with `cmake -P`; registered by
 # tests/docs/CMakeLists.txt as docs_selftest.changelog.release_*.

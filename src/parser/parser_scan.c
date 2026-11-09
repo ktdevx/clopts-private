@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Entry points of parsing (clopts_parse, clopts_parse_with_env) and the
  * scanner: the scan before the subcommand, the main scan, the recovery scan
  * and the final status.

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Name rules and lookups, shared by the builder and the scanner.
  *
  * Names are compared byte by byte, exactly and case-sensitively, with no

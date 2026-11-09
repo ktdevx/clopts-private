@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Checks that nothing under src/ uses shell32. Run with
 # `cmake -P`; registered as platform.no_shell32 (label: platform).
 #

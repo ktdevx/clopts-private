@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Shared helpers for the platform tests: NUL-terminated arrays of
  * clopts_platform_u16_t built from an ASCII string or from a sequence of
  * code units, and the comparison of split results with an expected list of

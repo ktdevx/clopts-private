@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite decl: the immediate checks of the command, attach and program
  * functions, the lookups shared with the scanner, and how a parse resolves
  * the names those checks allow. The checks of an option or a positional

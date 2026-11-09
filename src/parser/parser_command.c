@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Builder of commands, the root included (clopts/command.h): creation and
  * release, texts, the attach of options and positionals with the checks
  * against the other options and positionals of the same command, and the

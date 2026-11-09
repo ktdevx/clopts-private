@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Definitions of the shared help test fixtures (see test_fixtures.h).
  *
  * The help texts of tool are those of the output example in the design

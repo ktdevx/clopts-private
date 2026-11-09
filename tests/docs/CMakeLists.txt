@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Documentation tests (label: docs) are registered here.
 #
 # Programs referenced by the documentation are created with

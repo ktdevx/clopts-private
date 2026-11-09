@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Compiler options for CLOpts' own targets.
 #
 # Everything is applied per target and PRIVATE so that nothing propagates to

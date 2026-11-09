@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Builder of the program (clopts/program.h): creation from the root and the
  * subcommands, release, and the read functions.
  *

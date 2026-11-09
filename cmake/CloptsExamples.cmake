@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Programs referenced by the documentation: the examples under examples/ and
 # the README minimal example under tests/docs/.
 #

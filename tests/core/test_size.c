@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Unit tests for the overflow-checked size arithmetic
  * (clopts_core_size_mul / clopts_core_size_add).
  */

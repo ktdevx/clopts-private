@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Environment lookup contexts: creation and release, the failure record and
  * its accessors, and the value buffers.
  */

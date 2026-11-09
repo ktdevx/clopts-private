@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite out: the output sink of the help module (write and measure modes,
  * no call after a failure) and the UTF-8 display width.
  *

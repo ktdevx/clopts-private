@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite dispatch: the parse entry (sentinel, read-only program, out of
  * memory), subcommand selection, NO_COMMAND, the declared help command and
  * the terminal options (-h/--help, --version): where they stop the scan, the

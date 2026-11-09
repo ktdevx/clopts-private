@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+
 cmake_minimum_required(VERSION 3.21)
 
 project(clopts VERSION 0.1.0 LANGUAGES C)

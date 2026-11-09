@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite decl_positional: the checks of a positional alone, made by
  * clopts_positional_create() and the positional setters (parser_positional.c).
  * None of these tests creates a program or a command. The order of the

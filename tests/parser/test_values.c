@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite values: repetition rules of FLAG / COUNT / VALUE / LIST, list
  * delimiters and the count limit, all through argv and the parse functions.
  *

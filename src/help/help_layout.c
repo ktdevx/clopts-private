@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * HelpLayout: help, Usage line, version line and usage hint.
  *
  * Lists are written in two passes over the same row procedure: the left

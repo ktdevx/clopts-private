@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite short: short option groups, attached values, terminal options in a
  * group (-h of the fixtures and those of a custom program), the lookup order
  * of short names and unknown short options.

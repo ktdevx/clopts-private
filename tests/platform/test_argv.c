@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite argv: argv handles, their accessors and release, the NULL handle
  * and the out-of-memory sentinel, the pass-through outside Windows and the
  * match with the CRT's __argv on Windows. The allocations are counted (and

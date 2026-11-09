@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ */
+
 #include "test_alloc.h"
 
 #include <clopts/alloc.h>

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Definitions of the shared parser test fixtures (see test_fixtures.h).
  *
  * The three programs reproduce the first-version declarations (names, kinds,

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Unit tests for the writer contract (clopts_write_fn, the static inline
  * clopts_file_write) and the internal helpers (clopts_core_write /
  * clopts_core_write_str).

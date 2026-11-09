@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Creation of the clopts library target (static or shared).
 #
 # The form is chosen once per build tree by CLOPTS_BUILD_SHARED (defined in

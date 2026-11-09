@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Install rules, export sets and package config files for CLOpts.
 #
 # Included and called by the root CMakeLists.txt only when CLOPTS_INSTALL is

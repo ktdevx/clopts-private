@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Fetching the Naos test framework, pinned to one release.
 #
 # Naos is used by the test executables only; the clopts target never links it.

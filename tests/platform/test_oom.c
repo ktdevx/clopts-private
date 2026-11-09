@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite oom: sweeps that move the failing fault point of the test allocator
  * (tests/support/test_alloc.h) over handle creation, context creation, the
  * Windows conversions and environment lookups. Each run gives the sentinel,

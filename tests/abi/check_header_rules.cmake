@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Checks the rules for the public headers:
 # CLOPTS_API at the start of every function declaration. Struct and union
 # definitions are allowed (a public struct is

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite message: the texts of every usage error kind, the out-of-memory
  * line, the prefixes, the texts of clopts_decl_error_message() and the
  * coverage of the text tables.

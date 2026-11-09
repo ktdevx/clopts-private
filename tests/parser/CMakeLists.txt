@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+
 clopts_add_module_tests(parser SOURCES
     parser_tests_main.c
     test_fixtures.c

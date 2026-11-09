@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+
 set(clopts_platform_test_sources
     platform_tests_main.c
     test_util.c

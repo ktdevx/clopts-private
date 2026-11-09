@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite crt (Windows only; built only on Windows): starts the probe
  * executable with raw command lines and compares clopts_argv_get with the
  * CRT's __argc / __argv there.

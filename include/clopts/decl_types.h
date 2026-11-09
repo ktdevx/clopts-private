@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ */
+
 #ifndef CLOPTS_DECL_TYPES_H
 #define CLOPTS_DECL_TYPES_H
 

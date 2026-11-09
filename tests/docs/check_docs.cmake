@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Checks the documentation against the programs, sources, files and public
 # symbols it describes. Run with
 # `cmake -P`; registered by tests/docs/CMakeLists.txt (label: docs).

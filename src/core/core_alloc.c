@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Allocation gateway: the only place of the library that calls the
  * allocator functions (clopts_set_allocator, include/clopts/alloc.h).
  */

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite result: the result handle (recording rules, accessors, the
  * terminal option and release), driven through the internal API.
  *

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Helpers for adding internal modules to the clopts target and registering
 # their tests.
 

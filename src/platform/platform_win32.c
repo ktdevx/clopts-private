@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * argv and environment lookup on Windows: the command line is split with the
  * rules of the current MSVC CRT and converted to UTF-8, and variables are
  * read with GetEnvironmentVariableW() and converted to UTF-8.

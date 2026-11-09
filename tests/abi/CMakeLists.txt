@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # ABI compatibility tests (label: abi).
 #
 #   abi.symbol_list            format of the public symbol list

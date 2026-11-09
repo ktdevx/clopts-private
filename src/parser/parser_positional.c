@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Positional (clopts/positional.h): creation, release and attributes.
  * Nothing here reads or writes a command or a program; the order of the
  * positionals is checked when one is attached (parser_command.c).

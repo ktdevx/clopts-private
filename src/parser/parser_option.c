@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Option (clopts/option.h): creation, release and attributes. Everything
  * here depends on the option alone: nothing reads or writes a command or a
  * program. The checks against the other options of the same command are

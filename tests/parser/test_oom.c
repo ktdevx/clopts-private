@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite oom: sweeps that move the failing allocation over the assembly of the
  * fixture tool, the parse of "tool build -k a,b -o x src" and the resolution
  * of environment variables and LIST defaults (15.7).

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Command line splitting with the rules of the current MSVC CRT.
  *
  * argv[0] and the later elements follow different rules (rule IDs R0-R9 of

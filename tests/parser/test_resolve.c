@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite resolve: environment variables, defaults and required checks.
  *
  * Driven through the internal API: a program is built with the builder, a

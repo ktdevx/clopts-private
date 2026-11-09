@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite convert (Windows only; built only on Windows): clopts_argv_from_wide,
  * conversion from a command line, non-ASCII elements and the index of the
  * first invalid UTF-16 element. The allocations are counted with the test

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Shared fixtures for the parser tests: fictional programs assembled with the
  * builder functions, and a borrowing mock environment.
  *

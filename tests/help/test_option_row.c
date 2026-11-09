@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite option_row: the left column and the notes of one option row
  * (Requirement 4), and the alignment of a list with non-ASCII names.
  *

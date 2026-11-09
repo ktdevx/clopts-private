@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite alloc: the allocation gateway (clopts_core_malloc / malloc_array /
  * calloc / realloc / strdup / strndup / free), clopts_core_replace_string()
  * and clopts_set_allocator().

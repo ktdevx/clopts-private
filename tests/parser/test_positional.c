@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite positional: positionals mixed with options, --, a lone -, required /
  * optional / variadic positionals and unexpected arguments.
  *

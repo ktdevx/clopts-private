@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Shared fixtures for the help tests: fictional programs assembled with the
  * public builder functions, a recording write callback and a failing write
  * callback.

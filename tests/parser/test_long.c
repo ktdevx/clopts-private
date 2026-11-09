@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite long: long options, --name=value, value consumption, unknown long
  * options, --no-<name>, global and command scope, the terminal --help /
  * --version of the fixtures, and on a custom program the lookup order

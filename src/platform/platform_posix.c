@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * argv and environment lookup elsewhere than Windows: argv is passed through
  * and variables are read with getenv().
  */

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite split: command line splitting with the rules of the current MSVC
  * CRT (clopts_platform_split), on every OS.
  *

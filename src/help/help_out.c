@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * HelpOut: output sink in write or measure mode, and the UTF-8 display width.
  *
  * Write mode passes the bytes to the callback through clopts_core_write and

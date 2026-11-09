@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Compares the ABI of the current sources with the latest release of the same
 # SOVERSION using abidiff. Run with `cmake -P`.
 #

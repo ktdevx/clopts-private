@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite env: environment lookup contexts (creation, release, the failure
  * record and the buffers) and clopts_env_lookup on every OS (getenv outside
  * Windows, the UTF-16 environment and UTF-8 conversion on Windows), and

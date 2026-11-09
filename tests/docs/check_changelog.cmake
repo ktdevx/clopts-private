@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # Checks the format of CHANGELOG.md and, for a release, matches the tag
 # against the project version and extracts the release notes. Run with `cmake -P`; MODE=format is registered by
 # tests/docs/CMakeLists.txt (label: docs) and MODE=release is run by

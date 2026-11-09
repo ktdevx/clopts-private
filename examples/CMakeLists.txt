@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The CLOpts Authors
+# SPDX-License-Identifier: MIT
+#
 # CLOpts examples (CLOPTS_BUILD_EXAMPLES). Each one is also registered for the
 # docs check through clopts_add_doc_program (cmake/CloptsExamples.cmake).
 

@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite errors: fields of the structured error, the first error wins, the
  * recovery scan and the priority between terminal options (the -h/--help
  * and --version of the fixtures, and a terminal option of a command) and

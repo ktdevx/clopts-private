@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * textcount: a fictional filter-style tool showing a CLOpts program without
  * subcommands.
  *

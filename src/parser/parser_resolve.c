@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Resolver: the default environment lookup, resolution from the environment
  * and the defaults, and the required checks.
  *

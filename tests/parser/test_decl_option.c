@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 The CLOpts Authors
+ * SPDX-License-Identifier: MIT
+ *
  * Suite decl_option: the checks of an option alone, made by
  * clopts_option_create() and the option setters (parser_option.c). None of these
  * tests creates a program or a command: an option does not depend on them.
