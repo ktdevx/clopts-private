@@ -137,14 +137,14 @@
   - _Depends: 2.3_
   - _Requirements: 11.1, 11.4, 11.5, 11.6, 11.7, 11.8_
 
-- [ ] 6. 統合と検証
+- [x] 6. 統合と検証
 - [x] 6.1 実際の文書の検査を CTest に登録し、全体を通す
   - `tests/docs/CMakeLists.txt` に、設計の DocsTests の表どおりに `docs.outputs`（`CLOPTS_BUILD_EXAMPLES` が ON のときだけ）、`docs.sources`、`docs.links`、`docs.api_coverage`、`docs.changelog` を登録する。outputs の `PROGRAMS`、`ENV_VARS`、`REQUIRE` は、グローバルプロパティから `$<TARGET_FILE:...>` で組み立てる。`docs/*.md` は `CONFIGURE_DEPENDS` 付きの glob で集め、名前の順に並べる
   - 完了条件: Linux の静的・共有の両形式で、`CLOPTS_WERROR=ON` のもとで構成・ビルドし、`ctest -L docs` がすべて通る。`docs.outputs` は、taskbook と textcount の両方に終了コード 0 と 0 以外の印があることを含めて通る。`-DCLOPTS_BUILD_EXAMPLES=OFF` では `docs.outputs` が登録されず、他の `docs.*` は通る
   - _Depends: 3.4, 4.5, 5.1_
   - _Requirements: 2.9, 6.5, 8.1, 8.2, 8.3, 8.6, 8.7, 10.1_
 
-- [ ] 6.2 全体の回帰と CI での確認
+- [x] 6.2 全体の回帰と CI での確認
   - 静的・共有の両形式で、テストを含む全体を構成・ビルドし、`ctest` の全件（既存の core / parser / help / platform / toolchain / integration / abi と新しい docs）が通ることを確かめる
   - CI は main への push と pull request でしか動かないので、ユーザーの承認を得て pull request を作り、CI の 10 ジョブと `abi-compare` の結果を確かめる。Windows（MSVC、MinGW）と macOS で、サンプルのビルドと `docs.outputs` が通ることを確かめ、失敗があれば原因を直す
   - 完了条件: 手元の全件の結果を示せる。承認を得て CI を動かした場合は、全ジョブが成功した実行の記録（実行の識別子とジョブごとの結果）を示せる。承認がなければ、CI での確認が未実施であることと、その手順を記録する
@@ -164,3 +164,4 @@
 - 5.2: リリース手順書は、リリースのワークフローを「タイトル `CLOpts X.Y.Z`、添付は `clopts-X.Y.Z.tar.gz`、`clopts-X.Y.Z.zip`、`SHA256SUMS`、ノートは `$RUNNER_TEMP` に書く」と記述している。5.3 の `release.yml` はこれに合わせる。手順書の FetchContent の URL（`ktdevx/clopts-private.git`）は、公開先が決まったら README と docs/integration.md と一緒に直す。
 - 5.3: リリースのワークフローの手順 3〜6 は手元で再現した（`git archive --worktree-attributes`、ネットワークなしの構成とビルド、`SHA256SUMS` の検証）。リモートに仮のタグを push して全体を試すことは、ユーザーの承認がないので未実施。試す手順は docs/dev/release.md の「リリースのワークフローを試す方法」にある。`git archive` は同名のブランチとの曖昧さを避けるため `refs/tags/$TAG` を指定する。
 - 6.1: 実際の文書の検査（`docs.outputs`、`docs.sources`、`docs.links`、`docs.api_coverage`、`docs.changelog`）は、リストを生の `;` を含む引用付きの `-D` 引数で渡す（`cmake_parse_arguments(PARSE_ARGV)` 経由なのでエスケープは不要）。利用者向けの文書は README.md と `docs/*.md`（再帰しないので `docs/dev/` は除かれる）。
+- 6.2: 手元（Linux）では、`CLOPTS_WERROR=ON` のもとで静的版 694 件・共有版 696 件の ctest がすべて通った（`-L docs` は 68 件）。ユーザーの承認を得て PR #15 を作り、CI の実行 42543436516（head d3187ea）で 10 ジョブ（linux-gcc/clang、macos-appleclang、windows-msvc/mingw の各静的・共有）と `abi-compare` がすべて成功した。windows-msvc-shared では 733 件が通り、`docs` ラベルの 68 件（`docs.outputs` を含む）も通った。
