@@ -16,8 +16,8 @@
 /*
  * Internal declaration model: the only representation of a declaration, built
  * by the builder functions (option.c, positional.c, scope.c, command.c and
- * parser_program.c). The layouts of a program, a command and a positional are
- * private to parser_program.c, command.c and positional.c; options have their
+ * program.c). The layouts of a program, a command and a positional are
+ * private to program.c, command.c and positional.c; options have their
  * own header. The program and every command embed a scope (below) that holds
  * their options and positionals. Everything outside those files reads them
  * through the read functions only: the public ones, and the scope functions
@@ -39,12 +39,12 @@
 
 /*
  * Internal contracts of the parser module, shared by the builder
- * (parser_program.c, command.c, option.c,
- * positional.c), the name rules and lookups (parser_decl.c), the scanner
- * (parser_scan.c), the resolver (parser_resolve.c) and the result handle
- * (parser_result.c). None of these symbols is exported from the shared
- * library. Every allocation goes through the allocation gateway of core
- * (clopts_core_malloc and the others, core/core_internal.h).
+ * (program.c, command.c, option.c, positional.c), the name rules and
+ * lookups (parser_decl.c), the scanner (parser_scan.c), the resolver
+ * (parser_resolve.c) and the result handle (parser_result.c). None of these
+ * symbols is exported from the shared library. Every allocation goes through
+ * the allocation gateway of core (clopts_core_malloc and the others,
+ * core/core_internal.h).
  */
 
 /*
@@ -82,7 +82,7 @@ const clopts_positional_t *clopts_scope_positional_at(const clopts_scope_t *scop
 /* The scope of command (command.c). */
 const clopts_scope_t *clopts_command_scope(const clopts_command_t *command);
 
-/* The scope of the program itself: its global options and its positionals (parser_program.c). */
+/* The scope of the program itself: its global options and its positionals (program.c). */
 const clopts_scope_t *clopts_program_scope(const clopts_program_t *program);
 
 /*

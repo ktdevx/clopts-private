@@ -4,7 +4,7 @@
  *
  * Scope: the options and positionals of the program or of a command, in
  * order of attachment, with the checks of an attach against the other
- * options and positionals of the same scope. The program (parser_program.c)
+ * options and positionals of the same scope. The program (program.c)
  * and every command (command.c) embed one; nothing else reads a scope but
  * through the functions here.
  *

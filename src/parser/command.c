@@ -10,7 +10,7 @@
  *
  * A command does not know its program: every check made here reads the
  * command alone. The checks between commands are made when a command is
- * added to the program (parser_program.c).
+ * added to the program (program.c).
  *
  * Every builder function checks its arguments and the declaration rules that
  * belong to it, in a fixed order, and returns the first rule that fails.

@@ -79,7 +79,7 @@ classDiagram
 
 | 型 | 構造体の定義 |
 |----|--------------|
-| `clopts_program_t` | `src/parser/parser_program.c` |
+| `clopts_program_t` | `src/parser/program.c` |
 | `clopts_command_t` | `src/parser/command.c` |
 | `clopts_option_t` | `src/parser/option.c`（parser の中で使う追加の読み取り関数は `parser_internal.h` にある） |
 | `clopts_positional_t` | `src/parser/positional.c` |

@@ -22,7 +22,7 @@
  * commands (command names, and the layout of the program: positionals or
  * subcommands, not both) are made by clopts_program_add_command() and
  * clopts_program_add_positional(). The order of the checks within one call is
- * that of parser_program.c, command.c and scope.c.
+ * that of program.c, command.c and scope.c.
  *
  * Names are not checked between the global options and a command: there are
  * no reserved names, and a name of a command shadows the same global name.
