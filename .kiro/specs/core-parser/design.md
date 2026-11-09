@@ -26,7 +26,8 @@
 - ビルダーの即時検査（宣言エラーの全規則）と、program へのエラーの記録。
 - 走査器、値の解決（環境変数 → 既定値）、必須検査、エラー優先度、ハンドラ呼び出し。
 - 結果ハンドル（OOM 用の番兵を含む）、所有と寿命の規則。
-- テスト用の確保プローブ。失敗の注入と、生存する確保ブロックの計数を行う内部の口で、公開しない。
+- 公開ヘッダ `include/clopts/alloc.h`（アロケーターの構造体 `clopts_allocator_t` と `clopts_set_allocator`）と、その実装である core の確保の窓口 `src/core/core_alloc.c`。ライブラリのすべての確保・解放は、この窓口を通して、設定されたアロケーターで行う（2026-11-09 に、テスト用の確保プローブから変更）。
+- 確保の失敗の注入と、生存する確保ブロックの計数を行うテスト用のアロケーター `tests/support/test_alloc.{h,c}`。`src/` には置かず、公開 API の `clopts_set_allocator` で組み込む。platform-argv と core のテストも使う。
 - `tests/parser/` の単体テストと、統合テストの利用側コード `tests/integration/fixtures/consumer/main.c` を新しい API に合わせること。
 
 ### Out of Boundary
@@ -38,8 +39,8 @@
 
 ### Allowed Dependencies
 - C99 標準ライブラリ（`<stdlib.h>`、`<string.h>`、`<stdbool.h>`、`<stddef.h>`、`<limits.h>`、`<assert.h>`）。
-- `src/core/core_internal.h`（`clopts_core_vec_t`、`clopts_core_size_mul` / `add`）。vec の要素数（`len`）はどのファイルも読んでよい。バッファと容量（`data` / `cap`）を直接読むのは、確保プローブ（`parser_alloc.c`）だけ。
-- `include/clopts/export.h`（`CLOPTS_API`）。
+- `src/core/core_internal.h`（`clopts_core_vec_t`、`clopts_core_size_mul` / `add`、確保の窓口 `clopts_core_malloc` / `malloc_array` / `calloc` / `realloc` / `strdup` / `strndup` / `free`）。vec の要素数（`len`）はどのファイルも読んでよい。バッファと容量（`data` / `cap`）は parser のどのファイルも直接読まない。
+- `include/clopts/export.h`（`CLOPTS_API`）、`include/clopts/alloc.h`（`core_internal.h` が include する）。
 - 依存の向き: `export.h` → 公開ヘッダ（`decl.h` → `parse.h`）→ `parser_model.h` → `parser_internal.h` → 各 `.c`。help-and-messages は `parser_model.h` と公開ヘッダだけを include してよい。`parser_internal.h` は include しない。
 
 ### Revalidation Triggers
@@ -48,6 +49,7 @@
 - `clopts_getenv_fn` のシグネチャや借用の規則の変更 → platform-argv を再検証する。
 - 公開関数の追加・削除・改名 → abi-compat の公開シンボル一覧を更新する。
 - 結果ハンドルから得た文字列の寿命の規則の変更 → docs-and-release の API リファレンスを更新する。
+- 確保の窓口（`clopts_core_*`）の契約や、テスト用のアロケーター（`tests/support/test_alloc`）の確保点の定義の変更 → platform-argv を再検証する。`clopts_allocator_t` は凍結しているので配置は変えない（拡張は別の型と別の関数を足す）。
 
 ## Architecture
 
@@ -55,7 +57,7 @@
 - `src/parser/` には 4 つのファイル（decl / scan / resolve / store）と `parser_internal.h` がある。照合の結果は「どちらのスコープか（グローバル / 選択コマンド）+ 添字」の ref で表し、スロットは option と同じ添字を持つ。新しい設計もこの形を保つ。
 - 宣言は「配列 + 要素数」だった。これを「ポインタの vec」に変えるので、参照箇所（scan 15、decl 45、resolve 23、store 16 か所）を機械的に置き換える。
 - 結果は `clopts_result_t`（公開の殻）と `impl`（store）の 2 段だった。これを 1 つの内部構造体 `struct clopts_result` にまとめる。
-- テストは共有ビルドでは `clopts_testing`（静的コピー）に、静的ビルドでは `clopts` にリンクする（project-foundation 7.2）。どちらでも内部関数を呼べるので、確保プローブを内部関数として置ける。
+- テストは共有ビルドでは `clopts_testing`（静的コピー）に、静的ビルドでは `clopts` にリンクする（project-foundation 7.2）。どちらでも内部関数を呼べる。確保の失敗の注入は、内部の口ではなく公開 API の `clopts_set_allocator` で組み込むテスト用のアロケーター（`tests/support/test_alloc`）で行うので、`src/` にテスト専用の型・フィールド・引数を置かない。
 
 ### Architecture Pattern & Boundary Map
 
@@ -68,26 +70,26 @@ graph TB
     subgraph Parser
         Model[parser_model.h model]
         Internal[parser_internal.h contracts]
-        Alloc[parser_alloc.c probe]
         Build[parser_build.c builder and checks]
         Decl[parser_decl.c name rules and lookup]
         Scan[parser_scan.c scanner]
         Resolve[parser_resolve.c env default required]
         Result[parser_result.c result handle]
     end
-    Core[core vec and size]
+    Core[core vec size and alloc gateway]
+    TestAlloc[tests support test_alloc]
     Help[help-and-messages]
     Platform[platform-argv]
     DeclH --> ParseH
     ParseH --> Model
     Model --> Internal
-    Internal --> Alloc
     Internal --> Build
     Internal --> Decl
     Internal --> Scan
     Internal --> Resolve
     Internal --> Result
-    Alloc --> Core
+    Internal --> Core
+    TestAlloc --> Core
     Build --> Decl
     Scan --> Decl
     Scan --> Result
@@ -102,8 +104,8 @@ graph TB
 - **Selected pattern**: 不透明ハンドル + ビルダー + 内部モデル（研究ノートの案C の改良）。宣言エラーはすべてビルダー呼び出しの中で即時に検査する。設定関数で付ける属性に「種類に合うか」の検査をその場で掛けるので、凍結時の一括検査や通し番号は要らない。
 - **Domain boundaries**: 宣言の組み立てと検査は Build（+ Decl の規則関数）、走査は Scan、解決は Resolve、結果の保持と参照は Result。モデルの構造体を書くのは Build だけ。Scan / Resolve / Result はモデルを読むだけ。
 - **Existing patterns preserved**: ref + スロット添字、4 段の走査（前段・本走査・回復走査・走査後）、`assert` による契約違反の検出、Allman スタイル。
-- **New components rationale**: Build（ビルダーが新設のため）、Model（help-and-messages との継ぎ目）、Alloc（15.7 の注入と計数）、Result（store と殻を 1 つにした結果ハンドル）。
-- **Steering compliance**: 公開ヘッダに構造体なし、全公開関数に `CLOPTS_API`、列挙値は明示、利用側の確保したメモリを解放しない、`FILE*` を受けない、グローバルな可変状態を持たない（番兵は `const`）。
+- **New components rationale**: Build（ビルダーが新設のため）、Model（help-and-messages との継ぎ目）、Alloc（core の確保の窓口とアロケーター。13.5、13.8）、TestAlloc（15.7 の注入と計数をテスト側で行う）、Result（store と殻を 1 つにした結果ハンドル）。
+- **Steering compliance**: 公開構造体は配置を凍結したアロケーターの構造体だけ（ハンドルは不透明型）、全公開関数に `CLOPTS_API`、列挙値は明示、利用側の確保したメモリを解放しない、`FILE*` を受けない、確保は core の窓口を通す。parser はグローバルな可変状態を持たない（番兵は `const`）。ライブラリで唯一のグローバルな可変状態は、core が持つ現在のアロケーターである。
 
 ### Technology Stack
 
@@ -112,29 +114,34 @@ graph TB
 | 言語 | C99 | 全実装 | VLA なし、`//` コメントなし |
 | ビルド | CMake 3.21（project-foundation） | `clopts_add_module` / `clopts_add_module_tests` | ソース一覧だけ変える |
 | テスト | Naos v0.4.0（project-foundation） | `tests/parser/` | ラベル `parser` |
-| 内部ユーティリティ | `src/core`（vec、size） | 子の一覧、スロット、位置引数、リスト項目 | vec の要素はポインタ（ハンドルの安定のため） |
+| 内部ユーティリティ | `src/core`（vec、size、確保の窓口） | 子の一覧、スロット、位置引数、リスト項目、すべての確保・解放 | vec の要素はポインタ（ハンドルの安定のため） |
 
 ## File Structure Plan
 
 ### Directory Structure
 ```
 include/clopts/
+├── alloc.h           # 新規（2026-11-09）: clopts_allocator_t（凍結）、clopts_set_allocator
 ├── decl.h            # 書き直し: ハンドル型、clopts_handler_fn、ビルダー関数（program / command / option / positional）
 └── parse.h           # 書き直し: 列挙（値を明示）、clopts_getenv_fn、解析・検査関数、結果ハンドルのアクセサ、解放
 src/parser/
 ├── parser_model.h    # 新規: 内部の宣言モデル（struct clopts_program / command / option / positional、clopts_parser_kind_t）と不変条件。help-and-messages が読む
-├── parser_internal.h # 書き直し: 結果の構造体、スロット、ref、確保プローブ、各ファイル間の内部関数の宣言
-├── parser_alloc.c    # 新規: 確保の窓口（malloc / calloc / strdup / vec_push / free）と確保プローブ
+├── parser_internal.h # 書き直し: 結果の構造体、スロット、ref、各ファイル間の内部関数の宣言
 ├── parser_build.c    # 新規: ビルダー関数の公開実装、即時検査、エラーの記録、凍結、program の解放
 ├── parser_decl.c     # 書き直し: 名前の形式の規則、照合範囲での重複・否定形の検出、照合関数（find_command / find_long / find_negation / find_short）
 ├── parser_scan.c     # 変更: clopts_parse / clopts_parse_with_env / clopts_program_validate の実装、前段・本走査・回復走査
 ├── parser_resolve.c  # 変更: 既定の環境変数取得（借用）、環境変数 → 既定値の解決、必須検査
 ├── parser_result.c   # 新規（parser_store.c を置き換え）: 結果ハンドルの確保、番兵、スロットへの記録、全アクセサ、run、free
 └── CMakeLists.txt    # 変更: ソース一覧
+src/core/
+├── core_alloc.c      # 新規（2026-11-09）: 現在のアロケーター、clopts_set_allocator、確保の窓口（clopts_core_*）
+└── core_internal.h   # 変更: 確保の窓口の宣言
+tests/support/
+└── test_alloc.h / .c # 新規（2026-11-09）: 失敗を注入し、生存ブロックを数えるテスト用のアロケーター（parser / platform / core のテストが共有）
 tests/parser/
 ├── test_fixtures.h / .c  # 書き直し: 架空の program をビルダーで組み立てる関数、ハンドルをまとめた構造体、環境変数の模擬関数
 ├── test_build.c      # 新規: NULL 安全、最初のエラー、文字列の複製、凍結、ハンドルの安定、root
-├── test_oom.c        # 新規: 確保プローブで失敗位置を 1 から順に動かす網羅試験と、生存ブロック 0 の確認
+├── test_oom.c        # 新規: テスト用のアロケーターで失敗位置を 1 から順に動かす網羅試験と、生存ブロック 0 の確認
 ├── test_decl_check.c # 書き直し: 即時検査の規則表の各行、呼び出し順、検査関数
 ├── test_dispatch.c / test_long.c / test_short.c / test_values.c / test_positional.c / test_resolve.c / test_errors.c / test_result.c
 │                     # 変更: 宣言をフィクスチャのハンドルに、参照を新しいアクセサに置き換える。観点は変えない
@@ -238,7 +245,7 @@ sequenceDiagram
 |-------------|---------|------------|------------|-------|
 | 1.1, 1.2, 1.3, 1.4, 1.5 | 生成・解放・追加 | Build, Model | `clopts_program_new` / `_free` / `_root` / `_add_command`、`clopts_command_add_*` | ビルダー前処理 |
 | 1.6, 1.7, 1.9 | 属性の設定、後勝ち | Build | `clopts_option_set_*`、`clopts_positional_set_*`、`clopts_command_set_*`、`clopts_program_set_version` | ビルダー前処理 |
-| 1.8 | 文字列の複製 | Build, Alloc | `clopts_parser_strdup` | — |
+| 1.8 | 文字列の複製 | Build, Alloc | `clopts_core_strdup` | — |
 | 1.10, 1.11 | 追加順の保持、ハンドルの安定 | Model, Build | 子はポインタの vec | — |
 | 1.12 | 解析後の凍結 | Build, Scan | `frozen` フラグ | 解析の入口 |
 | 2.1, 2.2, 2.3, 2.4, 2.7 | 最初のエラー、NULL 安全 | Build | `program->error` | ビルダー前処理 |
@@ -264,8 +271,9 @@ sequenceDiagram
 | 13.1, 13.2, 13.3, 13.4, 13.6 | 結果の解放 | Result | `clopts_result_free` | — |
 | 13.5 | サイズ計算の検査 | Alloc | `clopts_core_size_mul` / `add` | — |
 | 13.7 | ビルダー中の OOM | Build, Alloc | 確保 → 接続 → 複製の順 | ビルダー前処理 |
+| 13.8 | アロケーターの差し替え | Alloc | `clopts_allocator_t`、`clopts_set_allocator`、`clopts_core_*` | — |
 | 14.1, 14.2, 14.3, 14.4, 14.5, 14.6 | 公開 API の形 | 公開ヘッダ, Model | `CLOPTS_API`、列挙値の明示、consumer fixture | — |
-| 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8 | 単体テスト | ParserTests, Alloc | 確保プローブ | — |
+| 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8 | 単体テスト | ParserTests, TestAlloc | `test_alloc_begin` / `test_alloc_end`、`clopts_set_allocator` | — |
 
 ## Components and Interfaces
 
@@ -273,12 +281,13 @@ sequenceDiagram
 |-----------|--------|--------|--------------|------------------|-----------|
 | PublicHeaders | 公開 API | ハンドル・列挙・関数の契約 | 1, 4, 8.6, 11, 12, 13, 14 | export.h（P0） | API |
 | Model | parser | 内部の宣言モデルと不変条件 | 1.10, 1.11, 14.5 | core vec（P0） | State |
-| Alloc | parser | 確保の窓口と確保プローブ | 1.8, 13.5, 13.7, 15.7 | core（P0） | Service |
+| Alloc | core | 確保の窓口と、差し替えられるアロケーター | 1.8, 13.5, 13.7, 13.8 | C 標準ライブラリ（P0） | API, Service, State |
 | Build | parser | ビルダー、即時検査、エラーの記録、凍結 | 1, 2, 3 | Decl, Alloc（P0） | Service, State |
 | Decl | parser | 名前の規則と照合 | 3.3〜3.9, 5.5, 6.7 | Model（P0） | Service |
 | Scan | parser | 解析の入口と走査 | 2.5, 2.6, 3.1, 4, 5, 6, 7, 10 | Decl, Result, Resolve（P0） | Service |
 | Resolve | parser | 環境変数・既定値・必須 | 8, 9 | Result（P0） | Service |
 | Result | parser | 結果ハンドルとアクセサ | 4.8, 11, 12, 13 | Alloc（P0） | API, State |
+| TestAlloc | tests | 失敗の注入と生存ブロックの計数 | 15.7 | `clopts_set_allocator`（P0） | — |
 | ParserTests | tests | 架空の宣言による網羅試験 | 15 | 全コンポーネント | — |
 
 ### 公開 API
@@ -544,7 +553,6 @@ struct clopts_program
         clopts_option_t *option;
         clopts_positional_t *positional;
     } error;
-    struct clopts_parser_probe *probe; /* テスト専用。通常は NULL */
 };
 ```
 
@@ -554,41 +562,48 @@ struct clopts_program
   - `index` は vec 内の位置と一致する。
 - **読み出しの規則**: help-and-messages は `const` のポインタで読むだけにし、書き込まない。エラーのある program では不変条件が崩れていることがあるので、名前を読むときは NULL を許す。
 
-#### Alloc（`src/parser/parser_alloc.c`）
+#### Alloc（`include/clopts/alloc.h`、`src/core/core_alloc.c`）
+
+2026-11-09 に、parser の確保の窓口（`parser_alloc.c`）と確保プローブ（`clopts_parser_probe_t`、`clopts_parser_set_probe`、`program->probe` / `result->probe`）から、この形に変更した。窓口は core に移り、parser と platform-argv が共有する。
 
 | Field | Detail |
 |-------|--------|
-| Intent | parser のすべての確保・解放の窓口。テストで失敗を注入し、生存ブロックを数える |
-| Requirements | 1.8, 13.5, 13.7, 15.7 |
+| Intent | ライブラリのすべての確保・解放の窓口。利用側が `clopts_set_allocator` で設定したアロケーター（既定は標準関数）を呼ぶ |
+| Requirements | 1.8, 13.5, 13.7, 13.8 |
 
-**Contracts**: Service [x]
+**Contracts**: API [x] / Service [x] / State [x]
 
 ```c
-/* src/parser/parser_internal.h */
-typedef struct clopts_parser_probe
+/* include/clopts/alloc.h（公開。clopts.h から取り込む） */
+typedef struct clopts_allocator
 {
-    size_t fail_at;   /* 0: 注入しない。n: n 回目以降の確保点をすべて失敗させる */
-    size_t calls;     /* 通過した確保点の数 */
-    long live;        /* 生存している確保ブロックの数（オブジェクト、文字列、バッファを持つ vec を 1 つずつ） */
-} clopts_parser_probe_t;
+    void *(*malloc_fn)(size_t size);
+    void *(*calloc_fn)(size_t count, size_t size);
+    void *(*realloc_fn)(void *ptr, size_t size);
+    void (*free_fn)(void *ptr);
+} clopts_allocator_t;  /* 配置を凍結する */
 
-/* program_new の直後に呼ぶ（それ以前の確保は数えない）。結果ハンドルは解析時のプローブを受け継ぐ */
-void clopts_parser_set_probe(clopts_program_t *program, clopts_parser_probe_t *probe);
+/* allocator の 4 つの関数を写して使う。NULL なら malloc / calloc / realloc / free に戻す */
+CLOPTS_API void clopts_set_allocator(const clopts_allocator_t *allocator);
 
-void *clopts_parser_malloc(clopts_parser_probe_t *probe, size_t size);
-void *clopts_parser_calloc(clopts_parser_probe_t *probe, size_t count, size_t size); /* clopts_core_size_mul で検査 */
-char *clopts_parser_strdup(clopts_parser_probe_t *probe, const char *s);             /* NULL なら NULL を返し、確保点にしない */
-char *clopts_parser_strndup(clopts_parser_probe_t *probe, const char *s, size_t len);
-int clopts_parser_vec_push(clopts_parser_probe_t *probe, clopts_core_vec_t *vec, const void *elem);
-void clopts_parser_vec_free(clopts_parser_probe_t *probe, clopts_core_vec_t *vec);
-void clopts_parser_free(clopts_parser_probe_t *probe, void *ptr);
+/* src/core/core_internal.h（内部） */
+void *clopts_core_malloc(size_t size);
+void *clopts_core_malloc_array(size_t count, size_t size);  /* clopts_core_size_mul で検査 */
+void *clopts_core_calloc(size_t count, size_t size);        /* clopts_core_size_mul で検査 */
+void *clopts_core_realloc(void *ptr, size_t size);          /* 失敗なら NULL を返し、ptr はそのまま */
+char *clopts_core_strdup(const char *s);                    /* NULL なら確保せずに NULL を返す */
+char *clopts_core_strndup(const char *s, size_t len);       /* clopts_core_size_add(len, 1) で検査 */
+void clopts_core_free(void *ptr);                           /* NULL は無視する */
 ```
 
-- `probe == NULL` のときは、`malloc` / `calloc` / `free` / `clopts_core_vec_push` / `clopts_core_vec_free` を直接呼ぶだけ（tech.md の「`malloc` を直接使う」の範囲）。
-- 確保点は、上の関数の呼び出し 1 回につき 1 つ。`vec_push` は、バッファの再確保が要らない場合も確保点として数える。これは、実際に失敗しうる位置の上位集合で、網羅のためには十分である。
-- `live` の計数: 確保の成功で +1、解放で -1。vec はバッファが NULL から非 NULL になった時点で +1、`vec_free` でバッファが非 NULL なら -1。
-- `clopts_program_new` は、program の構造体と名前の複製を 1 ブロックで確保する。部分的な失敗がないので、プローブの対象外でよい。
-- プローブは内部関数で、共有版では hidden（14.5）。単体テストは、静的版では `clopts` から、共有版では `clopts_testing` から呼べる。
+- **アロケーターの契約**: 4 つの関数の引数と意味は、標準の `malloc` / `calloc` / `realloc` / `free` と同じ。`ctx` は持たない。メンバー名の `_fn` は、利用側で `malloc` などがマクロになっていても展開されないようにするため。4 つすべてが非 NULL であること（1 つでも NULL なら `assert`）。項目ごとに既定へ戻すことはしない。
+- **状態**: 現在のアロケーターは、`core_alloc.c` の `static clopts_allocator_t`（初期値は標準関数）1 つだけで、ライブラリ全体で共有する。`clopts_set_allocator` は値を写して持つので、呼び出しの後に利用側の構造体を変えても、解放しても影響しない。現在の設定を読む関数は持たない。
+- **設定してよい時機**: ライブラリが確保したもの（program、結果、argv のハンドル、環境変数の文脈）が 1 つも生きていないときだけ。通常は `main` の最初で 1 回呼ぶ。生きている間に変えると、別のアロケーターで解放されることになるので、契約違反とする。生きているハンドルを数えるにはスレッドを考えた計数器が要るため、デバッグビルドでも検出しない。
+- **スレッド**: `clopts_set_allocator` は同期しない。ほかのスレッドがライブラリを使っていない間に呼ぶ。設定した関数そのもののスレッド安全は、利用側が受け持つ。
+- **窓口の規則**: サイズ 0 では関数を呼ばず、1 バイトに丸める。そのため NULL は必ず失敗を意味する。`count * size` と `len + 1` は呼ぶ前に検査し、オーバーフローなら確保せずに NULL を返す（13.5）。`strdup` / `strndup` は `malloc_fn` と `memcpy` で作る。`realloc_fn` は vec を伸ばすときだけ使い、失敗したときは元のブロックが残る前提で扱う。`free_fn` に NULL を渡さない。
+- 窓口は引数を増やさない（`clopts_core_malloc(size)` の形）。ハンドルにアロケーターを持たせない。parser の確保は、`clopts_program_new` の 1 ブロック（program の構造体と名前の複製）も含め、例外なくこの窓口を通す。vec（`clopts_core_vec_push` / `clopts_core_vec_free`）も、内部で `clopts_core_realloc` / `clopts_core_free` を使う。
+- 番兵（OOM の結果）は静的オブジェクトで、アロケーターとは関係しない。CRT の境界の規則（ライブラリが確保したものはライブラリの関数で解放する。13.4）は変わらず、ライブラリは設定された `free_fn` で解放する。
+- 窓口は内部関数で、共有版では hidden（14.5）。公開するのは `clopts_set_allocator` だけ。
 
 #### Build（`src/parser/parser_build.c`）
 
@@ -600,7 +615,7 @@ void clopts_parser_free(clopts_parser_probe_t *probe, void *ptr);
 **Responsibilities & Constraints**
 - 共通の前処理（「ビルダー呼び出しの共通の前処理」の図）を、1 つの内部関数 `begin(program)` にまとめる。この関数は「続行してよいか」を返す。凍結済みのときは `assert(!program->frozen)` で止め、`NDEBUG` では何もしない。
 - 規則は呼び出しの中で、下の表の順に検査する。最初に成立したものを記録して終える（3.19）。成立した時点が呼び出しの順なので、通し番号は要らない。
-- 文字列の引数はすべて `clopts_parser_strdup` で複製する（1.8）。設定し直したときは、古い複製を解放してから入れ替える（1.9）。
+- 文字列の引数はすべて `clopts_core_strdup` で複製する（1.8）。設定し直したときは、古い複製を解放してから入れ替える（1.9）。
 - 2.8: ハンドルを 2 つ以上受け取るビルダー関数は作らない。したがって、ビルダーで別 program のハンドルを混ぜる経路はない。混在の検出は、値のアクセサで行う（12.3）。
 
 **即時検査の規則表**（照合範囲 = 追加先のスコープ。root ならすべての command も、command なら root も含む）
@@ -762,7 +777,7 @@ int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *progr
 int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t *program, bool include_command);
 ```
 
-- `CLOPTS_ENV_FOUND` を受けたら、次にコールバックを呼ぶ前に `clopts_parser_strdup` で複製する（8.8）。VALUE なら複製をスロットが所有し、LIST なら複製を分割して項目を作る（8.5）。
+- `CLOPTS_ENV_FOUND` を受けたら、次にコールバックを呼ぶ前に `clopts_core_strdup` で複製する（8.8）。VALUE なら複製をスロットが所有し、LIST なら複製を分割して項目を作る（8.5）。
 - `CLOPTS_ENV_FAILED` または複製の失敗は、-1（OUT_OF_MEMORY）で返す（8.10）。黙って既定値に進まない。
 - 既定値は、モデルの複製を借用する。VALUE はスロットがそのポインタを指す。LIST は項目として複製する。
 - 照会する環境変数は、選択されたスコープ（root と選択コマンド）の option だけ（8.9）。
@@ -810,7 +825,6 @@ struct clopts_result
     clopts_parser_slot_t *global_slots; size_t global_count;
     clopts_parser_slot_t *command_slots; size_t command_count;
     clopts_core_vec_t positionals;      /* const char *（argv の要素） */
-    clopts_parser_probe_t *probe;
 };
 
 /* program から結果を確保する。失敗なら NULL（呼び出し側が番兵に替える） */
@@ -820,21 +834,50 @@ int clopts_parser_result_select(clopts_result_t *result, const clopts_command_t 
 clopts_parser_slot_t *clopts_parser_result_slot(clopts_result_t *result, const clopts_parser_ref_t *ref);
 void clopts_parser_slot_set_flag(clopts_parser_slot_t *slot, bool value, clopts_source_t source);
 void clopts_parser_slot_add_count(clopts_parser_slot_t *slot, unsigned count_max);
-void clopts_parser_slot_set_value(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *value,
-                                  clopts_source_t source);
-int clopts_parser_slot_append_list(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, const char *value,
-                                   char delimiter, clopts_source_t source);
-void clopts_parser_slot_own(clopts_parser_probe_t *probe, clopts_parser_slot_t *slot, char *owned);
+void clopts_parser_slot_set_value(clopts_parser_slot_t *slot, const char *value, clopts_source_t source);
+int clopts_parser_slot_append_list(clopts_parser_slot_t *slot, const char *value, char delimiter,
+                                   clopts_source_t source);
+void clopts_parser_slot_own(clopts_parser_slot_t *slot, char *owned);
 int clopts_parser_result_add_positional(clopts_result_t *result, const char *token);
 ```
 
 - **番兵**: `static const struct clopts_result` で、`status = CLOPTS_OUT_OF_MEMORY`、エラーは NONE / -1、スロットなし。`(clopts_result_t *)` にキャストして返すが、どの関数も書き込まない。`clopts_result_free` はアドレスで番兵を見分けて何もしない（4.8、13.1）。`const` の静的オブジェクトなので、スレッド間で共有しても安全。
 - **値のアクセサ**: `option->program != result->program` なら `assert`（12.3）。`option->scope` が root なら `global_slots[index]`、選択コマンドなら `command_slots[index]` を返す。それ以外（選択されなかった command）なら、未指定の値を返す。状態が OK / NO_COMMAND でなければ、未指定の値を返す（12.7）。
 - **`clopts_result_run`**: `parsed` かつ状態 OK で、対象のスコープ（選択コマンド、なし構成なら root）に handler があることを `assert` する。そのうえで `handler(result, userdata)` を返す（12.5、12.6）。
-- **`clopts_result_free`**: NULL と番兵は無視する。スロットの owned・items、位置引数の vec、結果自身を、`probe` を通して解放する。program は読まない（13.2、13.3）。
+- **`clopts_result_free`**: NULL と番兵は無視する。スロットの owned・items、位置引数の vec、結果自身を、core の窓口（`clopts_core_free`、`clopts_core_vec_free`）で解放する。program は読まない（13.2、13.3）。
 - 途中で失敗した場合も、確保済みのものは結果に繋がっているので、`free` で漏れなく解放できる（13.6）。
 
 ### テスト
+
+#### TestAlloc（`tests/support/test_alloc.h` / `.c`）
+
+| Field | Detail |
+|-------|--------|
+| Intent | 確保の失敗の注入と、生存ブロックの計数。2026-11-09 に、確保プローブ（`src/parser/parser_alloc.c`）から置き換えた |
+| Requirements | 15.7 |
+
+```c
+typedef struct test_alloc_state
+{
+    size_t fail_at;    /* 0: 失敗させない。n: n 回目以降の確保点をすべて失敗させる */
+    size_t calls;      /* 通過した確保点の数（malloc_fn / calloc_fn / realloc_fn の呼び出し） */
+    long live;         /* 生存している確保ブロックの数 */
+    size_t bad_frees;  /* 自分が確保していないポインタの解放と二重解放の数 */
+    size_t zero_sizes; /* サイズ（または count か size）0 の呼び出しの数 */
+} test_alloc_state_t;
+
+extern test_alloc_state_t test_alloc;
+
+void test_alloc_begin(size_t fail_at);       /* clopts_set_allocator で組み込み、計数を初期化する */
+void test_alloc_set_fail_at(size_t fail_at); /* 計数を保ったまま fail_at を変える */
+int test_alloc_end(void);                    /* fail_at = 0 にし、live == 0・bad_frees == 0・zero_sizes == 0 なら真 */
+```
+
+- `ctx` がないので、状態は静的な変数に持つ。テストの実行ファイルの中でテストを順に実行することを前提にする。
+- 確保点は、`malloc_fn` / `calloc_fn` / `realloc_fn` の呼び出し 1 回につき 1 つ。`calls >= fail_at`（`fail_at != 0`）なら NULL を返す。失敗した `realloc_fn` は元のブロックを変えない。したがって、`vec_push` が確保点になるのはバッファを伸ばすときだけで、`clopts_core_strdup(NULL)` は確保点にならない。
+- 各ブロックに目印の頭部を付け、自分が確保していないポインタの解放と二重解放を `bad_frees` に数える（そのポインタは `free` に渡さない）。
+- `test_alloc_end` は組み込んだアロケーターを外さない。途中で止まったテストが残したブロックも、同じアロケーターで解放されるようにするため。
+- parser / platform-argv / core のテストの実行ファイルに組み込んで共有する。公開 API だけで組み込めるので、共有ビルドでも使える。
 
 #### ParserTests（`tests/parser/`）
 
@@ -844,7 +887,7 @@ int clopts_parser_result_add_positional(clopts_result_t *result, const char *tok
 | Requirements | 15.1〜15.8 |
 
 **Responsibilities & Constraints**
-- `test_fixtures.c` に、架空の program を組み立てる関数を置く。program は初版と同じ 3 つ（`tool 1.2.3`、`filt`、`strict`）で、各関数はハンドルをまとめた構造体（例: `fixture_tool_t { clopts_program_t *program; clopts_command_t *root, *build, *copy, *cat; clopts_option_t *verbose, *color, *config, *output, *keys, *jobs, *tags; clopts_positional_t *build_src, *build_extra, ... }`）を埋める。プローブを受け取る引数を持ち、`clopts_program_new` の直後に `clopts_parser_set_probe` を呼ぶ。
+- `test_fixtures.c` に、架空の program を組み立てる関数を置く。program は初版と同じ 3 つ（`tool 1.2.3`、`filt`、`strict`）で、各関数はハンドルをまとめた構造体（例: `fixture_tool_t { clopts_program_t *program; clopts_command_t *root, *build, *copy, *cat; clopts_option_t *verbose, *color, *config, *output, *keys, *jobs, *tags; clopts_positional_t *build_src, *build_extra, ... }`）を埋める。確保の失敗は、組み立ての前に `test_alloc_begin` で設定するので、関数はプローブの引数を持たない（2026-11-09 に変更）。
 - 環境変数の模擬関数は、名前 → 値の表、「次の呼び出しで FAILED を返す」フラグ、照会された名前の記録を持つ。値は表の文字列の借用として返し、返した直後に表のバッファを書き換えるモードを持つ。これで、ライブラリが複製していることを確かめる（8.8）。
 - 宣言エラーのテストは、妥当な宣言を途中まで組み立て、1 か所だけ誤った呼び出しを足す。
 
@@ -926,7 +969,7 @@ classDiagram
 | `userdata`、argv、コールバックの文字列 | 利用側 | ライブラリは解放しない（13.4） |
 
 - API の説明（`parse.h` のコメントと docs-and-release の API リファレンス）には、「結果から得た文字列は、結果を解放するまで、かつ program と argv を保持している間だけ有効」とまとめて書く。13.3 で、アクセサは program を解放する前にだけ呼べると決めているので、この条件と矛盾しない。
-- サイズ計算: スロット配列は `clopts_parser_calloc`（`clopts_core_size_mul`）、文字列の複製は `clopts_core_size_add(len, 1)` で検査する（13.5）。
+- サイズ計算: スロット配列は `clopts_core_calloc`（`clopts_core_size_mul`）、文字列の複製は `clopts_core_size_add(len, 1)` で検査する（13.5）。
 
 ## Error Handling
 
@@ -966,18 +1009,18 @@ classDiagram
   - result: 状態ごとの既定値（11.7、12.7）、別 program の option（`NDEBUG` でない構成で `assert` を確かめる手段がないので、テストでは扱わず、コードレビューで確かめる）、program を先に解放してから結果を解放する（13.3）。
   - result: 番兵の各アクセサ、`clopts_result_free` を番兵と NULL に（4.8、13.1、13.2）。
 - **oom**（新規）:
-  - 次の 3 つの場面それぞれについて、`fail_at = 1, 2, …` と動かし、失敗が起きなくなるまで回す（15.7）。
-    - フィクスチャ `tool` の組み立て（ビルダー）
+  - 次の 3 つの場面それぞれについて、テスト用のアロケーター（TestAlloc）を `test_alloc_begin(fail_at)` で組み込み、`fail_at = 1, 2, …` と動かす。確保点の数は固定せず、`fail_at = n` で最後まで成功し、かつ `calls < n` になったら終える（15.7）。宣言・解析・解放は公開 API だけで行う。
+    - フィクスチャ `tool` の組み立て（ビルダー。`clopts_program_new` の確保を含む）
     - `tool build -k a,b -o x src` の解析（結果の確保を含む）
     - 環境変数と LIST の既定値の解決
   - 各回で次の 3 つを確かめる。
     - 状態が OUT_OF_MEMORY か、失敗しなかったときと同じ結果になること。
-    - 結果と program を解放した後に `probe.live == 0` であること。
+    - 結果と program を解放した後に `test_alloc_end()` が真であること（`live == 0`、不正な解放なし）。
     - ビルダーの失敗後は、解析が番兵を返すこと。
 
 ### Integration Tests
 - `integration.subdirectory` / `integration.install_find_package`（project-foundation の既存テスト、静的・共有の両方）: consumer の `main.c` で、`consumer` という program に VALUE の `--name` を宣言し、固定の argv `{"consumer", "--name", "ok"}` を解析する。値が `ok` であることを確かめ、結果と program を解放する。期待と違えば終了コード 1 にする（14.2、14.6）。
-- `integration.internal_hidden`（既存）: 変えない。内部関数のプローブ（`clopts_parser_set_probe`）も hidden であることは、同じ仕組みで保証される（14.5）。
+- `integration.internal_hidden`（既存）: 変えない。core の確保の窓口（`clopts_core_malloc` など）も hidden であることは、同じ仕組みで保証される（14.5）。
 
 ## Performance & Scalability
 - 宣言の追加は、照合範囲の線形走査で O(オプション数)。宣言全体の構築は O(n²) だが、想定規模（コマンド 10 個、各 10〜20 オプション）では無視できる。

@@ -5,7 +5,7 @@
 
 **現状**: 2026-11-08 の改訂で、共有ライブラリと ABI 互換を範囲に入れた。project-foundation の更新で、静的／共有の選択、`CLOPTS_API`、visibility を hidden にする設定、VERSION / SOVERSION が入る。core-parser の更新で、公開 API がビルダー + 不透明ハンドルになる。ただし、ABI の方針を書いた文書も、公開シンボルの一覧も、自動で検査する仕組みもない。リリースタグもまだない（現在は 0.1.0）。
 
-**何を変えるか**: ABI の方針を文書にする（互換の保証は 1.0.0 から。SOVERSION は 0.x の間は `0.<minor>`、1.0.0 から `1`。互換を保つ変更と壊す変更の一覧、壊すときに SOVERSION を上げる手順、macOS の `compatibility_version` / `current_version` の方針）。公開シンボルの一覧（例: `abi/clopts.symbols`）をリポジトリに置き、共有ビルドの CTest で、実際に export されているシンボルと過不足なく一致することを全 OS で検査する（Linux は `nm -D --defined-only`、macOS は `nm -gU`、MSVC は `dumpbin /exports`、MinGW は `objdump -p` / `llvm-nm` の出力を `cmake -P` スクリプトで正規化して比べる）。公開ヘッダに構造体・共用体の定義がないこと、全公開関数に `CLOPTS_API` が付いていること、公開ヘッダが C99 と C++ の両方からコンパイルできることを検査する。Linux の CI ジョブで、直近のリリースタグを同じコンパイラと `-g` でその場でビルドして基準にし、`abidiff --headers-dir1/--headers-dir2` で比べ、互換のない変更（ビット 8）だけで失敗させる（関数の追加は一覧の照合で管理する。リリースタグがないか 1.0.0 より前ならジョブは飛ばす）。検査は公開ヘッダとビルドされた共有ライブラリだけを対象にし、外部依存は増やさない。
+**何を変えるか**: ABI の方針を文書にする（互換の保証は 1.0.0 から。SOVERSION は 0.x の間は `0.<minor>`、1.0.0 から `1`。互換を保つ変更と壊す変更の一覧、壊すときに SOVERSION を上げる手順、macOS の `compatibility_version` / `current_version` の方針）。公開シンボルの一覧（例: `abi/clopts.symbols`）をリポジトリに置き、共有ビルドの CTest で、実際に export されているシンボルと過不足なく一致することを全 OS で検査する（Linux は `nm -D --defined-only`、macOS は `nm -gU`、MSVC は `dumpbin /exports`、MinGW は `objdump -p` / `llvm-nm` の出力を `cmake -P` スクリプトで正規化して比べる）。全公開関数に `CLOPTS_API` が付いていること、公開ヘッダが C99 と C++ の両方からコンパイルできることを検査する（2026-11-09 に、構造体・共用体の定義がないことの検査を外した。公開構造体は定義してよく、定義した後は配置を凍結する）。Linux の CI ジョブで、直近のリリースタグを同じコンパイラと `-g` でその場でビルドして基準にし、`abidiff --headers-dir1/--headers-dir2` で比べ、互換のない変更（ビット 8）だけで失敗させる（関数の追加は一覧の照合で管理する。リリースタグがないか 1.0.0 より前ならジョブは飛ばす）。検査は公開ヘッダとビルドされた共有ライブラリだけを対象にし、外部依存は増やさない。
 
 **範囲外**: ELF のシンボルバージョニング（version script）、ABI の前方互換、0.x の間の互換、パッケージマネージャ向けの設定、静的ライブラリの ABI、`CLOPTS_API`・visibility・VERSION / SOVERSION の設定そのもの（project-foundation）、公開 API の設計（core-parser ほか）、利用者向けの取り込み手順とリリース作業そのもの（docs-and-release）。
 
@@ -13,7 +13,7 @@
 
 ## Introduction
 
-abi-compat は、CLOpts を共有ライブラリとして配るときに、利用側の実行ファイルを再ビルドしないまま新しい版のライブラリに差し替えても壊れないこと（ABI の後方互換）を、方針と自動の検査で支える。方針は保守者と利用者向けの文書にまとめ、互換の保証が始まる版、SOVERSION の規則、互換を保つ変更と壊す変更の区別、壊すときの手順を定める。検査は、公開シンボルの一覧と実際に export されているシンボルの照合、公開ヘッダの静的な検査（構造体・共用体の定義がないこと、公開関数に export の印があること、C と C++ の両方からコンパイルできること）、直近のリリースとの ABI の比較の 3 種類で、いずれもレビューの目に頼らず、CI で変更を検出する。
+abi-compat は、CLOpts を共有ライブラリとして配るときに、利用側の実行ファイルを再ビルドしないまま新しい版のライブラリに差し替えても壊れないこと（ABI の後方互換）を、方針と自動の検査で支える。方針は保守者と利用者向けの文書にまとめ、互換の保証が始まる版、SOVERSION の規則、互換を保つ変更と壊す変更の区別、壊すときの手順を定める。検査は、公開シンボルの一覧と実際に export されているシンボルの照合、公開ヘッダの静的な検査（公開関数に export の印があること、C と C++ の両方からコンパイルできること）、直近のリリースとの ABI の比較の 3 種類で、いずれもレビューの目に頼らず、CI で変更を検出する。
 
 検査は利用側から見える成果物（公開ヘッダとビルドされた共有ライブラリ）だけを対象にし、ライブラリ内部の実装には依存しない。
 
@@ -25,7 +25,7 @@ abi-compat は、CLOpts を共有ライブラリとして配るときに、利�
 
 ## Boundary Context
 
-- **In scope**: ABI 方針の文書（互換の保証の開始版、SOVERSION の規則、macOS の互換版・現在版の方針、互換を保つ変更と壊す変更の一覧、壊すときの手順、公開関数を足すときの手順）、リポジトリに置く公開シンボル一覧、共有ビルドでの全 OS（Linux、macOS、Windows の MSVC と MinGW）のシンボル照合、公開ヘッダの静的検査（構造体・共用体の定義、`CLOPTS_API` の付け漏れ）、公開ヘッダの C99 と C++ でのコンパイル検査、Linux の CI での直近のリリースとの ABI 比較（abidiff を使う）。
+- **In scope**: ABI 方針の文書（互換の保証の開始版、SOVERSION の規則、macOS の互換版・現在版の方針、互換を保つ変更と壊す変更の一覧、壊すときの手順、公開関数を足すときの手順）、リポジトリに置く公開シンボル一覧、共有ビルドでの全 OS（Linux、macOS、Windows の MSVC と MinGW）のシンボル照合、公開ヘッダの静的検査（`CLOPTS_API` の付け漏れ）、公開ヘッダの C99 と C++ でのコンパイル検査、Linux の CI での直近のリリースとの ABI 比較（abidiff を使う）。
 - **Out of scope**: ELF のシンボルバージョニング、ABI の前方互換（新しい利用側を古いライブラリで動かすこと）、0.x の間の互換、パッケージマネージャ向けの設定、静的ライブラリの ABI（静的版は再リンクが前提）、比較の基準となるデータ（ABI の記述ファイル）のリポジトリへの保存。
 - **Adjacent expectations**:
   - project-foundation が `CLOPTS_API` の定義、visibility を hidden にする設定、VERSION / SOVERSION の設定、各 OS の共有版の CI ジョブを提供する。本 spec はそれらを検査するが、設定そのものは変えない。本 spec の文書に書く SOVERSION の規則は、project-foundation が実装している規則（0.x の間は `0.<minor>`、1.0.0 から `<major>`）と一致させる。
@@ -44,8 +44,8 @@ abi-compat は、CLOpts を共有ライブラリとして配るときに、利�
 3. The ABI policy document shall SOVERSION の規則として、0.x の間は `0.<minor>`、1.0.0 以降は `<major>` であることを示す。
 4. The ABI policy document shall Windows の DLL のファイル名には版が入らないことと、そのため Windows では版の取り違えをファイル名で防げないことを示す。
 5. The ABI policy document shall macOS の共有ライブラリの互換版（compatibility version）と現在版（current version）をどの版番号から決めるかの方針を示す。
-6. The ABI policy document shall 互換を保つ変更の一覧として、少なくとも公開関数の追加と、列挙の末尾への値の追加を挙げる。
-7. The ABI policy document shall 互換を壊す変更の一覧として、少なくとも公開関数の削除、公開関数のシグネチャの変更、既存の列挙値の変更や並べ替え、公開ヘッダへの構造体・共用体の定義の追加を挙げる。
+6. The ABI policy document shall 互換を保つ変更の一覧として、少なくとも公開関数の追加、列挙の末尾への値の追加、新しい公開構造体の追加（追加した後は配置を凍結する）を挙げる。
+7. The ABI policy document shall 互換を壊す変更の一覧として、少なくとも公開関数の削除、公開関数のシグネチャの変更、既存の列挙値の変更や並べ替え、既存の公開構造体・共用体の配置の変更（メンバーの追加・削除・並べ替え・型の変更）を挙げる。
 8. The ABI policy document shall 互換を壊す変更を入れるときの手順として、major（0.x の間は minor）を上げて SOVERSION を変えることを示す。
 9. The ABI policy document shall 公開関数を追加・削除するときの手順として、同じ変更の中で公開シンボル一覧を更新することを示す。
 10. The ABI policy document shall 本 spec の各検査が何を検出し、どの構成（共有ビルドだけか、どの OS か、どの版から有効か）で動くかを示す。
@@ -75,12 +75,12 @@ abi-compat は、CLOpts を共有ライブラリとして配るときに、利�
 9. When export されたシンボルと公開シンボル一覧が過不足なく一致するとき, the symbol check shall 成功する。
 
 ### Requirement 4: 公開ヘッダの静的検査
-**Objective:** As a CLOpts の保守者, I want 公開ヘッダに構造体の中身や export の印のない関数が紛れ込んだら自動で気づきたい, so that 利用側のバイナリに配置が焼き込まれることと、関数の出し漏れを防げる
+**Objective:** As a CLOpts の保守者, I want 公開ヘッダに export の印のない関数が紛れ込んだら自動で気づきたい, so that 関数の出し漏れを防げる
 
 #### Acceptance Criteria
 1. The header check shall 公開ヘッダのディレクトリにあるすべての公開ヘッダを対象にし、新しく足された公開ヘッダも登録し直さずに対象に含める。
-2. If 公開ヘッダに構造体または共用体の定義（本体を持つもの）があるとき, the header check shall 失敗し、該当するヘッダと行を報告する。
-3. The header check shall 不透明型の前方宣言（本体を持たない構造体の typedef）を許す。
+2. （廃止、2026-11-09）公開構造体を凍結する規則（steering の tech.md）に変わり、構造体・共用体の定義は検査せず、既存の公開構造体の配置の変化は 1.0.0 以降の ABI 比較（Requirement 6）で検出する。
+3. （廃止、2026-11-09）構造体・共用体の定義を検査しなくなったため、前方宣言を特に許す規則は要らなくなり、前方宣言も定義も同じく検査の対象外になった。
 4. If 公開ヘッダにある関数の宣言に `CLOPTS_API` が付いていないとき, the header check shall 失敗し、該当するヘッダと関数名を報告する。
 5. The header check shall 公開ヘッダの中で定義される `static inline` の関数と関数ポインタ型の宣言を、`CLOPTS_API` の検査の対象から外す。
 6. The header check shall コメントの中の記述を検査の対象から外す。

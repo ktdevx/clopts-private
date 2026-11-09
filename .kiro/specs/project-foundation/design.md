@@ -60,6 +60,7 @@
   - package config の契約: `COMPONENTS static|shared`、`CLOPTS_SHARED_LIBS`、`CLOpts_LIBRARY_TYPE`
   - 公開契約 `clopts_write_fn` / `clopts_file_write()`（`include/clopts/writer.h`）
   - 内部契約 `core_internal.h`: `clopts_core_vec_*`、`clopts_core_size_*`、`clopts_core_write*`
+  - 注記（2026-11-09）: `core_internal.h` には、確保の窓口（`clopts_core_malloc` など、`src/core/core_alloc.c`）も置いた。窓口と公開ヘッダ `include/clopts/alloc.h`（`clopts_set_allocator`）の契約は core-parser の design.md の Alloc が定める。vec の再確保と解放も、この窓口を通す
 - **ディレクトリ規約の実体**: `include/clopts/`（傘ヘッダ `clopts.h`、`export.h`、`writer.h`）、`src/<module>/`、`tests/<module>/`、`tests/toolchain/`、`tests/integration/`、`tests/cmake/`
 - **CI とリポジトリ**: `.github/workflows/ci.yml`、`.gitignore`
 - **検証テスト**: ビルド構成の検証テスト（`tests/toolchain/`、`tests/integration/`）と、その共有スクリプト（`tests/cmake/run_fixture.cmake`、`tests/cmake/run_package_selection.cmake`）
@@ -84,7 +85,7 @@
   - 公開ヘッダ `writer.h` だけが `<stdio.h>` を include する。
 - **GitHub Actions**: `actions/checkout`、`msys2/setup-msys2`、ランナー既定の CMake / コンパイラ
 - **依存方向**（違反はレビューでエラー扱い）
-  - C: `include/clopts/export.h`（依存なし）。`include/clopts/writer.h`（標準ヘッダのみ）← `src/core/core_internal.h` ← `src/core/*.c`。`src/core/` は他のモジュールを include しない。
+  - C: `include/clopts/export.h`（依存なし）。`include/clopts/writer.h`（標準ヘッダのみ）と `include/clopts/alloc.h`（2026-11-09 に追加。`export.h` と `<stddef.h>`）← `src/core/core_internal.h` ← `src/core/*.c`。`src/core/` は他のモジュールを include しない。
   - CMake: `CloptsCompilerOptions.cmake` ← `CloptsLibrary.cmake` / `CloptsModules.cmake` ← ルート `CMakeLists.txt`。`CloptsNaos.cmake` と `CloptsInstall.cmake` は、ルートからだけ include される。`src/<module>/CMakeLists.txt` と `tests/<module>/CMakeLists.txt` はヘルパ関数を呼ぶだけで、`cmake/` を include しない。
 
 ### Revalidation Triggers
@@ -724,6 +725,7 @@ int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
   - 関数: `init` / `push`（0 または -1） / `at` / `free`（冪等）
   - ゼロ初期化した状態は、有効な空の配列である。
   - 拡張は `cap == 0 ? 8 : cap * 2` で、オーバーフローすると -1 を返す。
+  - 注記（2026-11-09）: バッファの再確保と解放は、`realloc` / `free` を直接呼ばず、core の確保の窓口（`clopts_core_realloc` / `clopts_core_free`）を通す。関数の引数は変えない
 - **サイズ計算**
   - `clopts_core_size_mul` / `clopts_core_size_add`（0 または -1。オーバーフロー時は `*out` を変えない）
 - 内部関数なので、`CLOPTS_API` は付けない。共有版では見えない（6.8 の fixture が `clopts_core_size_mul` を使う）。
@@ -881,7 +883,7 @@ int clopts_core_write_str(clopts_write_fn fn, void *ctx, const char *s);
 
 ## Data Models
 
-本 spec に永続データはない。内部の値型 `clopts_core_vec_t` の構造と不変条件は、CoreVec に記載した。公開ヘッダには値型を置かない（14.5）。
+本 spec に永続データはない。内部の値型 `clopts_core_vec_t` の構造と不変条件は、CoreVec に記載した。本 spec が所有する公開ヘッダには値型を置かない（14.5）。注記（2026-11-09）: steering の規則は「公開構造体は凍結する」に変わり、配置を凍結した `clopts_allocator_t`（`include/clopts/alloc.h`、core-parser が所有）が公開ヘッダにある。
 
 ## Error Handling
 

@@ -7,6 +7,7 @@
   - 内部ヘッダに、16 bit の符号単位の型、probe、2 つのハンドルの構造体、各部品の内部関数を設計どおり宣言する（Windows だけの内部関数は `_WIN32` の条件の中）
   - 各ソースは宣言済みの関数のスタブだけにする（取得関数は番兵相当の値、環境変数の取得は FAILED を返す）。`<stdio.h>` を include しない
   - 完了条件: 静的ビルドと共有ビルドの両方が `CLOPTS_WERROR=ON` で警告なく通る。傘ヘッダだけを include した C と C++ のファイルがコンパイルできる。既存の `ctest` がすべて通る
+  - 注記（2026-11-09）: 確保の入口のファイルと内部ヘッダの probe は、6.1 で削除した（共通のファイルは 3 つになった）
   - _Requirements: 1.5, 3.3, 4.3, 6.6, 8.3, 8.4, 8.6_
 
 - [x] 1.2 platform のテスト骨格と、符号単位の配列を作る補助を用意する
@@ -21,6 +22,7 @@
   - probe がなければ標準の確保と解放をそのまま呼ぶ。probe があれば、確保の試行を数え、指定した回数目以降を失敗させ、生きているブロック数を増減する。サイズ 0 の確保を失敗と取り違えない。要素数 × サイズの確保は core の桁あふれ検査を通し、桁あふれなら確保しない
   - テスト（スイート oom のみ編集）: probe なしでの確保と解放、n 回目とそれ以降の失敗、生きているブロック数が解放で 0 に戻ること、桁あふれで確保しないこと
   - 完了条件: `ctest -L platform -R oom` が通る
+  - 注記（2026-11-09）: 6.1 で、確保の入口と probe を core の確保の窓口（`clopts_core_*`）とテスト用のアロケーター（`tests/support/test_alloc`）に置き換えた。確保の入口を直接試すテストは core のテスト（`tests/core/test_alloc.c`）に移した
   - _Requirements: 5.4_
 
 - [x] 2. 全 OS 共通の部品
@@ -38,6 +40,7 @@
   - 解放は 1 回の解放で済ませ、NULL と番兵は無視する
   - テスト（スイート argv の全 OS の部分のみ編集）: NULL と番兵のアクセサ、NULL と番兵の解放、失敗のハンドルの不変条件（要素数 0、配列の先頭が NULL、不正な UTF-16 以外では添字 -1）、パススルーで要素数と各ポインタが同一であること、probe で失敗させたとき番兵になり生きているブロックが 0 に戻ること
   - 完了条件: `ctest -L platform -R argv` が通る
+  - 注記（2026-11-09）: probe による失敗は、6.2 でテスト用のアロケーターによる失敗に置き換えた
   - _Boundary: PlatformArgv_
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.6, 4.1, 4.2, 5.1, 5.2, 5.3, 5.5, 5.6, 6.1, 6.2, 6.3, 6.5_
 
@@ -47,6 +50,7 @@
   - UTF-8 の値のバッファと UTF-16 の作業バッファを、伸ばすだけの関数で確保する（桁あふれと確保失敗で -1）
   - テスト（スイート env の全 OS の部分のみ編集）: 作成と解放、NULL の解放、記録と消去、複製失敗時の記録、バッファの拡張と縮めないこと、probe で作成を失敗させると NULL になり生きているブロックが 0 に戻ること
   - 完了条件: `ctest -L platform -R env` が通る
+  - 注記（2026-11-09）: probe を受け取る作成関数は 6.1 で公開の `clopts_env_new` に統合し、テストの probe はテスト用のアロケーターに置き換えた（6.2）
   - _Boundary: PlatformEnv_
   - _Requirements: 7.1, 7.7, 7.9, 7.10, 7.11, 7.12_
 
@@ -83,6 +87,7 @@
   - 架空のプログラム `tool` の宣言で、環境変数フォールバックを持つオプションを `clopts_parse_with_env` と本モジュールの取得関数・文脈で解析し、値が UTF-8 で得られ出所が環境変数であることを確かめる（Windows では日本語の値も）。取得関数が失敗したとき、解析がメモリ不足で終わり、文脈から本当の理由を読めることも確かめる（Windows の不正な名前を使う）
   - probe の失敗位置を 1 から順に動かし、成功するまで繰り返す: パススルー、環境変数の文脈の作成、Windows ではコマンドライン文字列からの取得（成功の経路と不正な UTF-16 の失敗の経路）と環境変数の取得。各回で、番兵または FAILED とメモリ不足の記録になり、解放後に生きているブロックが 0 に戻ること
   - テストはスイート env（結合）とスイート oom（総当たり）に追加する
+  - 注記（2026-11-09）: 総当たりは 6.2 で、公開 API とテスト用のアロケーターを使う形に書き直した
   - 完了条件: Windows（MSVC）と Windows 以外の環境（WSL、なければ CI の Linux / macOS）の両方で、`ctest -L platform` が静的ビルドと共有ビルドで通る
   - _Depends: 3.1, 3.2, 3.3_
   - _Requirements: 5.4, 7.2, 7.8, 7.9_
@@ -110,11 +115,28 @@
   - 完了条件: すべてのビルド形式で全テストが通り、上の検査で違反が見つからない
   - _Requirements: 8.3, 8.5, 8.6_
 
+## 改訂（2026-11-09: グローバルアロケーターの導入と確保の probe の撤去）
+
+core-parser の同じ改訂（同 spec の tasks.md の 9）に合わせて、platform から確保の入口と確保の probe をなくし、すべての確保を core の窓口に通す。CRT と突き合わせる `platform_probe`（4.2）は確保の probe とは別のもので、変えない。
+
+- [x] 6. 確保の入口と probe の撤去
+- [x] 6.1 platform のすべての確保を core の窓口に通す
+  - `platform_alloc.c` を削除し、`malloc_array` を core の窓口に移す。内部ヘッダから `clopts_platform_probe_t` と確保の入口の宣言、文脈の `probe` のフィールドを取り除く
+  - probe を受け取る文脈の作成関数を公開の `clopts_env_new()` に統合し、`clopts_platform_argv_*` の内部関数からも probe の引数を取り除く（probe を受け取る argv の解放関数はなくし、解放は公開の `clopts_argv_free` だけにする）
+  - argv ハンドル・環境変数の文脈・Windows の変換の確保と解放を、`clopts_core_malloc` / `clopts_core_malloc_array` / `clopts_core_free` に置き換える
+  - _Requirements: 5.4_
+
+- [x] 6.2 テストをテスト用のアロケーターに移す
+  - スイート argv・env・convert から probe の利用を取り除く。スイート oom の総当たりを、公開 API と `test_alloc_begin` / `test_alloc_end`（`tests/support/test_alloc`）を使う形に書き直す。確保点の数は固定せず、`fail_at = n` で最後まで成功し、かつ `calls < n` になったら終える
+  - 完了条件: 静的ビルドと共有ビルドで `ctest -L platform` が通り、総当たりの各回で番兵（または FAILED とメモリ不足の記録）になり、解放後に生存ブロックが 0 で不正な解放がない。Windows（MSVC / MinGW）での確認は CI で行う
+  - _Requirements: 5.4, 9.4, 9.5_
+
 ## Implementation Notes
 - 検証環境: Linux（gcc、静的・共有）と、MinGW-w64（Ubuntu の msvcrt 系）+ wine 9 によるクロスビルド。MSVC は手元にない。wine 上の ctest は遅いので `-L platform -j8` に絞る。クロスビルドでは integration が以前から失敗する（入れ子の configure がクロスに対応しない）
 - 1.1: 番兵 `platform_argv_oom` は platform_argv.c で実装済み（static const を非 const で返す）。分割のスタブは `*argc = 0` を返すが、2.1 で契約（`*argc >= 1`）を満たすこと
 - 1.2: 補助は tests/platform/test_util.{h,c}。呼び出し側が持つ固定長バッファ `platform_test_u16_t`（容量 `PLATFORM_TEST_U16_CAP` = 1024 単位）に `platform_test_u16_from_ascii` / `_from_units` で作る。容量超過は NDEBUG でも `abort`。1023 単位を超える入力（3.3 の数 KB の値など）は自前で確保すること。分割の比較は `platform_test_split_mismatch`（一致で -1）。convert / crt のファイルは CMake の `if(WIN32)` でだけビルドし、エントリは `#ifdef _WIN32` / `#else` で NAOS_MAIN を 2 つ持つ
 - 1.3: `clopts_platform_malloc_array` の桁あふれは parser と同じく 1 回の試行として `calls` に数える（確保せず `live` は変えない）。probe の失敗位置を総当たりするテストはこの数え方を前提にする
+  - 注記（2026-11-09）: 6.1・6.2 の後は、桁あふれした `clopts_core_malloc_array` はアロケーターを呼ばないので、確保点にならない。確保点は、テスト用のアロケーターの `malloc_fn` / `calloc_fn` / `realloc_fn` の呼び出しで数える
 - 2.2: `clopts_platform_argv_failure` に OUT_OF_MEMORY を渡すと確保せずに番兵を返す。それ以外の状態では添字は INVALID_UTF16 のときだけ保持し、ほかは -1。パススルーは `argv[argc] == NULL` を assert で確かめる
 - 2.3: `reserve_value` / `reserve_wide` は伸ばすとき中身を写さない（新しく確保して古い方を解放する）。3.3 で wide バッファに名前と値を続けて置くなら、伸ばした後に名前を変換し直すか、名前と値の合計を一度に確保すること。`clopts_platform_env_fail` は `kind != NONE` と `name != NULL` を assert する
 - 3.1: test_argv.c と test_env.c は `NAOS_SUITE` を `#ifndef _WIN32` / `#else` の 2 つに分けた（マクロ引数に `#ifdef` を置けないため）。3.2 / 3.3 の Windows のテストは `#else` 側の一覧に足す。Windows 以外の確認は Linux（gcc、静的・共有）で行った

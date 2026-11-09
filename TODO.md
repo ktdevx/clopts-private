@@ -83,14 +83,14 @@ tech.md の「公開ヘッダに構造体の定義を置かない」という規
 - [x] `.kiro/steering/tech.md`:
   - 64 行目の「`malloc` / `calloc` / `realloc` / `free` を直接使い」を、「確保は core の窓口を通す（窓口が、設定されたアロケーターを呼ぶ）」に改める。
   - 「公開ヘッダに構造体の定義を置かない」を削除し、「公開ヘッダに定義した構造体は凍結する（拡張は別の型を足す）」に置き換える。「構造体を値で受け渡さない」は残す。
-- [ ] `.kiro/specs/core-parser/`（requirements / design / tasks）: 確保プローブの記述をアロケーターに置き換える（design.md の 29, 41, 58, 127, 137, 547, 568–591 行あたり、requirements の 1.8, 13.5, 13.7, 15.7 に関わる箇所）。
-- [ ] `.kiro/specs/platform-argv/`: プローブと窓口の記述を置き換える。
-- [ ] `.kiro/specs/abi-compat/`（brief / requirements / design / tasks）:
+- [x] `.kiro/specs/core-parser/`（requirements / design / tasks）: 確保プローブの記述をアロケーターに置き換える（design.md の 29, 41, 58, 127, 137, 547, 568–591 行あたり、requirements の 1.8, 13.5, 13.7, 15.7 に関わる箇所）。
+- [x] `.kiro/specs/platform-argv/`: プローブと窓口の記述を置き換える。
+- [x] `.kiro/specs/abi-compat/`（brief / requirements / design / tasks）:
   - requirements 4.2 と 4.3（構造体・共用体の定義があれば失敗、前方宣言は許す）を削除する。ヘッダの検査は `CLOPTS_API` の付け漏れと、C / C++ でのコンパイルだけにする。
   - 壊す変更の一覧（requirements 7）の「公開ヘッダへの構造体・共用体の定義の追加」を、「既存の公開構造体・共用体の配置の変更（メンバーの追加・削除・並べ替え・型の変更）」に置き換える。
   - brief と requirements の冒頭の概要にある、構造体の定義の検査の記述も直す。
-- [ ] `.kiro/specs/project-foundation/` に core のファイル構成の記述があれば、`core_alloc.c` を書き足す。
-- [ ] 各 spec の `spec.json` の `updated_at` を更新する。
+- [x] `.kiro/specs/project-foundation/` に core のファイル構成の記述があれば、`core_alloc.c` を書き足す。
+- [x] 各 spec の `spec.json` の `updated_at` を更新する。
 
 ### 1. 公開ヘッダ
 
