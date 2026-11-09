@@ -2,52 +2,22 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Entry points of parsing (clopts_parse, clopts_parse_with_env) and the
- * scanner: the scan before the subcommand, the main scan, the recovery scan
- * and the final status.
+ * Scanner: steps 2 and 3 of parsing (parse.c). The scan before the
+ * subcommand, the main scan and the recovery scan record into the result
+ * through the functions of result.c.
  *
- * Procedure:
- *   1. the entry scan_enter(): NULL program (sentinel) and the allocation of
- *      the result (sentinel on failure);
  *   2. scan: the pre-command phase with subcommands, the main scan without;
- *   3. a pending usage error ends the parse, unless the recovery scan finds
- *      a terminal option from its token on;
- *   4. resolve environment variables / defaults;
- *   5. a terminal option ends the parse with TERMINATED;
- *   6. check required ones;
- *   7. OK, or NO_COMMAND when the program has subcommands and none was
- *      selected.
- * Allocation and environment lookup failures after the result exists end
- * with CLOPTS_OUT_OF_MEMORY on that result, which stays releasable with
- * clopts_result_destroy(). The scanner never writes to program nor to argv, and
- * it knows no built-in option or command.
+ *   3. a pending usage error is recorded in the result, unless the recovery
+ *      scan finds a terminal option from its token on.
+ *
+ * The scanner never writes the status of the result, nor to program or argv,
+ * and it knows no built-in option or command.
  */
 
 #include "parser/parser_internal.h"
 
 #include <assert.h>
 #include <string.h>
-
-/*
- * Entry of parsing. Returns the sentinel when program is NULL or the result
- * cannot be allocated, and a new result otherwise.
- */
-static clopts_result_t *scan_enter(const clopts_program_t *program)
-{
-    clopts_result_t *result;
-
-    if (program == NULL)
-    {
-        return clopts_parser_result_oom();
-    }
-
-    result = clopts_parser_result_new(program);
-    if (result == NULL)
-    {
-        return clopts_parser_result_oom();
-    }
-    return result;
-}
 
 /*
  * State of one scan. Every row of the scan tables is a small function taking
@@ -563,35 +533,14 @@ static void scan_recover(scan_state_t *state)
     }
 }
 
-/* Step 3 of the procedure: a pending usage error, or out of memory, ends the parse. Returns true when it did. */
-static bool scan_failed(scan_state_t *state)
-{
-    clopts_result_t *result = state->result;
-
-    if (state->out_of_memory)
-    {
-        clopts_parser_result_finish(result, CLOPTS_OUT_OF_MEMORY);
-        return true;
-    }
-    if (state->has_pending)
-    {
-        scan_recover(state);
-    }
-    if (state->has_pending)
-    {
-        clopts_parser_result_set_error(result, &state->pending_error);
-        clopts_parser_result_finish(result, CLOPTS_USAGE_ERROR);
-        return true;
-    }
-    return false;
-}
-
-/* Steps 2 to 7 of the procedure on a result that scan_enter() left open. */
-static void scan_run(const clopts_program_t *program, int argc, char *const *argv, clopts_getenv_fn getenv_fn,
-                     void *env_ctx, clopts_result_t *result)
+clopts_parser_scan_status_t clopts_parser_scan(clopts_result_t *result, const clopts_program_t *program,
+                                               int argc, char *const *argv, const clopts_option_t **terminal)
 {
     scan_state_t state;
-    bool selected_scope;
+
+    assert(result != NULL);
+    assert(program != NULL);
+    assert(terminal != NULL);
 
     /* 2. */
     scan_init(&state, program, argc, argv, result);
@@ -607,68 +556,23 @@ static void scan_run(const clopts_program_t *program, int argc, char *const *arg
     {
         scan_main(&state);
     }
-    assert(state.command == result->command);
+    assert(state.command == clopts_result_get_command(result));
 
     /* 3. */
-    if (scan_failed(&state))
+    *terminal = NULL;
+    if (state.out_of_memory)
     {
-        return;
+        return CLOPTS_PARSER_SCAN_OUT_OF_MEMORY;
     }
-
-    /* 4. */
-    selected_scope = ((clopts_program_get_command_count(program) == 0) || (state.command != NULL));
-    if (clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope) != 0)
+    if (state.has_pending)
     {
-        clopts_parser_result_finish(result, CLOPTS_OUT_OF_MEMORY);
-        return;
+        scan_recover(&state);
     }
-
-    /* 5. */
-    if (state.terminal != NULL)
+    if (state.has_pending)
     {
-        clopts_parser_result_set_terminal(result, state.terminal);
-        clopts_parser_result_finish(result, CLOPTS_TERMINATED);
-        return;
+        clopts_parser_result_set_error(result, &state.pending_error);
+        return CLOPTS_PARSER_SCAN_USAGE_ERROR;
     }
-
-    /* 6. */
-    if (clopts_parser_check_required(result, program, selected_scope) != 0)
-    {
-        clopts_parser_result_finish(result, CLOPTS_USAGE_ERROR);
-        return;
-    }
-
-    /* 7. */
-    clopts_parser_result_finish(result, selected_scope ? CLOPTS_OK : CLOPTS_NO_COMMAND);
-}
-
-/* Shared body of clopts_parse() and clopts_parse_with_env(). */
-static clopts_result_t *parse(const clopts_program_t *program, int argc, char *const *argv, clopts_getenv_fn getenv_fn,
-                              void *env_ctx)
-{
-    clopts_result_t *result;
-
-    assert(argc >= 0);
-    assert((argc == 0) || (argv != NULL));
-
-    /* 1. */
-    result = scan_enter(program);
-    if (result == clopts_parser_result_oom())
-    {
-        return result;
-    }
-
-    scan_run(program, argc, argv, getenv_fn, env_ctx, result);
-    return result;
-}
-
-clopts_result_t *clopts_parse(const clopts_program_t *program, int argc, char *const *argv)
-{
-    return parse(program, argc, argv, NULL, NULL);
-}
-
-clopts_result_t *clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
-                                       clopts_getenv_fn getenv_fn, void *env_ctx)
-{
-    return parse(program, argc, argv, getenv_fn, env_ctx);
+    *terminal = state.terminal;
+    return CLOPTS_PARSER_SCAN_DONE;
 }

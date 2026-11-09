@@ -40,10 +40,11 @@
 /*
  * Internal contracts of the parser module, shared by the builder
  * (program.c, command.c, option.c, positional.c, scope.c), the name rules
- * and lookups (names.c), the scanner (scan.c), the resolver (resolve.c) and
- * the result handle (result.c). None of these symbols is exported from the shared library. Every allocation goes through
- * the allocation gateway of core (clopts_core_malloc and the others,
- * core/core_internal.h).
+ * and lookups (names.c), the entry of parsing (parse.c), the scanner
+ * (scan.c), the resolver (resolve.c) and the result handle (result.c). None
+ * of these symbols is exported from the shared library. Every allocation
+ * goes through the allocation gateway of core (clopts_core_malloc and the
+ * others, core/core_internal.h).
  */
 
 /*
@@ -241,6 +242,27 @@ void clopts_parser_result_set_terminal(clopts_result_t *result, const clopts_opt
 
 /* Writes the final status of result. */
 void clopts_parser_result_finish(clopts_result_t *result, clopts_status_t status);
+
+/*
+ * Scanner (scan.c).
+ */
+
+/* Outcome of clopts_parser_scan(). */
+typedef enum clopts_parser_scan_status
+{
+    CLOPTS_PARSER_SCAN_DONE,           /* every token was read, or a terminal option ended the scan */
+    CLOPTS_PARSER_SCAN_USAGE_ERROR,    /* recorded as the error of result */
+    CLOPTS_PARSER_SCAN_OUT_OF_MEMORY
+} clopts_parser_scan_status_t;
+
+/*
+ * Steps 2 and 3 of parsing (parse.c): scans argv into result, selecting a
+ * command when program has subcommands, then runs the recovery scan after a
+ * usage error. Sets *terminal to the terminal option that ended the scan, or
+ * NULL when the outcome is not DONE. Does not write the status of result.
+ */
+clopts_parser_scan_status_t clopts_parser_scan(clopts_result_t *result, const clopts_program_t *program,
+                                               int argc, char *const *argv, const clopts_option_t **terminal);
 
 /*
  * Resolver (resolve.c).
