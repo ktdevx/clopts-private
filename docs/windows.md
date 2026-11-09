@@ -91,7 +91,7 @@ Windows で `clopts_argv_get` に 0 と NULL を渡すと、同じソースを�
 
 `clopts_parse` の結果は、argv の文字列を借用している。`clopts_result_positional_at` と `clopts_result_error_token` は argv の要素そのものを返し、ほかの値も argv の文字列を指すことがある。そのため、argv のハンドルは、結果を使い終えてから解放する。
 
-1. 結果から値を読み、文面を出す（`clopts_write_*`、`clopts_result_run`）。
+1. 結果から値を読み、文面を出す（`clopts_write_*`）。
 2. `clopts_result_free` で結果を解放する。
 3. `clopts_argv_free` で argv のハンドルを解放する。
 
@@ -109,17 +109,24 @@ Windows で `clopts_argv_get` に 0 と NULL を渡すと、同じソースを�
 
 int wmain(int argc, wchar_t **wargv)
 {
-    clopts_program_t *program;
+    clopts_program_t *program = NULL;
+    clopts_command_t *root = NULL;
     clopts_argv_t *args;
     clopts_result_t *result;
     int code = 0;
 
-    if (clopts_program_new("app", &program) != CLOPTS_DECL_NONE)
+    if (clopts_command_new("app", &root) != CLOPTS_DECL_NONE)
     {
         fputs("app: error: out of memory\n", stderr);
         return 1;
     }
-    /* ... declare options and positionals ... */
+    /* ... declare options and positionals on root ... */
+    if (clopts_program_new(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
+    {
+        fputs("app: error: out of memory\n", stderr);
+        clopts_command_free(root);
+        return 1;
+    }
 
     args = clopts_argv_from_wide(argc, wargv);
     if (clopts_argv_status(args) != CLOPTS_ARGV_OK)

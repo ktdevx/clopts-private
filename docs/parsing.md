@@ -9,7 +9,7 @@
 この章の実行例は、次の 2 つのサンプルを実行した結果である。どちらもファイルを読んだりタスクを保存したりはせず、解析で得た値を報告するだけである。
 
 - `examples/textcount/textcount.c`（版 0.4.0）: サブコマンドのないフィルタ型のツール。`textcount [<options>] <FILE>...` の形で使う。
-- `examples/taskbook/taskbook.c`（版 1.2.3）: サブコマンド `add`、`list`、`done` を持つツール。グローバルオプションと並べ替えの例に使う。
+- `examples/taskbook/taskbook.c`（版 1.2.3）: サブコマンド `add`、`list`、`done`、`help` を持つツール。グローバルオプションと並べ替えの例に使う。
 
 解析に成功すると、サンプルは値を `<key>: <value> (<出所>)` の形で 1 行ずつ標準出力へ出し、終了コード 0 で終わる。出所は `explicit`（argv から）、`env`（環境変数から）、`default`（既定値から）のどれかで、値を得なかったオプションと位置引数には出所を付けない。リストの値は `, ` で結ぶ。textcount は `files:` の行から始め、taskbook は `command:` の行から始めて、最後にグローバルオプション（`verbose`、`color`）を出す。使い方の誤りでは、エラーの 1 行と使い方の案内を標準エラーへ出し、終了コード 2 で終わる。
 
@@ -203,11 +203,18 @@ Run 'taskbook --help' for usage.
 
 サブコマンドのあるプログラムでは、root に宣言したオプションがグローバルオプションになる。argv は次のように読まれる。
 
-- サブコマンド名より前には、グローバルオプション（と `--help`、`-h`、`--version`）だけを置ける。サブコマンドのオプションをそこに置くと、未知のオプションのエラーになる。
+- サブコマンド名より前には、グローバルオプションだけを置ける。サブコマンドのオプションをそこに置くと、未知のオプションのエラーになる。
 - 最初のオプションでない要素が、サブコマンド名である。
 - サブコマンド名より後ろでは、そのサブコマンドのオプション、グローバルオプション、位置引数を、どの順序で並べてもよい。位置引数どうしの順序は保たれる。
 
 サブコマンドのないプログラム（textcount）では、最初の要素から、オプションと位置引数を自由に並べられる。
+
+オプションの名前は、次の順に探される。
+
+1. 選ばれたサブコマンドのオプション（サブコマンド名より前では、まだ選ばれていないので飛ばす）。長い形では、まず名前がそのまま一致するもの、次に `--no-<name>` を否定できる FLAG の `<name>` の否定として探す。
+2. root のオプション（グローバルオプション）。同じく、そのままの一致、次に否定の順で探す。
+
+そのため、root とサブコマンドに同じ名前のオプションを宣言してよく、サブコマンドが選ばれた後はサブコマンドの方が見つかる（root の方は隠れる）。サブコマンド名より前では、root の方が見つかる。どちらのオプションが値を受け取ったかは、結果をオプションのハンドルで読めば区別できる。サブコマンドのヘルプの `Global Options:` には、名前がすべてそのサブコマンドに隠された root のオプションは出ない。
 
 グローバルオプションをサブコマンド名の前後に置き、サブコマンドのオプションと位置引数を混ぜた例（`taskbook -v add -p high "Write docs" --no-color -t docs`）:
 
@@ -425,15 +432,18 @@ verbose: 0
 color: false
 ```
 
-## ヘルプと版の要求、使い方エラー
+## 終端オプション、ヘルプと版、使い方エラー
 
-`--help`、`-h`、`help <cmd>`、`--version` は、使い方エラーより優先される。
+解析器には、組み込みのオプションもコマンドもない。`--help`、`-h`、`--version`、`help` コマンドは、`clopts/help.h` の関数（`clopts_help_add_help_option`、`clopts_help_add_version_option`、`clopts_help_command_new`）で足すふつうの宣言である。taskbook と textcount は、root に `-h` / `--help` と `--version` を、taskbook はさらに `help` コマンドを宣言している。
 
-- `--help` と `-h` は、そのとき選ばれているサブコマンドのヘルプを要求する。サブコマンドが選ばれていなければ、プログラム全体のヘルプである。`-h` はまとめ書きの中（`-lh`）でも要求になる。
-- サブコマンドのあるプログラムでは、サブコマンド名の位置に `help` と書ける。`help` だけならプログラム全体のヘルプ、`help <cmd>` ならそのサブコマンドのヘルプである。`help` の後ろの名前がサブコマンドでなければ未知のコマンドのエラーに、さらに後ろに要素があれば予期しない引数のエラーになる。
-- `--version` は、版を宣言したプログラムでだけ要求になる。
-- ヘルプか版の要求を見つけると、解析はそこで終わる。後ろの要素は読まない。必須の位置引数がなくても、要求が優先される。
-- 使い方エラーを見つけても、その要素から `--` の手前までに `--help`、`-h`、`--version` のどれかがそのままの形であれば、最初に見つけた要求が優先される（ここでは、まとめ書きの中の `h` は数えない）。
+`--help` と `--version` は終端オプション（`clopts_option_set_terminal` を設定した FLAG）である。終端オプションは次のように扱われる。
+
+- argv に現れると、値を記録し、解析はそこで終わる。後ろの要素は読まない。環境変数と既定値は読むが、必須のオプションと位置引数は検査しない。状態は `CLOPTS_TERMINATED` で、`clopts_result_terminal` がそのオプションを、`clopts_result_command` がそのとき選ばれているサブコマンド（なければ NULL）を返す。taskbook と textcount は、それが `--help` ならそのサブコマンドの（なければプログラム全体の）ヘルプを、`--version` なら版を出す。
+- 短い形は、まとめ書きの中（`-lh`）でも終端になる。そこまでの文字は読まれ、後ろの文字は読まれない。
+- 値をとらないので、`--help=x` は値をとらないオプションのエラーになる。
+- 使い方エラーを見つけても、その要素から `--` の手前までに、その範囲（選ばれたサブコマンドと root）の終端オプションが `--<name>` か `-<c>` のそのままの形であれば、最初に見つけたものが優先される（ここでは、まとめ書きの中の文字は数えない）。
+
+`help` コマンドは、`help` という名前のふつうのサブコマンドで、省略できる位置引数 `COMMAND` を 1 つとる。解析器にとっては `taskbook help add` も `taskbook help remove` も成功（`CLOPTS_OK`）で、`help` コマンドが選ばれ、位置引数が 1 つ得られる。名前をサブコマンドとして引くのは `clopts_help_target` で、名前がサブコマンドでなければ false を返す。taskbook は、そのときエラーの 1 行と使い方の案内を出す。`help` の後ろに 2 つ以上の要素があれば、予期しない引数のエラーになる。
 
 使い方エラーが複数あっても、報告されるのは最初に見つけた 1 つだけである。argv の読み取り中のエラー（未知のオプションなど）は、必須のオプションや位置引数がないことの検査より先に見つかる。
 
@@ -455,12 +465,10 @@ Mark the given tasks as finished.
 Arguments:
   <ID>  Numbers of the tasks
 
-Options:
-  -h, --help  Show this help
-
 Global Options:
   -v, --verbose...  Print more details (up to 3 times)
       --[no-]color  Colorize the output
+  -h, --help        Show this help
       --version     Show version information
 ```
 
@@ -494,11 +502,11 @@ Arguments:
 Options:
   -t, --tag <TAG>[,<TAG>...]  Tags of the task
   -p, --priority <LEVEL>      Priority: low, normal or high (default: normal)
-  -h, --help                  Show this help
 
 Global Options:
   -v, --verbose...  Print more details (up to 3 times)
       --[no-]color  Colorize the output
+  -h, --help        Show this help
       --version     Show version information
 ```
 

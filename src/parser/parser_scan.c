@@ -166,12 +166,12 @@ static void scan_select(scan_state_t *state, const clopts_command_t *command)
 
 /*
  * Records a FLAG found through ref (negated or not) given by argv. A
- * terminal one ends the scan.
+ * terminal one ends the scan, unless it was given as --no-<name>.
  */
 static void scan_flag(scan_state_t *state, const clopts_parser_ref_t *ref)
 {
     clopts_parser_slot_set_flag(clopts_parser_result_slot(state->result, ref), !ref->negated, CLOPTS_SOURCE_EXPLICIT);
-    if (ref->option->terminal)
+    if (ref->option->terminal && !ref->negated)
     {
         state->terminal = ref->option;
     }

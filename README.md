@@ -6,7 +6,7 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 ## 特徴
 
-- **宣言からの解析と文面の生成**: `clopts_program_new` から始めて、サブコマンドを足し、オプション（フラグ、カウント、単一値、リスト値）と位置引数を単独で作って設定してからコマンドに渡す。宣言の誤りは、誤った呼び出しの戻り値ですぐに返る。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
+- **宣言からの解析と文面の生成**: 宣言は下から上へ組み立てる。オプション（フラグ、カウント、単一値、リスト値）と位置引数を単独で作って設定してからコマンドに渡し、root とサブコマンドを `clopts_program_new` にまとめて渡してプログラムを作る。宣言の誤りは、誤った呼び出しの戻り値ですぐに返る。解析器に組み込みのオプションはなく、`--help`・`--version`・`help` コマンドも `clopts/help.h` の関数で足すふつうの宣言である。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
 - **構造化エラー**: 使い方の誤りは文字列ではなく、種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読めるエラーとして返る。宣言の誤り（名前の重複など）は使い方の誤りと区別して返る。
 - **入出力も `exit` もしない**: ライブラリは標準出力にも標準エラーにも書かず、`exit` も呼ばない。ヘルプやエラーの文面は書き込みのコールバックに渡すので、表示の仕方と終了コードは利用側が決める。`FILE*` に出すなら、公開ヘッダの `clopts_file_write` を渡すだけでよい。
 - **アロケーターの差し替え**: `clopts_set_allocator` で、ライブラリが使う `malloc` / `calloc` / `realloc` / `free` を差し替えられる。ライブラリの確保と解放は、例外なく設定した関数を通る。
@@ -34,15 +34,16 @@ static bool check(clopts_decl_error_t *first, clopts_decl_error_t error)
     return *first == CLOPTS_DECL_NONE;
 }
 
-/* Declares: hello [-g TEXT] NAME */
-static clopts_decl_error_t declare(clopts_program_t *program, clopts_option_t **greeting)
+/* Declares: hello [-g TEXT] [-h] [--version] NAME */
+static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t **greeting,
+                                   const clopts_option_t **version)
 {
     clopts_decl_error_t e = CLOPTS_DECL_NONE;
-    clopts_command_t *root = clopts_program_root(program);
+    clopts_command_t *root = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
 
-    check(&e, clopts_program_set_version(program, "1.0.0"));
+    check(&e, clopts_command_new("hello", &root));
     check(&e, clopts_command_set_description(root, "Greet someone."));
 
     check(&e, clopts_option_new(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
@@ -65,27 +66,31 @@ static clopts_decl_error_t declare(clopts_program_t *program, clopts_option_t **
     {
         clopts_positional_free(name);
     }
+    check(&e, clopts_help_add_help_option(root, NULL));
+    check(&e, clopts_help_add_version_option(root, version));
+
+    check(&e, clopts_program_new(root, NULL, 0, program)); /* the program now owns root */
+    if (e != CLOPTS_DECL_NONE)
+    {
+        clopts_command_free(root);
+    }
     return e;
 }
 
 int main(int argc, char **argv)
 {
-    clopts_program_t *program;
+    clopts_program_t *program = NULL;
     clopts_option_t *greeting = NULL;
+    const clopts_option_t *version = NULL;
     clopts_argv_t *args;
     clopts_result_t *result;
     clopts_decl_error_t error;
     int code = 0;
 
-    error = clopts_program_new("hello", &program);
-    if (error == CLOPTS_DECL_NONE)
-    {
-        error = declare(program, &greeting);
-    }
+    error = declare(&program, &greeting, &version);
     if (error != CLOPTS_DECL_NONE)
     {
         fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_decl_error_message(error));
-        clopts_program_free(program);
         return 1;
     }
 
@@ -107,11 +112,15 @@ int main(int argc, char **argv)
                clopts_result_source(result, greeting) == CLOPTS_SOURCE_DEFAULT ? "default" : "explicit");
         printf("name: %s\n", clopts_result_positional_at(result, 0));
         break;
-    case CLOPTS_HELP:
-        clopts_write_help(program, clopts_result_command(result), clopts_file_write, stdout);
-        break;
-    case CLOPTS_VERSION:
-        clopts_write_version(program, clopts_file_write, stdout);
+    case CLOPTS_TERMINATED: /* -h / --help or --version */
+        if (clopts_result_terminal(result) == version)
+        {
+            clopts_write_version(program, "1.0.0", clopts_file_write, stdout);
+        }
+        else
+        {
+            clopts_write_help(program, NULL, clopts_file_write, stdout);
+        }
         break;
     case CLOPTS_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);

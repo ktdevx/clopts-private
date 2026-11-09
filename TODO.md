@@ -1,5 +1,17 @@
 # TODO
 
+## 実装状況
+
+この文書の内容は実装済み（下の各チェックリストも済み）。計画から変えた点は次のとおり。
+
+- **封印のエラーコード**: `CLOPTS_DECL_SEALED` は足さず、`CLOPTS_DECL_ALREADY_ATTACHED` を使う。option と positional の「渡した後は読み取り専用」の規則と同じ扱いにそろえるため。
+- **封印（方針 2）と確定ステップ（続き 3）の統合**: `clopts_program_new(root, commands, count, &program)` を一度で作る形にし、`clopts_program_add_command` はなくした。プログラムは作った後は変わらないので、別の builder 型や `clopts_program_build` は要らない。frozen と `CLOPTS_DECL_FROZEN` はなくなり、`clopts_parse` は `const clopts_program_t *` を受け取る。
+- **版の文字列**: `--version` が parser の外に出たので、`clopts_program_set_version` はなくした。版は `clopts_write_version(program, version, ...)` に渡す。
+- **`clopts_program_root`**: 書き込み用の取得はなくしたが、読み取りの関数（`const` を返す）として残した。help などの読み手が root を得るため。
+- **否定形との衝突**: 同じコマンドの中の `NEGATION_CONFLICT` は残した（コマンドの中で閉じた検査なので）。
+- **終端オプションの扱い**: 終端オプションが現れたら、そこで走査を止め、環境変数と既定値は解決し、必須の検査は飛ばして `CLOPTS_TERMINATED` を返す。使い方エラーの後ろにある終端オプションを優先する回復処理は、`--help` 専用ではなく終端オプション全般に一般化した。
+- **見送ったもの**: `clopts_dispatch()`（任意の補助）と `clopts_program_lint()`（任意の診断）は作っていない。
+
 ## 宣言モデルの再設計：command を program から独立させる
 
 前提：現行 API の互換性は破棄してよい。検証はゆるめてよい。
@@ -42,25 +54,25 @@
 
 ### 削除するもの
 
-- [ ] スコープをまたぐ DUPLICATE_OPTION の検査（`decl_find_in_range`、root に足すときの全コマンド走査）
-- [ ] スコープをまたぐ NEGATION_CONFLICT の検査
-- [ ] RESERVED_NAME（組み込みが最下位なので、ユーザー定義が上書きする）
-- [ ] `clopts_program_root()`（root は呼び出し側が作って渡す）
-- [ ] `parser_command.c` と `parser_decl.c` からの `program->root`、`program->commands`、`program->version` への参照
+- [x] スコープをまたぐ DUPLICATE_OPTION の検査（`decl_find_in_range`、root に足すときの全コマンド走査）
+- [x] スコープをまたぐ NEGATION_CONFLICT の検査
+- [x] RESERVED_NAME（組み込みが最下位なので、ユーザー定義が上書きする）
+- [x] `clopts_program_root()`（root は呼び出し側が作って渡す）
+- [x] `parser_command.c` と `parser_decl.c` からの `program->root`、`program->commands`、`program->version` への参照
 
 ### 作業項目
 
-- [ ] `parser_model.h`：`program` メンバーを削除し `sealed` を追加する
-- [ ] `parser_command.c`：`clopts_command_new` / `clopts_command_free` を追加し、検証を command 内で閉じるものだけにする。封印のチェックを追加する
-- [ ] `parser_program.c`：`program_new(name, root, ...)` を実装し、`add_command` に封印とコマンドをまたぐ検証を実装する
-- [ ] `parser_decl.c`：参照を内側優先に揃える（command → root → 組み込み。否定形はスコープの中で解決する）
-- [ ] `parser_scan.c`：組み込みの `--help` / `--version` の判定を、ユーザー定義の参照の後に回す
-- [ ] help：サブコマンドの help で root のオプションを並べるとき、隠されたものは除く
-- [ ] `clopts_decl_error_t`：`CLOPTS_DECL_SEALED` を追加し、不要になったコードを削除する
-- [ ] 公開ヘッダー（`command.h`、`program.h`、`decl_types.h`）とドキュメント（`docs/api.md`、`docs/parsing.md`）を更新する
-- [ ] `abi/clopts.symbols` を更新する（ABI を破壊するので CHANGELOG に記載する）
-- [ ] examples（`taskbook`、`textcount`）を新しい API に移行する
-- [ ] テスト：シャドーイングの優先順位、否定形の解決順、封印後の変更、MIXED_LAYOUT、失敗したら何も変えないこと
+- [x] `parser_model.h`：`program` メンバーを削除し `sealed` を追加する
+- [x] `parser_command.c`：`clopts_command_new` / `clopts_command_free` を追加し、検証を command 内で閉じるものだけにする。封印のチェックを追加する
+- [x] `parser_program.c`：`program_new(name, root, ...)` を実装し、`add_command` に封印とコマンドをまたぐ検証を実装する
+- [x] `parser_decl.c`：参照を内側優先に揃える（command → root → 組み込み。否定形はスコープの中で解決する）
+- [x] `parser_scan.c`：組み込みの `--help` / `--version` の判定を、ユーザー定義の参照の後に回す
+- [x] help：サブコマンドの help で root のオプションを並べるとき、隠されたものは除く
+- [x] `clopts_decl_error_t`：`CLOPTS_DECL_SEALED` を追加し、不要になったコードを削除する
+- [x] 公開ヘッダー（`command.h`、`program.h`、`decl_types.h`）とドキュメント（`docs/api.md`、`docs/parsing.md`）を更新する
+- [x] `abi/clopts.symbols` を更新する（ABI を破壊するので CHANGELOG に記載する）
+- [x] examples（`taskbook`、`textcount`）を新しい API に移行する
+- [x] テスト：シャドーイングの優先順位、否定形の解決順、封印後の変更、MIXED_LAYOUT、失敗したら何も変えないこと
 
 ### 代償と緩和策
 
@@ -132,8 +144,8 @@
 
 ### 小さいもの
 
-- [ ] `clopts_decl_error_message()` を `help.h` から `decl_types.h` 側へ移す（宣言エラーのメッセージなので）
-- [ ] `platform.h` が `parse.h` を include しているのをやめる。`clopts_getenv_fn` と `clopts_env_status_t` を小さなヘッダーに切り出し、platform を parser に依存させない
+- [x] `clopts_decl_error_message()` を `help.h` から `decl_types.h` 側へ移す（宣言エラーのメッセージなので）
+- [x] `platform.h` が `parse.h` を include しているのをやめる。`clopts_getenv_fn` と `clopts_env_status_t` を小さなヘッダーに切り出し、platform を parser に依存させない
 
 ### まとめると
 
