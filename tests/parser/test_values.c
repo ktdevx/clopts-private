@@ -588,8 +588,8 @@ NAOS_TEST(nosub_declaration_is_valid)
     NAOS_CHECK_INT_EQ(clopts_option_delimiter(n.keys), ',');
     NAOS_CHECK_TRUE(clopts_option_required(n.output));
     NAOS_CHECK_TRUE(clopts_option_negatable(n.color));
-    NAOS_CHECK_TRUE(n.src->required);
-    NAOS_CHECK_TRUE(n.rest->variadic);
+    NAOS_CHECK_TRUE(clopts_positional_required(n.src));
+    NAOS_CHECK_TRUE(clopts_positional_variadic(n.rest));
     nosub_free(&n);
 }
 

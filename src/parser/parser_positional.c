@@ -11,6 +11,20 @@
 #include "parser/parser_internal.h"
 
 #include <assert.h>
+#include <stdbool.h>
+
+/*
+ * Internal representation of a positional. Only this file knows its layout;
+ * everything else reads it through the public read functions. Like an option,
+ * it does not point to the command it is attached to.
+ */
+struct clopts_positional
+{
+    char *name;                 /* not empty; owned copy */
+    char *help;                 /* may be NULL; owned copy */
+    bool required;
+    bool variadic;              /* true for the last positional of a command only */
+};
 
 clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
 {

@@ -91,9 +91,9 @@ static void check_positional(const clopts_positional_t *positional, const char *
                              bool required, bool variadic)
 {
     NAOS_REQUIRE_NOT_NULL(positional);
-    NAOS_CHECK_STR_EQ(positional->name, name);
-    NAOS_CHECK_INT_EQ(positional->required ? 1 : 0, required ? 1 : 0);
-    NAOS_CHECK_INT_EQ(positional->variadic ? 1 : 0, variadic ? 1 : 0);
+    NAOS_CHECK_STR_EQ(clopts_positional_name(positional), name);
+    NAOS_CHECK_INT_EQ(clopts_positional_required(positional) ? 1 : 0, required ? 1 : 0);
+    NAOS_CHECK_INT_EQ(clopts_positional_variadic(positional) ? 1 : 0, variadic ? 1 : 0);
 }
 
 /* ---- sentinel ----------------------------------------------------------- */
@@ -178,7 +178,7 @@ NAOS_TEST(copy_without_dst_is_missing_argument)
     NAOS_CHECK_PTR_EQ(clopts_result_error_command(result), f.copy);
     NAOS_CHECK_PTR_EQ(clopts_result_error_positional(result), f.copy_dst);
     NAOS_REQUIRE_NOT_NULL(clopts_result_error_positional(result));
-    NAOS_CHECK_STR_EQ(clopts_result_error_positional(result)->name, "DST");
+    NAOS_CHECK_STR_EQ(clopts_positional_name(clopts_result_error_positional(result)), "DST");
     NAOS_CHECK_NULL(clopts_result_error_option(result));
     clopts_result_free(result);
     fixture_tool_free(&f);

@@ -203,8 +203,8 @@ NAOS_TEST(fixture_commands_are_shaped_as_designed)
     NAOS_CHECK_STR_EQ(t.help_command->name, "help");
     NAOS_CHECK_UINT_EQ(t.help_command->options.len, 0);
     NAOS_REQUIRE_UINT_EQ(t.help_command->positionals.len, 1);
-    NAOS_CHECK_FALSE(positional_at(t.help_command, 0)->required);
-    NAOS_CHECK_FALSE(positional_at(t.help_command, 0)->variadic);
+    NAOS_CHECK_FALSE(clopts_positional_required(positional_at(t.help_command, 0)));
+    NAOS_CHECK_FALSE(clopts_positional_variadic(positional_at(t.help_command, 0)));
     fixture_tool_free(&t);
 }
 

@@ -788,11 +788,11 @@ NAOS_TEST(positional_order_allowed)
     attach_positional(root, d);
 
     NAOS_REQUIRE_UINT_EQ(root->positionals.len, 4);
-    NAOS_CHECK_TRUE(a->required);
-    NAOS_CHECK_TRUE(b->required);
-    NAOS_CHECK_FALSE(b->variadic);
-    NAOS_CHECK_FALSE(c->required);
-    NAOS_CHECK_TRUE(d->variadic);
+    NAOS_CHECK_TRUE(clopts_positional_required(a));
+    NAOS_CHECK_TRUE(clopts_positional_required(b));
+    NAOS_CHECK_FALSE(clopts_positional_variadic(b));
+    NAOS_CHECK_FALSE(clopts_positional_required(c));
+    NAOS_CHECK_TRUE(clopts_positional_variadic(d));
     NAOS_CHECK_PTR_EQ(positional_at(root, 3), d);
     program = program_new(root, NULL, 0);
     clopts_program_destroy(program);
