@@ -121,7 +121,7 @@
   - _Depends: 2.3_
   - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
-- [ ] 5.2 (P) リリース手順書と Naos への要望の記録先を書く
+- [x] 5.2 (P) リリース手順書と Naos への要望の記録先を書く
   - 設計の ReleaseGuide の節の構成どおりに、`docs/dev/release.md` を書く。関係するファイル、版番号の規則、SOVERSION の判断、リリースの手順（実行するコマンド付き）、ワークフローの動きとソース配布の理由、失敗したときの戻し方、文書と CHANGELOG の更新の規約、Naos の更新手順、ワークフローを試す方法
   - `docs/dev/naos-feedback.md` を、記録の書式と追記だけを行う規約を持つ、記録 0 件のファイルとして作る
   - 完了条件: 手順書に書いたコマンドのうち、`check_changelog.cmake` の release（`CHANGELOG=` で仮の CHANGELOG を渡し、`TAG=v0.1.0`）と `ctest -L abi` が、この時点のリポジトリで書いたとおりに動く（`ctest -L docs` の確認は 6.1 で行う）。SOVERSION の規則は `docs/abi.md` を参照するだけで、書き写していない
@@ -161,3 +161,4 @@
 - 3.3: 共通の規約は README の最小サンプルにも適用される（例外は環境変数の行だけ）。hello も `clopts_argv_get` を使い、到達しない NO_COMMAND の分岐（終了コード 2）を持つ。ヘルプと使い方の案内には `clopts_result_command` / `clopts_result_error_command` を渡す。ファイルは 78 行で、README には 1 バイトも変えずに載せる。
 - 4.1: api_coverage は `` `name` `` か `` `name()` `` だけを数えるので、引数付きで書くときは `` `name`（`args`）`` の形にする。docs/api.md は parsing.md と windows.md へリンクしているので、links の検査は 4.2 と 4.4 が済むまで通らない。
 - 4.3: docs/integration.md の FetchContent の例は、設計の ReadmeDoc どおり `ktdevx/clopts-private.git` と `GIT_TAG v0.1.0` を使う（タグはリリースまで存在しない）。Windows の DLL のコピーは共有版のときだけ行う（静的版では `$<TARGET_RUNTIME_DLLS>` が空になり、`copy_if_different` が失敗する）。README の記述例もこの形に合わせること。
+- 5.2: リリース手順書は、リリースのワークフローを「タイトル `CLOpts X.Y.Z`、添付は `clopts-X.Y.Z.tar.gz`、`clopts-X.Y.Z.zip`、`SHA256SUMS`、ノートは `$RUNNER_TEMP` に書く」と記述している。5.3 の `release.yml` はこれに合わせる。手順書の FetchContent の URL（`ktdevx/clopts-private.git`）は、公開先が決まったら README と docs/integration.md と一緒に直す。
