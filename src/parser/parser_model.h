@@ -10,14 +10,15 @@
 #include "clopts/parse.h"
 #include "clopts/program.h"
 #include "core/core_internal.h"
+#include "parser/parser_command.h"
 #include "parser/parser_option.h"
 #include "parser/parser_positional.h"
 
 /*
  * Internal declaration model: the only representation of a declaration, built
  * by the builder functions (parser_option.c, parser_positional.c,
- * parser_command.c and parser_program.c). This header holds the program and
- * the commands; options and positionals have their own headers. Everything
+ * parser_command.c and parser_program.c). This header holds the program;
+ * commands, options and positionals have their own headers. Everything
  * outside the parser module (help-and-messages included) reads it through the
  * public read functions only.
  *
@@ -32,16 +33,6 @@
  *   - A program never changes after clopts_program_create(): its root and
  *     commands are attached (read-only) from then on.
  */
-
-struct clopts_command
-{
-    bool attached;                  /* owned by a program and read-only */
-    char *name;                     /* owned copy */
-    char *summary;                  /* may be NULL; owned copy */
-    char *description;              /* may be NULL; owned copy */
-    clopts_core_vec_t options;      /* clopts_option_t * elements, in order of attachment */
-    clopts_core_vec_t positionals;  /* clopts_positional_t * elements, in order of attachment */
-};
 
 struct clopts_program
 {

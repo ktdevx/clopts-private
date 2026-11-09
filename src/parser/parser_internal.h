@@ -19,13 +19,6 @@
  */
 
 /*
- * Builder helper shared by parser_command.c and parser_program.c.
- */
-
-/* Releases command with its options, positionals and texts, attached or not. */
-void clopts_parser_command_release(clopts_command_t *command);
-
-/*
  * Name rules and lookups (parser_decl.c).
  *
  * Names are compared byte by byte, exactly and case-sensitively; there is no
