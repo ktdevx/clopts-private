@@ -989,19 +989,6 @@ NAOS_TEST(add_options_in_several_commands)
     test_decl_discard(root);
 }
 
-NAOS_TEST(add_options_reject_a_null_command)
-{
-    const clopts_option_t *option = layout_stale_option;
-
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(NULL, &option), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_NULL(option);
-    option = layout_stale_option;
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(NULL, &option), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_NULL(option);
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-}
-
 NAOS_TEST(help_command_new_declaration)
 {
     clopts_command_t *command = NULL;
@@ -1021,11 +1008,6 @@ NAOS_TEST(help_command_new_declaration)
     NAOS_CHECK_FALSE(clopts_positional_variadic(positional));
     /* It is unattached: the caller owns it. */
     clopts_command_destroy(command);
-}
-
-NAOS_TEST(help_command_new_rejects_a_null_out)
-{
-    NAOS_CHECK_INT_EQ(clopts_help_command_create(NULL), CLOPTS_DECL_INVALID_ARGUMENT);
 }
 
 NAOS_TEST(help_command_new_gives_a_new_command_each_time)
@@ -1390,9 +1372,7 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(add_options_twice_in_a_command_fail_and_attach_nothing),
     NAOS_ADD_TEST(add_help_option_fails_on_a_taken_short_name),
     NAOS_ADD_TEST(add_options_in_several_commands),
-    NAOS_ADD_TEST(add_options_reject_a_null_command),
     NAOS_ADD_TEST(help_command_new_declaration),
-    NAOS_ADD_TEST(help_command_new_rejects_a_null_out),
     NAOS_ADD_TEST(help_command_new_gives_a_new_command_each_time),
     NAOS_ADD_TEST(help_target_without_a_positional_is_the_program),
     NAOS_ADD_TEST(help_target_names_a_known_command),

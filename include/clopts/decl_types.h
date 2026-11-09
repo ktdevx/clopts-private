@@ -63,8 +63,9 @@ extern "C" {
  * root (clopts/parse.h).
  *
  * Other rules:
- *   - A NULL handle or out pointer gives CLOPTS_DECL_INVALID_ARGUMENT. On
- *     failure, an out pointer that is not NULL is set to NULL.
+ *   - A NULL handle or out pointer is a contract violation, caught by assert:
+ *     the builder functions return no error for it. On failure, the out
+ *     pointer is set to NULL.
  *   - Attached handles are read-only, and a handle is attached at most once.
  *     The library does not check either: calling a setter or an attach on an
  *     attached option, positional or command, attaching the same option or
@@ -75,8 +76,9 @@ extern "C" {
  *   - Setting a string attribute again replaces the previous copy (last call
  *     wins). NULL, false, '\0' or 0 resets an attribute.
  *   - The read functions (clopts_option_long_name() and the others) accept
- *     attached and unattached handles alike; a NULL handle reads as empty
- *     (NULL, 0, false or '\0').
+ *     attached and unattached handles alike; a NULL option is a
+ *     contract violation (caught by assert), and a NULL command, positional
+ *     or program reads as empty (NULL, 0, false or '\0').
  */
 
 typedef struct clopts_program clopts_program_t;
@@ -119,7 +121,7 @@ typedef enum clopts_decl_error
     CLOPTS_DECL_MIXED_LAYOUT = 14,
     /* An option kind outside clopts_option_kind_t. */
     CLOPTS_DECL_INVALID_KIND = 15,
-    /* A NULL handle or out pointer. */
+    /* Not returned: a NULL handle or out pointer is a contract violation (assert). The value is kept stable. */
     CLOPTS_DECL_INVALID_ARGUMENT = 16,
     /* An allocation failed. */
     CLOPTS_DECL_OUT_OF_MEMORY = 17

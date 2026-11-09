@@ -10,8 +10,8 @@
  * Every function checks the rules that belong to it, in a fixed order, and
  * returns the first rule that fails, changing nothing. Resetting an attribute
  * (NULL, false, '\0' or 0) is not checked. A NULL option passed to a setter or
- * a read function is a contract violation (assert); only the output pointer
- * of clopts_option_create() is reported as CLOPTS_DECL_INVALID_ARGUMENT.
+ * a read function, or a NULL output pointer passed to clopts_option_create(),
+ * is a contract violation (assert).
  */
 
 #include "clopts/option.h"
@@ -59,10 +59,7 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
     clopts_option_t *option;
     clopts_decl_error_t error;
 
-    if (out == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(out != NULL);
 
     *out = NULL;
 

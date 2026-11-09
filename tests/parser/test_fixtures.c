@@ -29,7 +29,10 @@ void fixture_tool_init(fixture_tool_t *f)
     memset(f, 0, sizeof(*f));
     test_decl_reset();
     f->root = test_decl_root("tool");
-    test_decl_check(clopts_command_set_description(f->root, "A fictional tool with subcommands."));
+    if (f->root != NULL)
+    {
+        test_decl_check(clopts_command_set_description(f->root, "A fictional tool with subcommands."));
+    }
 
     f->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
     if (f->verbose != NULL)
@@ -72,7 +75,10 @@ void fixture_tool_init(fixture_tool_t *f)
 
     /* build */
     f->build = test_decl_command(f->root, "build");
-    test_decl_check(clopts_command_set_summary(f->build, "Build a source."));
+    if (f->build != NULL)
+    {
+        test_decl_check(clopts_command_set_summary(f->build, "Build a source."));
+    }
 
     f->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
     if (f->output != NULL)
@@ -116,32 +122,62 @@ void fixture_tool_init(fixture_tool_t *f)
     f->jobs = test_decl_attach(f->build, f->jobs);
 
     f->build_src = test_decl_positional("SRC");
-    test_decl_check(clopts_positional_set_help(f->build_src, "Source to build."));
-    test_decl_check(clopts_positional_set_required(f->build_src, true));
+    if (f->build_src != NULL)
+    {
+        test_decl_check(clopts_positional_set_help(f->build_src, "Source to build."));
+    }
+    if (f->build_src != NULL)
+    {
+        test_decl_check(clopts_positional_set_required(f->build_src, true));
+    }
     f->build_src = test_decl_attach_positional(f->build, f->build_src);
 
     f->build_extra = test_decl_positional("EXTRA");
-    test_decl_check(clopts_positional_set_help(f->build_extra, "Extra inputs."));
-    test_decl_check(clopts_positional_set_variadic(f->build_extra, true));
+    if (f->build_extra != NULL)
+    {
+        test_decl_check(clopts_positional_set_help(f->build_extra, "Extra inputs."));
+    }
+    if (f->build_extra != NULL)
+    {
+        test_decl_check(clopts_positional_set_variadic(f->build_extra, true));
+    }
     f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
 
     /* copy */
     f->copy = test_decl_command(f->root, "copy");
-    test_decl_check(clopts_command_set_summary(f->copy, "Copy a file."));
+    if (f->copy != NULL)
+    {
+        test_decl_check(clopts_command_set_summary(f->copy, "Copy a file."));
+    }
 
     f->copy_src = test_decl_positional("SRC");
-    test_decl_check(clopts_positional_set_help(f->copy_src, "Source."));
-    test_decl_check(clopts_positional_set_required(f->copy_src, true));
+    if (f->copy_src != NULL)
+    {
+        test_decl_check(clopts_positional_set_help(f->copy_src, "Source."));
+    }
+    if (f->copy_src != NULL)
+    {
+        test_decl_check(clopts_positional_set_required(f->copy_src, true));
+    }
     f->copy_src = test_decl_attach_positional(f->copy, f->copy_src);
 
     f->copy_dst = test_decl_positional("DST");
-    test_decl_check(clopts_positional_set_help(f->copy_dst, "Destination."));
-    test_decl_check(clopts_positional_set_required(f->copy_dst, true));
+    if (f->copy_dst != NULL)
+    {
+        test_decl_check(clopts_positional_set_help(f->copy_dst, "Destination."));
+    }
+    if (f->copy_dst != NULL)
+    {
+        test_decl_check(clopts_positional_set_required(f->copy_dst, true));
+    }
     f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
 
     /* cat */
     f->cat = test_decl_command(f->root, "cat");
-    test_decl_check(clopts_command_set_summary(f->cat, "Show files."));
+    if (f->cat != NULL)
+    {
+        test_decl_check(clopts_command_set_summary(f->cat, "Show files."));
+    }
 
     f->tags = test_decl_option(CLOPTS_OPTION_LIST, "tags", '\0');
     if (f->tags != NULL)
@@ -167,8 +203,14 @@ void fixture_tool_init(fixture_tool_t *f)
     f->tags = test_decl_attach(f->cat, f->tags);
 
     f->cat_file = test_decl_positional("FILE");
-    test_decl_check(clopts_positional_set_help(f->cat_file, "Files to show."));
-    test_decl_check(clopts_positional_set_variadic(f->cat_file, true));
+    if (f->cat_file != NULL)
+    {
+        test_decl_check(clopts_positional_set_help(f->cat_file, "Files to show."));
+    }
+    if (f->cat_file != NULL)
+    {
+        test_decl_check(clopts_positional_set_variadic(f->cat_file, true));
+    }
     f->cat_file = test_decl_attach_positional(f->cat, f->cat_file);
 
     /* help */
@@ -204,7 +246,10 @@ void fixture_filt_init(fixture_filt_t *f)
     memset(f, 0, sizeof(*f));
     test_decl_reset();
     f->root = test_decl_root("filt");
-    test_decl_check(clopts_command_set_description(f->root, "A fictional filter without subcommands."));
+    if (f->root != NULL)
+    {
+        test_decl_check(clopts_command_set_description(f->root, "A fictional filter without subcommands."));
+    }
 
     f->lines = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
     if (f->lines != NULL)
@@ -226,8 +271,14 @@ void fixture_filt_init(fixture_filt_t *f)
     f->lines = test_decl_attach(f->root, f->lines);
 
     f->file = test_decl_positional("FILE");
-    test_decl_check(clopts_positional_set_help(f->file, "Files to filter."));
-    test_decl_check(clopts_positional_set_variadic(f->file, true));
+    if (f->file != NULL)
+    {
+        test_decl_check(clopts_positional_set_help(f->file, "Files to filter."));
+    }
+    if (f->file != NULL)
+    {
+        test_decl_check(clopts_positional_set_variadic(f->file, true));
+    }
     f->file = test_decl_attach_positional(f->root, f->file);
 
     if (f->root != NULL)
@@ -259,7 +310,10 @@ void fixture_strict_init(fixture_strict_t *f)
     memset(f, 0, sizeof(*f));
     test_decl_reset();
     f->root = test_decl_root("strict");
-    test_decl_check(clopts_command_set_description(f->root, "A fictional program with a required global option."));
+    if (f->root != NULL)
+    {
+        test_decl_check(clopts_command_set_description(f->root, "A fictional program with a required global option."));
+    }
 
     f->token = test_decl_option(CLOPTS_OPTION_VALUE, "token", '\0');
     if (f->token != NULL)
@@ -282,7 +336,10 @@ void fixture_strict_init(fixture_strict_t *f)
     }
 
     f->run = test_decl_command(f->root, "run");
-    test_decl_check(clopts_command_set_summary(f->run, "Run it."));
+    if (f->run != NULL)
+    {
+        test_decl_check(clopts_command_set_summary(f->run, "Run it."));
+    }
     f->program = test_decl_finish(f->root);
     if (f->program == NULL)
     {

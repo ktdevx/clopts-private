@@ -350,32 +350,6 @@ NAOS_TEST(command_named_help_is_accepted)
 
 /* ---- clopts_program_create: arguments ------------------------------------------ */
 
-NAOS_TEST(program_new_invalid_arguments)
-{
-    clopts_command_t *root = new_command("tool");
-    clopts_command_t *build = new_command("build");
-    clopts_command_t *with_null[2];
-
-    /* out NULL */
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, &build, 1, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-
-    /* root NULL, commands NULL with a count, a NULL entry */
-    expect_program_error(NULL, NULL, 0, CLOPTS_DECL_INVALID_ARGUMENT);
-    expect_program_error(NULL, &build, 1, CLOPTS_DECL_INVALID_ARGUMENT);
-    expect_program_error(root, NULL, 1, CLOPTS_DECL_INVALID_ARGUMENT);
-    with_null[0] = build;
-    with_null[1] = NULL;
-    expect_program_error(root, with_null, 2, CLOPTS_DECL_INVALID_ARGUMENT);
-    with_null[0] = NULL;
-    with_null[1] = build;
-    expect_program_error(root, with_null, 2, CLOPTS_DECL_INVALID_ARGUMENT);
-
-    /* commands NULL is fine without a count; a count of 0 ignores the array */
-    clopts_program_destroy(program_new(root, with_null, 0));
-    clopts_command_destroy(build);
-}
-
 /* ---- clopts_program_create: DUPLICATE_COMMAND ---------------------------------- */
 
 NAOS_TEST(program_new_duplicate_command)
@@ -455,19 +429,9 @@ NAOS_TEST(program_new_checks_follow_order)
 
     add_positional(root, "file");
 
-    /* out pointer before everything */
-    NAOS_CHECK_INT_EQ(clopts_program_create(NULL, NULL, 1, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-
-    /* INVALID_ARGUMENT (a NULL entry anywhere) before DUPLICATE_COMMAND */
-    commands[0] = build;
-    commands[1] = NULL;
-    expect_program_error(root, commands, 2, CLOPTS_DECL_INVALID_ARGUMENT);
+    /* DUPLICATE_COMMAND before MIXED_LAYOUT */
     commands[0] = build;
     commands[1] = build2;
-    commands[2] = NULL;
-    expect_program_error(root, commands, 3, CLOPTS_DECL_INVALID_ARGUMENT);
-
-    /* DUPLICATE_COMMAND before MIXED_LAYOUT */
     expect_program_error(root, commands, 2, CLOPTS_DECL_DUPLICATE_COMMAND);
 
     /* MIXED_LAYOUT last */
@@ -861,66 +825,15 @@ NAOS_TEST(negatable_unset_is_not_checked)
     clopts_command_destroy(root);
 }
 
-/* ---- invalid arguments -------------------------------------------------- */
+/* ---- releases ----------------------------------------------------------- */
 
-NAOS_TEST(null_handles_are_invalid_arguments)
+NAOS_TEST(releases_accept_null)
 {
-    clopts_command_t *root = new_command("tool");
-    clopts_option_t *option;
-    clopts_positional_t *positional;
-
-    option = make(CLOPTS_OPTION_FLAG, "force", 'f');
-    positional = make_positional("file");
-
-    /* command */
-    NAOS_CHECK_INT_EQ(clopts_command_set_summary(NULL, "summary"), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_set_summary(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_set_description(NULL, "description"), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_set_description(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(NULL, option), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(root, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(NULL, positional), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(root, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-
-    /* positional */
-    NAOS_CHECK_INT_EQ(clopts_positional_set_help(NULL, "help"), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_help(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_required(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_required(NULL, false), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_variadic(NULL, true), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_set_variadic(NULL, false), CLOPTS_DECL_INVALID_ARGUMENT);
-
-    /* the releases accept NULL */
     clopts_program_destroy(NULL);
     clopts_command_destroy(NULL);
     clopts_option_destroy(NULL);
     clopts_positional_destroy(NULL);
-
-    /* nothing changed: the handles are still the caller's */
-    NAOS_CHECK_UINT_EQ(root->options.len, 0);
-    NAOS_CHECK_UINT_EQ(root->positionals.len, 0);
-    clopts_option_destroy(option);
-    clopts_positional_destroy(positional);
-    clopts_command_destroy(root);
-}
-
-NAOS_TEST(null_out_pointers_are_invalid_arguments)
-{
-    clopts_command_t *root = new_command("tool");
-
-    /* the out pointer is checked before the name, the kind and the handles */
-    NAOS_CHECK_INT_EQ(clopts_command_create("tool", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_create(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_create("", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_create(CLOPTS_OPTION_FLAG, "force", 'f', NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_option_create((clopts_option_kind_t)9, NULL, '\0', NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_create("file", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_positional_create(NULL, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_program_create(NULL, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    clopts_command_destroy(root);
+    NAOS_PASS();
 }
 
 /* ---- ownership on a failed attach ------------------------------------------ */
@@ -1556,7 +1469,6 @@ NAOS_SUITE(decl,
     NAOS_ADD_TEST(valid_short_name_rules),
     NAOS_ADD_TEST(command_name_invalid),
     NAOS_ADD_TEST(command_named_help_is_accepted),
-    NAOS_ADD_TEST(program_new_invalid_arguments),
     NAOS_ADD_TEST(program_new_duplicate_command),
     NAOS_ADD_TEST(command_names_are_case_sensitive),
     NAOS_ADD_TEST(program_new_root_positional_with_commands_is_mixed),
@@ -1575,8 +1487,7 @@ NAOS_SUITE(decl,
     NAOS_ADD_TEST(required_positional_after_optional),
     NAOS_ADD_TEST(positional_order_allowed),
     NAOS_ADD_TEST(negatable_unset_is_not_checked),
-    NAOS_ADD_TEST(null_handles_are_invalid_arguments),
-    NAOS_ADD_TEST(null_out_pointers_are_invalid_arguments),
+    NAOS_ADD_TEST(releases_accept_null),
     NAOS_ADD_TEST(failed_attach_leaves_ownership_with_the_caller),
     NAOS_ADD_TEST(tool_like_declaration_is_ok),
     NAOS_ADD_TEST(find_command_is_exact_and_case_sensitive),

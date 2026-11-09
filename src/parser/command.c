@@ -28,10 +28,7 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
 {
     clopts_command_t *command;
 
-    if (out == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(out != NULL);
 
     *out = NULL;
 
@@ -90,33 +87,15 @@ void clopts_command_destroy(clopts_command_t *command)
     clopts_core_free(command);
 }
 
-/* Common checks of a call that changes command. */
-static clopts_decl_error_t command_check_call(const clopts_command_t *command)
-{
-    return (command == NULL) ? CLOPTS_DECL_INVALID_ARGUMENT : CLOPTS_DECL_NONE;
-}
-
 clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
 {
-    clopts_decl_error_t error = command_check_call(command);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
-
+    assert(command != NULL);
     return (clopts_core_replace_string(&command->summary, summary) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
 clopts_decl_error_t clopts_command_set_description(clopts_command_t *command, const char *description)
 {
-    clopts_decl_error_t error = command_check_call(command);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
-
+    assert(command != NULL);
     return (clopts_core_replace_string(&command->description, description) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
@@ -198,10 +177,8 @@ clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_
     clopts_decl_error_t error;
     size_t index;
 
-    if ((command == NULL) || (option == NULL))
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(command != NULL);
+    assert(option != NULL);
 
     error = command_check_attach_option(command, option);
     if (error != CLOPTS_DECL_NONE)
@@ -251,10 +228,8 @@ clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clo
 {
     clopts_decl_error_t error;
 
-    if ((command == NULL) || (positional == NULL))
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(command != NULL);
+    assert(positional != NULL);
 
     error = command_check_attach_positional(command, positional);
     if (error != CLOPTS_DECL_NONE)

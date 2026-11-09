@@ -12,9 +12,9 @@
  * They wrap the builder functions of clopts/decl.h so that a test can build a
  * program in the "handle or NULL" style: each helper returns the new handle,
  * or NULL when the call failed, and accepts NULL handles (giving NULL again).
- * The builder functions themselves accept NULL handles too (they give
- * CLOPTS_DECL_INVALID_ARGUMENT), so a sequence of helper and setter calls
- * needs no checks in between. With the fault-injecting allocator
+ * The builder functions themselves do not accept NULL handles (a contract
+ * violation), so only the helpers can be chained on a handle that may be NULL.
+ * With the fault-injecting allocator
  * (test_alloc.h) a failed allocation thus leaves NULL in the handles that
  * could not be made, and nothing leaks: an option or positional whose attach
  * fails is released by the helper.

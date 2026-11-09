@@ -110,47 +110,25 @@ static int run_done(const clopts_result_t *result, const struct taskbook_options
     return 0;
 }
 
-/*
- * Keeps the first declaration error. Once one is kept, the rest of the
- * declaration is skipped: every later call fails or is ignored.
- */
-static bool check(clopts_decl_error_t *first, clopts_decl_error_t error)
-{
-    if (*first == CLOPTS_DECL_NONE)
-    {
-        *first = error;
-    }
-    return *first == CLOPTS_DECL_NONE;
-}
-
-/* Attaches option to command and returns it, or releases it and returns NULL. */
-static clopts_option_t *attach_option(clopts_decl_error_t *first, clopts_command_t *command, clopts_option_t *option)
-{
-    if ((*first != CLOPTS_DECL_NONE) || !check(first, clopts_command_add_option(command, option)))
-    {
-        clopts_option_destroy(option);
-        return NULL;
-    }
-    return option;
-}
-
-/* Attaches positional to command, or releases it. */
-static void attach_positional(clopts_decl_error_t *first, clopts_command_t *command, clopts_positional_t *positional)
-{
-    if ((*first != CLOPTS_DECL_NONE) || !check(first, clopts_command_add_positional(command, positional)))
-    {
-        clopts_positional_destroy(positional);
-    }
-}
+/* Runs one declaration call; on an error, jumps to the cleanup of the function. */
+#define CHECK(call)                  \
+    do                               \
+    {                                \
+        e = (call);                  \
+        if (e != CLOPTS_DECL_NONE)   \
+        {                            \
+            goto fail;               \
+        }                            \
+    } while (0)
 
 /*
  * Declares the program into *out, from the bottom up: the root and the
- * commands first, then the program. Returns the first declaration error, or
- * CLOPTS_DECL_NONE.
+ * commands first, then the program. Returns the declaration error that stopped
+ * it, or CLOPTS_DECL_NONE.
  */
 static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_options *opts)
 {
-    clopts_decl_error_t e = CLOPTS_DECL_NONE;
+    clopts_decl_error_t e;
     clopts_command_t *root = NULL;
     clopts_command_t *add = NULL;
     clopts_command_t *list = NULL;
@@ -159,62 +137,75 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     clopts_option_t *option = NULL;
     clopts_positional_t *positional = NULL;
 
-    check(&e, clopts_command_create("taskbook", &root));
-    check(&e, clopts_command_set_description(root, "Keep a small list of tasks."));
-    check(&e, clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &option));
-    check(&e, clopts_option_set_count_max(option, 3));
-    check(&e, clopts_option_set_help(option, "Print more details (up to 3 times)"));
-    opts->verbose = attach_option(&e, root, option);
-    check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "color", '\0', &option));
-    check(&e, clopts_option_set_negatable(option, true));
-    check(&e, clopts_option_set_help(option, "Colorize the output"));
-    opts->color = attach_option(&e, root, option);
-    check(&e, clopts_help_add_help_option(root, &opts->help));
-    check(&e, clopts_help_add_version_option(root, &opts->version));
+    CHECK(clopts_command_create("taskbook", &root));
+    CHECK(clopts_command_set_description(root, "Keep a small list of tasks."));
+    CHECK(clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &option));
+    CHECK(clopts_option_set_count_max(option, 3));
+    CHECK(clopts_option_set_help(option, "Print more details (up to 3 times)"));
+    CHECK(clopts_command_add_option(root, option));
+    opts->verbose = option;
+    option = NULL; /* now owned by root */
+    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "color", '\0', &option));
+    CHECK(clopts_option_set_negatable(option, true));
+    CHECK(clopts_option_set_help(option, "Colorize the output"));
+    CHECK(clopts_command_add_option(root, option));
+    opts->color = option;
+    option = NULL; /* now owned by root */
+    CHECK(clopts_help_add_help_option(root, &opts->help));
+    CHECK(clopts_help_add_version_option(root, &opts->version));
 
-    check(&e, clopts_command_create("add", &add));
-    check(&e, clopts_command_set_summary(add, "Add a task"));
-    check(&e, clopts_command_set_description(add, "Add a task with the given title."));
-    check(&e, clopts_option_create(CLOPTS_OPTION_LIST, "tag", 't', &option));
-    check(&e, clopts_option_set_value_name(option, "TAG"));
-    check(&e, clopts_option_set_delimiter(option, ','));
-    check(&e, clopts_option_set_help(option, "Tags of the task"));
-    opts->tag = attach_option(&e, add, option);
-    check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "priority", 'p', &option));
-    check(&e, clopts_option_set_value_name(option, "LEVEL"));
-    check(&e, clopts_option_set_default(option, "normal"));
-    check(&e, clopts_option_set_help(option, "Priority: low, normal or high"));
-    opts->priority = attach_option(&e, add, option);
-    check(&e, clopts_positional_create("TITLE", &positional));
-    check(&e, clopts_positional_set_required(positional, true));
-    check(&e, clopts_positional_set_help(positional, "Title of the task"));
-    attach_positional(&e, add, positional);
+    CHECK(clopts_command_create("add", &add));
+    CHECK(clopts_command_set_summary(add, "Add a task"));
+    CHECK(clopts_command_set_description(add, "Add a task with the given title."));
+    CHECK(clopts_option_create(CLOPTS_OPTION_LIST, "tag", 't', &option));
+    CHECK(clopts_option_set_value_name(option, "TAG"));
+    CHECK(clopts_option_set_delimiter(option, ','));
+    CHECK(clopts_option_set_help(option, "Tags of the task"));
+    CHECK(clopts_command_add_option(add, option));
+    opts->tag = option;
+    option = NULL; /* now owned by add */
+    CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "priority", 'p', &option));
+    CHECK(clopts_option_set_value_name(option, "LEVEL"));
+    CHECK(clopts_option_set_default(option, "normal"));
+    CHECK(clopts_option_set_help(option, "Priority: low, normal or high"));
+    CHECK(clopts_command_add_option(add, option));
+    opts->priority = option;
+    option = NULL; /* now owned by add */
+    CHECK(clopts_positional_create("TITLE", &positional));
+    CHECK(clopts_positional_set_required(positional, true));
+    CHECK(clopts_positional_set_help(positional, "Title of the task"));
+    CHECK(clopts_command_add_positional(add, positional));
+    positional = NULL; /* now owned by add */
 
-    check(&e, clopts_command_create("list", &list));
-    check(&e, clopts_command_set_summary(list, "List tasks"));
-    check(&e, clopts_command_set_description(list, "List the open tasks."));
-    check(&e, clopts_option_create(CLOPTS_OPTION_FLAG, "all", 'a', &option));
-    check(&e, clopts_option_set_help(option, "Include finished tasks"));
-    opts->all = attach_option(&e, list, option);
-    check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "format", '\0', &option));
-    check(&e, clopts_option_set_value_name(option, "FORMAT"));
-    check(&e, clopts_option_set_env(option, "TASKBOOK_FORMAT"));
-    check(&e, clopts_option_set_default(option, "text"));
-    check(&e, clopts_option_set_help(option, "Output format: text or json"));
-    opts->format = attach_option(&e, list, option);
+    CHECK(clopts_command_create("list", &list));
+    CHECK(clopts_command_set_summary(list, "List tasks"));
+    CHECK(clopts_command_set_description(list, "List the open tasks."));
+    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "all", 'a', &option));
+    CHECK(clopts_option_set_help(option, "Include finished tasks"));
+    CHECK(clopts_command_add_option(list, option));
+    opts->all = option;
+    option = NULL; /* now owned by list */
+    CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "format", '\0', &option));
+    CHECK(clopts_option_set_value_name(option, "FORMAT"));
+    CHECK(clopts_option_set_env(option, "TASKBOOK_FORMAT"));
+    CHECK(clopts_option_set_default(option, "text"));
+    CHECK(clopts_option_set_help(option, "Output format: text or json"));
+    CHECK(clopts_command_add_option(list, option));
+    opts->format = option;
+    option = NULL; /* now owned by list */
 
-    check(&e, clopts_command_create("done", &done));
-    check(&e, clopts_command_set_summary(done, "Mark tasks as finished"));
-    check(&e, clopts_command_set_description(done, "Mark the given tasks as finished."));
-    check(&e, clopts_positional_create("ID", &positional));
-    check(&e, clopts_positional_set_required(positional, true));
-    check(&e, clopts_positional_set_variadic(positional, true));
-    check(&e, clopts_positional_set_help(positional, "Numbers of the tasks"));
-    attach_positional(&e, done, positional);
+    CHECK(clopts_command_create("done", &done));
+    CHECK(clopts_command_set_summary(done, "Mark tasks as finished"));
+    CHECK(clopts_command_set_description(done, "Mark the given tasks as finished."));
+    CHECK(clopts_positional_create("ID", &positional));
+    CHECK(clopts_positional_set_required(positional, true));
+    CHECK(clopts_positional_set_variadic(positional, true));
+    CHECK(clopts_positional_set_help(positional, "Numbers of the tasks"));
+    CHECK(clopts_command_add_positional(done, positional));
+    positional = NULL; /* now owned by done */
 
-    check(&e, clopts_help_command_create(&help));
+    CHECK(clopts_help_command_create(&help));
 
-    if (e == CLOPTS_DECL_NONE)
     {
         clopts_command_t *commands[4];
 
@@ -222,22 +213,23 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
         commands[1] = list;
         commands[2] = done;
         commands[3] = help;
-        check(&e, clopts_program_create(root, commands, 4, out));
-    }
-    if (e != CLOPTS_DECL_NONE)
-    {
-        /* Nothing was handed to a program: every command is still ours. */
-        clopts_command_destroy(root);
-        clopts_command_destroy(add);
-        clopts_command_destroy(list);
-        clopts_command_destroy(done);
-        clopts_command_destroy(help);
-        return e;
+        CHECK(clopts_program_create(root, commands, 4, out));
     }
     opts->add = add;
     opts->list = list;
     opts->done = done;
     opts->help_command = help;
+    return CLOPTS_DECL_NONE;
+
+fail:
+    /* Nothing was handed to a program: every handle that is not attached is still ours. */
+    clopts_option_destroy(option);
+    clopts_positional_destroy(positional);
+    clopts_command_destroy(root);
+    clopts_command_destroy(add);
+    clopts_command_destroy(list);
+    clopts_command_destroy(done);
+    clopts_command_destroy(help);
     return e;
 }
 

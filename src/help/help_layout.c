@@ -841,10 +841,7 @@ static clopts_decl_error_t help_add_terminal(clopts_command_t *command, const ch
     {
         *out = NULL;
     }
-    if (command == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(command != NULL);
     error = clopts_option_create(CLOPTS_OPTION_FLAG, l, s, &option);
     if (error == CLOPTS_DECL_NONE)
     {
@@ -886,10 +883,7 @@ clopts_decl_error_t clopts_help_command_create(clopts_command_t **out)
     clopts_positional_t *positional = NULL;
     clopts_decl_error_t error;
 
-    if (out == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(out != NULL);
     *out = NULL;
     error = clopts_command_create("help", &command);
     if (error == CLOPTS_DECL_NONE)

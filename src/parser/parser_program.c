@@ -26,19 +26,11 @@ static clopts_decl_error_t program_check_new(const clopts_command_t *root, clopt
     size_t i;
     size_t j;
 
-    if ((root == NULL) || ((count > 0) && (commands == NULL)))
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(root != NULL);
+    assert((count == 0) || (commands != NULL));
     for (i = 0; i < count; i++)
     {
-        if (commands[i] == NULL)
-        {
-            return CLOPTS_DECL_INVALID_ARGUMENT;
-        }
-    }
-    for (i = 0; i < count; i++)
-    {
+        assert(commands[i] != NULL);
         for (j = 0; j < i; j++)
         {
             if (strcmp(commands[j]->name, commands[i]->name) == 0)
@@ -61,10 +53,7 @@ clopts_decl_error_t clopts_program_create(clopts_command_t *root, clopts_command
     clopts_command_t **copy = NULL;
     clopts_decl_error_t error;
 
-    if (out == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(out != NULL);
     *out = NULL;
     error = program_check_new(root, commands, command_count);
     if (error != CLOPTS_DECL_NONE)

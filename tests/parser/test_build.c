@@ -181,11 +181,10 @@ NAOS_TEST(command_new_copies_name_and_starts_empty)
 }
 
 /*
- * A malformed name gives INVALID_NAME and a NULL out pointer gives
- * INVALID_ARGUMENT; neither allocates anything. There are no reserved names:
- * "help", "h" and "version" are ordinary command names.
+ * A malformed name gives INVALID_NAME and allocates nothing. There are no
+ * reserved names: "help", "h" and "version" are ordinary command names.
  */
-NAOS_TEST(command_new_checks_name_and_out)
+NAOS_TEST(command_new_checks_name)
 {
     static const char *const bad[] = { "", "-x", "--x", "a b", "a\tb", "ab\n" };
     static const char *const good[] = { "help", "h", "version", "x", "a-b", "a=b", "B" };
@@ -203,9 +202,6 @@ NAOS_TEST(command_new_checks_name_and_out)
         NAOS_CHECK_INT_EQ(clopts_command_create(bad[i], &command), CLOPTS_DECL_INVALID_NAME);
         NAOS_CHECK_NULL(command);
     }
-    /* the out pointer is checked first */
-    NAOS_CHECK_INT_EQ(clopts_command_create("build", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_command_create("", NULL), CLOPTS_DECL_INVALID_ARGUMENT);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 0);
 
     for (i = 0; i < sizeof(good) / sizeof(good[0]); i++)
@@ -477,46 +473,6 @@ NAOS_TEST(program_new_takes_root_and_commands)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-/*
- * NULL arguments give INVALID_ARGUMENT: the out pointer, the root, commands
- * with command_count > 0, and a NULL entry. Nothing changes and the caller
- * still owns (and releases) every command.
- */
-NAOS_TEST(program_new_invalid_argument_changes_nothing)
-{
-    clopts_command_t *root;
-    clopts_command_t *commands[3];
-    clopts_command_t *with_null[3];
-
-    test_alloc_begin(0);
-    root = make_command("tool");
-    commands[0] = make_command("build");
-    commands[1] = make_command("copy");
-    commands[2] = make_command("cat");
-
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, commands, 3, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, NULL, 0, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    expect_program_new_fails(NULL, commands, 3, CLOPTS_DECL_INVALID_ARGUMENT);
-    expect_program_new_fails(NULL, NULL, 0, CLOPTS_DECL_INVALID_ARGUMENT);
-    expect_program_new_fails(root, NULL, 2, CLOPTS_DECL_INVALID_ARGUMENT);
-
-    with_null[0] = commands[0];
-    with_null[1] = NULL;
-    with_null[2] = commands[2];
-    expect_program_new_fails(root, with_null, 3, CLOPTS_DECL_INVALID_ARGUMENT);
-    with_null[1] = commands[1];
-    with_null[2] = NULL;
-    expect_program_new_fails(root, with_null, 3, CLOPTS_DECL_INVALID_ARGUMENT);
-
-    /* the caller still owns everything */
-    clopts_command_destroy(commands[0]);
-    clopts_command_destroy(commands[1]);
-    clopts_command_destroy(commands[2]);
-    clopts_command_destroy(root);
-    NAOS_CHECK_UINT_EQ(test_alloc.bad_frees, 0);
-    NAOS_CHECK_TRUE(test_alloc_end());
-}
-
 /* DUPLICATE_COMMAND: two subcommands share a name (exact, case-sensitive). Nothing changes. */
 NAOS_TEST(program_new_duplicate_command_changes_nothing)
 {
@@ -584,8 +540,8 @@ NAOS_TEST(program_new_mixed_layout_changes_nothing)
 }
 
 /*
- * The errors of clopts_program_create() come in a fixed order: INVALID_ARGUMENT
- * (out, root, commands, NULL entries), DUPLICATE_COMMAND, MIXED_LAYOUT. Each case below breaks a later rule earlier in the arguments.
+ * The errors of clopts_program_create() come in a fixed order:
+ * DUPLICATE_COMMAND, MIXED_LAYOUT. Each case below breaks a later rule earlier in the arguments.
  */
 NAOS_TEST(program_new_reports_the_first_error)
 {
@@ -600,16 +556,9 @@ NAOS_TEST(program_new_reports_the_first_error)
     again = make_command("build");
     NAOS_REQUIRE_NOT_NULL(test_decl_add_positional(root, "file"));
 
-    /* INVALID_ARGUMENT before everything */
-    commands[0] = build;
-    commands[1] = build;
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, commands, 2, NULL), CLOPTS_DECL_INVALID_ARGUMENT);
-    expect_program_new_fails(NULL, commands, 2, CLOPTS_DECL_INVALID_ARGUMENT);
-    commands[1] = again;
-    commands[2] = NULL;
-    expect_program_new_fails(root, commands, 3, CLOPTS_DECL_INVALID_ARGUMENT);
-
     /* DUPLICATE_COMMAND before MIXED_LAYOUT */
+    commands[0] = build;
+    commands[1] = again;
     expect_program_new_fails(root, commands, 2, CLOPTS_DECL_DUPLICATE_COMMAND);
 
     /* MIXED_LAYOUT last */
@@ -901,7 +850,7 @@ NAOS_TEST(positional_read_functions)
 
 /*
  * clopts_option_set_terminal(): FLAG only (ATTRIBUTE_KIND for the other
- * kinds, while false resets on any kind); NULL gives INVALID_ARGUMENT.
+ * kinds, while false resets on any kind).
  */
 NAOS_TEST(set_terminal_is_for_flags)
 {
@@ -1526,7 +1475,10 @@ static void build_sample(clopts_command_t *root)
     clopts_option_t *color;
     clopts_positional_t *src;
 
-    test_decl_check(clopts_command_set_description(root, "A tool."));
+    if (root != NULL)
+    {
+        test_decl_check(clopts_command_set_description(root, "A tool."));
+    }
     test_decl_add(root, CLOPTS_OPTION_COUNT, "verbose", 'v');
     color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
     if (color != NULL)
@@ -1535,8 +1487,14 @@ static void build_sample(clopts_command_t *root)
     }
     test_decl_attach(root, color);
     build = test_decl_command(root, "build");
-    test_decl_check(clopts_command_set_summary(build, "Builds."));
-    test_decl_check(clopts_command_set_description(build, "Builds the tree."));
+    if (build != NULL)
+    {
+        test_decl_check(clopts_command_set_summary(build, "Builds."));
+    }
+    if (build != NULL)
+    {
+        test_decl_check(clopts_command_set_description(build, "Builds the tree."));
+    }
     output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
     if (output != NULL)
     {
@@ -1563,7 +1521,10 @@ static void build_sample(clopts_command_t *root)
     test_decl_attach(build, include);
     test_decl_add(build, CLOPTS_OPTION_FLAG, "release", '\0');
     src = test_decl_positional("src");
-    test_decl_check(clopts_positional_set_help(src, "Source."));
+    if (src != NULL)
+    {
+        test_decl_check(clopts_positional_set_help(src, "Source."));
+    }
     test_decl_attach_positional(build, src);
 }
 
@@ -2107,13 +2068,12 @@ NAOS_TEST(fixture_env_clobber_overwrites_lent_values)
 NAOS_SUITE(build,
     NAOS_ADD_TEST(free_null_does_nothing),
     NAOS_ADD_TEST(command_new_copies_name_and_starts_empty),
-    NAOS_ADD_TEST(command_new_checks_name_and_out),
+    NAOS_ADD_TEST(command_new_checks_name),
     NAOS_ADD_TEST(new_option_and_positional_start_reset_and_unattached),
     NAOS_ADD_TEST(unattached_objects_are_released_by_their_free),
     NAOS_ADD_TEST(attach_links_objects_in_order),
     NAOS_ADD_TEST(root_takes_positionals),
     NAOS_ADD_TEST(program_new_takes_root_and_commands),
-    NAOS_ADD_TEST(program_new_invalid_argument_changes_nothing),
     NAOS_ADD_TEST(program_new_duplicate_command_changes_nothing),
     NAOS_ADD_TEST(program_new_mixed_layout_changes_nothing),
     NAOS_ADD_TEST(program_new_reports_the_first_error),

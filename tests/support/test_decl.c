@@ -186,6 +186,12 @@ clopts_positional_t *test_decl_positional(const char *name)
 
 clopts_option_t *test_decl_attach(clopts_command_t *command, clopts_option_t *option)
 {
+    if ((command == NULL) || (option == NULL))
+    {
+        /* The call that made the NULL handle has already been recorded. */
+        clopts_option_destroy(option);
+        return NULL;
+    }
     test_decl_check(clopts_command_add_option(command, option));
     if (test_decl_last != CLOPTS_DECL_NONE)
     {
@@ -197,6 +203,11 @@ clopts_option_t *test_decl_attach(clopts_command_t *command, clopts_option_t *op
 
 clopts_positional_t *test_decl_attach_positional(clopts_command_t *command, clopts_positional_t *positional)
 {
+    if ((command == NULL) || (positional == NULL))
+    {
+        clopts_positional_destroy(positional);
+        return NULL;
+    }
     test_decl_check(clopts_command_add_positional(command, positional));
     if (test_decl_last != CLOPTS_DECL_NONE)
     {

@@ -10,14 +10,13 @@
 #include "clopts/positional.h"
 #include "parser/parser_internal.h"
 
+#include <assert.h>
+
 clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
 {
     clopts_positional_t *positional;
 
-    if (out == NULL)
-    {
-        return CLOPTS_DECL_INVALID_ARGUMENT;
-    }
+    assert(out != NULL);
     *out = NULL;
     if ((name == NULL) || (name[0] == '\0'))
     {
@@ -53,43 +52,22 @@ void clopts_positional_destroy(clopts_positional_t *positional)
     clopts_core_free(positional);
 }
 
-/* Common checks of a positional setter. */
-static clopts_decl_error_t positional_check_call(const clopts_positional_t *positional)
-{
-    return (positional == NULL) ? CLOPTS_DECL_INVALID_ARGUMENT : CLOPTS_DECL_NONE;
-}
-
 clopts_decl_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help)
 {
-    clopts_decl_error_t error = positional_check_call(positional);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(positional != NULL);
     return (clopts_core_replace_string(&positional->help, help) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
 }
 
 clopts_decl_error_t clopts_positional_set_required(clopts_positional_t *positional, bool required)
 {
-    clopts_decl_error_t error = positional_check_call(positional);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(positional != NULL);
     positional->required = required;
     return CLOPTS_DECL_NONE;
 }
 
 clopts_decl_error_t clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic)
 {
-    clopts_decl_error_t error = positional_check_call(positional);
-
-    if (error != CLOPTS_DECL_NONE)
-    {
-        return error;
-    }
+    assert(positional != NULL);
     positional->variadic = variadic;
     return CLOPTS_DECL_NONE;
 }

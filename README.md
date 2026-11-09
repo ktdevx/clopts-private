@@ -15,7 +15,7 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 ## 最小のサンプル
 
-名前を 1 つ受け取って挨拶するプログラム `hello` を示す。宣言し（誤りがあれば最初の 1 つを出して終了コード 1 で終わる）、UTF-8 の argv を得て解析し、状態に応じて結果を読むかヘルプ・版・エラーの文面を出し、最後に解放する。
+名前を 1 つ受け取って挨拶するプログラム `hello` を示す。宣言し（誤りがあればその説明を出して終了コード 1 で終わる）、UTF-8 の argv を得て解析し、状態に応じて結果を読むかヘルプ・版・エラーの文面を出し、最後に解放する。
 
 <!-- clopts-source: tests/docs/readme_minimal.c -->
 ```c
@@ -24,56 +24,54 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 #include "clopts/clopts.h"
 
-/* Keeps the first declaration error; once one is kept, later calls are ignored. */
-static bool check(clopts_decl_error_t *first, clopts_decl_error_t error)
-{
-    if (*first == CLOPTS_DECL_NONE)
-    {
-        *first = error;
-    }
-    return *first == CLOPTS_DECL_NONE;
-}
+/* Runs one declaration call; on an error, jumps to the cleanup of the function. */
+#define CHECK(call)                  \
+    do                               \
+    {                                \
+        e = (call);                  \
+        if (e != CLOPTS_DECL_NONE)   \
+        {                            \
+            goto fail;               \
+        }                            \
+    } while (0)
 
 /* Declares: hello [-g TEXT] [-h] [--version] NAME */
 static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t **greeting,
                                    const clopts_option_t **version)
 {
-    clopts_decl_error_t e = CLOPTS_DECL_NONE;
+    clopts_decl_error_t e;
     clopts_command_t *root = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
 
-    check(&e, clopts_command_create("hello", &root));
-    check(&e, clopts_command_set_description(root, "Greet someone."));
+    CHECK(clopts_command_create("hello", &root));
+    CHECK(clopts_command_set_description(root, "Greet someone."));
 
-    check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
-    check(&e, clopts_option_set_value_name(option, "TEXT"));
-    check(&e, clopts_option_set_default(option, "Hello"));
-    check(&e, clopts_option_set_help(option, "Word to greet with"));
-    if (check(&e, clopts_command_add_option(root, option)))
-    {
-        *greeting = option; /* now owned by root */
-    }
-    else
-    {
-        clopts_option_destroy(option); /* not attached: still ours */
-    }
+    CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
+    CHECK(clopts_option_set_value_name(option, "TEXT"));
+    CHECK(clopts_option_set_default(option, "Hello"));
+    CHECK(clopts_option_set_help(option, "Word to greet with"));
+    CHECK(clopts_command_add_option(root, option));
+    *greeting = option; /* now owned by root */
+    option = NULL;
 
-    check(&e, clopts_positional_create("NAME", &name));
-    check(&e, clopts_positional_set_required(name, true));
-    check(&e, clopts_positional_set_help(name, "Who to greet"));
-    if (!check(&e, clopts_command_add_positional(root, name)))
-    {
-        clopts_positional_destroy(name);
-    }
-    check(&e, clopts_help_add_help_option(root, NULL));
-    check(&e, clopts_help_add_version_option(root, version));
+    CHECK(clopts_positional_create("NAME", &name));
+    CHECK(clopts_positional_set_required(name, true));
+    CHECK(clopts_positional_set_help(name, "Who to greet"));
+    CHECK(clopts_command_add_positional(root, name));
+    name = NULL; /* now owned by root */
 
-    check(&e, clopts_program_create(root, NULL, 0, program)); /* the program now owns root */
-    if (e != CLOPTS_DECL_NONE)
-    {
-        clopts_command_destroy(root);
-    }
+    CHECK(clopts_help_add_help_option(root, NULL));
+    CHECK(clopts_help_add_version_option(root, version));
+
+    CHECK(clopts_program_create(root, NULL, 0, program)); /* the program now owns root */
+    return CLOPTS_DECL_NONE;
+
+fail:
+    /* Whatever is not attached or handed to the program is still ours. */
+    clopts_option_destroy(option);
+    clopts_positional_destroy(name);
+    clopts_command_destroy(root);
     return e;
 }
 

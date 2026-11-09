@@ -137,34 +137,38 @@ int main(int argc, char **argv)
 }
 ```
 
-宣言の部分では、たとえば `add` サブコマンドを次のように宣言している。`check` は最初の宣言エラーを `e` に残す小さな関数で、`attach_option` は `clopts_command_add_option` に失敗したオプションを解放する（どちらも taskbook の中にある）。
+宣言の部分では、たとえば `add` サブコマンドを次のように宣言している。`CHECK` は呼び出しの戻り値を `e` に入れ、エラーなら関数の後始末（`fail:`）へ飛ぶマクロである（taskbook の中にある）。
 
 ```c
-check(&e, clopts_command_create("add", &add));
-check(&e, clopts_command_set_summary(add, "Add a task"));
-check(&e, clopts_command_set_description(add, "Add a task with the given title."));
-check(&e, clopts_option_create(CLOPTS_OPTION_LIST, "tag", 't', &option));
-check(&e, clopts_option_set_value_name(option, "TAG"));
-check(&e, clopts_option_set_delimiter(option, ','));
-check(&e, clopts_option_set_help(option, "Tags of the task"));
-opts->tag = attach_option(&e, add, option);
-check(&e, clopts_option_create(CLOPTS_OPTION_VALUE, "priority", 'p', &option));
-check(&e, clopts_option_set_value_name(option, "LEVEL"));
-check(&e, clopts_option_set_default(option, "normal"));
-check(&e, clopts_option_set_help(option, "Priority: low, normal or high"));
-opts->priority = attach_option(&e, add, option);
-check(&e, clopts_positional_create("TITLE", &positional));
-check(&e, clopts_positional_set_required(positional, true));
-check(&e, clopts_positional_set_help(positional, "Title of the task"));
-attach_positional(&e, add, positional);
+CHECK(clopts_command_create("add", &add));
+CHECK(clopts_command_set_summary(add, "Add a task"));
+CHECK(clopts_command_set_description(add, "Add a task with the given title."));
+CHECK(clopts_option_create(CLOPTS_OPTION_LIST, "tag", 't', &option));
+CHECK(clopts_option_set_value_name(option, "TAG"));
+CHECK(clopts_option_set_delimiter(option, ','));
+CHECK(clopts_option_set_help(option, "Tags of the task"));
+CHECK(clopts_command_add_option(add, option));
+opts->tag = option;
+option = NULL; /* now owned by add */
+CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "priority", 'p', &option));
+CHECK(clopts_option_set_value_name(option, "LEVEL"));
+CHECK(clopts_option_set_default(option, "normal"));
+CHECK(clopts_option_set_help(option, "Priority: low, normal or high"));
+CHECK(clopts_command_add_option(add, option));
+opts->priority = option;
+option = NULL; /* now owned by add */
+CHECK(clopts_positional_create("TITLE", &positional));
+CHECK(clopts_positional_set_required(positional, true));
+CHECK(clopts_positional_set_help(positional, "Title of the task"));
+CHECK(clopts_command_add_positional(add, positional));
+positional = NULL; /* now owned by add */
 ```
 
 root と 4 つのサブコマンドを宣言し終えたら、最後にまとめてプログラムを作る。`clopts_program_create` が成功するとプログラムがすべてのコマンドを持ち、失敗すると何も変わらないので、呼び出し側がコマンドを解放する。
 
 ```c
-check(&e, clopts_help_command_create(&help));
+CHECK(clopts_help_command_create(&help));
 
-if (e == CLOPTS_DECL_NONE)
 {
     clopts_command_t *commands[4];
 
@@ -172,21 +176,23 @@ if (e == CLOPTS_DECL_NONE)
     commands[1] = list;
     commands[2] = done;
     commands[3] = help;
-    check(&e, clopts_program_create(root, commands, 4, out));
+    CHECK(clopts_program_create(root, commands, 4, out));
 }
-if (e != CLOPTS_DECL_NONE)
-{
-    /* Nothing was handed to a program: every command is still ours. */
+return CLOPTS_DECL_NONE;
+
+fail:
+    /* Nothing was handed to a program: every handle that is not attached is still ours. */
+    clopts_option_destroy(option);
+    clopts_positional_destroy(positional);
     clopts_command_destroy(root);
     clopts_command_destroy(add);
     clopts_command_destroy(list);
     clopts_command_destroy(done);
     clopts_command_destroy(help);
     return e;
-}
 ```
 
-エラーを 1 つ残せば呼び出しの間に分岐を書かなくてよい理由は「[失敗の扱い](#失敗の扱い)」で示す。
+失敗したら NULL のハンドルを次の呼び出しに渡さず、その場で後始末して戻る理由は「[失敗の扱い](#失敗の扱い)」で示す。
 
 `taskbook add "Write docs" -t docs,api -v` を実行すると、`add` の処理（`run_add`）が選ばれ、受け取った値とその出所を標準出力へ出して、終了コード 0 で終わる。
 
@@ -243,7 +249,7 @@ root は `clopts_program_create` の最初の引数に渡すコマンドで、�
 
 | 関数 | 引数と戻り値 |
 |------|--------------|
-| `clopts_program_create`（`root, commands, command_count, out`） | root と、`commands` の `command_count` 個のサブコマンド（`command_count` が 0 なら `commands` は NULL でよい）からプログラムを作り、`*out` に入れる。成功するとプログラムが root とすべてのコマンドを持ち、それらは読み取り専用になる。失敗すると何も変わらず、コマンドは呼び出し側が持ったままになる。失敗の理由は検査の順に、NULL の `out`・root・コマンド（`CLOPTS_DECL_INVALID_ARGUMENT`）、同じ名前のサブコマンド（`CLOPTS_DECL_DUPLICATE_COMMAND`）、サブコマンドがあるのに root に位置引数がある（`CLOPTS_DECL_MIXED_LAYOUT`） |
+| `clopts_program_create`（`root, commands, command_count, out`） | root と、`commands` の `command_count` 個のサブコマンド（`command_count` が 0 なら `commands` は NULL でよい）からプログラムを作り、`*out` に入れる。成功するとプログラムが root とすべてのコマンドを持ち、それらは読み取り専用になる。失敗すると何も変わらず、コマンドは呼び出し側が持ったままになる。NULL の `out`・root・コマンドは契約違反で、`assert` で検出される。失敗の理由は検査の順に、同じ名前のサブコマンド（`CLOPTS_DECL_DUPLICATE_COMMAND`）、サブコマンドがあるのに root に位置引数がある（`CLOPTS_DECL_MIXED_LAYOUT`） |
 | `clopts_program_destroy`（`program`） | プログラムと、それが持つすべてのもの（root、コマンド、渡されたオプションと位置引数）を解放する。NULL なら何もしない |
 | `clopts_program_root`（`program`） | root を返す。`program` が NULL なら NULL |
 | `clopts_program_command_count`（`program`） | サブコマンドの数 |
@@ -348,7 +354,7 @@ root にするコマンドに渡したオプションはグローバルオプシ
 - 失敗した呼び出しは、何も変えない。ハンドルを作る関数は `*out` を NULL にする。そのため、成功した呼び出しだけで組み立てたプログラムは、つねに正しい。プログラムにエラーが記録されることはなく、解析が宣言エラーを返すこともない。
 - オプションや位置引数だけで決まる検査（種類、名前の形、属性の組み合わせ）は、作る関数と属性の関数が行う。同じコマンドのほかのオプション・位置引数との関係で決まる検査（名前の重なり、否定形との衝突、位置引数の順序）は、コマンドに渡す関数が行う。コマンドの間の関係で決まる検査（サブコマンドの名前の重なり、root とサブコマンドの混在）は、`clopts_program_create` だけが行う。
 - メモリの確保に失敗すると `CLOPTS_DECL_OUT_OF_MEMORY` が返る。
-- NULL のハンドルか NULL の `out` を渡すと `CLOPTS_DECL_INVALID_ARGUMENT` が返る。NULL のハンドルを渡しても壊れないので、最初のエラーを 1 つ残しておき、残した後の呼び出しの結果を無視する書き方ができる（taskbook と textcount の `check`）。このとき、コマンドに渡せなかったオプションと位置引数は、呼び出し側が解放する。
+- NULL のハンドルや NULL の `out` を渡すのは契約違反で、`assert` で検出される（`NDEBUG` のビルドでは検査されず、動作は未定義）。エラーは返らない。そのため、作る関数が失敗したら、NULL のハンドルを次の呼び出しに渡さず、その場で後始末して戻る（taskbook と textcount の書き方）。コマンドに渡せなかったオプションと位置引数は、呼び出し側が解放する。
 - 渡した後のオプション・位置引数・コマンドに属性の関数や渡す関数を呼ぶことと、同じものを 2 回渡すことは検査しない（契約違反で、動作は未定義）。
 - 宣言エラーの短い説明（英語）は、`clopts/decl_types.h` の `clopts_decl_error_message` で得られる。
 
@@ -557,7 +563,7 @@ Run 'taskbook add --help' for usage.
 | `CLOPTS_DECL_ATTRIBUTE_KIND` | LIST でないオプションに区切り文字、COUNT でないオプションに回数の上限、FLAG でないオプションに終端を設定した | `attribute does not apply to this kind of option` |
 | `CLOPTS_DECL_MIXED_LAYOUT` | サブコマンドがあるのに、root に位置引数がある（`clopts_program_create`） | `a program with subcommands cannot have root arguments` |
 | `CLOPTS_DECL_INVALID_KIND` | `clopts_option_kind_t` にない種類で `clopts_option_create` | `invalid option kind` |
-| `CLOPTS_DECL_INVALID_ARGUMENT` | NULL のハンドルか NULL の `out` | `invalid argument` |
+| `CLOPTS_DECL_INVALID_ARGUMENT` | 返らない（NULL のハンドルや `out` は契約違反で、`assert` で検出される。値は変えないために残している） | `invalid argument` |
 | `CLOPTS_DECL_OUT_OF_MEMORY` | メモリの確保に失敗した | `out of memory` |
 
 taskbook と textcount は、宣言エラーがあれば `<program>: error: invalid declaration: <説明>` の 1 行を標準エラーへ出し、終了コード 1 で終わる。
