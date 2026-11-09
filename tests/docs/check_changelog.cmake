@@ -1,6 +1,5 @@
 # Checks the format of CHANGELOG.md and, for a release, matches the tag
-# against the project version and extracts the release notes (requirements
-# 10.2-10.4, 11.2-11.4). Run with `cmake -P`; MODE=format is registered by
+# against the project version and extracts the release notes. Run with `cmake -P`; MODE=format is registered by
 # tests/docs/CMakeLists.txt (label: docs) and MODE=release is run by
 # .github/workflows/release.yml.
 #
@@ -24,7 +23,7 @@
 #               as is (CRLF line endings become LF). It is removed first and
 #               written only on success.
 #
-# Format (design "CHANGELOG の書式"):
+# Format:
 #   - The "## " headings are "## [Unreleased]" (exactly one, the first) and
 #     "## [X.Y.Z] - YYYY-MM-DD".
 #   - Release sections are ordered newest first (semver order) and no version

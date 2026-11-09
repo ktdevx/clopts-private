@@ -1,5 +1,5 @@
 # Checks the public symbol list (abi/clopts.symbols) and compares it with the
-# symbols the shared library exports (requirements 2.3, 2.4, 3.3-3.9).
+# symbols the shared library exports.
 # Run with `cmake -P`; registered by tests/abi/CMakeLists.txt (label: abi).
 #
 # Variables (-D):
@@ -34,7 +34,7 @@ cmake_minimum_required(VERSION 3.21)
 
 # ---- Exclusion lists (names removed from the dump before comparing) -------
 # Each list holds names the toolchain adds to the shared library and that do
-# not come from the CLOpts sources (requirement 3.4). A listed name is removed
+# not come from the CLOpts sources. A listed name is removed
 # when present and is not required to be present. Add a name here only with
 # the reason it is not a CLOpts symbol.
 set(_check_symbols_exclude_nm-elf
@@ -203,7 +203,7 @@ endfunction()
 #
 # Runs TOOL on LIBRARY with the arguments of FORMAT and sets <out_var> to its
 # output (stdout and stderr) as a list of lines. Fails when TOOL is empty or
-# not found (requirement 3.8), or when it exits with a non-zero code (the
+# not found, or when it exits with a non-zero code (the
 # report holds the code and the output).
 function(_check_symbols_run_tool out_var)
     set(tool "${TOOL}")

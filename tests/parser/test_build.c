@@ -4,8 +4,8 @@
  * the entry of clopts_program_validate(), and the contents of the shared
  * fixtures (test_fixtures.c) compared with the first-version declarations.
  *
- * The declaration rules of the immediate check are tested in the decl suite
- * (task 6.1). Stored values are read through the internal model.
+ * The declaration rules of the immediate check are tested in the decl suite.
+ * Stored values are read through the internal model.
  */
 
 #include "parser/parser_internal.h"
@@ -727,7 +727,7 @@ NAOS_TEST(validate_result_allocation_failure_returns_sentinel)
 }
 
 /*
- * The immediate checks come with task 6.1; here a recorded declaration error
+ * The immediate checks are tested in the decl suite; here a recorded declaration error
  * is put into the model directly to check what the entry copies.
  */
 NAOS_TEST(validate_copies_a_recorded_declaration_error)

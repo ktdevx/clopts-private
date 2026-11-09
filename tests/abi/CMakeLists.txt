@@ -57,11 +57,11 @@ function(_clopts_abi_add_script_test name script)
     endif()
 endfunction()
 
-# ---- Public symbol list and exports (requirements 2.3, 3.1-3.3) ----------
+# ---- Public symbol list and exports ----------
 _clopts_abi_add_script_test(symbol_list check_symbols.cmake
     ARGS "-DSYMBOLS_FILE=${_clopts_abi_symbols}")
 
-# The export dump tool of this toolchain (requirement 3.3). A tool that is not
+# The export dump tool of this toolchain. A tool that is not
 # found leaves TOOL empty: the test is still registered and check_symbols.cmake
 # reports "export dump tool not found" when it runs.
 if(MSVC)
@@ -105,7 +105,7 @@ elseif(NOT IS_ABSOLUTE "${_clopts_abi_tool}")
     endif()
 endif()
 
-# Only the shared form exports symbols (requirement 3.2).
+# Only the shared form exports symbols.
 if(CLOPTS_BUILD_SHARED)
     _clopts_abi_add_script_test(exports check_symbols.cmake
         ARGS
@@ -143,7 +143,7 @@ _clopts_abi_add_script_test(symbols_selftest.bad_list check_symbols.cmake
     PASS_REGEX
         "5 error\\(s\\) in the public symbol list [^\n]*bad_list\\.symbols:[\r\n ]+[^\n]*bad_list\\.symbols:9: duplicate symbol 'clopts_program_new'[\r\n ]+[^\n]*bad_list\\.symbols:10: invalid symbol name 'parse_args'[\r\n ]+[^\n]*bad_list\\.symbols:11: invalid symbol name 'Clopts_Parse'[\r\n ]+[^\n]*bad_list\\.symbols:12: invalid platform tag 'linux'[\r\n ]+[^\n]*bad_list\\.symbols:13: invalid platform tag 'windows extra'")
 
-# ---- Public header rules (requirements 4.1-4.8) --------------------------
+# ---- Public header rules --------------------------
 _clopts_abi_add_script_test(header_rules check_header_rules.cmake
     ARGS "-DHEADER_DIR=${PROJECT_SOURCE_DIR}/include/clopts")
 
@@ -161,7 +161,7 @@ foreach(_clopts_abi_case IN ITEMS missing_api missing_api_multiline)
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_abi_bad_${_clopts_abi_case}}")
 endforeach()
 
-# ---- Header compilation as C99 / C++11 (requirements 5.1-5.8) ------------
+# ---- Header compilation as C99 / C++11 ------------
 # The child project is driven like tests/toolchain/: the generator, platform,
 # C compiler and configuration of this build tree.
 get_property(_clopts_abi_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
@@ -211,7 +211,7 @@ endfunction()
 
 _clopts_abi_add_headers_test(C headers_c)
 
-# C++ is optional (requirements 5.6, 5.8): it is detected here without
+# C++ is optional: it is detected here without
 # enabling it, so CLOpts' project() stays C only. check_language(CXX) keeps a
 # CMAKE_CXX_COMPILER that is already set (including <...>-NOTFOUND).
 include(CheckLanguage)
@@ -227,6 +227,6 @@ if(NOT CMAKE_CXX_COMPILER)
     set_tests_properties(abi.headers_cxx PROPERTIES DISABLED TRUE)
 endif()
 
-# ---- Self-test of the abidiff comparison script (requirements 6.2-6.8) ---
+# ---- Self-test of the abidiff comparison script ---
 _clopts_abi_add_script_test(compare_selftest run_abidiff.cmake
     ARGS "-DMODE=self_test")

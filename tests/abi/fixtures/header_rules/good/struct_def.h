@@ -1,4 +1,4 @@
-/* Allowed: a struct definition (requirement 4.2 was retired; a public struct is frozen instead). */
+/* Allowed: a struct definition (a public struct is frozen instead). */
 #ifndef GOOD_STRUCT_DEF_H
 #define GOOD_STRUCT_DEF_H
 

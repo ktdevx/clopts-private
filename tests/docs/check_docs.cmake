@@ -1,5 +1,5 @@
 # Checks the documentation against the programs, sources, files and public
-# symbols it describes (requirements 2.9, 6.2, 6.5, 8.2-8.8). Run with
+# symbols it describes. Run with
 # `cmake -P`; registered by tests/docs/CMakeLists.txt (label: docs).
 #
 # Variables (-D):
@@ -19,7 +19,7 @@
 #               <name>=<var>,<var>... Every listed variable is removed from the
 #               environment of every run; a marker sets only its env= ones.
 #   REQUIRE     Program names that must have at least one marker with exit
-#               code 0 and one with a nonzero exit code (requirement 8.3).
+#               code 0 and one with a nonzero exit code.
 #   WORK        A directory the script may write to. The programs run in the
 #               empty directory <WORK>/outputs/run with an empty standard
 #               input, and the expected and actual output of every mismatch is
@@ -32,7 +32,7 @@
 #               and "#" comments are skipped), relative to SOURCE_DIR or
 #               absolute. A missing list is a failure.
 #
-# Marker formats (design "照合用の印の書式"): one line, starting at column 0,
+# Marker formats: one line, starting at column 0,
 #
 #   <!-- clopts-check: [exit=<int>] [stream=stdout|stderr] [env=<NAME>=<VALUE>]... -- <program> [<arg>...] -->
 #   <!-- clopts-source: <path relative to SOURCE_DIR> -->
@@ -683,7 +683,7 @@ function(_docs_check_outputs)
         _docs_add_failure("" "" "no clopts-check marker found in: ${files}")
     endif()
 
-    # Requirement 8.3: help (exit code 0) and a usage error (nonzero).
+    # Help (exit code 0) and a usage error (nonzero).
     foreach(name IN LISTS REQUIRE)
         if(NOT name IN_LIST exit_zero)
             _docs_add_failure("" "" "${name}: no output marker with exit code 0")
@@ -701,7 +701,7 @@ endfunction()
 # _docs_check_sources()
 #
 # MODE=sources: checks that the block after every clopts-source marker of
-# FILES is the content of the file the marker names (requirement 8.6).
+# FILES is the content of the file the marker names.
 function(_docs_check_sources)
     set(found 0)    # markers seen, well-formed or not
     set(checked 0)  # well-formed markers whose file was compared
@@ -921,8 +921,7 @@ endfunction()
 #
 # MODE=links: checks every relative link ("[t](target)", "![a](target)") of
 # FILES outside code spans and code blocks: its target must exist as a file or
-# directory (requirement 6.5) and must not be under docs/dev/ (requirement
-# 6.2). Links to http://, https:// and mailto: and links to an anchor of the
+# directory and must not be under docs/dev/. Links to http://, https:// and mailto: and links to an anchor of the
 # same document ("#...") are skipped; the "#..." part of a target is ignored.
 # A target starting with "/" is taken from SOURCE_DIR, any other from the
 # directory of the document. A link is reported at the line its "[" is on.
@@ -991,7 +990,7 @@ endfunction()
 # _docs_check_api_coverage()
 #
 # MODE=api_coverage: checks that every name of the symbol list SYMBOLS appears
-# in FILES in backticks, as `name` or `name()` (requirements 2.9, 8.7). Every
+# in FILES in backticks, as `name` or `name()`. Every
 # missing name is reported, at its line of SYMBOLS.
 function(_docs_check_api_coverage)
     if(NOT DEFINED SYMBOLS OR SYMBOLS STREQUAL "")
