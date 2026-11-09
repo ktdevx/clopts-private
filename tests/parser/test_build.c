@@ -4,15 +4,16 @@
  *
  * Suite build: the builder functions, the releases, string copies, the
  * last-call-wins and reset rules, handle stability, out of memory in every
- * allocating builder function, the one-shot creation of a program from a root
- * and its commands (its errors, their order, and the sealing on success), the
- * read functions, and the contents of the shared fixtures (test_fixtures.c)
- * compared with the first-version declarations.
+ * allocating builder function, the program builder (its creation by name, its
+ * description, and the attach of global options, positionals and subcommands
+ * with their errors and their order), the read functions, and the contents of
+ * the shared fixtures (test_fixtures.c) compared with the first-version
+ * declarations.
  *
- * A declaration is built from the bottom up: options and positionals are
- * attached to commands, and clopts_program_create() takes the root and the
- * commands in one call. Every builder function returns its error right away
- * and a failing call changes nothing; the caller still owns what it passed.
+ * A program is created by name and filled: global options and positionals are
+ * attached to it, and subcommands, made and filled on their own, are added to
+ * it. Every builder function returns its error right away and a failing call
+ * changes nothing; the caller still owns what it passed.
  * The declaration rules within a command (and the NULL arguments of the
  * option and positional setters) are tested in the decl
  * suites. Stored values are read through the internal model or the public
@@ -67,12 +68,14 @@ static void check_str_or_null(const char *actual, const char *expected)
     }
 }
 
-/* A new unattached command (a root or a subcommand); the test stops when it cannot be made. */
+/* A new unattached command; the test stops when it cannot be made. */
 static clopts_command_t *make_command(const char *name)
 {
-    clopts_command_t *command = test_decl_root(name);
+    clopts_command_t *command = SENTINEL_COMMAND;
 
+    NAOS_REQUIRE_INT_EQ(clopts_command_create(name, &command), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_NOT_NULL(command);
+    NAOS_REQUIRE_TRUE(command != SENTINEL_COMMAND);
     return command;
 }
 
@@ -94,33 +97,145 @@ static clopts_positional_t *make_positional(const char *name)
     return positional;
 }
 
-/* clopts_program_create(root, commands, count); the test stops when it fails. */
-static clopts_program_t *make_program(clopts_command_t *root, clopts_command_t *const *commands, size_t count)
+/* clopts_program_create(name); the test stops when it fails. */
+static clopts_program_t *make_program(const char *name)
 {
     clopts_program_t *program = SENTINEL_PROGRAM;
 
-    NAOS_REQUIRE_INT_EQ(clopts_program_create(root, commands, count, &program), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_program_create(name, &program), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_TRUE(program != SENTINEL_PROGRAM);
     return program;
 }
 
-/*
- * Calls clopts_program_create(root, commands, count) expecting error, and checks
- * that the out pointer is NULL and that nothing was allocated (the checks
- * come before every allocation).
- */
-static void expect_program_new_fails(clopts_command_t *root, clopts_command_t *const *commands, size_t count,
-                                     clopts_error_t error)
+/* clopts_program_add_command(program, command); the test stops when it fails. */
+static void add_command(clopts_program_t *program, clopts_command_t *command)
 {
-    clopts_program_t *program = SENTINEL_PROGRAM;
-    long live = test_alloc.live;
-    size_t calls = test_alloc.calls;
+    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_ERROR_NONE);
+}
 
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, commands, count, &program), error);
-    NAOS_CHECK_NULL(program);
-    NAOS_CHECK_INT_EQ(test_alloc.live, live);
-    NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
+/* The global option index of program; the test stops when there is none. */
+static const clopts_option_t *global_at(const clopts_program_t *program, size_t index)
+{
+    NAOS_REQUIRE_UINT_GT(clopts_program_option_count(program), index);
+    return clopts_program_option_at(program, index);
+}
+
+/* The number of live blocks and fault points passed, to check that a call allocated nothing. */
+typedef struct alloc_mark
+{
+    long live;
+    size_t calls;
+} alloc_mark_t;
+
+static alloc_mark_t alloc_mark(void)
+{
+    alloc_mark_t mark;
+
+    mark.live = test_alloc.live;
+    mark.calls = test_alloc.calls;
+    return mark;
+}
+
+/* Checks that nothing was allocated or released since mark (the checks come before every allocation). */
+static void check_nothing_allocated(alloc_mark_t mark)
+{
+    NAOS_CHECK_INT_EQ(test_alloc.live, mark.live);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, mark.calls);
+}
+
+/*
+ * The global options, positionals and subcommands of program, to check that a
+ * failing call changed nothing. Up to SHAPE_MAX of each are recorded.
+ */
+#define SHAPE_MAX 4
+typedef struct program_shape
+{
+    size_t option_count;
+    size_t positional_count;
+    size_t command_count;
+    const clopts_option_t *options[SHAPE_MAX];
+    const clopts_positional_t *positionals[SHAPE_MAX];
+    const clopts_command_t *commands[SHAPE_MAX];
+} program_shape_t;
+
+static program_shape_t program_shape(const clopts_program_t *program)
+{
+    program_shape_t shape;
+    size_t i;
+
+    memset(&shape, 0, sizeof(shape));
+    shape.option_count = clopts_program_option_count(program);
+    shape.positional_count = clopts_program_positional_count(program);
+    shape.command_count = clopts_program_command_count(program);
+    for (i = 0; (i < shape.option_count) && (i < SHAPE_MAX); i++)
+    {
+        shape.options[i] = clopts_program_option_at(program, i);
+    }
+    for (i = 0; (i < shape.positional_count) && (i < SHAPE_MAX); i++)
+    {
+        shape.positionals[i] = clopts_program_positional_at(program, i);
+    }
+    for (i = 0; (i < shape.command_count) && (i < SHAPE_MAX); i++)
+    {
+        shape.commands[i] = clopts_program_command_at(program, i);
+    }
+    return shape;
+}
+
+/* Checks that program still has the options, positionals and subcommands of shape, in the same order. */
+static void check_shape(const clopts_program_t *program, const program_shape_t *shape)
+{
+    program_shape_t now = program_shape(program);
+    size_t i;
+
+    NAOS_CHECK_UINT_EQ(now.option_count, shape->option_count);
+    NAOS_CHECK_UINT_EQ(now.positional_count, shape->positional_count);
+    NAOS_CHECK_UINT_EQ(now.command_count, shape->command_count);
+    for (i = 0; i < SHAPE_MAX; i++)
+    {
+        NAOS_CHECK_PTR_EQ(now.options[i], shape->options[i]);
+        NAOS_CHECK_PTR_EQ(now.positionals[i], shape->positionals[i]);
+        NAOS_CHECK_PTR_EQ(now.commands[i], shape->commands[i]);
+    }
+}
+
+/*
+ * Calls clopts_program_add_option(program, option) expecting error, and checks
+ * that nothing was allocated and program did not change. The caller still
+ * owns option and releases it.
+ */
+static void expect_add_option_fails(clopts_program_t *program, clopts_option_t *option, clopts_error_t error)
+{
+    program_shape_t shape = program_shape(program);
+    alloc_mark_t mark = alloc_mark();
+
+    NAOS_CHECK_INT_EQ(clopts_program_add_option(program, option), error);
+    check_nothing_allocated(mark);
+    check_shape(program, &shape);
+}
+
+/* As expect_add_option_fails(), with clopts_program_add_positional(). */
+static void expect_add_positional_fails(clopts_program_t *program, clopts_positional_t *positional,
+                                        clopts_error_t error)
+{
+    program_shape_t shape = program_shape(program);
+    alloc_mark_t mark = alloc_mark();
+
+    NAOS_CHECK_INT_EQ(clopts_program_add_positional(program, positional), error);
+    check_nothing_allocated(mark);
+    check_shape(program, &shape);
+}
+
+/* As expect_add_option_fails(), with clopts_program_add_command(). */
+static void expect_add_command_fails(clopts_program_t *program, clopts_command_t *command, clopts_error_t error)
+{
+    program_shape_t shape = program_shape(program);
+    alloc_mark_t mark = alloc_mark();
+
+    NAOS_CHECK_INT_EQ(clopts_program_add_command(program, command), error);
+    check_nothing_allocated(mark);
+    check_shape(program, &shape);
 }
 
 /* Parses argv = { name } with program, checks the status, and releases the result. */
@@ -313,7 +428,6 @@ NAOS_TEST(unattached_objects_are_released_by_their_free)
 NAOS_TEST(attach_links_objects_in_order)
 {
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_command_t *build;
     clopts_command_t *copy;
     clopts_option_t *flag;
@@ -324,13 +438,14 @@ NAOS_TEST(attach_links_objects_in_order)
     clopts_positional_t *src;
     clopts_positional_t *dst;
 
-    root = make_command("tool");
-    flag = test_decl_add(root, CLOPTS_OPTION_FLAG, "force", 'f');
-    count = test_decl_add(root, CLOPTS_OPTION_COUNT, "verbose", 'v');
-    value = test_decl_add(root, CLOPTS_OPTION_VALUE, NULL, 'o');
-    list = test_decl_add(root, CLOPTS_OPTION_LIST, "include", '\0');
-    build = test_decl_command(root, "build");
-    copy = test_decl_command(root, "copy");
+    program = test_decl_begin("tool");
+    NAOS_REQUIRE_NOT_NULL(program);
+    flag = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "force", 'f');
+    count = test_decl_global_add(program, CLOPTS_OPTION_COUNT, "verbose", 'v');
+    value = test_decl_global_add(program, CLOPTS_OPTION_VALUE, NULL, 'o');
+    list = test_decl_global_add(program, CLOPTS_OPTION_LIST, "include", '\0');
+    build = test_decl_command(program, "build");
+    copy = test_decl_command(program, "copy");
     local = test_decl_add(build, CLOPTS_OPTION_FLAG, "release", 'r');
     src = test_decl_add_positional(copy, "src");
     dst = test_decl_add_positional(copy, "dst");
@@ -345,16 +460,15 @@ NAOS_TEST(attach_links_objects_in_order)
     NAOS_REQUIRE_NOT_NULL(src);
     NAOS_REQUIRE_NOT_NULL(dst);
 
-    program = test_decl_finish(root);
-    NAOS_REQUIRE_NOT_NULL(program);
-    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
+    NAOS_REQUIRE_PTR_EQ(test_decl_finish(program), program);
 
-    /* root options in order of attachment */
-    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(root), 4);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(root, 0), flag);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(root, 1), count);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(root, 2), value);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(root, 3), list);
+    /* global options in order of attachment */
+    NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(program), 4);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 0), flag);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 1), count);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 2), value);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 3), list);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 0);
 
     NAOS_CHECK_INT_EQ(clopts_option_kind_of(flag), CLOPTS_OPTION_FLAG);
     NAOS_CHECK_INT_EQ(clopts_option_kind_of(count), CLOPTS_OPTION_COUNT);
@@ -367,7 +481,7 @@ NAOS_TEST(attach_links_objects_in_order)
     NAOS_CHECK_INT_EQ(clopts_option_short_name(value), 'o');
     NAOS_CHECK_INT_EQ(clopts_option_short_name(list), '\0');
 
-    /* commands in the order given to clopts_program_create() */
+    /* commands in the order they were added */
     NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 2);
     NAOS_CHECK_PTR_EQ(command_at(program, 0), build);
     NAOS_CHECK_PTR_EQ(command_at(program, 1), copy);
@@ -392,201 +506,531 @@ NAOS_TEST(attach_links_objects_in_order)
     clopts_program_destroy(program);
 }
 
-/* A root without subcommands takes positionals, and its description is the program description. */
-NAOS_TEST(root_takes_positionals)
+/* A program without subcommands takes positionals, in order of attachment, and has its own description. */
+NAOS_TEST(program_takes_positionals)
 {
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_positional_t *file;
+    clopts_positional_t *rest;
 
-    root = make_command("filt");
-    file = test_decl_add_positional(root, "file");
-    EXPECT_OK(clopts_command_set_description(root, "Filters lines."));
-    NAOS_REQUIRE_NOT_NULL(file);
+    program = make_program("filt");
+    file = make_positional("file");
+    rest = make_positional("rest");
+    EXPECT_OK(clopts_program_add_positional(program, file));
+    EXPECT_OK(clopts_program_add_positional(program, rest));
+    EXPECT_OK(clopts_program_set_description(program, "Filters lines."));
 
-    program = make_program(root, NULL, 0);
-    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
     NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 0);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(root), 1);
-    NAOS_CHECK_PTR_EQ(clopts_command_positional_at(root, 0), file);
-    NAOS_REQUIRE_NOT_NULL(clopts_command_description(root));
-    NAOS_CHECK_STR_EQ(clopts_command_description(root), "Filters lines.");
-    NAOS_CHECK_STR_EQ(clopts_command_name(clopts_program_root(program)), "filt");
+    NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(program), 2);
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(program, 0), file);
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(program, 1), rest);
+    NAOS_REQUIRE_NOT_NULL(clopts_program_description(program));
+    NAOS_CHECK_STR_EQ(clopts_program_description(program), "Filters lines.");
+    NAOS_CHECK_STR_EQ(clopts_program_name(program), "filt");
 
     clopts_program_destroy(program);
 }
 
-/* ---- clopts_program_create() ---------------------------------------------------- */
+/* ---- clopts_program_create() ------------------------------------------------- */
+
+/* clopts_program_create() copies the name and starts with no description, options, positionals or subcommands. */
+NAOS_TEST(program_create_copies_name_and_starts_empty)
+{
+    char name[] = "tool";
+    clopts_program_t *program = SENTINEL_PROGRAM;
+
+    test_alloc_begin(0);
+    EXPECT_OK(clopts_program_create(name, &program));
+    NAOS_REQUIRE_NOT_NULL(program);
+    NAOS_REQUIRE_TRUE(program != SENTINEL_PROGRAM);
+    name[0] = 'X';
+
+    NAOS_REQUIRE_NOT_NULL(clopts_program_name(program));
+    NAOS_CHECK_TRUE(clopts_program_name(program) != name);
+    NAOS_CHECK_STR_EQ(clopts_program_name(program), "tool");
+    NAOS_CHECK_NULL(clopts_program_description(program));
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 0);
+    NAOS_CHECK_NULL(clopts_program_find_command(program, "tool"));
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
 
 /*
- * The program takes the root and the commands as they are: same handles, in
- * the order given (the array itself is copied, so the caller's array may
- * change afterwards), and they become attached. commands may be NULL or not
- * when command_count is 0.
+ * A malformed name gives INVALID_NAME, sets the out pointer to NULL and
+ * allocates nothing. The rules are those of a command name, and there are no
+ * reserved names.
  */
-NAOS_TEST(program_new_takes_root_and_commands)
+NAOS_TEST(program_create_checks_name)
 {
-    clopts_command_t *root;
-    clopts_command_t *commands[3];
-    clopts_command_t *unused[1];
+    static const char *const bad[] = { "", "-x", "--x", "a b", "a\tb", "ab\n" };
+    static const char *const good[] = { "help", "h", "version", "x", "a-b", "a=b", "B", "tool.exe" };
+    clopts_program_t *program;
+    size_t i;
+
+    test_alloc_begin(0);
+    program = SENTINEL_PROGRAM;
+    NAOS_CHECK_INT_EQ(clopts_program_create(NULL, &program), CLOPTS_ERROR_INVALID_NAME);
+    NAOS_CHECK_NULL(program);
+    for (i = 0; i < sizeof(bad) / sizeof(bad[0]); i++)
+    {
+        NAOS_NOTE("name=\"%s\"", bad[i]);
+        program = SENTINEL_PROGRAM;
+        NAOS_CHECK_INT_EQ(clopts_program_create(bad[i], &program), CLOPTS_ERROR_INVALID_NAME);
+        NAOS_CHECK_NULL(program);
+    }
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 0);
+
+    for (i = 0; i < sizeof(good) / sizeof(good[0]); i++)
+    {
+        NAOS_NOTE("name=\"%s\"", good[i]);
+        program = SENTINEL_PROGRAM;
+        EXPECT_OK(clopts_program_create(good[i], &program));
+        NAOS_REQUIRE_NOT_NULL(program);
+        NAOS_REQUIRE_TRUE(program != SENTINEL_PROGRAM);
+        NAOS_CHECK_STR_EQ(clopts_program_name(program), good[i]);
+        clopts_program_destroy(program);
+    }
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/* clopts_program_set_description(): the last call wins, NULL resets, and the text is copied. */
+NAOS_TEST(program_set_description)
+{
+    char text[16];
     clopts_program_t *program;
 
     test_alloc_begin(0);
-    root = make_command("tool");
+    program = make_program("tool");
+    strcpy(text, "first");
+    EXPECT_OK(clopts_program_set_description(program, text));
+    strcpy(text, "XXXXX");
+    NAOS_REQUIRE_NOT_NULL(clopts_program_description(program));
+    NAOS_CHECK_TRUE(clopts_program_description(program) != text);
+    NAOS_CHECK_STR_EQ(clopts_program_description(program), "first");
+
+    EXPECT_OK(clopts_program_set_description(program, "second"));
+    NAOS_CHECK_STR_EQ(clopts_program_description(program), "second");
+    EXPECT_OK(clopts_program_set_description(program, ""));
+    NAOS_REQUIRE_NOT_NULL(clopts_program_description(program));
+    NAOS_CHECK_STR_EQ(clopts_program_description(program), "");
+    EXPECT_OK(clopts_program_set_description(program, NULL));
+    NAOS_CHECK_NULL(clopts_program_description(program));
+    EXPECT_OK(clopts_program_set_description(program, NULL));
+    NAOS_CHECK_NULL(clopts_program_description(program));
+
+    /* the name and the rest of the program do not change */
+    NAOS_CHECK_STR_EQ(clopts_program_name(program), "tool");
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 0);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/* ---- clopts_program_add_option() --------------------------------------------- */
+
+/* Global options keep the order of attachment and the program owns them (released with it). */
+NAOS_TEST(program_add_option_keeps_the_order)
+{
+    clopts_program_t *program;
+    clopts_option_t *options[3];
+
+    test_alloc_begin(0);
+    program = make_program("tool");
+    options[0] = make(CLOPTS_OPTION_FLAG, "force", 'f');
+    options[1] = make(CLOPTS_OPTION_COUNT, NULL, 'v');
+    options[2] = make(CLOPTS_OPTION_VALUE, "output", '\0');
+    EXPECT_OK(clopts_program_add_option(program, options[0]));
+    EXPECT_OK(clopts_program_add_option(program, options[1]));
+    EXPECT_OK(clopts_program_add_option(program, options[2]));
+
+    NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(program), 3);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 0), options[0]);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 1), options[1]);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 2), options[2]);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 0);
+
+    /* global options go with subcommands and with positionals alike */
+    add_command(program, make_command("build"));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "late", '\0'));
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 4);
+    clopts_program_destroy(program);
+
+    program = make_program("filt");
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "file"));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "late", '\0'));
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 1);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/*
+ * DUPLICATE_OPTION: a global option with the same long or short name
+ * (exact, case-sensitive). The failing call changes nothing and the caller
+ * still owns the option.
+ */
+NAOS_TEST(program_add_option_duplicate_changes_nothing)
+{
+    clopts_program_t *program;
+    clopts_option_t *option;
+
+    test_alloc_begin(0);
+    program = make_program("tool");
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "force", 'f'));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_VALUE, "output", '\0'));
+
+    option = make(CLOPTS_OPTION_COUNT, "force", 'x');
+    expect_add_option_fails(program, option, CLOPTS_ERROR_DUPLICATE_OPTION);
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(option), "force");
+    clopts_option_destroy(option);
+
+    option = make(CLOPTS_OPTION_COUNT, "other", 'f');
+    expect_add_option_fails(program, option, CLOPTS_ERROR_DUPLICATE_OPTION);
+    clopts_option_destroy(option);
+
+    option = make(CLOPTS_OPTION_FLAG, "output", 'o');
+    expect_add_option_fails(program, option, CLOPTS_ERROR_DUPLICATE_OPTION);
+    /* the caller still owns it: it can be attached elsewhere */
+    {
+        clopts_command_t *build = make_command("build");
+
+        EXPECT_OK(clopts_command_add_option(build, option));
+        add_command(program, build);
+    }
+
+    /* names differing in case are different names */
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "Force", 'F'));
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 3);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/*
+ * NEGATION_CONFLICT: --no-x next to a negatable --x, in either order of
+ * attachment. A --no-x next to a --x that is not negatable is fine. The
+ * failing call changes nothing and the caller still owns the option.
+ */
+NAOS_TEST(program_add_option_negation_conflict_changes_nothing)
+{
+    clopts_program_t *program;
+    clopts_option_t *option;
+
+    test_alloc_begin(0);
+    program = make_program("tool");
+    option = make(CLOPTS_OPTION_FLAG, "color", '\0');
+    EXPECT_OK(clopts_option_set_negatable(option, true));
+    EXPECT_OK(clopts_program_add_option(program, option));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "no-cache", '\0'));
+
+    /* --no-color after a negatable --color */
+    option = make(CLOPTS_OPTION_FLAG, "no-color", '\0');
+    expect_add_option_fails(program, option, CLOPTS_ERROR_NEGATION_CONFLICT);
+    clopts_option_destroy(option);
+
+    /* a negatable --cache after --no-cache */
+    option = make(CLOPTS_OPTION_FLAG, "cache", '\0');
+    EXPECT_OK(clopts_option_set_negatable(option, true));
+    expect_add_option_fails(program, option, CLOPTS_ERROR_NEGATION_CONFLICT);
+    NAOS_CHECK_TRUE(clopts_option_negatable(option));
+    clopts_option_destroy(option);
+
+    /* --cache that is not negatable, and --no-x next to a --x that is not negatable */
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "cache", '\0'));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "no-cache-x", '\0'));
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 4);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/* The errors of clopts_program_add_option() come in a fixed order: DUPLICATE_OPTION, NEGATION_CONFLICT. */
+NAOS_TEST(program_add_option_reports_the_first_error)
+{
+    clopts_program_t *program;
+    clopts_option_t *option;
+
+    test_alloc_begin(0);
+    program = make_program("tool");
+    option = make(CLOPTS_OPTION_FLAG, "color", 'c');
+    EXPECT_OK(clopts_option_set_negatable(option, true));
+    EXPECT_OK(clopts_program_add_option(program, option));
+
+    /* --no-color breaks both rules; its short name is taken */
+    option = make(CLOPTS_OPTION_FLAG, "no-color", 'c');
+    expect_add_option_fails(program, option, CLOPTS_ERROR_DUPLICATE_OPTION);
+    clopts_option_destroy(option);
+
+    /* NEGATION_CONFLICT last */
+    option = make(CLOPTS_OPTION_FLAG, "no-color", 'n');
+    expect_add_option_fails(program, option, CLOPTS_ERROR_NEGATION_CONFLICT);
+    clopts_option_destroy(option);
+
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/* ---- clopts_program_add_positional() ----------------------------------------- */
+
+/*
+ * MIXED_LAYOUT: a program with subcommands takes no positionals. The failing
+ * call changes nothing and the caller still owns the positional.
+ */
+NAOS_TEST(program_add_positional_mixed_layout_changes_nothing)
+{
+    clopts_program_t *program;
+    clopts_positional_t *positional;
+
+    test_alloc_begin(0);
+    program = make_program("tool");
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "force", 'f'));
+    add_command(program, make_command("build"));
+
+    positional = make_positional("file");
+    expect_add_positional_fails(program, positional, CLOPTS_ERROR_MIXED_LAYOUT);
+    NAOS_CHECK_STR_EQ(clopts_positional_name(positional), "file");
+
+    /* the caller still owns it: a program without subcommands takes it */
+    clopts_program_destroy(program);
+    program = make_program("filt");
+    EXPECT_OK(clopts_program_add_positional(program, positional));
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(program, 0), positional);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/*
+ * VARIADIC_POSITION: nothing after a variadic positional. POSITIONAL_ORDER:
+ * no required positional after an optional one. Each failing call changes
+ * nothing and the caller still owns the positional.
+ */
+NAOS_TEST(program_add_positional_order_changes_nothing)
+{
+    clopts_program_t *program;
+    clopts_positional_t *positional;
+
+    test_alloc_begin(0);
+    program = make_program("filt");
+    positional = make_positional("SRC");
+    clopts_positional_set_required(positional, true);
+    EXPECT_OK(clopts_program_add_positional(program, positional));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "DST"));
+
+    /* required after optional */
+    positional = make_positional("MORE");
+    clopts_positional_set_required(positional, true);
+    expect_add_positional_fails(program, positional, CLOPTS_ERROR_POSITIONAL_ORDER);
+    clopts_positional_destroy(positional);
+
+    /* optional after optional, then anything after the variadic one */
+    positional = make_positional("REST");
+    clopts_positional_set_variadic(positional, true);
+    EXPECT_OK(clopts_program_add_positional(program, positional));
+    positional = make_positional("LAST");
+    expect_add_positional_fails(program, positional, CLOPTS_ERROR_VARIADIC_POSITION);
+    clopts_positional_set_variadic(positional, true);
+    expect_add_positional_fails(program, positional, CLOPTS_ERROR_VARIADIC_POSITION);
+    clopts_positional_destroy(positional);
+
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 3);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/*
+ * The errors of clopts_program_add_positional() come in a fixed order:
+ * MIXED_LAYOUT, VARIADIC_POSITION, POSITIONAL_ORDER. A program never has
+ * positionals and subcommands at the same time, so MIXED_LAYOUT can only meet
+ * a positional that would be fine otherwise; it is returned for every kind of
+ * positional. A required positional after a variadic one breaks both later
+ * rules.
+ */
+NAOS_TEST(program_add_positional_reports_the_first_error)
+{
+    clopts_program_t *program;
+    clopts_positional_t *positional;
+
+    test_alloc_begin(0);
+    program = make_program("tool");
+    add_command(program, make_command("build"));
+    positional = make_positional("file");
+    expect_add_positional_fails(program, positional, CLOPTS_ERROR_MIXED_LAYOUT);
+    clopts_positional_set_required(positional, true);
+    expect_add_positional_fails(program, positional, CLOPTS_ERROR_MIXED_LAYOUT);
+    clopts_positional_set_variadic(positional, true);
+    expect_add_positional_fails(program, positional, CLOPTS_ERROR_MIXED_LAYOUT);
+    clopts_positional_destroy(positional);
+    clopts_program_destroy(program);
+
+    /* VARIADIC_POSITION before POSITIONAL_ORDER */
+    program = make_program("filt");
+    positional = make_positional("REST");
+    clopts_positional_set_variadic(positional, true);
+    EXPECT_OK(clopts_program_add_positional(program, positional));
+    positional = make_positional("LAST");
+    clopts_positional_set_required(positional, true);
+    expect_add_positional_fails(program, positional, CLOPTS_ERROR_VARIADIC_POSITION);
+    clopts_positional_destroy(positional);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/* ---- clopts_program_add_command() -------------------------------------------- */
+
+/*
+ * The program takes the subcommands as they are: same handles, in the order
+ * they were added, and releases them with itself.
+ */
+NAOS_TEST(program_add_command_keeps_the_order)
+{
+    clopts_command_t *commands[3];
+    clopts_program_t *program;
+
+    test_alloc_begin(0);
+    program = make_program("tool");
     commands[0] = make_command("copy");
     commands[1] = make_command("build");
     commands[2] = make_command("cat");
-    program = make_program(root, commands, 3);
-    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
+    add_command(program, commands[0]);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 1);
+    NAOS_CHECK_PTR_EQ(command_at(program, 0), commands[0]);
+    add_command(program, commands[1]);
+    add_command(program, commands[2]);
     NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 3);
     NAOS_CHECK_PTR_EQ(command_at(program, 0), commands[0]);
     NAOS_CHECK_PTR_EQ(command_at(program, 1), commands[1]);
     NAOS_CHECK_PTR_EQ(command_at(program, 2), commands[2]);
-
-    /* the caller's array is not kept */
-    commands[0] = NULL;
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 0);
     NAOS_CHECK_STR_EQ(clopts_command_name(command_at(program, 0)), "copy");
     clopts_program_destroy(program);
-    NAOS_CHECK_INT_EQ(test_alloc.live, 0);
-
-    /* no commands: NULL or an array that is not read */
-    root = make_command("tool");
-    program = make_program(root, NULL, 0);
-    NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 0);
-    clopts_program_destroy(program);
-
-    root = make_command("tool");
-    unused[0] = NULL;
-    program = make_program(root, unused, 0);
-    NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 0);
-    clopts_program_destroy(program);
-    NAOS_CHECK_TRUE(test_alloc_end());
-}
-
-/* DUPLICATE_COMMAND: two subcommands share a name (exact, case-sensitive). Nothing changes. */
-NAOS_TEST(program_new_duplicate_command_changes_nothing)
-{
-    clopts_command_t *root;
-    clopts_command_t *build;
-    clopts_command_t *copy;
-    clopts_command_t *again;
-    clopts_command_t *upper;
-    clopts_command_t *commands[4];
-
-    test_alloc_begin(0);
-    root = make_command("tool");
-    build = make_command("build");
-    copy = make_command("copy");
-    again = make_command("build");
-    upper = make_command("Build");
-
-    commands[0] = build;
-    commands[1] = copy;
-    commands[2] = again;
-    expect_program_new_fails(root, commands, 3, CLOPTS_ERROR_DUPLICATE_COMMAND);
-    commands[0] = again;
-    commands[1] = build;
-    expect_program_new_fails(root, commands, 2, CLOPTS_ERROR_DUPLICATE_COMMAND);
-    clopts_command_destroy(again);
-
-    /* a subcommand named like the root and names differing in case are fine */
-    clopts_command_destroy(copy);
-    copy = make_command("tool");
-    commands[0] = build;
-    commands[1] = upper;
-    commands[2] = copy;
-    clopts_program_destroy(make_program(root, commands, 3));
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /*
- * MIXED_LAYOUT: a root with positionals cannot have subcommands. Root
- * options with subcommands, and root positionals without, are fine.
+ * DUPLICATE_COMMAND: a subcommand of the same name (exact, case-sensitive).
+ * The failing call changes nothing and the caller still owns the command.
  */
-NAOS_TEST(program_new_mixed_layout_changes_nothing)
+NAOS_TEST(program_add_command_duplicate_changes_nothing)
 {
-    clopts_command_t *root;
-    clopts_command_t *build;
     clopts_program_t *program;
-
-    test_alloc_begin(0);
-    root = make_command("tool");
-    build = make_command("build");
-    NAOS_REQUIRE_NOT_NULL(test_decl_add_positional(root, "file"));
-    NAOS_REQUIRE_NOT_NULL(test_decl_add(root, CLOPTS_OPTION_FLAG, "force", 'f'));
-
-    expect_program_new_fails(root, &build, 1, CLOPTS_ERROR_MIXED_LAYOUT);
-    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(root), 1);
-
-    /* the same root without subcommands */
-    program = make_program(root, &build, 0);
-    clopts_program_destroy(program);
-
-    /* root options with a subcommand */
-    root = make_command("tool");
-    NAOS_REQUIRE_NOT_NULL(test_decl_add(root, CLOPTS_OPTION_FLAG, "force", 'f'));
-    clopts_program_destroy(make_program(root, &build, 1));
-    NAOS_CHECK_TRUE(test_alloc_end());
-}
-
-/*
- * The errors of clopts_program_create() come in a fixed order:
- * DUPLICATE_COMMAND, MIXED_LAYOUT. Each case below breaks a later rule earlier in the arguments.
- */
-NAOS_TEST(program_new_reports_the_first_error)
-{
-    clopts_command_t *root;
     clopts_command_t *build;
     clopts_command_t *again;
-    clopts_command_t *commands[4];
 
     test_alloc_begin(0);
-    root = make_command("tool");
+    program = make_program("tool");
     build = make_command("build");
+    add_command(program, build);
+    add_command(program, make_command("copy"));
+
     again = make_command("build");
-    NAOS_REQUIRE_NOT_NULL(test_decl_add_positional(root, "file"));
-
-    /* DUPLICATE_COMMAND before MIXED_LAYOUT */
-    commands[0] = build;
-    commands[1] = again;
-    expect_program_new_fails(root, commands, 2, CLOPTS_ERROR_DUPLICATE_COMMAND);
-
-    /* MIXED_LAYOUT last */
-    expect_program_new_fails(root, commands, 1, CLOPTS_ERROR_MIXED_LAYOUT);
-
+    NAOS_REQUIRE_NOT_NULL(test_decl_add(again, CLOPTS_OPTION_FLAG, "force", 'f'));
+    expect_add_command_fails(program, again, CLOPTS_ERROR_DUPLICATE_COMMAND);
+    NAOS_CHECK_PTR_EQ(clopts_program_find_command(program, "build"), build);
+    /* the caller still owns it, with what is attached to it */
+    NAOS_CHECK_STR_EQ(clopts_command_name(again), "build");
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(again), 1);
     clopts_command_destroy(again);
-    clopts_command_destroy(build);
-    clopts_command_destroy(root);
+
+    /* a subcommand named like the program and names differing in case are fine */
+    add_command(program, make_command("Build"));
+    add_command(program, make_command("tool"));
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 4);
+    clopts_program_destroy(program);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /*
- * Option names are checked within one command only: the root and a
+ * MIXED_LAYOUT: a program with positionals takes no subcommands. Global
+ * options with subcommands, and positionals without, are fine. The failing
+ * call changes nothing and the caller still owns the command.
+ */
+NAOS_TEST(program_add_command_mixed_layout_changes_nothing)
+{
+    clopts_program_t *program;
+    clopts_command_t *build;
+
+    test_alloc_begin(0);
+    program = make_program("tool");
+    build = make_command("build");
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "file"));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "force", 'f'));
+
+    expect_add_command_fails(program, build, CLOPTS_ERROR_MIXED_LAYOUT);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 1);
+    NAOS_CHECK_NULL(clopts_program_find_command(program, "build"));
+    clopts_program_destroy(program);
+
+    /* the caller still owns it: global options with a subcommand */
+    program = make_program("tool");
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "force", 'f'));
+    add_command(program, build);
+    NAOS_CHECK_PTR_EQ(command_at(program, 0), build);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/*
+ * The errors of clopts_program_add_command() come in a fixed order:
+ * DUPLICATE_COMMAND, MIXED_LAYOUT. A program never has positionals and
+ * subcommands at the same time, so both cannot apply to one call; the order
+ * is seen as each error being given on its own, and MIXED_LAYOUT for every
+ * name, also the name of the program.
+ */
+NAOS_TEST(program_add_command_reports_the_first_error)
+{
+    static const char *const names[] = { "build", "filt", "help" };
+    clopts_program_t *program;
+    clopts_command_t *command;
+    size_t i;
+
+    test_alloc_begin(0);
+    program = make_program("filt");
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "file"));
+    for (i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+    {
+        NAOS_NOTE("name=\"%s\"", names[i]);
+        command = make_command(names[i]);
+        expect_add_command_fails(program, command, CLOPTS_ERROR_MIXED_LAYOUT);
+        clopts_command_destroy(command);
+    }
+    clopts_program_destroy(program);
+
+    program = make_program("tool");
+    add_command(program, make_command("build"));
+    command = make_command("build");
+    expect_add_command_fails(program, command, CLOPTS_ERROR_DUPLICATE_COMMAND);
+    clopts_command_destroy(command);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/*
+ * Option names are checked within one scope only: the global options and a
  * subcommand, or two subcommands, may declare the same names. There are no
  * reserved names either.
  */
-NAOS_TEST(program_new_does_not_check_names_between_commands)
+NAOS_TEST(program_does_not_check_names_between_scopes)
 {
-    clopts_command_t *root;
     clopts_command_t *commands[2];
     clopts_program_t *program;
     clopts_option_t *color;
 
-    root = make_command("tool");
+    program = make_program("tool");
     commands[0] = make_command("build");
     commands[1] = make_command("help");
     color = make(CLOPTS_OPTION_FLAG, "color", 'c');
     EXPECT_OK(clopts_option_set_negatable(color, true));
-    NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, color));
-    NAOS_REQUIRE_NOT_NULL(test_decl_add(root, CLOPTS_OPTION_FLAG, "help", 'h'));
-    NAOS_REQUIRE_NOT_NULL(test_decl_add(root, CLOPTS_OPTION_FLAG, "version", 'V'));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, color));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "help", 'h'));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_add(program, CLOPTS_OPTION_FLAG, "version", 'V'));
     NAOS_REQUIRE_NOT_NULL(test_decl_add(commands[0], CLOPTS_OPTION_VALUE, "color", 'c'));
     NAOS_REQUIRE_NOT_NULL(test_decl_add(commands[0], CLOPTS_OPTION_FLAG, "no-color", '\0'));
     NAOS_REQUIRE_NOT_NULL(test_decl_add(commands[0], CLOPTS_OPTION_COUNT, "help", 'h'));
     NAOS_REQUIRE_NOT_NULL(test_decl_add(commands[1], CLOPTS_OPTION_COUNT, "help", 'h'));
 
-    program = make_program(root, commands, 2);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 3);
+    add_command(program, commands[0]);
+    add_command(program, commands[1]);
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 3);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(commands[0]), 3);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(commands[1]), 1);
     clopts_program_destroy(program);
@@ -595,23 +1039,38 @@ NAOS_TEST(program_new_does_not_check_names_between_commands)
 /* ---- read functions ---------------------------------------------------------- */
 
 /*
- * The read functions of a program: the root, the subcommands in the order
- * given, and the lookup by exact, case-sensitive name (the root is not a
- * subcommand). A NULL program or name reads as empty.
+ * The read functions of a program: name, description, the global options and
+ * positionals in order of attachment, the subcommands in the order they were
+ * added, and the lookup by exact, case-sensitive name (the program itself is
+ * not a subcommand).
  */
 NAOS_TEST(program_read_functions)
 {
-    clopts_command_t *root;
     clopts_command_t *commands[3];
+    clopts_option_t *force;
+    clopts_option_t *verbose;
+    clopts_positional_t *file;
     clopts_program_t *program;
 
-    root = make_command("tool");
+    program = make_program("tool");
+    EXPECT_OK(clopts_program_set_description(program, "A tool."));
+    force = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "force", 'f');
+    verbose = test_decl_global_add(program, CLOPTS_OPTION_COUNT, "verbose", 'v');
+    NAOS_REQUIRE_NOT_NULL(force);
+    NAOS_REQUIRE_NOT_NULL(verbose);
     commands[0] = make_command("copy");
     commands[1] = make_command("build");
     commands[2] = make_command("Build");
-    program = make_program(root, commands, 3);
+    add_command(program, commands[0]);
+    add_command(program, commands[1]);
+    add_command(program, commands[2]);
 
-    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
+    NAOS_CHECK_STR_EQ(clopts_program_name(program), "tool");
+    check_str_or_null(clopts_program_description(program), "A tool.");
+    NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(program), 2);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 0), force);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 1), verbose);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 3);
     NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 0), commands[0]);
     NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 1), commands[1]);
@@ -628,21 +1087,26 @@ NAOS_TEST(program_read_functions)
     clopts_program_destroy(program);
 
     /* a program without subcommands */
-    program = make_program(make_command("filt"), NULL, 0);
-    NAOS_CHECK_STR_EQ(clopts_command_name(clopts_program_root(program)), "filt");
+    program = make_program("filt");
+    file = make_positional("file");
+    EXPECT_OK(clopts_program_add_positional(program, file));
+    NAOS_CHECK_STR_EQ(clopts_program_name(program), "filt");
+    NAOS_CHECK_NULL(clopts_program_description(program));
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(program, 0), file);
     NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 0);
     NAOS_CHECK_NULL(clopts_program_find_command(program, "filt"));
+    NAOS_CHECK_NULL(clopts_program_find_command(program, "file"));
     clopts_program_destroy(program);
 }
 
 /*
  * The read functions of a command, unattached and attached alike: name,
- * texts, and the options and positionals in order of attachment. A NULL
- * command reads as empty.
+ * texts, and the options and positionals in order of attachment.
  */
 NAOS_TEST(command_read_functions)
 {
-    clopts_command_t *root;
     clopts_command_t *build;
     clopts_option_t *output;
     clopts_option_t *force;
@@ -651,7 +1115,7 @@ NAOS_TEST(command_read_functions)
     clopts_program_t *program;
     int pass;
 
-    root = make_command("tool");
+    program = make_program("tool");
     build = make_command("build");
     NAOS_CHECK_STR_EQ(clopts_command_name(build), "build");
     NAOS_CHECK_NULL(clopts_command_summary(build));
@@ -661,7 +1125,7 @@ NAOS_TEST(command_read_functions)
 
     EXPECT_OK(clopts_command_set_summary(build, "Builds."));
     EXPECT_OK(clopts_command_set_description(build, "Builds the tree."));
-    EXPECT_OK(clopts_command_set_description(root, "A tool."));
+    EXPECT_OK(clopts_program_set_description(program, "A tool."));
     output = test_decl_add(build, CLOPTS_OPTION_VALUE, "output", 'o');
     force = test_decl_add(build, CLOPTS_OPTION_FLAG, "force", 'f');
     src = test_decl_add_positional(build, "src");
@@ -671,7 +1135,6 @@ NAOS_TEST(command_read_functions)
     NAOS_REQUIRE_NOT_NULL(src);
     NAOS_REQUIRE_NOT_NULL(dst);
 
-    program = NULL;
     for (pass = 0; pass < 2; pass++)
     {
         NAOS_NOTE("pass %d (%s)", pass, (pass == 0) ? "unattached" : "attached");
@@ -684,13 +1147,12 @@ NAOS_TEST(command_read_functions)
         NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(build), 2);
         NAOS_CHECK_PTR_EQ(clopts_command_positional_at(build, 0), src);
         NAOS_CHECK_PTR_EQ(clopts_command_positional_at(build, 1), dst);
-        NAOS_CHECK_STR_EQ(clopts_command_name(root), "tool");
-        check_str_or_null(clopts_command_description(root), "A tool.");
-        NAOS_CHECK_NULL(clopts_command_summary(root));
-        NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 0);
+        NAOS_CHECK_STR_EQ(clopts_program_name(program), "tool");
+        check_str_or_null(clopts_program_description(program), "A tool.");
+        NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 0);
         if (pass == 0)
         {
-            program = make_program(root, &build, 1);
+            add_command(program, build);
         }
     }
     NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 0), build);
@@ -703,7 +1165,6 @@ NAOS_TEST(command_read_functions)
  */
 NAOS_TEST(option_read_functions)
 {
-    clopts_command_t *root;
     clopts_option_t *value;
     clopts_option_t *list;
     clopts_option_t *count;
@@ -712,7 +1173,7 @@ NAOS_TEST(option_read_functions)
     clopts_program_t *program;
     int pass;
 
-    root = make_command("tool");
+    program = make_program("tool");
     value = make(CLOPTS_OPTION_VALUE, "output", 'o');
     EXPECT_OK(clopts_option_set_help(value, "Output file."));
     EXPECT_OK(clopts_option_set_value_name(value, "FILE"));
@@ -728,7 +1189,6 @@ NAOS_TEST(option_read_functions)
     EXPECT_OK(clopts_option_set_terminal(flag, true));
     bare = make(CLOPTS_OPTION_VALUE, "bare", '\0');
 
-    program = NULL;
     for (pass = 0; pass < 2; pass++)
     {
         NAOS_NOTE("pass %d (%s)", pass, (pass == 0) ? "unattached" : "attached");
@@ -768,35 +1228,32 @@ NAOS_TEST(option_read_functions)
         NAOS_CHECK_NULL(clopts_option_default(bare));
         if (pass == 0)
         {
-            NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, value));
-            NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, list));
-            NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, count));
-            NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, flag));
-            NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, bare));
-            program = make_program(root, NULL, 0);
+            NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, value));
+            NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, list));
+            NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, count));
+            NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, flag));
+            NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, bare));
         }
     }
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(clopts_program_root(program), 3), flag);
+    NAOS_CHECK_PTR_EQ(global_at(program, 3), flag);
     clopts_program_destroy(program);
 }
 
-/* The read functions of a positional, before and after the attach; a NULL positional reads as empty. */
+/* The read functions of a positional, before and after the attach. */
 NAOS_TEST(positional_read_functions)
 {
-    clopts_command_t *root;
     clopts_positional_t *src;
     clopts_positional_t *rest;
     clopts_program_t *program;
     int pass;
 
-    root = make_command("tool");
+    program = make_program("tool");
     src = make_positional("SRC");
     EXPECT_OK(clopts_positional_set_help(src, "Source."));
     clopts_positional_set_required(src, true);
     rest = make_positional("REST");
     clopts_positional_set_variadic(rest, true);
 
-    program = NULL;
     for (pass = 0; pass < 2; pass++)
     {
         NAOS_NOTE("pass %d (%s)", pass, (pass == 0) ? "unattached" : "attached");
@@ -810,11 +1267,12 @@ NAOS_TEST(positional_read_functions)
         NAOS_CHECK_TRUE(clopts_positional_variadic(rest));
         if (pass == 0)
         {
-            NAOS_REQUIRE_NOT_NULL(test_decl_attach_positional(root, src));
-            NAOS_REQUIRE_NOT_NULL(test_decl_attach_positional(root, rest));
-            program = make_program(root, NULL, 0);
+            NAOS_REQUIRE_NOT_NULL(test_decl_global_attach_positional(program, src));
+            NAOS_REQUIRE_NOT_NULL(test_decl_global_attach_positional(program, rest));
         }
     }
+    NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(program), 2);
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(program, 1), rest);
     clopts_program_destroy(program);
 }
 
@@ -827,13 +1285,12 @@ NAOS_TEST(positional_read_functions)
 NAOS_TEST(set_terminal_is_for_flags)
 {
     static const clopts_option_kind_t others[] = { CLOPTS_OPTION_COUNT, CLOPTS_OPTION_VALUE, CLOPTS_OPTION_LIST };
-    clopts_command_t *root;
     clopts_option_t *flag;
     clopts_option_t *option;
     clopts_program_t *program;
     size_t i;
 
-    root = make_command("tool");
+    program = make_program("tool");
     for (i = 0; i < sizeof(others) / sizeof(others[0]); i++)
     {
         NAOS_NOTE("kind=%d", (int)others[i]);
@@ -844,7 +1301,7 @@ NAOS_TEST(set_terminal_is_for_flags)
         NAOS_CHECK_FALSE(clopts_option_terminal(option));
         if (i == 0)
         {
-            NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, option));
+            NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, option));
         }
         else
         {
@@ -861,9 +1318,8 @@ NAOS_TEST(set_terminal_is_for_flags)
     NAOS_CHECK_FALSE(clopts_option_terminal(flag));
     EXPECT_OK(clopts_option_set_terminal(flag, true));
 
-    NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, flag));
-    program = make_program(root, NULL, 0);
-    NAOS_CHECK_TRUE(clopts_option_terminal(flag));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, flag));
+    NAOS_CHECK_TRUE(clopts_option_terminal(global_at(program, 1)));
     clopts_program_destroy(program);
 }
 
@@ -871,22 +1327,21 @@ NAOS_TEST(set_terminal_is_for_flags)
 
 NAOS_TEST(strings_are_copied)
 {
-    char root_name[] = "tool";
+    char program_name[] = "tool";
     char cmd_name[] = "build";
     char long_name[] = "output";
     char pos_name[] = "src";
     char text[32];
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_command_t *build;
     clopts_option_t *output;
     clopts_positional_t *src;
 
-    root = make_command(root_name);
+    program = make_program(program_name);
     build = make_command(cmd_name);
     output = make(CLOPTS_OPTION_VALUE, long_name, 'o');
     src = make_positional(pos_name);
-    memset(root_name, 'X', sizeof(root_name) - 1);
+    memset(program_name, 'X', sizeof(program_name) - 1);
     memset(cmd_name, 'X', sizeof(cmd_name) - 1);
     memset(long_name, 'X', sizeof(long_name) - 1);
     memset(pos_name, 'X', sizeof(pos_name) - 1);
@@ -898,7 +1353,7 @@ NAOS_TEST(strings_are_copied)
     EXPECT_OK(clopts_command_set_description(build, text));
     strcpy(text, "XXXXXXXXXXXXXXXX");
     strcpy(text, "Program text.");
-    EXPECT_OK(clopts_command_set_description(root, text));
+    EXPECT_OK(clopts_program_set_description(program, text));
     strcpy(text, "XXXXXXXXXXXXX");
     strcpy(text, "Output file.");
     EXPECT_OK(clopts_option_set_help(output, text));
@@ -918,9 +1373,9 @@ NAOS_TEST(strings_are_copied)
 
     NAOS_REQUIRE_NOT_NULL(test_decl_attach(build, output));
     NAOS_REQUIRE_NOT_NULL(test_decl_attach_positional(build, src));
-    program = make_program(root, &build, 1);
+    add_command(program, build);
 
-    NAOS_CHECK_STR_EQ(clopts_command_name(root), "tool");
+    NAOS_CHECK_STR_EQ(clopts_program_name(program), "tool");
     NAOS_CHECK_STR_EQ(clopts_command_name(build), "build");
     NAOS_CHECK_STR_EQ(clopts_option_long_name(output), "output");
     NAOS_CHECK_STR_EQ(clopts_positional_name(src), "src");
@@ -928,8 +1383,8 @@ NAOS_TEST(strings_are_copied)
     NAOS_CHECK_STR_EQ(clopts_command_summary(build), "Builds.");
     NAOS_REQUIRE_NOT_NULL(clopts_command_description(build));
     NAOS_CHECK_STR_EQ(clopts_command_description(build), "Builds the tree.");
-    NAOS_REQUIRE_NOT_NULL(clopts_command_description(root));
-    NAOS_CHECK_STR_EQ(clopts_command_description(root), "Program text.");
+    NAOS_REQUIRE_NOT_NULL(clopts_program_description(program));
+    NAOS_CHECK_STR_EQ(clopts_program_description(program), "Program text.");
     NAOS_REQUIRE_NOT_NULL(clopts_option_help(output));
     NAOS_CHECK_STR_EQ(clopts_option_help(output), "Output file.");
     NAOS_REQUIRE_NOT_NULL(clopts_option_value_name(output));
@@ -947,6 +1402,7 @@ NAOS_TEST(strings_are_copied)
 /* A string attribute set from its own current copy is copied before the old copy is released. */
 NAOS_TEST(string_set_from_its_own_copy)
 {
+    clopts_program_t *program;
     clopts_command_t *build;
     clopts_option_t *output;
 
@@ -964,6 +1420,12 @@ NAOS_TEST(string_set_from_its_own_copy)
     EXPECT_OK(clopts_option_set_help(output, clopts_option_help(output)));
     NAOS_CHECK_STR_EQ(clopts_option_help(output), "Output file.");
     clopts_option_destroy(output);
+
+    program = make_program("tool");
+    EXPECT_OK(clopts_program_set_description(program, "A tool."));
+    EXPECT_OK(clopts_program_set_description(program, clopts_program_description(program)));
+    NAOS_CHECK_STR_EQ(clopts_program_description(program), "A tool.");
+    clopts_program_destroy(program);
 }
 
 /* ---- setting again --------------------------------------------------------- */
@@ -971,7 +1433,6 @@ NAOS_TEST(string_set_from_its_own_copy)
 NAOS_TEST(setting_again_keeps_the_last_value)
 {
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_command_t *build;
     clopts_option_t *value;
     clopts_option_t *list;
@@ -979,7 +1440,7 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     clopts_option_t *flag;
     clopts_positional_t *src;
 
-    root = make_command("tool");
+    program = make_program("tool");
     build = make_command("build");
     value = make(CLOPTS_OPTION_VALUE, "output", 'o');
     list = make(CLOPTS_OPTION_LIST, "include", 'I');
@@ -987,6 +1448,8 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     flag = make(CLOPTS_OPTION_FLAG, "color", '\0');
     src = make_positional("src");
 
+    EXPECT_OK(clopts_program_set_description(program, "first"));
+    EXPECT_OK(clopts_program_set_description(program, "second"));
     EXPECT_OK(clopts_command_set_summary(build, "first"));
     EXPECT_OK(clopts_command_set_summary(build, "second"));
     EXPECT_OK(clopts_command_set_description(build, "first"));
@@ -1011,6 +1474,7 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     clopts_positional_set_required(src, true);
     clopts_positional_set_variadic(src, true);
 
+    NAOS_CHECK_STR_EQ(clopts_program_description(program), "second");
     NAOS_CHECK_STR_EQ(clopts_command_summary(build), "second");
     NAOS_CHECK_STR_EQ(clopts_command_description(build), "second");
     NAOS_CHECK_STR_EQ(clopts_option_help(value), "second");
@@ -1027,6 +1491,7 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     NAOS_CHECK_TRUE(clopts_positional_variadic(src));
 
     /* NULL, false, '\0' and 0 reset */
+    EXPECT_OK(clopts_program_set_description(program, NULL));
     EXPECT_OK(clopts_command_set_summary(build, NULL));
     EXPECT_OK(clopts_command_set_description(build, NULL));
     EXPECT_OK(clopts_option_set_help(value, NULL));
@@ -1042,6 +1507,7 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     clopts_positional_set_variadic(src, false);
     clopts_positional_set_required(src, false);
 
+    NAOS_CHECK_NULL(clopts_program_description(program));
     NAOS_CHECK_NULL(clopts_command_summary(build));
     NAOS_CHECK_NULL(clopts_command_description(build));
     NAOS_CHECK_NULL(clopts_option_help(value));
@@ -1058,12 +1524,12 @@ NAOS_TEST(setting_again_keeps_the_last_value)
     NAOS_CHECK_FALSE(clopts_positional_required(src));
 
     /* the attach and the program keep the attributes as they are */
-    NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, value));
-    NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, list));
-    NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, count));
-    NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, flag));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, value));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, list));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, count));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, flag));
     NAOS_REQUIRE_NOT_NULL(test_decl_attach_positional(build, src));
-    program = make_program(root, &build, 1);
+    add_command(program, build);
     NAOS_CHECK_NULL(clopts_option_help(value));
     NAOS_CHECK_INT_EQ(clopts_option_delimiter(list), '\0');
     NAOS_CHECK_FALSE(clopts_option_terminal(flag));
@@ -1079,44 +1545,41 @@ NAOS_TEST(hundred_options_keep_the_first_handle)
 {
     char name[16];
     clopts_program_t *program;
-    clopts_command_t *root;
     clopts_option_t *first;
     clopts_option_t *option;
     clopts_positional_t *positional;
     int i;
 
-    root = make_command("tool");
+    program = make_program("tool");
 
     first = make(CLOPTS_OPTION_VALUE, "o0", 'a');
     EXPECT_OK(clopts_option_set_help(first, "first help"));
-    NAOS_REQUIRE_NOT_NULL(test_decl_attach(root, first));
+    NAOS_REQUIRE_NOT_NULL(test_decl_global_attach(program, first));
     for (i = 1; i < 100; i++)
     {
         (void)snprintf(name, sizeof(name), "o%d", i);
         NAOS_NOTE("i=%d", i);
-        option = test_decl_add(root, CLOPTS_OPTION_FLAG, name, '\0');
+        option = test_decl_global_add(program, CLOPTS_OPTION_FLAG, name, '\0');
         NAOS_REQUIRE_NOT_NULL(option);
-        NAOS_CHECK_PTR_EQ(clopts_command_option_at(root, (size_t)i), option);
+        NAOS_CHECK_PTR_EQ(global_at(program, (size_t)i), option);
     }
     for (i = 0; i < 100; i++)
     {
         (void)snprintf(name, sizeof(name), "p%d", i);
         NAOS_NOTE("i=%d", i);
-        positional = test_decl_add_positional(root, name);
+        positional = test_decl_global_add_positional(program, name);
         NAOS_REQUIRE_NOT_NULL(positional);
     }
-    program = make_program(root, NULL, 0);
 
-    NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(root), 100);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(root), 100);
-    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(root, 0), first);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(program), 100);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(program), 100);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 0), first);
     NAOS_CHECK_INT_EQ(clopts_option_kind_of(first), CLOPTS_OPTION_VALUE);
     NAOS_CHECK_STR_EQ(clopts_option_long_name(first), "o0");
     NAOS_CHECK_INT_EQ(clopts_option_short_name(first), 'a');
     NAOS_CHECK_STR_EQ(clopts_option_help(first), "first help");
-    NAOS_CHECK_STR_EQ(clopts_option_long_name(clopts_command_option_at(root, 99)), "o99");
-    NAOS_CHECK_STR_EQ(clopts_positional_name(clopts_command_positional_at(root, 99)), "p99");
+    NAOS_CHECK_STR_EQ(clopts_option_long_name(clopts_program_option_at(program, 99)), "o99");
+    NAOS_CHECK_STR_EQ(clopts_positional_name(clopts_program_positional_at(program, 99)), "p99");
 
     clopts_program_destroy(program);
 }
@@ -1129,17 +1592,20 @@ NAOS_TEST(hundred_commands_keep_the_first_handle)
     clopts_command_t *first;
     int i;
 
+    program = make_program("tool");
     first = make_command("c0");
     EXPECT_OK(clopts_command_set_summary(first, "first summary"));
     NAOS_REQUIRE_NOT_NULL(test_decl_add(first, CLOPTS_OPTION_FLAG, "force", 'f'));
     commands[0] = first;
+    add_command(program, first);
     for (i = 1; i < 100; i++)
     {
         (void)snprintf(name, sizeof(name), "c%d", i);
         NAOS_NOTE("i=%d", i);
         commands[i] = make_command(name);
+        add_command(program, commands[i]);
+        NAOS_CHECK_PTR_EQ(command_at(program, 0), first);
     }
-    program = make_program(make_command("tool"), commands, 100);
 
     NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 100);
     for (i = 0; i < 100; i++)
@@ -1166,7 +1632,7 @@ typedef struct oom_call
     clopts_error_t (*call)(struct oom_call *self);
     /* Checks after a failed call that nothing changed (may be NULL). */
     void (*unchanged)(struct oom_call *self);
-    clopts_command_t *root;
+    clopts_program_t *program;
     clopts_command_t *command;
     clopts_option_t *option;
     clopts_positional_t *positional;
@@ -1322,15 +1788,59 @@ static void oom_add_positional_unchanged(oom_call_t *c)
     NAOS_CHECK_UINT_EQ(clopts_command_positional_count(c->command), 0);
 }
 
-static clopts_error_t oom_program_new(oom_call_t *c)
+static clopts_error_t oom_program_create(oom_call_t *c)
 {
     c->program_out = SENTINEL_PROGRAM;
-    return clopts_program_create(c->root, &c->command, 1, &c->program_out);
+    return clopts_program_create("tool", &c->program_out);
 }
 
-static void oom_program_new_unchanged(oom_call_t *c)
+static void oom_program_create_unchanged(oom_call_t *c)
 {
     NAOS_CHECK_NULL(c->program_out);
+}
+
+static clopts_error_t oom_program_description(oom_call_t *c)
+{
+    return clopts_program_set_description(c->program, "new");
+}
+
+static void oom_program_description_unchanged(oom_call_t *c)
+{
+    NAOS_CHECK_STR_EQ(clopts_program_description(c->program), "old");
+}
+
+static clopts_error_t oom_program_add_option(oom_call_t *c)
+{
+    return clopts_program_add_option(c->program, c->option);
+}
+
+static void oom_program_add_option_unchanged(oom_call_t *c)
+{
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(c->program), 0);
+}
+
+static clopts_error_t oom_program_add_positional(oom_call_t *c)
+{
+    return clopts_program_add_positional(c->program, c->positional);
+}
+
+static void oom_program_add_positional_unchanged(oom_call_t *c)
+{
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(c->program), 0);
+}
+
+static clopts_error_t oom_program_add_command(oom_call_t *c)
+{
+    return clopts_program_add_command(c->program, c->command);
+}
+
+/* The program has no subcommand, and the caller still owns the command with its contents. */
+static void oom_program_add_command_unchanged(oom_call_t *c)
+{
+    NAOS_CHECK_UINT_EQ(clopts_program_command_count(c->program), 0);
+    NAOS_CHECK_NULL(clopts_program_find_command(c->program, "build"));
+    NAOS_CHECK_STR_EQ(clopts_command_name(c->command), "build");
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(c->command), 1);
 }
 
 /*
@@ -1394,15 +1904,6 @@ NAOS_TEST(out_of_memory_changes_nothing)
     NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(c.command), 1);
     NAOS_CHECK_PTR_EQ(clopts_command_option_at(c.command, 0), c.option);
 
-    /* the attach of a negatable flag allocates for its no-x lookup too */
-    c.root = make_command("tool");
-    color = make(CLOPTS_OPTION_FLAG, "color", '\0');
-    EXPECT_OK(clopts_option_set_negatable(color, true));
-    c.option = color;
-    c.command = c.root;
-    NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
-    c.command = c.command_out;
-
     c.call = oom_positional_new;
     c.unchanged = oom_positional_new_unchanged;
     NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
@@ -1421,25 +1922,59 @@ NAOS_TEST(out_of_memory_changes_nothing)
     NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(c.command), 1);
 
-    /* the program and its command array: on failure the caller still owns root and command */
-    c.call = oom_program_new;
-    c.unchanged = oom_program_new_unchanged;
+    /* the program and its name */
+    c.call = oom_program_create;
+    c.unchanged = oom_program_create_unchanged;
     NAOS_CHECK_UINT_EQ(fail_each_point(&c), 2);
     NAOS_REQUIRE_NOT_NULL(c.program_out);
     NAOS_REQUIRE_TRUE(c.program_out != SENTINEL_PROGRAM);
-    NAOS_CHECK_PTR_EQ(clopts_program_command_at(c.program_out, 0), c.command);
+    c.program = c.program_out;
+
+    EXPECT_OK(clopts_program_set_description(c.program, "old"));
+    c.call = oom_program_description;
+    c.unchanged = oom_program_description_unchanged;
+    NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
+    NAOS_CHECK_STR_EQ(clopts_program_description(c.program), "new");
+
+    /* a global option, here a negatable flag: on failure the caller still owns it */
+    color = make(CLOPTS_OPTION_FLAG, "color", '\0');
+    EXPECT_OK(clopts_option_set_negatable(color, true));
+    c.option = color;
+    c.call = oom_program_add_option;
+    c.unchanged = oom_program_add_option_unchanged;
+    NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_option_count(c.program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(c.program, 0), color);
+
+    /* a positional of a program without subcommands: on failure the caller still owns it */
+    c.program = make_program("filt");
+    c.positional = make_positional("file");
+    c.call = oom_program_add_positional;
+    c.unchanged = oom_program_add_positional_unchanged;
+    NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_positional_count(c.program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_positional_at(c.program, 0), c.positional);
+    clopts_program_destroy(c.program);
+    c.program = c.program_out;
+
+    /* a subcommand: on failure the caller still owns it */
+    c.call = oom_program_add_command;
+    c.unchanged = oom_program_add_command_unchanged;
+    NAOS_CHECK_UINT_GT(fail_each_point(&c), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(c.program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_command_at(c.program, 0), c.command);
 
     clopts_program_destroy(c.program_out);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /*
- * Builds a small root and one subcommand through every allocating builder
+ * Fills a small program and one subcommand through every allocating builder
  * function, with every call checked by test_decl_check() or made by a helper,
  * so that test_decl_failures counts the failed ones. The subcommand is
- * remembered for root (test_decl_finish() makes the program).
+ * remembered for program (test_decl_finish() adds it).
  */
-static void build_sample(clopts_command_t *root)
+static void build_sample(clopts_program_t *program)
 {
     clopts_command_t *build;
     clopts_option_t *output;
@@ -1447,18 +1982,18 @@ static void build_sample(clopts_command_t *root)
     clopts_option_t *color;
     clopts_positional_t *src;
 
-    if (root != NULL)
+    if (program != NULL)
     {
-        test_decl_check(clopts_command_set_description(root, "A tool."));
+        test_decl_check(clopts_program_set_description(program, "A tool."));
     }
-    test_decl_add(root, CLOPTS_OPTION_COUNT, "verbose", 'v');
+    test_decl_global_add(program, CLOPTS_OPTION_COUNT, "verbose", 'v');
     color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
     if (color != NULL)
     {
         test_decl_check(clopts_option_set_negatable(color, true));
     }
-    test_decl_attach(root, color);
-    build = test_decl_command(root, "build");
+    test_decl_global_attach(program, color);
+    build = test_decl_command(program, "build");
     if (build != NULL)
     {
         test_decl_check(clopts_command_set_summary(build, "Builds."));
@@ -1501,17 +2036,16 @@ static void build_sample(clopts_command_t *root)
 }
 
 /*
- * Moves the failing fault point fail_at = 1, 2, ... over test_decl_root(),
+ * Moves the failing fault point fail_at = 1, 2, ... over test_decl_begin(),
  * build_sample() and test_decl_finish() until a run passes no failing fault
- * point (test_alloc.calls < fail_at). The first two fault points are in the
- * root's clopts_command_create(), which then gives NULL. A run that passes a
+ * point (test_alloc.calls < fail_at). The first two fault points are in
+ * clopts_program_create(), which then gives NULL. A run that passes a
  * failing fault point has failed calls; whatever was made is released by
- * clopts_program_destroy(), by test_decl_finish() when the program could not be
- * made, or by the helper for a failed attach.
+ * clopts_program_destroy(), by test_decl_finish() when a subcommand could not
+ * be added, or by the helper for a failed attach.
  */
 NAOS_TEST(every_failure_point_is_released)
 {
-    clopts_command_t *root;
     clopts_program_t *program;
     size_t fail_at;
     bool succeeded = false;
@@ -1521,10 +2055,10 @@ NAOS_TEST(every_failure_point_is_released)
         NAOS_NOTE("fail_at=%u", (unsigned)fail_at);
         test_alloc_begin(fail_at);
         test_decl_reset();
-        root = test_decl_root("tool");
-        if (root == NULL)
+        program = test_decl_begin("tool");
+        if (program == NULL)
         {
-            /* Only the first two fault points are in test_decl_root(). */
+            /* Only the first two fault points are in test_decl_begin(). */
             NAOS_CHECK_UINT_LE(fail_at, 2);
             NAOS_CHECK_UINT_EQ(test_alloc.calls, fail_at);
             NAOS_CHECK_INT_EQ(test_decl_last, CLOPTS_ERROR_OUT_OF_MEMORY);
@@ -1532,8 +2066,8 @@ NAOS_TEST(every_failure_point_is_released)
             continue;
         }
 
-        build_sample(root);
-        program = test_decl_finish(root);
+        build_sample(program);
+        program = test_decl_finish(program);
         if (test_alloc.calls < fail_at)
         {
             NAOS_CHECK_UINT_EQ(test_decl_failures, 0);
@@ -1554,20 +2088,20 @@ NAOS_TEST(every_failure_point_is_released)
 
 /* ---- release --------------------------------------------------------------- */
 
-/* clopts_program_destroy() releases every block: root, commands, attached options and positionals, and their
- * strings. */
+/*
+ * clopts_program_destroy() releases every block: the program, its global
+ * options, the commands, their options and positionals, and their strings.
+ */
 NAOS_TEST(program_free_releases_everything)
 {
-    clopts_command_t *root;
     clopts_program_t *program;
 
     test_alloc_begin(0);
     test_decl_reset();
-    root = test_decl_root("tool");
-    NAOS_REQUIRE_NOT_NULL(root);
-    build_sample(root);
-    program = test_decl_finish(root);
+    program = test_decl_begin("tool");
     NAOS_REQUIRE_NOT_NULL(program);
+    build_sample(program);
+    NAOS_REQUIRE_PTR_EQ(test_decl_finish(program), program);
     NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
     NAOS_CHECK_INT_GT(test_alloc.live, 1);
 
@@ -1582,22 +2116,20 @@ NAOS_TEST(program_free_releases_everything)
 /*
  * A parse reads a program and never changes it (there is no freezing): the
  * same program can be parsed again, also after a parse ran out of memory,
- * and its handles and contents stay as they were. The program was read-only
- * already, since clopts_program_create().
+ * and its handles and contents stay as they were.
  */
 NAOS_TEST(parse_leaves_the_program_as_it_is)
 {
-    clopts_command_t *root;
     clopts_command_t *build;
     clopts_program_t *program;
     clopts_option_t *flag;
 
     test_alloc_begin(0);
-    root = make_command("tool");
+    program = make_program("tool");
     build = make_command("build");
-    flag = test_decl_add(root, CLOPTS_OPTION_FLAG, "force", 'f');
+    flag = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "force", 'f');
     NAOS_REQUIRE_NOT_NULL(flag);
-    program = make_program(root, &build, 1);
+    add_command(program, build);
 
     parse_name_only(program, "tool", CLOPTS_NO_COMMAND);
     parse_name_only(program, "tool", CLOPTS_NO_COMMAND);
@@ -1606,11 +2138,11 @@ NAOS_TEST(parse_leaves_the_program_as_it_is)
     test_alloc_set_fail_at(0);
     parse_name_only(program, "tool", CLOPTS_NO_COMMAND);
 
-    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
+    NAOS_CHECK_STR_EQ(clopts_program_name(program), "tool");
     NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 1);
     NAOS_CHECK_PTR_EQ(clopts_program_command_at(program, 0), build);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 1);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(root, 0), flag);
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 1);
+    NAOS_CHECK_PTR_EQ(clopts_program_option_at(program, 0), flag);
     NAOS_CHECK_NULL(clopts_option_help(flag));
 
     clopts_program_destroy(program);
@@ -1619,10 +2151,14 @@ NAOS_TEST(parse_leaves_the_program_as_it_is)
 
 /* ---- shared fixtures (test_fixtures.c) ------------------------------------- */
 
-/* Expected attributes of one option, as declared by the first-version fixtures. */
+/*
+ * Expected attributes of one option, as declared by the first-version
+ * fixtures. command is the command it is attached to, or NULL for a global
+ * option of the program.
+ */
 typedef struct expected_option
 {
-    const clopts_command_t *scope;
+    const clopts_command_t *command;
     size_t index;
     clopts_option_kind_t kind;
     const char *long_name;
@@ -1638,12 +2174,24 @@ typedef struct expected_option
     bool terminal;
 } expected_option_t;
 
-/* Checks every model field of option, and that it is attached at index of its scope. */
-static void check_option(const clopts_option_t *option, const expected_option_t *expected)
+/*
+ * Checks every model field of option, and that it is attached at index of
+ * expected->command, or among the global options of program at index when
+ * expected->command is NULL.
+ */
+static void check_option(const clopts_program_t *program, const clopts_option_t *option,
+                         const expected_option_t *expected)
 {
     NAOS_REQUIRE_NOT_NULL(option);
-    NAOS_REQUIRE_UINT_GT(clopts_command_option_count(expected->scope), expected->index);
-    NAOS_CHECK_PTR_EQ(clopts_command_option_at(expected->scope, expected->index), option);
+    if (expected->command == NULL)
+    {
+        NAOS_CHECK_PTR_EQ(global_at(program, expected->index), option);
+    }
+    else
+    {
+        NAOS_REQUIRE_UINT_GT(clopts_command_option_count(expected->command), expected->index);
+        NAOS_CHECK_PTR_EQ(clopts_command_option_at(expected->command, expected->index), option);
+    }
     NAOS_CHECK_INT_EQ(clopts_option_kind_of(option), expected->kind);
     check_str_or_null(clopts_option_long_name(option), expected->long_name);
     NAOS_CHECK_INT_EQ(clopts_option_short_name(option), expected->short_name);
@@ -1658,13 +2206,25 @@ static void check_option(const clopts_option_t *option, const expected_option_t 
     NAOS_CHECK_INT_EQ(clopts_option_terminal(option), expected->terminal);
 }
 
-/* Checks the model fields of positional, and that it is attached at index of scope. */
-static void check_positional(const clopts_positional_t *positional, const clopts_command_t *scope, size_t index,
-                             const char *name, const char *help, bool required, bool variadic)
+/*
+ * Checks the model fields of positional, and that it is attached at index of
+ * command, or among the positionals of program when command is NULL.
+ */
+static void check_positional(const clopts_positional_t *positional, const clopts_program_t *program,
+                             const clopts_command_t *command, size_t index, const char *name, const char *help,
+                             bool required, bool variadic)
 {
     NAOS_REQUIRE_NOT_NULL(positional);
-    NAOS_REQUIRE_UINT_GT(clopts_command_positional_count(scope), index);
-    NAOS_CHECK_PTR_EQ(clopts_command_positional_at(scope, index), positional);
+    if (command == NULL)
+    {
+        NAOS_REQUIRE_UINT_GT(clopts_program_positional_count(program), index);
+        NAOS_CHECK_PTR_EQ(clopts_program_positional_at(program, index), positional);
+    }
+    else
+    {
+        NAOS_REQUIRE_UINT_GT(clopts_command_positional_count(command), index);
+        NAOS_CHECK_PTR_EQ(clopts_command_positional_at(command, index), positional);
+    }
     NAOS_CHECK_STR_EQ(clopts_positional_name(positional), name);
     NAOS_CHECK_STR_EQ(clopts_positional_help(positional), help);
     NAOS_CHECK_INT_EQ(clopts_positional_required(positional), required);
@@ -1682,15 +2242,12 @@ static void check_command(const clopts_command_t *command, const clopts_program_
     NAOS_CHECK_NULL(clopts_command_description(command));
 }
 
-/* Checks the root of a fixture program: the program's root, its name and description, no summary. */
-static void check_root(const clopts_command_t *root, const clopts_program_t *program, const char *name,
-                       const char *description)
+/* Checks the name and description of a fixture program. */
+static void check_program(const clopts_program_t *program, const char *name, const char *description)
 {
-    NAOS_REQUIRE_NOT_NULL(root);
-    NAOS_CHECK_PTR_EQ(clopts_program_root(program), root);
-    NAOS_CHECK_STR_EQ(clopts_command_name(root), name);
-    NAOS_CHECK_STR_EQ(clopts_command_description(root), description);
-    NAOS_CHECK_NULL(clopts_command_summary(root));
+    NAOS_REQUIRE_NOT_NULL(program);
+    NAOS_CHECK_STR_EQ(clopts_program_name(program), name);
+    check_str_or_null(clopts_program_description(program), description);
 }
 
 NAOS_TEST(fixtures_are_built_completely)
@@ -1722,35 +2279,33 @@ NAOS_TEST(fixture_tool_declaration)
 {
     fixture_tool_t f;
     clopts_program_t *program;
-    clopts_command_t *root;
 
     fixture_tool_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_TRUE(f.ok);
 
-    root = f.root;
-    check_root(root, program, "tool", "A fictional tool with subcommands.");
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 5);
-    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(root), 0);
+    check_program(program, "tool", "A fictional tool with subcommands.");
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 5);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 0);
 
     {
-        const expected_option_t verbose = {root, 0, CLOPTS_OPTION_COUNT, "verbose", 'v', "Increase verbosity.",
+        const expected_option_t verbose = {NULL, 0, CLOPTS_OPTION_COUNT, "verbose", 'v', "Increase verbosity.",
                                            NULL, NULL, NULL, '\0', 0, false, false, false};
-        const expected_option_t color = {root, 1, CLOPTS_OPTION_FLAG, "color", '\0', "Colorize the output.",
+        const expected_option_t color = {NULL, 1, CLOPTS_OPTION_FLAG, "color", '\0', "Colorize the output.",
                                          NULL, NULL, NULL, '\0', 0, false, true, false};
-        const expected_option_t config = {root, 2, CLOPTS_OPTION_VALUE, "config", '\0', "Configuration file.",
+        const expected_option_t config = {NULL, 2, CLOPTS_OPTION_VALUE, "config", '\0', "Configuration file.",
                                           "PATH", NULL, "TOOL_CONFIG", '\0', 0, false, false, false};
-        const expected_option_t help = {root, 3, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
+        const expected_option_t help = {NULL, 3, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
                                         NULL, NULL, NULL, '\0', 0, false, false, true};
-        const expected_option_t version = {root, 4, CLOPTS_OPTION_FLAG, "version", '\0', "Show version information",
+        const expected_option_t version = {NULL, 4, CLOPTS_OPTION_FLAG, "version", '\0', "Show version information",
                                            NULL, NULL, NULL, '\0', 0, false, false, true};
 
-        check_option(f.verbose, &verbose);
-        check_option(f.color, &color);
-        check_option(f.config, &config);
-        check_option(f.help, &help);
-        check_option(f.version, &version);
+        check_option(program, f.verbose, &verbose);
+        check_option(program, f.color, &color);
+        check_option(program, f.config, &config);
+        check_option(program, f.help, &help);
+        check_option(program, f.version, &version);
     }
 
     NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 4);
@@ -1769,17 +2324,17 @@ NAOS_TEST(fixture_tool_declaration)
         const expected_option_t jobs = {f.build, 2, CLOPTS_OPTION_COUNT, NULL, 'j', "Add a parallel job.",
                                         NULL, NULL, NULL, '\0', 8, false, false, false};
 
-        check_option(f.output, &output);
-        check_option(f.keys, &keys);
-        check_option(f.jobs, &jobs);
+        check_option(program, f.output, &output);
+        check_option(program, f.keys, &keys);
+        check_option(program, f.jobs, &jobs);
     }
-    check_positional(f.build_src, f.build, 0, "SRC", "Source to build.", true, false);
-    check_positional(f.build_extra, f.build, 1, "EXTRA", "Extra inputs.", false, true);
+    check_positional(f.build_src, program, f.build, 0, "SRC", "Source to build.", true, false);
+    check_positional(f.build_extra, program, f.build, 1, "EXTRA", "Extra inputs.", false, true);
 
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(f.copy), 0);
     NAOS_CHECK_UINT_EQ(clopts_command_positional_count(f.copy), 2);
-    check_positional(f.copy_src, f.copy, 0, "SRC", "Source.", true, false);
-    check_positional(f.copy_dst, f.copy, 1, "DST", "Destination.", true, false);
+    check_positional(f.copy_src, program, f.copy, 0, "SRC", "Source.", true, false);
+    check_positional(f.copy_dst, program, f.copy, 1, "DST", "Destination.", true, false);
 
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(f.cat), 1);
     NAOS_CHECK_UINT_EQ(clopts_command_positional_count(f.cat), 1);
@@ -1787,13 +2342,13 @@ NAOS_TEST(fixture_tool_declaration)
         const expected_option_t tags = {f.cat, 0, CLOPTS_OPTION_LIST, "tags", '\0', "Tags to show.",
                                         "TAG", "a,b", "TOOL_TAGS", ',', 0, false, false, false};
 
-        check_option(f.tags, &tags);
+        check_option(program, f.tags, &tags);
     }
-    check_positional(f.cat_file, f.cat, 0, "FILE", "Files to show.", false, true);
+    check_positional(f.cat_file, program, f.cat, 0, "FILE", "Files to show.", false, true);
 
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(f.help_command), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(f.help_command), 1);
-    check_positional(clopts_command_positional_at(f.help_command, 0), f.help_command, 0, "COMMAND",
+    check_positional(clopts_command_positional_at(f.help_command, 0), program, f.help_command, 0, "COMMAND",
                      "Command to show help for", false, false);
 
     fixture_tool_free(&f);
@@ -1803,28 +2358,26 @@ NAOS_TEST(fixture_filt_declaration)
 {
     fixture_filt_t f;
     clopts_program_t *program;
-    clopts_command_t *root;
 
     fixture_filt_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_TRUE(f.ok);
 
-    root = f.root;
-    check_root(root, program, "filt", "A fictional filter without subcommands.");
+    check_program(program, "filt", "A fictional filter without subcommands.");
     NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 0);
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 2);
-    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(root), 1);
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 2);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 1);
     {
-        const expected_option_t lines = {root, 0, CLOPTS_OPTION_VALUE, "lines", 'n', "Number of lines.",
+        const expected_option_t lines = {NULL, 0, CLOPTS_OPTION_VALUE, "lines", 'n', "Number of lines.",
                                          "N", "10", "FILT_LINES", '\0', 0, false, false, false};
-        const expected_option_t help = {root, 1, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
+        const expected_option_t help = {NULL, 1, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
                                         NULL, NULL, NULL, '\0', 0, false, false, true};
 
-        check_option(f.lines, &lines);
-        check_option(f.help, &help);
+        check_option(program, f.lines, &lines);
+        check_option(program, f.help, &help);
     }
-    check_positional(f.file, root, 0, "FILE", "Files to filter.", false, true);
+    check_positional(f.file, program, NULL, 0, "FILE", "Files to filter.", false, true);
 
     fixture_filt_free(&f);
 }
@@ -1833,25 +2386,23 @@ NAOS_TEST(fixture_strict_declaration)
 {
     fixture_strict_t f;
     clopts_program_t *program;
-    clopts_command_t *root;
 
     fixture_strict_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_TRUE(f.ok);
 
-    root = f.root;
-    check_root(root, program, "strict", "A fictional program with a required global option.");
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 2);
-    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(root), 0);
+    check_program(program, "strict", "A fictional program with a required global option.");
+    NAOS_CHECK_UINT_EQ(clopts_program_option_count(program), 2);
+    NAOS_CHECK_UINT_EQ(clopts_program_positional_count(program), 0);
     {
-        const expected_option_t token = {root, 0, CLOPTS_OPTION_VALUE, "token", '\0', "Access token.",
+        const expected_option_t token = {NULL, 0, CLOPTS_OPTION_VALUE, "token", '\0', "Access token.",
                                          "TOKEN", NULL, NULL, '\0', 0, true, false, false};
-        const expected_option_t help = {root, 1, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
+        const expected_option_t help = {NULL, 1, CLOPTS_OPTION_FLAG, "help", 'h', "Show this help",
                                         NULL, NULL, NULL, '\0', 0, false, false, true};
 
-        check_option(f.token, &token);
-        check_option(f.help, &help);
+        check_option(program, f.token, &token);
+        check_option(program, f.help, &help);
     }
 
     NAOS_REQUIRE_UINT_EQ(clopts_program_command_count(program), 1);
@@ -1899,7 +2450,6 @@ static void check_tool_cleared(const fixture_tool_t *tool)
 {
     NAOS_CHECK_NULL(tool->program);
     NAOS_CHECK_FALSE(tool->ok);
-    NAOS_CHECK_NULL(tool->root);
     NAOS_CHECK_NULL(tool->build);
     NAOS_CHECK_NULL(tool->help_command);
     NAOS_CHECK_NULL(tool->verbose);
@@ -1907,20 +2457,24 @@ static void check_tool_cleared(const fixture_tool_t *tool)
 }
 
 /*
- * A failing fault point fails every later one too (test_alloc.h), so the
- * clopts_program_create() at the end of the assembly fails whichever fault
- * point fails first: no program is made, everything made so far is released
- * (by the helpers and test_decl_finish()), and the fixture is cleared with ok
- * false. The first two fault points are in the root's clopts_command_create(),
- * the last two in clopts_program_create() (the program and its command array).
+ * A failing fault point fails every later one too (test_alloc.h). The first
+ * two fault points are in clopts_program_create(), and the last one is in the
+ * first clopts_program_add_command() of test_decl_finish() (the command
+ * array; the later commands fit in it). So when a subcommand was made before
+ * the failing fault point, adding it fails: no program is made, everything
+ * made so far is released (by the helpers and test_decl_finish()), and the
+ * fixture is cleared with ok false. When the failing fault point comes before
+ * every subcommand, none is made and the program is kept without
+ * subcommands, with ok false; fixture_tool_free() releases it.
  */
 NAOS_TEST(fixture_out_of_memory_is_reported_and_released)
 {
     fixture_tool_t tool;
     size_t total;
     size_t fail_at;
+    size_t kept = 0;
 
-    /* number of fault points of a full assembly, clopts_program_create() included */
+    /* number of fault points of a full assembly, test_decl_finish() included */
     test_alloc_begin(0);
     fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
@@ -1935,16 +2489,31 @@ NAOS_TEST(fixture_out_of_memory_is_reported_and_released)
         NAOS_NOTE("fail_at=%u of %u", (unsigned)fail_at, (unsigned)total);
         test_alloc_begin(fail_at);
         fixture_tool_init(&tool);
-        check_tool_cleared(&tool);
+        NAOS_CHECK_FALSE(tool.ok);
         NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
-        if (fail_at >= total - 1)
+        if (tool.program != NULL)
         {
-            /* only clopts_program_create() failed, and it stopped at its failing fault point */
+            /* the program was made, and no subcommand */
+            NAOS_CHECK_UINT_GT(fail_at, 2);
+            NAOS_CHECK_UINT_EQ(clopts_program_command_count(tool.program), 0);
+            NAOS_CHECK_NULL(tool.build);
+            NAOS_CHECK_NULL(tool.help_command);
+            kept++;
+        }
+        else
+        {
+            check_tool_cleared(&tool);
+        }
+        if (fail_at == total)
+        {
+            /* only the add of the first subcommand failed, and it stopped at its failing fault point */
+            NAOS_CHECK_NULL(tool.program);
             NAOS_CHECK_UINT_EQ(test_alloc.calls, fail_at);
         }
         fixture_tool_free(&tool);
         NAOS_CHECK_TRUE(test_alloc_end());
     }
+    NAOS_CHECK_UINT_GT(kept, 0);
 
     /* one fault point more: nothing fails */
     test_alloc_begin(total + 1);
@@ -2044,12 +2613,22 @@ NAOS_SUITE(build,
     NAOS_ADD_TEST(new_option_and_positional_start_reset_and_unattached),
     NAOS_ADD_TEST(unattached_objects_are_released_by_their_free),
     NAOS_ADD_TEST(attach_links_objects_in_order),
-    NAOS_ADD_TEST(root_takes_positionals),
-    NAOS_ADD_TEST(program_new_takes_root_and_commands),
-    NAOS_ADD_TEST(program_new_duplicate_command_changes_nothing),
-    NAOS_ADD_TEST(program_new_mixed_layout_changes_nothing),
-    NAOS_ADD_TEST(program_new_reports_the_first_error),
-    NAOS_ADD_TEST(program_new_does_not_check_names_between_commands),
+    NAOS_ADD_TEST(program_takes_positionals),
+    NAOS_ADD_TEST(program_create_copies_name_and_starts_empty),
+    NAOS_ADD_TEST(program_create_checks_name),
+    NAOS_ADD_TEST(program_set_description),
+    NAOS_ADD_TEST(program_add_option_keeps_the_order),
+    NAOS_ADD_TEST(program_add_option_duplicate_changes_nothing),
+    NAOS_ADD_TEST(program_add_option_negation_conflict_changes_nothing),
+    NAOS_ADD_TEST(program_add_option_reports_the_first_error),
+    NAOS_ADD_TEST(program_add_positional_mixed_layout_changes_nothing),
+    NAOS_ADD_TEST(program_add_positional_order_changes_nothing),
+    NAOS_ADD_TEST(program_add_positional_reports_the_first_error),
+    NAOS_ADD_TEST(program_add_command_keeps_the_order),
+    NAOS_ADD_TEST(program_add_command_duplicate_changes_nothing),
+    NAOS_ADD_TEST(program_add_command_mixed_layout_changes_nothing),
+    NAOS_ADD_TEST(program_add_command_reports_the_first_error),
+    NAOS_ADD_TEST(program_does_not_check_names_between_scopes),
     NAOS_ADD_TEST(program_read_functions),
     NAOS_ADD_TEST(command_read_functions),
     NAOS_ADD_TEST(option_read_functions),
