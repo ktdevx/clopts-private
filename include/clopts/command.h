@@ -25,7 +25,7 @@ extern "C" {
  * not be NULL or empty, start with '-' or contain white space
  * (INVALID_NAME). For the root, the name is the program name.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **out);
+CLOPTS_API clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **out);
 
 /*
  * Releases an unattached command with the options and positionals attached
@@ -47,8 +47,8 @@ CLOPTS_API clopts_decl_error_t clopts_command_set_description(clopts_command_t *
  * command), DUPLICATE_OPTION (within command) or NEGATION_CONFLICT (within
  * command).
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_add_option(clopts_command_t *command,
-                                                                          clopts_option_t *option);
+CLOPTS_API clopts_decl_error_t clopts_command_add_option(clopts_command_t *command,
+                                                         clopts_option_t *option);
 
 /*
  * Attaches positional to command, after the positionals already attached.
@@ -56,8 +56,8 @@ CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_add_option(clopts
  * VARIADIC_POSITION (the last attached one is variadic) or POSITIONAL_ORDER
  * (positional is required and the last attached one is optional).
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command,
-                                                                              clopts_positional_t *positional);
+CLOPTS_API clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command,
+                                                             clopts_positional_t *positional);
 
 /* ---- read functions ---- */
 

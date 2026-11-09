@@ -17,7 +17,7 @@ extern "C" {
  */
 
 /* Creates an unattached positional named name (copied, not empty), used in help and messages. */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out);
+CLOPTS_API clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out);
 
 /* Releases an unattached positional, as clopts_option_destroy() does for an option. */
 CLOPTS_API void clopts_positional_destroy(clopts_positional_t *positional);

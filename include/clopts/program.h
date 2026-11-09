@@ -28,9 +28,9 @@ extern "C" {
  * listed twice, or root is also listed among commands), DUPLICATE_COMMAND, or
  * MIXED_LAYOUT when there are subcommands and root has positionals.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_program_create(clopts_command_t *root,
-                                                                      clopts_command_t *const *commands,
-                                                                      size_t command_count, clopts_program_t **out);
+CLOPTS_API clopts_decl_error_t clopts_program_create(clopts_command_t *root,
+                                                     clopts_command_t *const *commands,
+                                                     size_t command_count, clopts_program_t **out);
 
 /* Releases program and everything attached to it. NULL does nothing. */
 CLOPTS_API void clopts_program_destroy(clopts_program_t *program);

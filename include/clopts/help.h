@@ -81,12 +81,12 @@ CLOPTS_API clopts_write_status_t clopts_write_error(const clopts_program_t *prog
  * clopts_option_create() and clopts_command_add_option(); on failure nothing is
  * attached.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_help_add_help_option(clopts_command_t *command,
-                                                                            const clopts_option_t **out);
+CLOPTS_API clopts_decl_error_t clopts_help_add_help_option(clopts_command_t *command,
+                                                           const clopts_option_t **out);
 
 /* Same for the terminal FLAG --version ("Show version information"). */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_help_add_version_option(clopts_command_t *command,
-                                                                               const clopts_option_t **out);
+CLOPTS_API clopts_decl_error_t clopts_help_add_version_option(clopts_command_t *command,
+                                                              const clopts_option_t **out);
 
 /*
  * Creates an unattached subcommand "help" ("Show help for a command") with
@@ -94,7 +94,7 @@ CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_help_add_version_option(c
  * clopts_program_create() with the other subcommands. clopts_help_target()
  * reads a result that selected it.
  */
-CLOPTS_API CLOPTS_NODISCARD clopts_decl_error_t clopts_help_command_create(clopts_command_t **out);
+CLOPTS_API clopts_decl_error_t clopts_help_command_create(clopts_command_t **out);
 
 /*
  * For a result of program whose status is OK: reads the first positional as
