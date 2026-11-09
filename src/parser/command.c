@@ -16,7 +16,7 @@
  * belong to it, in a fixed order, and returns the first rule that fails.
  * Nothing is changed before every check has passed and every allocation has
  * succeeded, so a failing call leaves every handle as it was. Name rules and
- * lookups live in parser_decl.c.
+ * lookups live in names.c.
  */
 
 #include "clopts/command.h"
