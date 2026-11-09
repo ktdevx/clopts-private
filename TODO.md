@@ -57,7 +57,7 @@
 
 ## 作業
 
-kiro の流れに沿って、仕様 → 実装 → 検証の順で進める。要件を変えるので、`project-foundation` の requirements / design / tasks は、それぞれ人の承認を取り直す。
+仕様 → 実装 → 検証の順で進める。kiro の承認の手順（各フェーズの承認の取り直し、`spec.json` の承認状態の変更）は省き、仕様の文書を直接書き直す。
 
 ### 1. 仕様: project-foundation の requirements
 
@@ -73,7 +73,7 @@ kiro の流れに沿って、仕様 → 実装 → 検証の順で進める。�
 - [ ] 12.6（MSVC の静的版のファイル名を変える）を削除する。
 - [ ] 5.6 は残す。記録の置き場所は design で変える。
 - [ ] `brief.md` の 53 行目（MSVC の出力名）、55 行目（`CLOptsStaticTargets` / `CLOptsSharedTargets` と `COMPONENTS`）を直す。
-- [ ] `spec.json` の承認を requirements から取り直す（`updated_at` を更新）。
+- [ ] `spec.json` は `updated_at` だけを更新する（承認の状態は変えない）。
 
 ### 2. 仕様: project-foundation の design / tasks / research
 
@@ -94,7 +94,7 @@ kiro の流れに沿って、仕様 → 実装 → 検証の順で進める。�
 
 ### 3. 仕様: ほかの spec と steering
 
-- [ ] `.kiro/specs/docs-and-release/requirements.md`: 8 行目、35 行目、1.6（README で `COMPONENTS` を示す）、4.4（並べて install できることと形式の選び方の文書）、4.7（記述例の形に「形式の選び方」を含む）を、「形式は install した方が使われる。両方使うなら prefix を分ける」に書き直す。承認を取り直す。
+- [ ] `.kiro/specs/docs-and-release/requirements.md`: 8 行目、35 行目、1.6（README で `COMPONENTS` を示す）、4.4（並べて install できることと形式の選び方の文書）、4.7（記述例の形に「形式の選び方」を含む）を、「形式は install した方が使われる。両方使うなら prefix を分ける」に書き直す。
 - [ ] `.kiro/specs/docs-and-release/design.md`（253、332 行目）、`tasks.md`（95、96 行目）、`brief.md`（10 行目）を直す。
 - [ ] `.kiro/steering/roadmap.md` の 74 行目（「MSVC での静的版の別名、install の export セットを静的・共有で分け config で選ばせる（`COMPONENTS static|shared`）」）を直す。
 
