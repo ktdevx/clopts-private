@@ -114,7 +114,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 6.1, 6.2, 6.3, 6.4_
 
 - [ ] 5. リリース
-- [ ] 5.1 (P) CHANGELOG を作る
+- [x] 5.1 (P) CHANGELOG を作る
   - 設計の Changelog どおりに、冒頭の説明（semver と書式の説明）と `## [Unreleased]` の節を書く。`### 追加` には、初版で入る機能（宣言と解析、文面、Windows の UTF-8、静的／共有と ABI の検査、文書とサンプル）を列挙する
   - 完了条件: `check_changelog.cmake` の format を直接呼ぶと、`changelog: 0 release section(s)` を出して成功する
   - _Boundary: Changelog_
