@@ -339,47 +339,6 @@ NAOS_TEST(unattached_objects_are_released_by_their_free)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-/*
- * Releasing a handle owned by a command or a program is a contract violation
- * caught by assert. Without assert, the implementation hardens against it and
- * the call does nothing (the owner still releases it). This is not part of the
- * contract: the test guards the hardening, not a promise to callers.
- */
-NAOS_TEST(free_of_an_owned_handle_is_hardened)
-{
-#ifdef NDEBUG
-    clopts_command_t *root;
-    clopts_command_t *build;
-    clopts_option_t *flag;
-    clopts_positional_t *src;
-    clopts_program_t *program;
-
-    test_alloc_begin(0);
-    root = make_command("tool");
-    build = make_command("build");
-    flag = test_decl_add(root, CLOPTS_OPTION_FLAG, "force", 'f');
-    src = test_decl_add_positional(build, "src");
-    NAOS_REQUIRE_NOT_NULL(flag);
-    NAOS_REQUIRE_NOT_NULL(src);
-    program = make_program(root, &build, 1);
-
-    clopts_option_destroy(flag);
-    clopts_positional_destroy(src);
-    clopts_command_destroy(build);
-    clopts_command_destroy(root);
-    NAOS_CHECK_TRUE(flag->attached);
-    NAOS_CHECK_STR_EQ(clopts_command_name(clopts_program_root(program)), "tool");
-    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 1);
-    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(build), 1);
-
-    clopts_program_destroy(program);
-    NAOS_CHECK_UINT_EQ(test_alloc.bad_frees, 0);
-    NAOS_CHECK_TRUE(test_alloc_end());
-#else
-    NAOS_SKIP("needs NDEBUG: the release of an owned handle is caught by assert");
-#endif
-}
-
 /* ---- attach ------------------------------------------------------------ */
 
 NAOS_TEST(attach_links_objects_in_order)
@@ -2383,7 +2342,6 @@ NAOS_SUITE(build,
     NAOS_ADD_TEST(command_new_checks_name_and_out),
     NAOS_ADD_TEST(new_option_and_positional_start_reset_and_unattached),
     NAOS_ADD_TEST(unattached_objects_are_released_by_their_free),
-    NAOS_ADD_TEST(free_of_an_owned_handle_is_hardened),
     NAOS_ADD_TEST(attach_links_objects_in_order),
     NAOS_ADD_TEST(root_takes_positionals),
     NAOS_ADD_TEST(program_new_takes_root_and_commands),

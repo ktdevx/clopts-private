@@ -10,8 +10,6 @@
 #include "clopts/positional.h"
 #include "parser/parser_internal.h"
 
-#include <assert.h>
-
 clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
 {
     clopts_positional_t *positional;
@@ -48,14 +46,6 @@ clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional
 void clopts_positional_destroy(clopts_positional_t *positional)
 {
     if (positional == NULL)
-    {
-        return;
-    }
-    /* Contract: an attached positional must not be passed. Its command clears
-     * attached before releasing it. The early return is hardening, not a
-     * guarantee. */
-    assert(!positional->attached && "an attached positional is owned by its command");
-    if (positional->attached)
     {
         return;
     }

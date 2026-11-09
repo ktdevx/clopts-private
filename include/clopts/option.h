@@ -45,8 +45,7 @@ CLOPTS_API clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, c
 
 /*
  * Releases an unattached option. NULL does nothing. An attached option is
- * owned by its command and must not be passed (contract violation, caught by
- * assert).
+ * owned by its command and must not be passed (the behavior is undefined).
  */
 CLOPTS_API void clopts_option_destroy(clopts_option_t *option);
 

@@ -35,7 +35,7 @@ CLOPTS_API clopts_decl_error_t clopts_command_create(const char *name, clopts_co
 /*
  * Releases an unattached command with the options and positionals attached
  * to it. NULL does nothing. A command handed to a program is owned by it and
- * must not be passed (contract violation, caught by assert).
+ * must not be passed (the behavior is undefined).
  */
 CLOPTS_API void clopts_command_destroy(clopts_command_t *command);
 

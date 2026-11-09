@@ -15,8 +15,6 @@
 #include "clopts/option.h"
 #include "parser/parser_internal.h"
 
-#include <assert.h>
-
 /* True for the kinds that take no value (FLAG / COUNT). */
 static bool option_takes_no_value(clopts_option_kind_t kind)
 {
@@ -104,15 +102,6 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
 void clopts_option_destroy(clopts_option_t *option)
 {
     if (option == NULL)
-    {
-        return;
-    }
-
-    /* Contract: an attached option must not be passed. Its command clears
-     * attached before releasing it. The early return is hardening, not a
-     * guarantee. */
-    assert(!option->attached && "an attached option is owned by its command");
-    if (option->attached)
     {
         return;
     }

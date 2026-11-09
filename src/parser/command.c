@@ -73,32 +73,15 @@ void clopts_command_destroy(clopts_command_t *command)
         return;
     }
 
-    /* Contract: a command owned by a program must not be passed. Its program
-     * clears attached before releasing it. The early return is hardening,
-     * not a guarantee. */
-    assert(!command->attached && "a command handed to a program is owned by it");
-    if (command->attached)
-    {
-        return;
-    }
-
-    /* The command owns what is attached to it: hand each one back, then
-     * release it through its own destroy. */
     for (i = 0; i < command->options.len; i++)
     {
-        clopts_option_t *option = *(clopts_option_t **)clopts_core_vec_at(&command->options, i);
-
-        option->attached = false;
-        clopts_option_destroy(option);
+        clopts_option_destroy(*(clopts_option_t **)clopts_core_vec_at(&command->options, i));
     }
     clopts_core_vec_free(&command->options);
 
     for (i = 0; i < command->positionals.len; i++)
     {
-        clopts_positional_t *positional = *(clopts_positional_t **)clopts_core_vec_at(&command->positionals, i);
-
-        positional->attached = false;
-        clopts_positional_destroy(positional);
+        clopts_positional_destroy(*(clopts_positional_t **)clopts_core_vec_at(&command->positionals, i));
     }
     clopts_core_vec_free(&command->positionals);
 

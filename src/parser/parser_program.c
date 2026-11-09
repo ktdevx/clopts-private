@@ -128,15 +128,11 @@ void clopts_program_destroy(clopts_program_t *program)
     {
         return;
     }
-    /* The program owns its commands: hand each one back, then release it
-     * through clopts_command_destroy(). */
     for (i = 0; i < program->command_count; i++)
     {
-        program->commands[i]->attached = false;
         clopts_command_destroy(program->commands[i]);
     }
     clopts_core_free(program->commands);
-    program->root->attached = false;
     clopts_command_destroy(program->root);
     clopts_core_free(program);
 }
