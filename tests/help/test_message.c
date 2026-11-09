@@ -245,8 +245,9 @@ NAOS_TEST(unexpected_value_to_a_negated_flag_names_the_long_name_of_the_option)
     help_fixture_tool_free(&f);
 }
 
-NAOS_TEST(unexpected_value_to_a_reserved_option_names_the_part_before_the_equals_sign)
+NAOS_TEST(unexpected_value_to_a_terminal_option_names_the_part_before_the_equals_sign)
 {
+    /* --help and --version are terminal FLAGs: "=<value>" is an error, not a recovery. */
     char *argv[] = { "tool", "--help=x", NULL };
     char *argv_version[] = { "tool", "--version=", NULL };
     const char *expected = "option '--help' does not take a value\n";
@@ -291,14 +292,16 @@ NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
     /* A one-option declaration local to this test: -t VALUE required, no long name. */
     char *argv[] = { "short", NULL };
     const char *expected = "missing required option '-t'\n";
-    clopts_program_t *program = test_decl_program("short");
+    clopts_command_t *root = test_decl_root("short");
+    clopts_program_t *program;
     clopts_option_t *target;
     message_run_t run;
 
-    NAOS_REQUIRE_NOT_NULL(program);
     target = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 't');
     NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_DECL_NONE);
-    target = test_decl_attach(clopts_program_root(program), target);
+    target = test_decl_attach(root, target);
+    program = test_decl_finish(root);
+    NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_NOT_NULL(target);
     message_parse_and_write(program, MESSAGE_ARGC(argv), argv, 0u, &run);
     NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
@@ -413,6 +416,7 @@ NAOS_TEST(statuses_without_an_error_are_unavailable)
     char *argv_ok[] = { "tool", "build", "-o", "out", "SRC", NULL };
     char *argv_help[] = { "tool", "--help", NULL };
     char *argv_version[] = { "tool", "--version", NULL };
+    char *argv_recovered[] = { "tool", "--bad", "--help", NULL };
     char *argv_no_command[] = { "tool", NULL };
     help_fixture_tool_t f;
     message_run_t run;
@@ -426,12 +430,18 @@ NAOS_TEST(statuses_without_an_error_are_unavailable)
     NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
 
     message_parse_and_write(f.program, MESSAGE_ARGC(argv_help), argv_help, MESSAGE_PREFIX_BOTH, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_HELP);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_TERMINATED);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
 
     message_parse_and_write(f.program, MESSAGE_ARGC(argv_version), argv_version, MESSAGE_PREFIX_BOTH, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_VERSION);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_TERMINATED);
+    NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
+    NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
+
+    /* A terminal option after a usage error replaces the error: there is no error line. */
+    message_parse_and_write(f.program, MESSAGE_ARGC(argv_recovered), argv_recovered, MESSAGE_PREFIX_BOTH, &run);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_TERMINATED);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
 
@@ -573,7 +583,7 @@ NAOS_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory)
 
 /* Largest value of each kind enum; a new kind must raise them (12.2). */
 #define MESSAGE_USAGE_KIND_MAX 7
-#define MESSAGE_DECL_KIND_MAX 20
+#define MESSAGE_DECL_KIND_MAX 18
 
 NAOS_TEST(decl_error_message_of_every_kind)
 {
@@ -586,7 +596,6 @@ NAOS_TEST(decl_error_message_of_every_kind)
         { CLOPTS_DECL_NO_NAME, "option has neither a long nor a short name" },
         { CLOPTS_DECL_DUPLICATE_COMMAND, "duplicate command name" },
         { CLOPTS_DECL_DUPLICATE_OPTION, "duplicate option name" },
-        { CLOPTS_DECL_RESERVED_NAME, "reserved name" },
         { CLOPTS_DECL_NOT_NEGATABLE, "only a flag can be negatable" },
         { CLOPTS_DECL_NEGATION_CONFLICT, "conflicts with the negated form of a flag" },
         { CLOPTS_DECL_DEFAULT_NOT_ALLOWED, "a flag or count cannot have a default value" },
@@ -596,11 +605,10 @@ NAOS_TEST(decl_error_message_of_every_kind)
         { CLOPTS_DECL_POSITIONAL_ORDER, "a required argument cannot follow an optional one" },
         { CLOPTS_DECL_VARIADIC_POSITION, "only the last argument can be variadic" },
         { CLOPTS_DECL_ATTRIBUTE_KIND, "attribute does not apply to this kind of option" },
-        { CLOPTS_DECL_MIXED_LAYOUT, "a program with subcommands cannot have root arguments or a root handler" },
+        { CLOPTS_DECL_MIXED_LAYOUT, "a program with subcommands cannot have root arguments" },
         { CLOPTS_DECL_INVALID_KIND, "invalid option kind" },
-        { CLOPTS_DECL_ALREADY_ATTACHED, "already attached to a command" },
+        { CLOPTS_DECL_ALREADY_ATTACHED, "already attached" },
         { CLOPTS_DECL_INVALID_ARGUMENT, "invalid argument" },
-        { CLOPTS_DECL_FROZEN, "the program is frozen" },
         { CLOPTS_DECL_OUT_OF_MEMORY, "out of memory" },
     };
     size_t i;
@@ -620,18 +628,18 @@ NAOS_TEST(decl_error_message_of_every_kind)
 NAOS_TEST(decl_error_message_of_a_builder_error)
 {
     /* The kind returned by a failed builder call has its text. */
-    clopts_program_t *program = test_decl_program("tool");
+    clopts_command_t *root = test_decl_root("tool");
     clopts_option_t *first;
     clopts_option_t *second;
 
-    NAOS_REQUIRE_NOT_NULL(program);
-    first = test_decl_add(clopts_program_root(program), CLOPTS_OPTION_VALUE, "out", 'o');
+    NAOS_REQUIRE_NOT_NULL(root);
+    first = test_decl_add(root, CLOPTS_OPTION_VALUE, "out", 'o');
     NAOS_REQUIRE_NOT_NULL(first);
-    second = test_decl_add(clopts_program_root(program), CLOPTS_OPTION_FLAG, "out", '\0');
+    second = test_decl_add(root, CLOPTS_OPTION_FLAG, "out", '\0');
     NAOS_CHECK_NULL(second);
     NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_DECL_DUPLICATE_OPTION);
     NAOS_CHECK_STR_EQ(clopts_decl_error_message(test_decl_last), "duplicate option name");
-    clopts_program_free(program);
+    test_decl_discard(root);
 }
 
 /* ---- coverage of the text tables (12.1, 12.2) -------------------------- */
@@ -748,7 +756,7 @@ NAOS_SUITE(message,
     NAOS_ADD_TEST(missing_value_names_the_long_form_as_written),
     NAOS_ADD_TEST(unexpected_value_names_the_long_name_of_the_option),
     NAOS_ADD_TEST(unexpected_value_to_a_negated_flag_names_the_long_name_of_the_option),
-    NAOS_ADD_TEST(unexpected_value_to_a_reserved_option_names_the_part_before_the_equals_sign),
+    NAOS_ADD_TEST(unexpected_value_to_a_terminal_option_names_the_part_before_the_equals_sign),
     NAOS_ADD_TEST(missing_option_names_the_long_name),
     NAOS_ADD_TEST(missing_option_without_a_long_name_names_the_short_name),
     NAOS_ADD_TEST(missing_argument_names_the_positional),
