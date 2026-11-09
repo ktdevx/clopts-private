@@ -1,8 +1,10 @@
 /*
- * Suite oom: the allocation gateway and the allocation probe, and sweeps
- * that move the failing fault point over handle creation, the Windows
- * conversions and environment lookups (the sentinel or a recorded
- * OUT_OF_MEMORY, and live == 0 after the release).
+ * Suite oom: sweeps that move the failing fault point of the test allocator
+ * (tests/support/test_alloc.h) over handle creation, context creation, the
+ * Windows conversions and environment lookups. Each run gives the sentinel,
+ * NULL or a recorded OUT_OF_MEMORY when a fault point failed and the expected
+ * outcome otherwise, and leaves no block alive after the release. The
+ * allocation gateway itself is tested by core (tests/core/test_alloc.c).
  *
  * It also checks that the helpers of test_util hold the longest array they
  * accept, which the long inputs of the sweeps rely on.
@@ -11,6 +13,8 @@
 #include "test_util.h"
 
 #include "platform/platform_internal.h"
+
+#include "test_alloc.h"
 
 #include <naos/naos.h>
 
@@ -50,164 +54,16 @@ NAOS_TEST(u16_helpers_fill_the_whole_capacity)
     NAOS_CHECK_UINT_EQ(s.units[s.len], 0);
 }
 
-/* Without a probe the gateway allocates and releases usable blocks. */
-NAOS_TEST(no_probe_malloc_and_free)
-{
-    unsigned char *p;
-    uint16_t *a;
-
-    p = (unsigned char *)clopts_platform_malloc(NULL, 16);
-    NAOS_CHECK_NOT_NULL(p);
-    if (p != NULL)
-    {
-        memset(p, 0xab, 16);
-        NAOS_CHECK_UINT_EQ(p[15], 0xab);
-    }
-    clopts_platform_free(NULL, p);
-
-    a = (uint16_t *)clopts_platform_malloc_array(NULL, 8, sizeof(uint16_t));
-    NAOS_CHECK_NOT_NULL(a);
-    if (a != NULL)
-    {
-        a[7] = 0x1234;
-        NAOS_CHECK_UINT_EQ(a[7], 0x1234);
-    }
-    clopts_platform_free(NULL, a);
-
-    clopts_platform_free(NULL, NULL);
-}
-
-/* A size of 0 (or a count of 0) is a success, not NULL, with or without a probe. */
-NAOS_TEST(zero_size_succeeds)
-{
-    clopts_platform_probe_t probe = { 0, 0, 0 };
-    void *p;
-    void *q;
-    void *r;
-
-    p = clopts_platform_malloc(NULL, 0);
-    NAOS_CHECK_NOT_NULL(p);
-    clopts_platform_free(NULL, p);
-
-    q = clopts_platform_malloc(&probe, 0);
-    NAOS_CHECK_NOT_NULL(q);
-    r = clopts_platform_malloc_array(&probe, 0, 4);
-    NAOS_CHECK_NOT_NULL(r);
-    NAOS_CHECK_UINT_EQ(probe.calls, 2);
-    NAOS_CHECK_UINT_EQ(probe.live, 2);
-    clopts_platform_free(&probe, q);
-    clopts_platform_free(&probe, r);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
-}
-
-/* fail_at == 0 never fails; calls counts every attempt and live every block. */
-NAOS_TEST(probe_counts_calls_and_live)
-{
-    clopts_platform_probe_t probe = { 0, 0, 0 };
-    void *blocks[5];
-    size_t i;
-
-    for (i = 0; i < 5; ++i)
-    {
-        blocks[i] = (i % 2 == 0) ? clopts_platform_malloc(&probe, 8)
-                                 : clopts_platform_malloc_array(&probe, 3, 4);
-        NAOS_CHECK_NOT_NULL(blocks[i]);
-        NAOS_CHECK_UINT_EQ(probe.calls, i + 1);
-        NAOS_CHECK_UINT_EQ(probe.live, i + 1);
-    }
-    for (i = 0; i < 5; ++i)
-    {
-        clopts_platform_free(&probe, blocks[i]);
-        NAOS_CHECK_UINT_EQ(probe.live, 4 - i);
-    }
-    NAOS_CHECK_UINT_EQ(probe.calls, 5);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
-}
-
-/* The fail_at-th attempt and every later one fail; earlier ones succeed. */
-NAOS_TEST(probe_fails_nth_and_later)
-{
-    size_t n;
-
-    for (n = 1; n <= 4; ++n)
-    {
-        clopts_platform_probe_t probe = { 0, 0, 0 };
-        void *blocks[6];
-        size_t i;
-
-        probe.fail_at = n;
-        for (i = 0; i < 6; ++i)
-        {
-            blocks[i] = (i % 2 == 0) ? clopts_platform_malloc(&probe, 4)
-                                     : clopts_platform_malloc_array(&probe, 2, 2);
-            if (i + 1 < n)
-            {
-                NAOS_CHECK_NOT_NULL(blocks[i]);
-            }
-            else
-            {
-                NAOS_CHECK_NULL(blocks[i]);
-            }
-            NAOS_CHECK_UINT_EQ(probe.calls, i + 1);
-        }
-        NAOS_CHECK_UINT_EQ(probe.live, n - 1);
-        for (i = 0; i < 6; ++i)
-        {
-            clopts_platform_free(&probe, blocks[i]);
-        }
-        NAOS_CHECK_UINT_EQ(probe.live, 0);
-    }
-}
-
-/* Releasing NULL is ignored and never moves live. */
-NAOS_TEST(probe_free_null_keeps_live)
-{
-    clopts_platform_probe_t probe = { 0, 0, 0 };
-    void *p;
-
-    p = clopts_platform_malloc(&probe, 1);
-    NAOS_CHECK_NOT_NULL(p);
-    clopts_platform_free(&probe, NULL);
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
-    NAOS_CHECK_UINT_EQ(probe.calls, 1);
-    clopts_platform_free(&probe, p);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
-}
-
-/*
- * count * size overflow returns NULL without allocating. Like the parser's
- * gateway, the attempt still passes the fault point (calls grows by one).
- */
-NAOS_TEST(malloc_array_overflow_does_not_allocate)
-{
-    clopts_platform_probe_t probe = { 0, 0, 0 };
-    void *p;
-
-    NAOS_CHECK_NULL(clopts_platform_malloc_array(NULL, SIZE_MAX, 2));
-    NAOS_CHECK_NULL(clopts_platform_malloc_array(NULL, (SIZE_MAX / 4) + 1, 4));
-
-    NAOS_CHECK_NULL(clopts_platform_malloc_array(&probe, SIZE_MAX, 2));
-    NAOS_CHECK_UINT_EQ(probe.calls, 1);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
-    NAOS_CHECK_NULL(clopts_platform_malloc_array(&probe, 2, SIZE_MAX));
-    NAOS_CHECK_UINT_EQ(probe.calls, 2);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
-
-    /* A product that fits still allocates after the overflows. */
-    p = clopts_platform_malloc_array(&probe, 1, 32);
-    NAOS_CHECK_NOT_NULL(p);
-    NAOS_CHECK_UINT_EQ(probe.live, 1);
-    clopts_platform_free(&probe, p);
-    NAOS_CHECK_UINT_EQ(probe.live, 0);
-}
-
 /* ---- sweeps over the fault points ------------------------------------------ */
 
-/* Upper bound of the fault points a sweep moves over; every sweep ends well before it. */
+/*
+ * Upper bound of the fault points a sweep moves over; every sweep ends well
+ * before it (it only stops a sweep that would never end).
+ */
 #define OOM_SWEEP_LIMIT 64
 
-/* Creates a handle with the probe; input is the sweep's own data. */
-typedef clopts_argv_t *(*oom_argv_make_fn)(clopts_platform_probe_t *probe, const void *input);
+/* Creates a handle; input is the sweep's own data. */
+typedef clopts_argv_t *(*oom_argv_make_fn)(const void *input);
 
 /* What the handle must hold once no fault point fails. */
 typedef struct oom_argv_expect
@@ -249,9 +105,10 @@ static void oom_check_argv(const clopts_argv_t *args, const oom_argv_expect_t *e
 }
 
 /*
- * Moves fail_at from 1 until no fault point fails. Each run gives the
- * sentinel (only when it reached a failing fault point) or the expected
- * handle, and live returns to 0 after the release.
+ * Moves fail_at from 1 until a run passes fewer fault points than fail_at
+ * (no fault point failed). Each run gives the sentinel (only when it reached
+ * a failing fault point) or the expected handle, and no block is alive after
+ * the release.
  */
 static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_argv_expect_t *expect,
                            oom_sweep_stats_t *stats)
@@ -261,18 +118,17 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
     memset(stats, 0, sizeof(*stats));
     for (fail_at = 1; (fail_at <= OOM_SWEEP_LIMIT) && (!stats->succeeded); ++fail_at)
     {
-        clopts_platform_probe_t probe = {0, 0, 0};
         clopts_argv_t *args;
 
         NAOS_NOTE("argv fault point %u", (unsigned)fail_at);
-        probe.fail_at = fail_at;
-        args = make(&probe, input);
+        test_alloc_begin(fail_at);
+        args = make(input);
         stats->runs++;
         NAOS_CHECK_NOT_NULL(args);
         if (args == clopts_platform_argv_sentinel())
         {
             stats->oom_runs++;
-            NAOS_CHECK_UINT_GE(probe.calls, fail_at);
+            NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
             NAOS_CHECK_INT_EQ(clopts_argv_status(args), CLOPTS_ARGV_OUT_OF_MEMORY);
             NAOS_CHECK_INT_EQ(clopts_argv_count(args), 0);
             NAOS_CHECK_INT_EQ(clopts_argv_error_index(args), -1);
@@ -281,21 +137,22 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
         {
             oom_check_argv(args, expect);
         }
-        if (probe.calls < fail_at)
+        if (test_alloc.calls < fail_at)
         {
             stats->succeeded = true;
             NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
         }
-        clopts_platform_argv_free(&probe, args);
-        NAOS_CHECK_UINT_EQ(probe.live, 0);
+        clopts_argv_free(args);
+        NAOS_CHECK_TRUE(test_alloc_end());
     }
 }
 
-static clopts_argv_t *oom_make_passthrough(clopts_platform_probe_t *probe, const void *input)
+static clopts_argv_t *oom_make_passthrough(const void *input)
 {
-    return clopts_platform_argv_passthrough(probe, 3, (char *const *)input);
+    return clopts_platform_argv_passthrough(3, (char *const *)input);
 }
 
+/* One fault point: the handle (platform_argv_new). */
 NAOS_TEST(sweep_passthrough)
 {
     static char arg0[] = "tool";
@@ -308,11 +165,11 @@ NAOS_TEST(sweep_passthrough)
 
     oom_sweep_argv(oom_make_passthrough, argv, &expect, &stats);
     NAOS_CHECK_TRUE(stats.succeeded);
-    NAOS_CHECK_UINT_GE(stats.oom_runs, 1);
+    NAOS_CHECK_UINT_EQ(stats.oom_runs, 1);
     NAOS_CHECK_UINT_EQ(stats.runs, stats.oom_runs + 1);
 }
 
-/* Creating a context: NULL at every failing fault point, never a leak. */
+/* Creating a context: one fault point (the context); NULL when it fails, never a leak. */
 NAOS_TEST(sweep_env_new)
 {
     size_t fail_at;
@@ -321,47 +178,46 @@ NAOS_TEST(sweep_env_new)
 
     for (fail_at = 1; (fail_at <= OOM_SWEEP_LIMIT) && (!succeeded); ++fail_at)
     {
-        clopts_platform_probe_t probe = {0, 0, 0};
         clopts_env_t *env;
 
         NAOS_NOTE("env_new fault point %u", (unsigned)fail_at);
-        probe.fail_at = fail_at;
-        env = clopts_platform_env_new(&probe);
+        test_alloc_begin(fail_at);
+        env = clopts_env_new();
         if (env == NULL)
         {
             oom_runs++;
-            NAOS_CHECK_UINT_GE(probe.calls, fail_at);
-            NAOS_CHECK_UINT_EQ(probe.live, 0);
+            NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
+            NAOS_CHECK_INT_EQ(test_alloc.live, 0);
         }
         else
         {
             NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
             NAOS_CHECK_NULL(clopts_env_error_name(env));
         }
-        if (probe.calls < fail_at)
+        if (test_alloc.calls < fail_at)
         {
             succeeded = true;
             NAOS_CHECK_NOT_NULL(env);
         }
         clopts_env_free(env);
-        NAOS_CHECK_UINT_EQ(probe.live, 0);
+        NAOS_CHECK_TRUE(test_alloc_end());
     }
     NAOS_CHECK_TRUE(succeeded);
-    NAOS_CHECK_UINT_GE(oom_runs, 1);
+    NAOS_CHECK_UINT_EQ(oom_runs, 1);
 }
 
 #ifdef _WIN32
-static clopts_argv_t *oom_make_from_cmdline(clopts_platform_probe_t *probe, const void *input)
+static clopts_argv_t *oom_make_from_cmdline(const void *input)
 {
-    return clopts_platform_argv_from_cmdline(probe, (const wchar_t *)input);
+    return clopts_platform_argv_from_cmdline((const wchar_t *)input);
 }
 
-static clopts_argv_t *oom_make_convert(clopts_platform_probe_t *probe, const void *input)
+static clopts_argv_t *oom_make_convert(const void *input)
 {
-    return clopts_platform_argv_convert(probe, 3, (const wchar_t *const *)input);
+    return clopts_platform_argv_convert(3, (const wchar_t *const *)input);
 }
 
-/* The command line: the work block, then the handle block. */
+/* The command line: two fault points, the work block and then the handle block. */
 NAOS_TEST(sweep_argv_from_cmdline)
 {
     static const wchar_t cmdline[] = L"tool --name \"\x3042 \x3044\" \"\"";
@@ -371,12 +227,14 @@ NAOS_TEST(sweep_argv_from_cmdline)
 
     oom_sweep_argv(oom_make_from_cmdline, cmdline, &expect, &stats);
     NAOS_CHECK_TRUE(stats.succeeded);
-    /* both the work block and the handle block are fault points */
-    NAOS_CHECK_UINT_GE(stats.oom_runs, 2);
+    NAOS_CHECK_UINT_EQ(stats.oom_runs, 2);
     NAOS_CHECK_UINT_EQ(stats.runs, stats.oom_runs + 1);
 }
 
-/* A lone surrogate in the second element: the work block, then the failure handle. */
+/*
+ * A lone surrogate in the second element: two fault points, the work block
+ * and then the failure handle.
+ */
 NAOS_TEST(sweep_argv_from_cmdline_invalid_utf16)
 {
     static const wchar_t cmdline[] = {L't', L'o', L'o', L'l', L' ', L'a', 0xD800, L' ', L'b', 0};
@@ -385,10 +243,11 @@ NAOS_TEST(sweep_argv_from_cmdline_invalid_utf16)
 
     oom_sweep_argv(oom_make_from_cmdline, cmdline, &expect, &stats);
     NAOS_CHECK_TRUE(stats.succeeded);
-    NAOS_CHECK_UINT_GE(stats.oom_runs, 2);
+    NAOS_CHECK_UINT_EQ(stats.oom_runs, 2);
     NAOS_CHECK_UINT_EQ(stats.runs, stats.oom_runs + 1);
 }
 
+/* One fault point: the block holding the handle, the pointers and the strings. */
 NAOS_TEST(sweep_argv_convert)
 {
     static const wchar_t w0[] = L"tool";
@@ -401,14 +260,15 @@ NAOS_TEST(sweep_argv_convert)
 
     oom_sweep_argv(oom_make_convert, wargs, &expect, &stats);
     NAOS_CHECK_TRUE(stats.succeeded);
-    NAOS_CHECK_UINT_GE(stats.oom_runs, 1);
+    NAOS_CHECK_UINT_EQ(stats.oom_runs, 1);
     NAOS_CHECK_UINT_EQ(stats.runs, stats.oom_runs + 1);
 }
 
 /*
- * A lookup of a value several thousand code units long in a new context:
- * the first work buffer is too small, so the read is retried after it
- * grows, and the value buffer follows. Every failing fault point gives
+ * A lookup of a value several thousand code units long in a new context.
+ * The fault points of the lookup: the first work buffer (the name and 256
+ * code units), the grown work buffer for the retry (the value does not fit
+ * the first one) and the value buffer. Every failing fault point gives
  * FAILED with OUT_OF_MEMORY (the name copy fails too, so no name).
  */
 NAOS_TEST(sweep_env_lookup_long_value)
@@ -441,26 +301,27 @@ NAOS_TEST(sweep_env_lookup_long_value)
 
     for (offset = 1; (offset <= OOM_SWEEP_LIMIT) && (!succeeded); ++offset)
     {
-        clopts_platform_probe_t probe = {0, 0, 0};
         clopts_env_t *env;
         const char *value = NULL;
         clopts_env_status_t status;
         size_t start;
 
         NAOS_NOTE("env lookup fault point %u", (unsigned)offset);
-        env = clopts_platform_env_new(&probe);
+        /* The context is created without failures; the sweep starts after it. */
+        test_alloc_begin(0);
+        env = clopts_env_new();
         NAOS_CHECK_NOT_NULL(env);
         if (env == NULL)
         {
             break;
         }
-        start = probe.calls;
-        probe.fail_at = start + offset;
+        start = test_alloc.calls;
+        test_alloc_set_fail_at(start + offset);
         status = clopts_env_lookup(env, "CLOPTS_TEST_OOM_LONG", &value);
         if (status == CLOPTS_ENV_FAILED)
         {
             oom_runs++;
-            NAOS_CHECK_UINT_GE(probe.calls, start + offset);
+            NAOS_CHECK_UINT_GE(test_alloc.calls, start + offset);
             NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_OUT_OF_MEMORY);
             NAOS_CHECK_NULL(clopts_env_error_name(env));
         }
@@ -475,19 +336,20 @@ NAOS_TEST(sweep_env_lookup_long_value)
             }
             NAOS_CHECK_INT_EQ(clopts_env_error(env), CLOPTS_ENV_ERROR_NONE);
         }
-        if (probe.calls < start + offset)
+        if (test_alloc.calls < start + offset)
         {
             succeeded = true;
             NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
         }
-        probe.fail_at = 0;
+        test_alloc_set_fail_at(0);
         clopts_env_free(env);
-        NAOS_CHECK_UINT_EQ(probe.live, 0);
+        NAOS_CHECK_TRUE(test_alloc_end());
     }
+    test_alloc_set_fail_at(0);
     SetEnvironmentVariableW(L"CLOPTS_TEST_OOM_LONG", NULL);
     NAOS_CHECK_TRUE(succeeded);
     /* the first work buffer, the grown one for the retry, and the value buffer */
-    NAOS_CHECK_UINT_GE(oom_runs, 3);
+    NAOS_CHECK_UINT_EQ(oom_runs, 3);
 }
 #endif /* _WIN32 */
 
@@ -495,24 +357,12 @@ NAOS_TEST(sweep_env_lookup_long_value)
 #ifndef _WIN32
 NAOS_SUITE(oom,
     NAOS_ADD_TEST(u16_helpers_fill_the_whole_capacity),
-    NAOS_ADD_TEST(no_probe_malloc_and_free),
-    NAOS_ADD_TEST(zero_size_succeeds),
-    NAOS_ADD_TEST(probe_counts_calls_and_live),
-    NAOS_ADD_TEST(probe_fails_nth_and_later),
-    NAOS_ADD_TEST(probe_free_null_keeps_live),
-    NAOS_ADD_TEST(malloc_array_overflow_does_not_allocate),
     NAOS_ADD_TEST(sweep_passthrough),
     NAOS_ADD_TEST(sweep_env_new)
 )
 #else
 NAOS_SUITE(oom,
     NAOS_ADD_TEST(u16_helpers_fill_the_whole_capacity),
-    NAOS_ADD_TEST(no_probe_malloc_and_free),
-    NAOS_ADD_TEST(zero_size_succeeds),
-    NAOS_ADD_TEST(probe_counts_calls_and_live),
-    NAOS_ADD_TEST(probe_fails_nth_and_later),
-    NAOS_ADD_TEST(probe_free_null_keeps_live),
-    NAOS_ADD_TEST(malloc_array_overflow_does_not_allocate),
     NAOS_ADD_TEST(sweep_passthrough),
     NAOS_ADD_TEST(sweep_env_new),
     NAOS_ADD_TEST(sweep_argv_from_cmdline),
