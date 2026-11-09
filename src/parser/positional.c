@@ -31,7 +31,9 @@ clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **
     clopts_positional_t *positional;
 
     assert(out != NULL);
+
     *out = NULL;
+
     if ((name == NULL) || (name[0] == '\0'))
     {
         return CLOPTS_ERROR_INVALID_NAME;
@@ -42,16 +44,20 @@ clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **
     {
         return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
+
     positional->name = clopts_core_strdup(name);
     if (positional->name == NULL)
     {
         clopts_core_free(positional);
         return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
+
     positional->help = NULL;
     positional->required = false;
     positional->variadic = false;
+
     *out = positional;
+
     return CLOPTS_ERROR_NONE;
 }
 
@@ -61,6 +67,7 @@ void clopts_positional_destroy(clopts_positional_t *positional)
     {
         return;
     }
+
     clopts_core_free(positional->name);
     clopts_core_free(positional->help);
     clopts_core_free(positional);
