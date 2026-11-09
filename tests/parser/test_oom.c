@@ -335,7 +335,7 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
  */
 NAOS_TEST(sweep_tool_build_then_parse)
 {
-    static const fixture_tool_t zero;
+    static fixture_tool_t zero; /* all zero (static storage); not const: MSVC C4132 */
     char *argv[] = { "tool", "build", "-k", "a,b", "-o", "x", "src", NULL };
     snapshot_t expected;
     size_t build_calls = 0;
