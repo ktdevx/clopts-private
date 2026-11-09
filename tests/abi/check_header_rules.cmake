@@ -1,7 +1,7 @@
-# Checks the rules for the public headers (requirements 4.1, 4.4-4.6, 4.8):
+# Checks the rules for the public headers:
 # CLOPTS_API at the start of every function declaration. Struct and union
-# definitions are allowed (requirements 4.2 and 4.3 were retired: a public
-# struct is frozen instead, docs/abi.md). Run with `cmake -P`; registered by
+# definitions are allowed (a public struct is
+# frozen instead, docs/abi.md). Run with `cmake -P`; registered by
 # tests/abi/CMakeLists.txt (label: abi).
 #
 # Variables (-D):
@@ -252,7 +252,7 @@ if(_violation_count GREATER 0)
     string(REPLACE "${_backslash}" "\\" _report "${_report}")
     message(FATAL_ERROR
         " check_header_rules: ${_violation_count} violation(s) in the public headers under ${HEADER_DIR}"
-        " (CLOPTS_API on every function; see requirement 4):\n ${_report}")
+        " (CLOPTS_API on every function):\n ${_report}")
 endif()
 message(STATUS
     "check_header_rules: ${_header_count} header(s), ${_function_count} function declaration(s) checked"

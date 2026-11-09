@@ -8,7 +8,7 @@
  * result store directly are covered by the result suite; the aspects that
  * suite does not cover (a repeated FLAG, a VALUE kept as is, LIST white space
  * and copies, unset slots, counting with the default limit) are checked here
- * through argv instead. The cases named nosub_* cover requirement 13.4 for a
+ * through argv instead. The cases named nosub_* cover a
  * program without subcommands. The status is always checked with
  * NAOS_REQUIRE_INT_EQ before values are read.
  */
@@ -441,10 +441,10 @@ NAOS_TEST(parse_cat_tags_explicit_is_split_and_wins)
     fixture_tool_free(&f);
 }
 
-/* ---- 13.4: サブコマンドなし構成 ---------------------------------------- */
+/* ---- サブコマンドなし構成 ---------------------------------------- */
 
 /*
- * Requirement 13.4 for a program without subcommands. fixture_filt covers
+ * A program without subcommands. fixture_filt covers
  * long / short / "=" / positional mix / default / env / HELP; the fictional
  * program nosub below covers the rest: "--", "-" alone, --no-x, the count
  * limit, list concatenation and splitting, required checks, VERSION and the

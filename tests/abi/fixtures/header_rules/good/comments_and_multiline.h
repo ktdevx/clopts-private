@@ -1,4 +1,4 @@
-// Allowed: text in comments is not checked (requirement 4.6), and a
+// Allowed: text in comments is not checked, and a
 // CLOPTS_API declaration may continue over several lines.
 #ifndef GOOD_COMMENTS_AND_MULTILINE_H
 #define GOOD_COMMENTS_AND_MULTILINE_H

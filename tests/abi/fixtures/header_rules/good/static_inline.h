@@ -1,4 +1,4 @@
-/* Allowed: a static inline definition inside extern "C" (requirement 4.5). */
+/* Allowed: a static inline definition inside extern "C". */
 #ifndef GOOD_STATIC_INLINE_H
 #define GOOD_STATIC_INLINE_H
 

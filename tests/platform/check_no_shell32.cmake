@@ -1,4 +1,4 @@
-# Checks that nothing under src/ uses shell32 (requirement 8.1). Run with
+# Checks that nothing under src/ uses shell32. Run with
 # `cmake -P`; registered as platform.no_shell32 (label: platform).
 #
 # Required variables (-D):
@@ -122,6 +122,6 @@ if(_offending)
     list(JOIN _offending "\n  " _report)
     message(FATAL_ERROR
         "check_no_shell32: ${_count} use(s) of shell32 under ${SOURCE_DIR} "
-        "(CLOpts must not depend on shell32; see requirement 8.1):\n  ${_report}")
+        "(CLOpts must not depend on shell32):\n  ${_report}")
 endif()
 message(STATUS "check_no_shell32: no use of shell32 under ${SOURCE_DIR}")

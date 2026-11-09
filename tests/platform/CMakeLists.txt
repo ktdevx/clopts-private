@@ -28,8 +28,8 @@ if(WIN32)
         "PLATFORM_PROBE_PATH=\"$<TARGET_FILE:platform_probe>\"")
 endif()
 
-# platform.no_shell32 (all OSes): nothing under src/ uses shell32
-# (requirement 8.1); see check_no_shell32.cmake for what is matched.
+# platform.no_shell32 (all OSes): nothing under src/ uses shell32;
+# see check_no_shell32.cmake for what is matched.
 add_test(NAME platform.no_shell32
     COMMAND "${CMAKE_COMMAND}"
         "-DSOURCE_DIR=${PROJECT_SOURCE_DIR}/src"

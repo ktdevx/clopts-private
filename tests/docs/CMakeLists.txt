@@ -4,7 +4,7 @@
 # clopts_add_doc_program (cmake/CloptsExamples.cmake); the examples under
 # examples/ are registered before this directory is processed.
 #
-# Checks of the real documentation (design "DocsTests"); the user
+# Checks of the real documentation; the user
 # documentation is README.md and docs/*.md (not docs/dev/):
 #
 #   docs.outputs        check_docs.cmake MODE=outputs on the user
@@ -16,7 +16,7 @@
 #   docs.api_coverage   MODE=api_coverage of abi/clopts.symbols on docs/api.md
 #   docs.changelog      check_changelog.cmake MODE=format on CHANGELOG.md
 #
-# Self-tests of the check scripts (requirement 8.1, design "DocsTests"):
+# Self-tests of the check scripts:
 #
 #   docs_selftest.outputs.<case>       check_docs.cmake MODE=outputs on
 #                                      fixtures/outputs/<case>.md, with cmake
@@ -35,7 +35,7 @@
 #                                      writes the notes of
 #                                      fixtures/changelog/expected_X.Y.Z.md
 #
-# Example build defaults when CLOpts is a subproject (requirements 7.6, 7.7),
+# Example build defaults when CLOpts is a subproject,
 # both through tests/cmake/run_fixture.cmake (EXPECT=configure_ok) on
 # fixtures/subproject, which pulls CLOpts in with add_subdirectory:
 #
@@ -125,7 +125,7 @@ function(_clopts_docs_add_check mode)
     set_tests_properties("docs.${mode}" PROPERTIES LABELS docs)
 endfunction()
 
-# docs.outputs (requirements 8.1-8.3): every clopts-check marker of the user
+# docs.outputs: every clopts-check marker of the user
 # documentation is run against the registered programs. The examples are
 # required by its markers, so it exists only when they are built.
 if(CLOPTS_BUILD_EXAMPLES)
@@ -154,19 +154,19 @@ if(CLOPTS_BUILD_EXAMPLES)
             "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/work/outputs")
 endif()
 
-# docs.sources (requirement 8.6): the README code blocks match their files.
+# docs.sources: the README code blocks match their files.
 _clopts_docs_add_check(sources FILES README.md)
 
-# docs.links (requirements 6.2, 6.5): relative links of the user documentation.
+# docs.links: relative links of the user documentation.
 _clopts_docs_add_check(links FILES ${_clopts_docs_user_docs})
 
-# docs.api_coverage (requirements 2.9, 8.7): every public symbol is in the API
+# docs.api_coverage: every public symbol is in the API
 # reference.
 _clopts_docs_add_check(api_coverage
     FILES docs/api.md
     ARGS "-DSYMBOLS=${PROJECT_SOURCE_DIR}/abi/clopts.symbols")
 
-# docs.changelog (requirement 10.1): the format of CHANGELOG.md.
+# docs.changelog: the format of CHANGELOG.md.
 add_test(NAME docs.changelog
     COMMAND "${CMAKE_COMMAND}"
         -DMODE=format
@@ -248,7 +248,7 @@ function(_clopts_docs_add_check_selftest mode case)
         EXPECT ${ARG_EXPECT})
 endfunction()
 
-# ---- check_docs.cmake MODE=outputs (requirements 8.2-8.5, 8.8) -------------
+# ---- check_docs.cmake MODE=outputs -------------
 set(_clopts_docs_out "${_clopts_docs_fixtures}/outputs")
 
 _clopts_docs_add_check_selftest(outputs match
@@ -338,7 +338,7 @@ _clopts_docs_add_check_selftest(outputs missing_document
         "no_such.md: file not found (${_clopts_docs_out}/no_such.md)"
         "no clopts-check marker found in: no_such.md")
 
-# ---- check_docs.cmake MODE=sources (requirements 8.6, 8.8) -----------------
+# ---- check_docs.cmake MODE=sources -----------------
 _clopts_docs_add_check_selftest(sources match
     EXPECT "-- docs_check: checked 2 source marker(s)")
 
@@ -384,7 +384,7 @@ _clopts_docs_add_check_selftest(sources missing_document
         "no_such.md: file not found (${_clopts_docs_fixtures}/sources/no_such.md)"
         "no clopts-source marker found in: no_such.md")
 
-# ---- check_docs.cmake MODE=links (requirements 6.2, 6.5, 8.8) --------------
+# ---- check_docs.cmake MODE=links --------------
 _clopts_docs_add_check_selftest(links ok
     EXPECT "-- docs_check: checked 6 link(s)")
 
@@ -426,7 +426,7 @@ _clopts_docs_add_check_selftest(links missing_document
         "no_such.md: file not found (${_clopts_docs_fixtures}/links/no_such.md)"
         "no relative link found in: no_such.md")
 
-# ---- check_docs.cmake MODE=api_coverage (requirements 2.9, 8.7, 8.8) -------
+# ---- check_docs.cmake MODE=api_coverage -------
 _clopts_docs_add_check_selftest(api_coverage complete
     ARGS "-DSYMBOLS=symbols.txt"
     EXPECT "-- docs_check: checked 4 symbol(s)")
@@ -461,7 +461,7 @@ _clopts_docs_add_check_selftest(api_coverage missing_document
         "docs_check (api_coverage): 1 failure(s)"
         "no_such.md: file not found (${_clopts_docs_fixtures}/api_coverage/no_such.md)")
 
-# ---- check_changelog.cmake (requirements 10.2-10.4, 11.2-11.4) -------------
+# ---- check_changelog.cmake -------------
 set(_clopts_docs_cl "${_clopts_docs_fixtures}/changelog")
 set(_clopts_docs_categories "互換性のない変更, 追加, 変更, 非推奨, 削除, 修正, セキュリティ")
 

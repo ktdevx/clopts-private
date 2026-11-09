@@ -1,4 +1,4 @@
-/* Allowed: typedef enums and function pointer types (requirement 4.5). */
+/* Allowed: typedef enums and function pointer types. */
 #ifndef GOOD_TYPEDEFS_H
 #define GOOD_TYPEDEFS_H
 

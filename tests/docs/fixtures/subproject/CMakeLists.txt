@@ -1,5 +1,5 @@
 # Subproject fixture for docs.examples_subproject_default and
-# docs.examples_subproject_on (EXPECT=configure_ok, requirements 7.6, 7.7).
+# docs.examples_subproject_on (EXPECT=configure_ok).
 #
 # Mimics a project that pulls CLOpts in with add_subdirectory and checks
 # whether CLOpts created its example programs (the target

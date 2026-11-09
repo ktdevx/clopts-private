@@ -1,5 +1,5 @@
 # Compares the ABI of the current sources with the latest release of the same
-# SOVERSION using abidiff (requirements 6.2-6.8). Run with `cmake -P`.
+# SOVERSION using abidiff. Run with `cmake -P`.
 #
 # Variables (-D):
 #   MODE         compare (the default) or self_test.
@@ -20,7 +20,7 @@ cmake_minimum_required(VERSION 3.21)
 # select_baseline(<current_version> <tags> <out_var>)
 #
 # Sets <out_var> to the release tag to compare against, or to "" when there is
-# none (requirements 6.2, 6.3). <current_version> is "x.y.z"; <tags> is a list
+# none. <current_version> is "x.y.z"; <tags> is a list
 # of tag names. Only tags matching ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ are
 # candidates (so "v1.2.0-rc1" is not). Among the candidates with the same
 # major as the current version (the same SOVERSION) and a version not above
@@ -58,9 +58,9 @@ endfunction()
 # classify_exit_code(<code> <out_var>)
 #
 # Sets <out_var> to compatible, incompatible or tool_error from an abidiff
-# exit code (requirements 6.6-6.8). libabigail's bits: 1 = error,
+# exit code. libabigail's bits: 1 = error,
 # 2 = usage error, 4 = ABI change, 8 = incompatible ABI change. The rules are
-# applied in this order (design "AbiCompareScript", exit-code table):
+# applied in this order:
 #   code & 1 or code & 2   -> tool_error
 #   otherwise code & 8     -> incompatible (also when unknown bits are set,
 #                             e.g. 24 = 8|16; the job fails either way)
@@ -206,9 +206,9 @@ endfunction()
 # _run_abidiff_build(<side> <source_dir> <work_dir> <out_prefix>)
 #
 # Configures, builds and installs <source_dir> as a shared library with debug
-# information into <work_dir>/<side>-prefix (requirement 6.4). Both sides use
+# information into <work_dir>/<side>-prefix. Both sides use
 # the same generator (GENERATOR) and C compiler (C_COMPILER, else env CC).
-# Fails with the output of the failing step (requirement 6.8).
+# Fails with the output of the failing step.
 function(_run_abidiff_build side source_dir work_dir out_prefix)
     set(build_dir "${work_dir}/${side}-build")
     set(prefix_dir "${work_dir}/${side}-prefix")
@@ -309,13 +309,13 @@ function(_run_abidiff_compare)
     set(current_major "${CMAKE_MATCH_1}")
     set(current_version "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
 
-    # 2. Nothing to compare against before 1.0.0 (requirement 6.3).
+    # 2. Nothing to compare against before 1.0.0.
     if(current_major EQUAL 0)
         message("abi-compare: skipped: version ${current_version} is before 1.0.0")
         return()
     endif()
 
-    # 3. The baseline tag (requirements 6.2, 6.3).
+    # 3. The baseline tag.
     find_program(_run_abidiff_git git)
     if(NOT _run_abidiff_git)
         _run_abidiff_fail("tool error" "git was not found" "")
@@ -341,7 +341,7 @@ function(_run_abidiff_compare)
         return()
     endif()
 
-    # abidiff is required from here on (requirement 6.8); check it before
+    # abidiff is required from here on; check it before
     # spending time on the builds.
     find_program(_run_abidiff_abidiff abidiff)
     if(NOT _run_abidiff_abidiff)
@@ -372,7 +372,7 @@ function(_run_abidiff_compare)
             "extracting ${archive} failed (exit status ${result})" "${output}")
     endif()
 
-    # 5. Build and install both sides the same way (requirement 6.4).
+    # 5. Build and install both sides the same way.
     _run_abidiff_build(baseline "${baseline_src}" "${work_dir}" baseline_prefix)
     _run_abidiff_build(current "${source_dir}" "${work_dir}" current_prefix)
 
@@ -380,7 +380,7 @@ function(_run_abidiff_compare)
     _run_abidiff_find_library(baseline "${baseline_prefix}" baseline_lib)
     _run_abidiff_find_library(current "${current_prefix}" current_lib)
 
-    # 7. Compare with the public headers as the API scope (requirement 6.5).
+    # 7. Compare with the public headers as the API scope.
     _run_abidiff_run(code report
         "${_run_abidiff_abidiff}"
         --headers-dir1 "${baseline_prefix}/include"
@@ -388,7 +388,7 @@ function(_run_abidiff_compare)
         --drop-private-types
         "${baseline_lib}" "${current_lib}")
 
-    # 8. Classify and always show the report (requirements 6.6-6.8).
+    # 8. Classify and always show the report.
     classify_exit_code("${code}" verdict)
     set(report_text
         "---- abidiff ${baseline_tag} (${baseline_lib}) -> current ${current_version} (${current_lib}): exit status ${code} ----\n${report}---- end of abidiff output ----")
