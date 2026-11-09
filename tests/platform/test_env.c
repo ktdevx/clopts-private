@@ -453,7 +453,7 @@ static int platform_env_put(const char *name, const char *value)
 #endif
 }
 
-/* The fictional program tool with one VALUE option --output whose fallback is env_name. */
+/* The fictional program tool with one VALUE option --output whose fallback is env_name (NULL handles on failure). */
 typedef struct platform_env_tool
 {
     clopts_program_t *program;
@@ -462,9 +462,22 @@ typedef struct platform_env_tool
 
 static void platform_env_tool_init(platform_env_tool_t *tool, const char *env_name)
 {
-    tool->program = clopts_program_new("tool");
-    tool->output = clopts_command_add_value(clopts_program_root(tool->program), "output", 'o');
-    clopts_option_set_env(tool->output, env_name);
+    clopts_option_t *output = NULL;
+
+    tool->program = NULL;
+    tool->output = NULL;
+    if (clopts_program_new("tool", &tool->program) != CLOPTS_DECL_NONE)
+    {
+        return;
+    }
+    if ((clopts_option_new(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_DECL_NONE)
+        || (clopts_option_set_env(output, env_name) != CLOPTS_DECL_NONE)
+        || (clopts_command_add_option(clopts_program_root(tool->program), output) != CLOPTS_DECL_NONE))
+    {
+        clopts_option_free(output);
+        return;
+    }
+    tool->output = output;
 }
 
 /* "tool" with nothing else: --output can only come from the environment. */
