@@ -68,3 +68,75 @@
 - `-h` を上書きされるとヘルプが出せなくなる → 仕様としてドキュメントに明記する
 - 組み立てる順番が下から上に固定される（program に渡した後でオプションを足すことはできない）→ 仕様として明記する
 - 衝突エラーがなくなるので、シャドーイングが起きたことはエラーとして出ない（lint で補う）
+
+## 宣言モデルの再設計（続き）：他に分離できる箇所
+
+前提は上と同じ（API 破壊可、検証の緩和可）。効果の大きい順に並べる。
+
+### 1. 宣言から実行（handler）を外す ★★★
+
+- 今の状態
+  - `clopts_handler_fn` は `decl_types.h` にあり、引数に `clopts_result_t` を取る。宣言の型が parse 結果の型に依存している
+  - `clopts_command_set_handler()` と `clopts_result_run()` によって、command が「宣言」と「呼び出し先」の両方を持っている
+  - MIXED_LAYOUT の判定条件の半分はこの handler（サブコマンドを持つ root に handler がある）
+- 変更案
+  - command から `handler` と `userdata` を削除する
+  - 振り分けはユーザーが `clopts_result_command()` の戻り値で分岐して行う
+  - 補助が要るなら宣言とは別の部品にする（例: `{command, fn, userdata}` の配列を受け取る `clopts_dispatch()`）
+- 効果：宣言が parse 結果を知らなくなる。MIXED_LAYOUT が「root に positional がある」だけになる。`clopts_result_run` が消える
+
+### 2. `--help` / `--version` / `help` コマンドを parser から追い出す ★★★
+
+- 今の状態
+  - `parser_scan.c` が help の概念を直接扱っている（`is_help_token`、`prelude_help_command`、`reserved_version`、`help copy --help` のような並びの解釈）
+  - そのため parse 結果に `CLOPTS_HELP` / `CLOPTS_VERSION` という状態があり、宣言側に RESERVED_NAME がある
+- 変更案
+  - parser には組み込みのオプションを一切持たせない
+  - option に「見つけた時点で必須チェックを打ち切る」属性を追加する（例: `clopts_option_set_terminal()`）
+  - help と version はその属性を付けたただの FLAG にし、help モジュールのヘルパーで提供する（例: `clopts_help_add_options(command, &help_opt)`）
+  - `help <cmd>` も help モジュールが「help という名前の普通のサブコマンド」として提供する
+- 効果：parser が help を知らない汎用の argv 解析器になる。上の方針 3（シャドーイング）の「組み込みは最下位」という規則が不要になる
+
+### 3. builder と、変更できない宣言の型を分ける ★★☆
+
+- 今の状態
+  - 初回の parse が `program->frozen = true` と書き込むので、`clopts_parse(clopts_program_t *)` が const でない
+  - そのため「同じ program を複数のスレッドから同時に parse してはいけない」という制約がある
+- 変更案
+  - 組み立てが終わったら明示的に確定させる。例: `clopts_program_build(builder, &spec)` で、変更できない `const clopts_spec_t *` を作る
+  - parse と help は const な spec だけを受け取る
+- 効果：frozen と FROZEN エラーが消える。同じ spec を複数のスレッドから同時に parse できる
+- 注意：上の方針 2（封印）は、この確定ステップの粒度の細かい版にあたる。どちらで実現するかはまとめて決める
+
+### 4. help モジュールが parser の内部構造を直接読まない ★★☆
+
+- 今の状態
+  - `help_internal.h` が `parser/parser_model.h` を include している
+  - `help_layout.c` が `program->root`、`program->commands`、`program->version`、`scope->options` を直接読んでいる
+- 変更案
+  - 宣言を読み取るだけの公開 API を用意する（例: `clopts_command_option_count/at`、`clopts_option_long_name`、`clopts_program_command_at`）
+  - help はこの API だけを使って書く
+- 効果：help が parser の構造体の配置に依存しなくなる。help を別ライブラリにすることも、ユーザーが独自の help を書くこともできる
+
+### 5. result が program を持たないようにする ★☆☆
+
+- 今の状態
+  - `result->program` を通じて、値の参照（`find_slot` で root の options を線形探索）と `run` を行っている
+  - そのため「値を読めるのは program を解放する前だけ」という寿命の約束がある
+- 変更案
+  - attach の時点で option に通し番号を振る。番号は option 自身が持ち、command へのポインタは持たない
+  - result は番号から値を引くだけにする
+- 効果：値の参照に program が不要になり、O(n) から O(1) になる
+- 注意：別の program の option を渡されたことを見分けるには、program ごとの識別子が要る
+- 順序：1 と 3 を先にやると、`result->program` を使う理由は値の参照だけになる。手を付けるのはその後で十分
+
+### 小さいもの
+
+- [ ] `clopts_decl_error_message()` を `help.h` から `decl_types.h` 側へ移す（宣言エラーのメッセージなので）
+- [ ] `platform.h` が `parse.h` を include しているのをやめる。`clopts_getenv_fn` と `clopts_env_status_t` を小さなヘッダーに切り出し、platform を parser に依存させない
+- [ ] （見送り候補）`clopts_set_allocator` のグローバル状態を program ごとの allocator にする。分離の効果に対して API の負担が大きい
+
+### まとめると
+
+- 1 と 2 は上の再設計（封印と内側優先）と強く噛み合う。1 で MIXED_LAYOUT が縮み、2 で予約名の扱いがまるごと消える
+- すべて入れると、program 側の検証は「コマンド名の重複」と「root の positional」の2つだけになる
