@@ -29,17 +29,17 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
     do                               \
     {                                \
         e = (call);                  \
-        if (e != CLOPTS_DECL_NONE)   \
+        if (e != CLOPTS_ERROR_NONE)   \
         {                            \
             goto fail;               \
         }                            \
     } while (0)
 
 /* Declares: hello [-g TEXT] [-h] [--version] NAME */
-static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t **greeting,
+static clopts_error_t declare(clopts_program_t **program, clopts_option_t **greeting,
                                    const clopts_option_t **version)
 {
-    clopts_decl_error_t e;
+    clopts_error_t e;
     clopts_command_t *root = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
@@ -65,7 +65,7 @@ static clopts_decl_error_t declare(clopts_program_t **program, clopts_option_t *
     CHECK(clopts_help_add_version_option(root, version));
 
     CHECK(clopts_program_create(root, NULL, 0, program)); /* the program now owns root */
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 
 fail:
     /* Whatever is not attached or handed to the program is still ours. */
@@ -82,11 +82,11 @@ int main(int argc, char **argv)
     const clopts_option_t *version = NULL;
     clopts_argv_t *args;
     clopts_result_t *result;
-    clopts_decl_error_t error;
+    clopts_error_t error;
     int code = 0;
 
     error = declare(&program, &greeting, &version);
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_decl_error_message(error));
         return 1;

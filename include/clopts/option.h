@@ -41,7 +41,7 @@ typedef enum clopts_option_kind
  * leading "--" (NULL for none); short_name is '\0' for none. At least one of
  * them is required (NO_NAME). INVALID_KIND, INVALID_NAME.
  */
-CLOPTS_API clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_name,
+CLOPTS_API clopts_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_name,
                                                     char short_name, clopts_option_t **out);
 
 /*
@@ -51,28 +51,28 @@ CLOPTS_API clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, c
 CLOPTS_API void clopts_option_destroy(clopts_option_t *option);
 
 /* One-line description in help. */
-CLOPTS_API clopts_decl_error_t clopts_option_set_help(clopts_option_t *option, const char *help);
+CLOPTS_API clopts_error_t clopts_option_set_help(clopts_option_t *option, const char *help);
 
 /* VALUE / LIST: value name shown in help. */
-CLOPTS_API clopts_decl_error_t clopts_option_set_value_name(clopts_option_t *option, const char *value_name);
+CLOPTS_API clopts_error_t clopts_option_set_value_name(clopts_option_t *option, const char *value_name);
 
 /* VALUE / LIST: environment variable used when argv gives no value. ENV_NOT_ALLOWED, INVALID_NAME (empty). */
-CLOPTS_API clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *env);
+CLOPTS_API clopts_error_t clopts_option_set_env(clopts_option_t *option, const char *env);
 
 /* VALUE / LIST: default value. For LIST it is split by the delimiter. DEFAULT_NOT_ALLOWED, REQUIRED_WITH_DEFAULT. */
-CLOPTS_API clopts_decl_error_t clopts_option_set_default(clopts_option_t *option, const char *default_value);
+CLOPTS_API clopts_error_t clopts_option_set_default(clopts_option_t *option, const char *default_value);
 
 /* VALUE / LIST: the option must get a value from argv or the environment. REQUIRED_NOT_ALLOWED, REQUIRED_WITH_DEFAULT. */
-CLOPTS_API clopts_decl_error_t clopts_option_set_required(clopts_option_t *option, bool required);
+CLOPTS_API clopts_error_t clopts_option_set_required(clopts_option_t *option, bool required);
 
 /* FLAG: --no-<long_name> is accepted and sets the flag to false. NOT_NEGATABLE. */
-CLOPTS_API clopts_decl_error_t clopts_option_set_negatable(clopts_option_t *option, bool negatable);
+CLOPTS_API clopts_error_t clopts_option_set_negatable(clopts_option_t *option, bool negatable);
 
 /* LIST: item delimiter. '\0' resets it: each occurrence is a single item. ATTRIBUTE_KIND. */
-CLOPTS_API clopts_decl_error_t clopts_option_set_delimiter(clopts_option_t *option, char delimiter);
+CLOPTS_API clopts_error_t clopts_option_set_delimiter(clopts_option_t *option, char delimiter);
 
 /* COUNT: upper limit of the count. 0 resets it to the default (UINT_MAX). ATTRIBUTE_KIND. */
-CLOPTS_API clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *option, unsigned count_max);
+CLOPTS_API clopts_error_t clopts_option_set_count_max(clopts_option_t *option, unsigned count_max);
 
 /*
  * FLAG: a terminal option. When argv gives it (not as --no-<name>), the
@@ -81,7 +81,7 @@ CLOPTS_API clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *opti
  * (clopts/parse.h). Meant for options such as --help and --version
  * (clopts/help.h). ATTRIBUTE_KIND.
  */
-CLOPTS_API clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal);
+CLOPTS_API clopts_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal);
 
 /* ---- read functions: a NULL option is a contract violation (assert) ---- */
 

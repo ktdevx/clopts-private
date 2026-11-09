@@ -15,8 +15,8 @@
 
 /* ---- helpers ----------------------------------------------------------- */
 
-/* Checks that call returns CLOPTS_DECL_NONE. */
-#define EXPECT_OK(call) NAOS_CHECK_INT_EQ((call), CLOPTS_DECL_NONE)
+/* Checks that call returns CLOPTS_ERROR_NONE. */
+#define EXPECT_OK(call) NAOS_CHECK_INT_EQ((call), CLOPTS_ERROR_NONE)
 
 /* An object whose address an out pointer holds before a call; never read or written. */
 static clopts_positional_t sentinel_positional;
@@ -37,11 +37,11 @@ NAOS_TEST(positional_name_invalid)
     clopts_positional_t *positional;
 
     positional = &sentinel_positional;
-    NAOS_CHECK_INT_EQ(clopts_positional_create(NULL, &positional), CLOPTS_DECL_INVALID_NAME);
+    NAOS_CHECK_INT_EQ(clopts_positional_create(NULL, &positional), CLOPTS_ERROR_INVALID_NAME);
     NAOS_CHECK_NULL(positional);
 
     positional = &sentinel_positional;
-    NAOS_CHECK_INT_EQ(clopts_positional_create("", &positional), CLOPTS_DECL_INVALID_NAME);
+    NAOS_CHECK_INT_EQ(clopts_positional_create("", &positional), CLOPTS_ERROR_INVALID_NAME);
     NAOS_CHECK_NULL(positional);
 
     positional = NULL;

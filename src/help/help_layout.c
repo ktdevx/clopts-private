@@ -831,11 +831,11 @@ clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, c
  * Creates a terminal FLAG named l / s with help and attaches it to command.
  * *out (when out is not NULL) gets it, or NULL on failure.
  */
-static clopts_decl_error_t help_add_terminal(clopts_command_t *command, const char *l, char s, const char *help,
+static clopts_error_t help_add_terminal(clopts_command_t *command, const char *l, char s, const char *help,
                                              const clopts_option_t **out)
 {
     clopts_option_t *option = NULL;
-    clopts_decl_error_t error;
+    clopts_error_t error;
 
     if (out != NULL)
     {
@@ -843,19 +843,19 @@ static clopts_decl_error_t help_add_terminal(clopts_command_t *command, const ch
     }
     assert(command != NULL);
     error = clopts_option_create(CLOPTS_OPTION_FLAG, l, s, &option);
-    if (error == CLOPTS_DECL_NONE)
+    if (error == CLOPTS_ERROR_NONE)
     {
         error = clopts_option_set_terminal(option, true);
     }
-    if (error == CLOPTS_DECL_NONE)
+    if (error == CLOPTS_ERROR_NONE)
     {
         error = clopts_option_set_help(option, help);
     }
-    if (error == CLOPTS_DECL_NONE)
+    if (error == CLOPTS_ERROR_NONE)
     {
         error = clopts_command_add_option(command, option);
     }
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         clopts_option_destroy(option);
         return error;
@@ -864,56 +864,56 @@ static clopts_decl_error_t help_add_terminal(clopts_command_t *command, const ch
     {
         *out = option;
     }
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
-clopts_decl_error_t clopts_help_add_help_option(clopts_command_t *command, const clopts_option_t **out)
+clopts_error_t clopts_help_add_help_option(clopts_command_t *command, const clopts_option_t **out)
 {
     return help_add_terminal(command, "help", 'h', "Show this help", out);
 }
 
-clopts_decl_error_t clopts_help_add_version_option(clopts_command_t *command, const clopts_option_t **out)
+clopts_error_t clopts_help_add_version_option(clopts_command_t *command, const clopts_option_t **out)
 {
     return help_add_terminal(command, "version", '\0', "Show version information", out);
 }
 
-clopts_decl_error_t clopts_help_command_create(clopts_command_t **out)
+clopts_error_t clopts_help_command_create(clopts_command_t **out)
 {
     clopts_command_t *command = NULL;
     clopts_positional_t *positional = NULL;
-    clopts_decl_error_t error;
+    clopts_error_t error;
 
     assert(out != NULL);
     *out = NULL;
     error = clopts_command_create("help", &command);
-    if (error == CLOPTS_DECL_NONE)
+    if (error == CLOPTS_ERROR_NONE)
     {
         error = clopts_command_set_summary(command, "Show help for a command");
     }
-    if (error == CLOPTS_DECL_NONE)
+    if (error == CLOPTS_ERROR_NONE)
     {
         error = clopts_positional_create("COMMAND", &positional);
     }
-    if (error == CLOPTS_DECL_NONE)
+    if (error == CLOPTS_ERROR_NONE)
     {
         error = clopts_positional_set_help(positional, "Command to show help for");
     }
-    if (error == CLOPTS_DECL_NONE)
+    if (error == CLOPTS_ERROR_NONE)
     {
         error = clopts_command_add_positional(command, positional);
-        if (error == CLOPTS_DECL_NONE)
+        if (error == CLOPTS_ERROR_NONE)
         {
             positional = NULL;
         }
     }
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         clopts_positional_destroy(positional);
         clopts_command_destroy(command);
         return error;
     }
     *out = command;
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
 bool clopts_help_target(const clopts_program_t *program, const clopts_result_t *result,

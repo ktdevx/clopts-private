@@ -43,7 +43,7 @@ clopts_command_option_at
 clopts_command_positional_count
 clopts_command_positional_at
 
-# clopts/decl_types.h
+# clopts/error.h
 clopts_decl_error_message
 
 # clopts/help.h

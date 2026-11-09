@@ -15,7 +15,7 @@ CLOpts の版ごとの変更をこのファイルに記録する。版番号は 
 
 - サブコマンド、オプション（フラグ、カウント、単一値、リスト値）、位置引数を関数で宣言する API。宣言は下から上へ組み立てる。オプションと位置引数は単独で作って設定し（`clopts_option_create`、`clopts_positional_create`）、コマンドに渡す（`clopts_command_add_option`、`clopts_command_add_positional`）。コマンドも単独で作り（`clopts_command_create`）、root とサブコマンドをまとめて `clopts_program_create` に渡してプログラムを作る。所有権は渡すのに成功したときだけ移る。オプションと位置引数は自分を渡したコマンドを、コマンドは自分を渡したプログラムを知らず、渡した後は読み取り専用になる。プログラムは作った後は変わらないので、同じプログラムを複数のスレッドから同時に解析できる。
 - 宣言を読み取る関数（`clopts_program_command_at`、`clopts_command_option_at`、`clopts_option_long_name` など）。ヘルプの文面もこの関数だけで宣言を読む。
-- 宣言の誤りは、誤った呼び出しの戻り値（`clopts_decl_error_t`）としてすぐに返り、失敗した呼び出しは何も変えない。そのため、組み立てたプログラムはつねに正しく、解析が宣言の誤りを返すことはない。オプションの名前の重なりは同じコマンドの中だけで検査し、root とサブコマンドで同じ名前を使うと、サブコマンドの名前が root の名前を隠す。予約された名前はない。宣言の誤りの説明は `clopts_decl_error_message` で得られる。
+- 宣言の誤りは、誤った呼び出しの戻り値（`clopts_error_t`）としてすぐに返り、失敗した呼び出しは何も変えない。そのため、組み立てたプログラムはつねに正しく、解析が宣言の誤りを返すことはない。オプションの名前の重なりは同じコマンドの中だけで検査し、root とサブコマンドで同じ名前を使うと、サブコマンドの名前が root の名前を隠す。予約された名前はない。宣言の誤りの説明は `clopts_decl_error_message` で得られる。
 - 宣言に従った argv の解析（`clopts_parse`）。`--` と `-` 単体、オプションと位置引数の並べ替え、`--no-<name>`、カウント、環境変数と既定値を含む値の優先順位、値の出所の取得を扱う。解析器に組み込みのオプションやコマンドはなく、終端オプション（`clopts_option_set_terminal`）が現れるとそこで解析を止めて `CLOPTS_TERMINATED` を返す（`clopts_result_terminal`）。
 - 種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読める、使い方の誤りの構造化エラー。
 - 宣言から作るヘルプ、使い方、版、エラーの文面の出力（`clopts_write_help`、`clopts_write_usage`、`clopts_write_version`、`clopts_write_error`、`clopts_write_usage_hint`）と、それと組で使う `-h` / `--help`・`--version`・`help` コマンドを宣言する関数（`clopts_help_add_help_option`、`clopts_help_add_version_option`、`clopts_help_command_create`、`clopts_help_target`）。ライブラリ自身は入出力も `exit` もせず、文面は書き込みのコールバックに渡す。`FILE*` に出すための `clopts_file_write` を公開ヘッダに置く。

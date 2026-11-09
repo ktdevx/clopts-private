@@ -11,19 +11,19 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-clopts_decl_error_t test_decl_last = CLOPTS_DECL_NONE;
+clopts_error_t test_decl_last = CLOPTS_ERROR_NONE;
 unsigned test_decl_failures = 0;
 
 void test_decl_reset(void)
 {
-    test_decl_last = CLOPTS_DECL_NONE;
+    test_decl_last = CLOPTS_ERROR_NONE;
     test_decl_failures = 0;
 }
 
-clopts_decl_error_t test_decl_check(clopts_decl_error_t error)
+clopts_error_t test_decl_check(clopts_error_t error)
 {
     test_decl_last = error;
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         test_decl_failures++;
     }
@@ -193,7 +193,7 @@ clopts_option_t *test_decl_attach(clopts_command_t *command, clopts_option_t *op
         return NULL;
     }
     test_decl_check(clopts_command_add_option(command, option));
-    if (test_decl_last != CLOPTS_DECL_NONE)
+    if (test_decl_last != CLOPTS_ERROR_NONE)
     {
         clopts_option_destroy(option);
         return NULL;
@@ -209,7 +209,7 @@ clopts_positional_t *test_decl_attach_positional(clopts_command_t *command, clop
         return NULL;
     }
     test_decl_check(clopts_command_add_positional(command, positional));
-    if (test_decl_last != CLOPTS_DECL_NONE)
+    if (test_decl_last != CLOPTS_ERROR_NONE)
     {
         clopts_positional_destroy(positional);
         return NULL;

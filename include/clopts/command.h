@@ -30,7 +30,7 @@ extern "C" {
  * not be NULL or empty, start with '-' or contain white space
  * (INVALID_NAME). For the root, the name is the program name.
  */
-CLOPTS_API clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **out);
+CLOPTS_API clopts_error_t clopts_command_create(const char *name, clopts_command_t **out);
 
 /*
  * Releases an unattached command with the options and positionals attached
@@ -40,10 +40,10 @@ CLOPTS_API clopts_decl_error_t clopts_command_create(const char *name, clopts_co
 CLOPTS_API void clopts_command_destroy(clopts_command_t *command);
 
 /* One-line description in the program help. Not used for the root. */
-CLOPTS_API clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary);
+CLOPTS_API clopts_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary);
 
 /* Description in the command help. For the root, the program description. */
-CLOPTS_API clopts_decl_error_t clopts_command_set_description(clopts_command_t *command, const char *description);
+CLOPTS_API clopts_error_t clopts_command_set_description(clopts_command_t *command, const char *description);
 
 /*
  * Attaches option to command. On success command owns option, and option
@@ -52,7 +52,7 @@ CLOPTS_API clopts_decl_error_t clopts_command_set_description(clopts_command_t *
  * command) or NEGATION_CONFLICT (within command). Neither command nor option
  * may be attached already (the behavior is undefined, clopts/decl_types.h).
  */
-CLOPTS_API clopts_decl_error_t clopts_command_add_option(clopts_command_t *command,
+CLOPTS_API clopts_error_t clopts_command_add_option(clopts_command_t *command,
                                                          clopts_option_t *option);
 
 /*
@@ -61,7 +61,7 @@ CLOPTS_API clopts_decl_error_t clopts_command_add_option(clopts_command_t *comma
  * VARIADIC_POSITION (the last attached one is variadic) or POSITIONAL_ORDER
  * (positional is required and the last attached one is optional).
  */
-CLOPTS_API clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command,
+CLOPTS_API clopts_error_t clopts_command_add_positional(clopts_command_t *command,
                                                              clopts_positional_t *positional);
 
 /* ---- read functions ---- */

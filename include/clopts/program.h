@@ -34,7 +34,7 @@ extern "C" {
  * must not belong to a program already, and each must appear once (the
  * behavior is undefined otherwise).
  */
-CLOPTS_API clopts_decl_error_t clopts_program_create(clopts_command_t *root,
+CLOPTS_API clopts_error_t clopts_program_create(clopts_command_t *root,
                                                      clopts_command_t *const *commands,
                                                      size_t command_count, clopts_program_t **out);
 

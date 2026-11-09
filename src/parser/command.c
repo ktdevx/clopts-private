@@ -24,7 +24,7 @@
 #include <assert.h>
 #include <string.h>
 
-clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **out)
+clopts_error_t clopts_command_create(const char *name, clopts_command_t **out)
 {
     clopts_command_t *command;
 
@@ -34,20 +34,20 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
 
     if (!clopts_parser_valid_command_name(name))
     {
-        return CLOPTS_DECL_INVALID_NAME;
+        return CLOPTS_ERROR_INVALID_NAME;
     }
 
     command = (clopts_command_t *)clopts_core_calloc(1, sizeof(*command));
     if (command == NULL)
     {
-        return CLOPTS_DECL_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
     command->name = clopts_core_strdup(name);
     if (command->name == NULL)
     {
         clopts_core_free(command);
-        return CLOPTS_DECL_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
     command->summary = NULL;
@@ -57,7 +57,7 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
 
     *out = command;
 
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
 void clopts_command_destroy(clopts_command_t *command)
@@ -87,16 +87,16 @@ void clopts_command_destroy(clopts_command_t *command)
     clopts_core_free(command);
 }
 
-clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
+clopts_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
 {
     assert(command != NULL);
-    return (clopts_core_replace_string(&command->summary, summary) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&command->summary, summary) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_decl_error_t clopts_command_set_description(clopts_command_t *command, const char *description)
+clopts_error_t clopts_command_set_description(clopts_command_t *command, const char *description)
 {
     assert(command != NULL);
-    return (clopts_core_replace_string(&command->description, description) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&command->description, description) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
 /*
@@ -141,19 +141,19 @@ static int command_has_negation_name(const clopts_command_t *command, const char
 }
 
 /* Checks of clopts_command_add_option(command, option) against command, in order. */
-static clopts_decl_error_t command_check_attach_option(const clopts_command_t *command, const clopts_option_t *option)
+static clopts_error_t command_check_attach_option(const clopts_command_t *command, const clopts_option_t *option)
 {
     const char *l = clopts_option_long_name(option);
     int conflict;
 
     if (clopts_parser_find_conflict(command, l, clopts_option_short_name(option)) != NULL)
     {
-        return CLOPTS_DECL_DUPLICATE_OPTION;
+        return CLOPTS_ERROR_DUPLICATE_OPTION;
     }
 
     if ((l != NULL) && (strncmp(l, "no-", 3) == 0) && command_has_negatable(command, l + 3, strlen(l) - 3))
     {
-        return CLOPTS_DECL_NEGATION_CONFLICT;
+        return CLOPTS_ERROR_NEGATION_CONFLICT;
     }
 
     if (clopts_option_negatable(option) && (l != NULL))
@@ -161,83 +161,83 @@ static clopts_decl_error_t command_check_attach_option(const clopts_command_t *c
         conflict = command_has_negation_name(command, l);
         if (conflict < 0)
         {
-            return CLOPTS_DECL_OUT_OF_MEMORY;
+            return CLOPTS_ERROR_OUT_OF_MEMORY;
         }
         else if (conflict > 0)
         {
-            return CLOPTS_DECL_NEGATION_CONFLICT;
+            return CLOPTS_ERROR_NEGATION_CONFLICT;
         }
     }
 
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
-clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option)
+clopts_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option)
 {
-    clopts_decl_error_t error;
+    clopts_error_t error;
 
     assert(command != NULL);
     assert(option != NULL);
 
     error = command_check_attach_option(command, option);
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         return error;
     }
 
     if (clopts_core_vec_push(&command->options, &option) != 0)
     {
-        return CLOPTS_DECL_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
 /* Checks of clopts_command_add_positional(command, positional) against command, in order. */
-static clopts_decl_error_t command_check_attach_positional(const clopts_command_t *command,
+static clopts_error_t command_check_attach_positional(const clopts_command_t *command,
                                                          const clopts_positional_t *positional)
 {
     const clopts_positional_t *last;
 
     if (command->positionals.len == 0)
     {
-        return CLOPTS_DECL_NONE;
+        return CLOPTS_ERROR_NONE;
     }
 
     last = *(clopts_positional_t *const *)clopts_core_vec_at(&command->positionals, command->positionals.len - 1);
     if (last->variadic)
     {
-        return CLOPTS_DECL_VARIADIC_POSITION;
+        return CLOPTS_ERROR_VARIADIC_POSITION;
     }
 
     /* The attached ones are in order, so checking the last one is enough. */
     if (positional->required && !last->required)
     {
-        return CLOPTS_DECL_POSITIONAL_ORDER;
+        return CLOPTS_ERROR_POSITIONAL_ORDER;
     }
 
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
-clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clopts_positional_t *positional)
+clopts_error_t clopts_command_add_positional(clopts_command_t *command, clopts_positional_t *positional)
 {
-    clopts_decl_error_t error;
+    clopts_error_t error;
 
     assert(command != NULL);
     assert(positional != NULL);
 
     error = command_check_attach_positional(command, positional);
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         return error;
     }
 
     if (clopts_core_vec_push(&command->positionals, &positional) != 0)
     {
-        return CLOPTS_DECL_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
 /* ---- read functions ---- */

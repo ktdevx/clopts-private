@@ -301,7 +301,7 @@ NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
     message_run_t run;
 
     target = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 't');
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_DECL_NONE);
+    NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_ERROR_NONE);
     target = test_decl_attach(root, target);
     program = test_decl_finish(root);
     NAOS_REQUIRE_NOT_NULL(program);
@@ -592,26 +592,26 @@ NAOS_TEST(decl_error_message_of_every_kind)
 {
     static const struct
     {
-        clopts_decl_error_t kind;
+        clopts_error_t kind;
         const char *text;
     } cases[] = {
-        { CLOPTS_DECL_INVALID_NAME, "invalid name" },
-        { CLOPTS_DECL_NO_NAME, "option has neither a long nor a short name" },
-        { CLOPTS_DECL_DUPLICATE_COMMAND, "duplicate command name" },
-        { CLOPTS_DECL_DUPLICATE_OPTION, "duplicate option name" },
-        { CLOPTS_DECL_NOT_NEGATABLE, "only a flag can be negatable" },
-        { CLOPTS_DECL_NEGATION_CONFLICT, "conflicts with the negated form of a flag" },
-        { CLOPTS_DECL_DEFAULT_NOT_ALLOWED, "a flag or count cannot have a default value" },
-        { CLOPTS_DECL_ENV_NOT_ALLOWED, "a flag or count cannot have an environment variable" },
-        { CLOPTS_DECL_REQUIRED_WITH_DEFAULT, "a required option cannot have a default value" },
-        { CLOPTS_DECL_REQUIRED_NOT_ALLOWED, "a flag or count cannot be required" },
-        { CLOPTS_DECL_POSITIONAL_ORDER, "a required argument cannot follow an optional one" },
-        { CLOPTS_DECL_VARIADIC_POSITION, "only the last argument can be variadic" },
-        { CLOPTS_DECL_ATTRIBUTE_KIND, "attribute does not apply to this kind of option" },
-        { CLOPTS_DECL_MIXED_LAYOUT, "a program with subcommands cannot have root arguments" },
-        { CLOPTS_DECL_INVALID_KIND, "invalid option kind" },
-        { CLOPTS_DECL_INVALID_ARGUMENT, "invalid argument" },
-        { CLOPTS_DECL_OUT_OF_MEMORY, "out of memory" },
+        { CLOPTS_ERROR_INVALID_NAME, "invalid name" },
+        { CLOPTS_ERROR_NO_NAME, "option has neither a long nor a short name" },
+        { CLOPTS_ERROR_DUPLICATE_COMMAND, "duplicate command name" },
+        { CLOPTS_ERROR_DUPLICATE_OPTION, "duplicate option name" },
+        { CLOPTS_ERROR_NOT_NEGATABLE, "only a flag can be negatable" },
+        { CLOPTS_ERROR_NEGATION_CONFLICT, "conflicts with the negated form of a flag" },
+        { CLOPTS_ERROR_DEFAULT_NOT_ALLOWED, "a flag or count cannot have a default value" },
+        { CLOPTS_ERROR_ENV_NOT_ALLOWED, "a flag or count cannot have an environment variable" },
+        { CLOPTS_ERROR_REQUIRED_WITH_DEFAULT, "a required option cannot have a default value" },
+        { CLOPTS_ERROR_REQUIRED_NOT_ALLOWED, "a flag or count cannot be required" },
+        { CLOPTS_ERROR_POSITIONAL_ORDER, "a required argument cannot follow an optional one" },
+        { CLOPTS_ERROR_VARIADIC_POSITION, "only the last argument can be variadic" },
+        { CLOPTS_ERROR_ATTRIBUTE_KIND, "attribute does not apply to this kind of option" },
+        { CLOPTS_ERROR_MIXED_LAYOUT, "a program with subcommands cannot have root arguments" },
+        { CLOPTS_ERROR_INVALID_KIND, "invalid option kind" },
+        { CLOPTS_ERROR_INVALID_ARGUMENT, "invalid argument" },
+        { CLOPTS_ERROR_OUT_OF_MEMORY, "out of memory" },
     };
     size_t i;
 
@@ -639,7 +639,7 @@ NAOS_TEST(decl_error_message_of_a_builder_error)
     NAOS_REQUIRE_NOT_NULL(first);
     second = test_decl_add(root, CLOPTS_OPTION_FLAG, "out", '\0');
     NAOS_CHECK_NULL(second);
-    NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_DECL_DUPLICATE_OPTION);
+    NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_ERROR_DUPLICATE_OPTION);
     NAOS_CHECK_STR_EQ(clopts_decl_error_message(test_decl_last), "duplicate option name");
     test_decl_discard(root);
 }
@@ -672,11 +672,11 @@ NAOS_TEST(decl_error_message_covers_every_kind)
     int i;
     int j;
 
-    NAOS_CHECK_NULL(clopts_decl_error_message(CLOPTS_DECL_NONE));
-    NAOS_CHECK_NULL(clopts_decl_error_message((clopts_decl_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
+    NAOS_CHECK_NULL(clopts_decl_error_message(CLOPTS_ERROR_NONE));
+    NAOS_CHECK_NULL(clopts_decl_error_message((clopts_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
     for (i = 1; i <= MESSAGE_DECL_KIND_MAX; i++)
     {
-        texts[i] = clopts_decl_error_message((clopts_decl_error_t)i);
+        texts[i] = clopts_decl_error_message((clopts_error_t)i);
         NAOS_REQUIRE_NOT_NULL(texts[i]);
         NAOS_CHECK_TRUE(texts[i][0] != '\0');
         for (j = 1; j < i; j++)

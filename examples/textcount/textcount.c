@@ -87,7 +87,7 @@ static int run(const clopts_result_t *result, const struct textcount_options *op
     do                               \
     {                                \
         e = (call);                  \
-        if (e != CLOPTS_DECL_NONE)   \
+        if (e != CLOPTS_ERROR_NONE)   \
         {                            \
             goto fail;               \
         }                            \
@@ -95,11 +95,11 @@ static int run(const clopts_result_t *result, const struct textcount_options *op
 
 /*
  * Declares the program into *out: the root first, then the program. Returns
- * the declaration error that stopped it, or CLOPTS_DECL_NONE.
+ * the declaration error that stopped it, or CLOPTS_ERROR_NONE.
  */
-static clopts_decl_error_t declare(clopts_program_t **out, struct textcount_options *opts)
+static clopts_error_t declare(clopts_program_t **out, struct textcount_options *opts)
 {
-    clopts_decl_error_t e;
+    clopts_error_t e;
     clopts_command_t *root = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *positional = NULL;
@@ -154,7 +154,7 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct textcount_opti
     positional = NULL; /* now owned by root */
 
     CHECK(clopts_program_create(root, NULL, 0, out));
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 
 fail:
     /* Nothing was handed to the program: whatever is not attached is still ours. */
@@ -205,11 +205,11 @@ int main(int argc, char **argv)
     clopts_argv_t *args;
     clopts_env_t *env;
     clopts_result_t *result;
-    clopts_decl_error_t error;
+    clopts_error_t error;
     int code;
 
     error = declare(&program, &opts);
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         fprintf(stderr, "textcount: error: invalid declaration: %s\n", clopts_decl_error_message(error));
         return 1;

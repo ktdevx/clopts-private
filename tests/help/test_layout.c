@@ -893,7 +893,7 @@ NAOS_TEST(add_help_option_attributes)
     const clopts_option_t *option = NULL;
 
     NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_REQUIRE_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_NOT_NULL(option);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(command), 1);
     NAOS_CHECK_PTR_EQ(clopts_command_option_at(command, 0), option);
@@ -913,7 +913,7 @@ NAOS_TEST(add_version_option_attributes)
     const clopts_option_t *option = NULL;
 
     NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_REQUIRE_INT_EQ(clopts_help_add_version_option(command, &option), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_add_version_option(command, &option), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_NOT_NULL(option);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(command), 1);
     NAOS_CHECK_PTR_EQ(clopts_command_option_at(command, 0), option);
@@ -931,8 +931,8 @@ NAOS_TEST(add_options_accept_a_null_out)
     clopts_command_t *command = test_decl_root("t");
 
     NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, NULL), CLOPTS_DECL_NONE);
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(command, NULL), CLOPTS_DECL_NONE);
+    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, NULL), CLOPTS_ERROR_NONE);
+    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(command, NULL), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(command), 2);
     NAOS_CHECK_STR_EQ(clopts_option_long_name(clopts_command_option_at(command, 0)), "help");
     NAOS_CHECK_STR_EQ(clopts_option_long_name(clopts_command_option_at(command, 1)), "version");
@@ -945,14 +945,14 @@ NAOS_TEST(add_options_twice_in_a_command_fail_and_attach_nothing)
     const clopts_option_t *option;
 
     NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_REQUIRE_INT_EQ(clopts_help_add_help_option(command, NULL), CLOPTS_DECL_NONE);
-    NAOS_REQUIRE_INT_EQ(clopts_help_add_version_option(command, NULL), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_add_help_option(command, NULL), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_add_version_option(command, NULL), CLOPTS_ERROR_NONE);
 
     option = layout_stale_option;
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_DECL_DUPLICATE_OPTION);
+    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_ERROR_DUPLICATE_OPTION);
     NAOS_CHECK_NULL(option);
     option = layout_stale_option;
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(command, &option), CLOPTS_DECL_DUPLICATE_OPTION);
+    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(command, &option), CLOPTS_ERROR_DUPLICATE_OPTION);
     NAOS_CHECK_NULL(option);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(command), 2);
     test_decl_discard(command);
@@ -966,7 +966,7 @@ NAOS_TEST(add_help_option_fails_on_a_taken_short_name)
 
     NAOS_REQUIRE_NOT_NULL(command);
     NAOS_REQUIRE_NOT_NULL(test_decl_add(command, CLOPTS_OPTION_VALUE, "host", 'h'));
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_DECL_DUPLICATE_OPTION);
+    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(command, &option), CLOPTS_ERROR_DUPLICATE_OPTION);
     NAOS_CHECK_NULL(option);
     NAOS_REQUIRE_UINT_EQ(clopts_command_option_count(command), 1);
     NAOS_CHECK_STR_EQ(clopts_option_long_name(clopts_command_option_at(command, 0)), "host");
@@ -980,10 +980,10 @@ NAOS_TEST(add_options_in_several_commands)
     clopts_command_t *sub = test_decl_command(root, "sub");
 
     NAOS_REQUIRE_NOT_NULL(sub);
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(root, NULL), CLOPTS_DECL_NONE);
-    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(sub, NULL), CLOPTS_DECL_NONE);
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(root, NULL), CLOPTS_DECL_NONE);
-    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(sub, NULL), CLOPTS_DECL_NONE);
+    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(root, NULL), CLOPTS_ERROR_NONE);
+    NAOS_CHECK_INT_EQ(clopts_help_add_help_option(sub, NULL), CLOPTS_ERROR_NONE);
+    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(root, NULL), CLOPTS_ERROR_NONE);
+    NAOS_CHECK_INT_EQ(clopts_help_add_version_option(sub, NULL), CLOPTS_ERROR_NONE);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 2);
     NAOS_CHECK_UINT_EQ(clopts_command_option_count(sub), 2);
     test_decl_discard(root);
@@ -994,7 +994,7 @@ NAOS_TEST(help_command_new_declaration)
     clopts_command_t *command = NULL;
     const clopts_positional_t *positional;
 
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&command), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&command), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_NOT_NULL(command);
     NAOS_CHECK_STR_EQ(clopts_command_name(command), "help");
     NAOS_CHECK_STR_EQ(clopts_command_summary(command), "Show help for a command");
@@ -1020,12 +1020,12 @@ NAOS_TEST(help_command_new_gives_a_new_command_each_time)
     clopts_program_t *program = NULL;
 
     NAOS_REQUIRE_NOT_NULL(root);
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&first), CLOPTS_DECL_NONE);
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&second), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&first), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&second), CLOPTS_ERROR_NONE);
     NAOS_CHECK_TRUE(first != second);
     commands[0] = first;
     commands[1] = second;
-    NAOS_CHECK_INT_EQ(clopts_program_create(root, commands, 2, &program), CLOPTS_DECL_DUPLICATE_COMMAND);
+    NAOS_CHECK_INT_EQ(clopts_program_create(root, commands, 2, &program), CLOPTS_ERROR_DUPLICATE_COMMAND);
     NAOS_CHECK_NULL(program);
     clopts_command_destroy(second);
     clopts_command_destroy(first);

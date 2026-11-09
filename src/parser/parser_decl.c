@@ -246,45 +246,45 @@ clopts_parser_ref_t clopts_parser_find_short(const clopts_program_t *program, co
 
 /* ---- declaration error messages -------------------------------------------- */
 
-const char *clopts_decl_error_message(clopts_decl_error_t error)
+const char *clopts_decl_error_message(clopts_error_t error)
 {
     switch (error)
     {
-    case CLOPTS_DECL_NONE:
+    case CLOPTS_ERROR_NONE:
         return NULL;
-    case CLOPTS_DECL_INVALID_NAME:
+    case CLOPTS_ERROR_INVALID_NAME:
         return "invalid name";
-    case CLOPTS_DECL_NO_NAME:
+    case CLOPTS_ERROR_NO_NAME:
         return "option has neither a long nor a short name";
-    case CLOPTS_DECL_DUPLICATE_COMMAND:
+    case CLOPTS_ERROR_DUPLICATE_COMMAND:
         return "duplicate command name";
-    case CLOPTS_DECL_DUPLICATE_OPTION:
+    case CLOPTS_ERROR_DUPLICATE_OPTION:
         return "duplicate option name";
-    case CLOPTS_DECL_NOT_NEGATABLE:
+    case CLOPTS_ERROR_NOT_NEGATABLE:
         return "only a flag can be negatable";
-    case CLOPTS_DECL_NEGATION_CONFLICT:
+    case CLOPTS_ERROR_NEGATION_CONFLICT:
         return "conflicts with the negated form of a flag";
-    case CLOPTS_DECL_DEFAULT_NOT_ALLOWED:
+    case CLOPTS_ERROR_DEFAULT_NOT_ALLOWED:
         return "a flag or count cannot have a default value";
-    case CLOPTS_DECL_ENV_NOT_ALLOWED:
+    case CLOPTS_ERROR_ENV_NOT_ALLOWED:
         return "a flag or count cannot have an environment variable";
-    case CLOPTS_DECL_REQUIRED_WITH_DEFAULT:
+    case CLOPTS_ERROR_REQUIRED_WITH_DEFAULT:
         return "a required option cannot have a default value";
-    case CLOPTS_DECL_REQUIRED_NOT_ALLOWED:
+    case CLOPTS_ERROR_REQUIRED_NOT_ALLOWED:
         return "a flag or count cannot be required";
-    case CLOPTS_DECL_POSITIONAL_ORDER:
+    case CLOPTS_ERROR_POSITIONAL_ORDER:
         return "a required argument cannot follow an optional one";
-    case CLOPTS_DECL_VARIADIC_POSITION:
+    case CLOPTS_ERROR_VARIADIC_POSITION:
         return "only the last argument can be variadic";
-    case CLOPTS_DECL_ATTRIBUTE_KIND:
+    case CLOPTS_ERROR_ATTRIBUTE_KIND:
         return "attribute does not apply to this kind of option";
-    case CLOPTS_DECL_MIXED_LAYOUT:
+    case CLOPTS_ERROR_MIXED_LAYOUT:
         return "a program with subcommands cannot have root arguments";
-    case CLOPTS_DECL_INVALID_KIND:
+    case CLOPTS_ERROR_INVALID_KIND:
         return "invalid option kind";
-    case CLOPTS_DECL_INVALID_ARGUMENT:
+    case CLOPTS_ERROR_INVALID_ARGUMENT:
         return "invalid argument";
-    case CLOPTS_DECL_OUT_OF_MEMORY:
+    case CLOPTS_ERROR_OUT_OF_MEMORY:
         return "out of memory";
     }
     return NULL;

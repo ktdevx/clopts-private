@@ -20,7 +20,7 @@
 #include <string.h>
 
 /* Checks of clopts_program_create(root, commands, count), in order. */
-static clopts_decl_error_t program_check_new(const clopts_command_t *root, clopts_command_t *const *commands,
+static clopts_error_t program_check_new(const clopts_command_t *root, clopts_command_t *const *commands,
                                              size_t count)
 {
     size_t i;
@@ -35,28 +35,28 @@ static clopts_decl_error_t program_check_new(const clopts_command_t *root, clopt
         {
             if (strcmp(commands[j]->name, commands[i]->name) == 0)
             {
-                return CLOPTS_DECL_DUPLICATE_COMMAND;
+                return CLOPTS_ERROR_DUPLICATE_COMMAND;
             }
         }
     }
     if ((count > 0) && (root->positionals.len > 0))
     {
-        return CLOPTS_DECL_MIXED_LAYOUT;
+        return CLOPTS_ERROR_MIXED_LAYOUT;
     }
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
-clopts_decl_error_t clopts_program_create(clopts_command_t *root, clopts_command_t *const *commands,
+clopts_error_t clopts_program_create(clopts_command_t *root, clopts_command_t *const *commands,
                                           size_t command_count, clopts_program_t **out)
 {
     clopts_program_t *program;
     clopts_command_t **copy = NULL;
-    clopts_decl_error_t error;
+    clopts_error_t error;
 
     assert(out != NULL);
     *out = NULL;
     error = program_check_new(root, commands, command_count);
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         return error;
     }
@@ -64,7 +64,7 @@ clopts_decl_error_t clopts_program_create(clopts_command_t *root, clopts_command
     program = (clopts_program_t *)clopts_core_calloc(1, sizeof(*program));
     if (program == NULL)
     {
-        return CLOPTS_DECL_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
     if (command_count > 0)
     {
@@ -72,7 +72,7 @@ clopts_decl_error_t clopts_program_create(clopts_command_t *root, clopts_command
         if (copy == NULL)
         {
             clopts_core_free(program);
-            return CLOPTS_DECL_OUT_OF_MEMORY;
+            return CLOPTS_ERROR_OUT_OF_MEMORY;
         }
         memcpy(copy, commands, command_count * sizeof(*copy));
     }
@@ -82,7 +82,7 @@ clopts_decl_error_t clopts_program_create(clopts_command_t *root, clopts_command
     program->commands = copy;
     program->command_count = command_count;
     *out = program;
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
 void clopts_program_destroy(clopts_program_t *program)

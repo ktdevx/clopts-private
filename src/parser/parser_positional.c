@@ -12,7 +12,7 @@
 
 #include <assert.h>
 
-clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
+clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
 {
     clopts_positional_t *positional;
 
@@ -20,25 +20,25 @@ clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional
     *out = NULL;
     if ((name == NULL) || (name[0] == '\0'))
     {
-        return CLOPTS_DECL_INVALID_NAME;
+        return CLOPTS_ERROR_INVALID_NAME;
     }
 
     positional = (clopts_positional_t *)clopts_core_calloc(1, sizeof(*positional));
     if (positional == NULL)
     {
-        return CLOPTS_DECL_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
     positional->name = clopts_core_strdup(name);
     if (positional->name == NULL)
     {
         clopts_core_free(positional);
-        return CLOPTS_DECL_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
     positional->help = NULL;
     positional->required = false;
     positional->variadic = false;
     *out = positional;
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
 void clopts_positional_destroy(clopts_positional_t *positional)
@@ -52,24 +52,24 @@ void clopts_positional_destroy(clopts_positional_t *positional)
     clopts_core_free(positional);
 }
 
-clopts_decl_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help)
+clopts_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help)
 {
     assert(positional != NULL);
-    return (clopts_core_replace_string(&positional->help, help) == 0) ? CLOPTS_DECL_NONE : CLOPTS_DECL_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&positional->help, help) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_decl_error_t clopts_positional_set_required(clopts_positional_t *positional, bool required)
+clopts_error_t clopts_positional_set_required(clopts_positional_t *positional, bool required)
 {
     assert(positional != NULL);
     positional->required = required;
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
-clopts_decl_error_t clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic)
+clopts_error_t clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic)
 {
     assert(positional != NULL);
     positional->variadic = variadic;
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
 /* ---- read functions ---- */

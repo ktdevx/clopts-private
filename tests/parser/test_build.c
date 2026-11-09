@@ -30,8 +30,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Checks that call returns CLOPTS_DECL_NONE. */
-#define EXPECT_OK(call) NAOS_CHECK_INT_EQ((call), CLOPTS_DECL_NONE)
+/* Checks that call returns CLOPTS_ERROR_NONE. */
+#define EXPECT_OK(call) NAOS_CHECK_INT_EQ((call), CLOPTS_ERROR_NONE)
 
 /*
  * Objects whose address an out pointer holds before a call, so that a test
@@ -108,7 +108,7 @@ static clopts_program_t *make_program(clopts_command_t *root, clopts_command_t *
 {
     clopts_program_t *program = &sentinel_program;
 
-    NAOS_REQUIRE_INT_EQ(clopts_program_create(root, commands, count, &program), CLOPTS_DECL_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_program_create(root, commands, count, &program), CLOPTS_ERROR_NONE);
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_TRUE(program != &sentinel_program);
     return program;
@@ -120,7 +120,7 @@ static clopts_program_t *make_program(clopts_command_t *root, clopts_command_t *
  * come before every allocation).
  */
 static void expect_program_new_fails(clopts_command_t *root, clopts_command_t *const *commands, size_t count,
-                                     clopts_decl_error_t error)
+                                     clopts_error_t error)
 {
     clopts_program_t *program = &sentinel_program;
     long live = test_alloc.live;
@@ -194,13 +194,13 @@ NAOS_TEST(command_new_checks_name)
 
     test_alloc_begin(0);
     command = &sentinel_command;
-    NAOS_CHECK_INT_EQ(clopts_command_create(NULL, &command), CLOPTS_DECL_INVALID_NAME);
+    NAOS_CHECK_INT_EQ(clopts_command_create(NULL, &command), CLOPTS_ERROR_INVALID_NAME);
     NAOS_CHECK_NULL(command);
     for (i = 0; i < sizeof(bad) / sizeof(bad[0]); i++)
     {
         NAOS_NOTE("name=\"%s\"", bad[i]);
         command = &sentinel_command;
-        NAOS_CHECK_INT_EQ(clopts_command_create(bad[i], &command), CLOPTS_DECL_INVALID_NAME);
+        NAOS_CHECK_INT_EQ(clopts_command_create(bad[i], &command), CLOPTS_ERROR_INVALID_NAME);
         NAOS_CHECK_NULL(command);
     }
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 0);
@@ -494,10 +494,10 @@ NAOS_TEST(program_new_duplicate_command_changes_nothing)
     commands[0] = build;
     commands[1] = copy;
     commands[2] = again;
-    expect_program_new_fails(root, commands, 3, CLOPTS_DECL_DUPLICATE_COMMAND);
+    expect_program_new_fails(root, commands, 3, CLOPTS_ERROR_DUPLICATE_COMMAND);
     commands[0] = again;
     commands[1] = build;
-    expect_program_new_fails(root, commands, 2, CLOPTS_DECL_DUPLICATE_COMMAND);
+    expect_program_new_fails(root, commands, 2, CLOPTS_ERROR_DUPLICATE_COMMAND);
     clopts_command_destroy(again);
 
     /* a subcommand named like the root and names differing in case are fine */
@@ -526,7 +526,7 @@ NAOS_TEST(program_new_mixed_layout_changes_nothing)
     NAOS_REQUIRE_NOT_NULL(test_decl_add_positional(root, "file"));
     NAOS_REQUIRE_NOT_NULL(test_decl_add(root, CLOPTS_OPTION_FLAG, "force", 'f'));
 
-    expect_program_new_fails(root, &build, 1, CLOPTS_DECL_MIXED_LAYOUT);
+    expect_program_new_fails(root, &build, 1, CLOPTS_ERROR_MIXED_LAYOUT);
     NAOS_CHECK_UINT_EQ(root->positionals.len, 1);
 
     /* the same root without subcommands */
@@ -560,10 +560,10 @@ NAOS_TEST(program_new_reports_the_first_error)
     /* DUPLICATE_COMMAND before MIXED_LAYOUT */
     commands[0] = build;
     commands[1] = again;
-    expect_program_new_fails(root, commands, 2, CLOPTS_DECL_DUPLICATE_COMMAND);
+    expect_program_new_fails(root, commands, 2, CLOPTS_ERROR_DUPLICATE_COMMAND);
 
     /* MIXED_LAYOUT last */
-    expect_program_new_fails(root, commands, 1, CLOPTS_DECL_MIXED_LAYOUT);
+    expect_program_new_fails(root, commands, 1, CLOPTS_ERROR_MIXED_LAYOUT);
 
     clopts_command_destroy(again);
     clopts_command_destroy(build);
@@ -867,7 +867,7 @@ NAOS_TEST(set_terminal_is_for_flags)
     {
         NAOS_NOTE("kind=%d", (int)others[i]);
         option = make(others[i], "other", 'o');
-        NAOS_CHECK_INT_EQ(clopts_option_set_terminal(option, true), CLOPTS_DECL_ATTRIBUTE_KIND);
+        NAOS_CHECK_INT_EQ(clopts_option_set_terminal(option, true), CLOPTS_ERROR_ATTRIBUTE_KIND);
         NAOS_CHECK_FALSE(clopts_option_terminal(option));
         EXPECT_OK(clopts_option_set_terminal(option, false));
         NAOS_CHECK_FALSE(clopts_option_terminal(option));
@@ -1192,7 +1192,7 @@ NAOS_TEST(hundred_commands_keep_the_first_handle)
 typedef struct oom_call
 {
     /* Makes the call. */
-    clopts_decl_error_t (*call)(struct oom_call *self);
+    clopts_error_t (*call)(struct oom_call *self);
     /* Checks after a failed call that nothing changed (may be NULL). */
     void (*unchanged)(struct oom_call *self);
     clopts_command_t *root;
@@ -1213,7 +1213,7 @@ typedef struct oom_call
  */
 static size_t fail_each_point(oom_call_t *call)
 {
-    clopts_decl_error_t error;
+    clopts_error_t error;
     long live;
     size_t n;
 
@@ -1224,11 +1224,11 @@ static size_t fail_each_point(oom_call_t *call)
         test_alloc_set_fail_at(test_alloc.calls + n);
         error = call->call(call);
         test_alloc_set_fail_at(0);
-        if (error == CLOPTS_DECL_NONE)
+        if (error == CLOPTS_ERROR_NONE)
         {
             return n - 1;
         }
-        NAOS_CHECK_INT_EQ(error, CLOPTS_DECL_OUT_OF_MEMORY);
+        NAOS_CHECK_INT_EQ(error, CLOPTS_ERROR_OUT_OF_MEMORY);
         NAOS_CHECK_INT_EQ(test_alloc.live, live);
         if (call->unchanged != NULL)
         {
@@ -1244,7 +1244,7 @@ static size_t fail_each_point(oom_call_t *call)
     return n;
 }
 
-static clopts_decl_error_t oom_command_new(oom_call_t *c)
+static clopts_error_t oom_command_new(oom_call_t *c)
 {
     c->command_out = &sentinel_command;
     return clopts_command_create("build", &c->command_out);
@@ -1255,12 +1255,12 @@ static void oom_command_new_unchanged(oom_call_t *c)
     NAOS_CHECK_NULL(c->command_out);
 }
 
-static clopts_decl_error_t oom_set_summary(oom_call_t *c)
+static clopts_error_t oom_set_summary(oom_call_t *c)
 {
     return clopts_command_set_summary(c->command, "new");
 }
 
-static clopts_decl_error_t oom_set_description(oom_call_t *c)
+static clopts_error_t oom_set_description(oom_call_t *c)
 {
     return clopts_command_set_description(c->command, "new");
 }
@@ -1271,7 +1271,7 @@ static void oom_command_unchanged(oom_call_t *c)
     NAOS_CHECK_STR_EQ(c->command->description, "old");
 }
 
-static clopts_decl_error_t oom_option_new(oom_call_t *c)
+static clopts_error_t oom_option_new(oom_call_t *c)
 {
     c->option_out = SENTINEL_OPTION;
     return clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &c->option_out);
@@ -1282,22 +1282,22 @@ static void oom_option_new_unchanged(oom_call_t *c)
     NAOS_CHECK_NULL(c->option_out);
 }
 
-static clopts_decl_error_t oom_option_help(oom_call_t *c)
+static clopts_error_t oom_option_help(oom_call_t *c)
 {
     return clopts_option_set_help(c->option, "new");
 }
 
-static clopts_decl_error_t oom_option_value_name(oom_call_t *c)
+static clopts_error_t oom_option_value_name(oom_call_t *c)
 {
     return clopts_option_set_value_name(c->option, "new");
 }
 
-static clopts_decl_error_t oom_option_env(oom_call_t *c)
+static clopts_error_t oom_option_env(oom_call_t *c)
 {
     return clopts_option_set_env(c->option, "new");
 }
 
-static clopts_decl_error_t oom_option_default(oom_call_t *c)
+static clopts_error_t oom_option_default(oom_call_t *c)
 {
     return clopts_option_set_default(c->option, "new");
 }
@@ -1310,7 +1310,7 @@ static void oom_option_unchanged(oom_call_t *c)
     NAOS_CHECK_STR_EQ(clopts_option_default(c->option), "old");
 }
 
-static clopts_decl_error_t oom_add_option(oom_call_t *c)
+static clopts_error_t oom_add_option(oom_call_t *c)
 {
     return clopts_command_add_option(c->command, c->option);
 }
@@ -1320,7 +1320,7 @@ static void oom_add_option_unchanged(oom_call_t *c)
     NAOS_CHECK_UINT_EQ(c->command->options.len, 0);
 }
 
-static clopts_decl_error_t oom_positional_new(oom_call_t *c)
+static clopts_error_t oom_positional_new(oom_call_t *c)
 {
     c->positional_out = &sentinel_positional;
     return clopts_positional_create("src", &c->positional_out);
@@ -1331,7 +1331,7 @@ static void oom_positional_new_unchanged(oom_call_t *c)
     NAOS_CHECK_NULL(c->positional_out);
 }
 
-static clopts_decl_error_t oom_positional_help(oom_call_t *c)
+static clopts_error_t oom_positional_help(oom_call_t *c)
 {
     return clopts_positional_set_help(c->positional, "new");
 }
@@ -1341,7 +1341,7 @@ static void oom_positional_help_unchanged(oom_call_t *c)
     NAOS_CHECK_STR_EQ(c->positional->help, "old");
 }
 
-static clopts_decl_error_t oom_add_positional(oom_call_t *c)
+static clopts_error_t oom_add_positional(oom_call_t *c)
 {
     return clopts_command_add_positional(c->command, c->positional);
 }
@@ -1351,7 +1351,7 @@ static void oom_add_positional_unchanged(oom_call_t *c)
     NAOS_CHECK_UINT_EQ(c->command->positionals.len, 0);
 }
 
-static clopts_decl_error_t oom_program_new(oom_call_t *c)
+static clopts_error_t oom_program_new(oom_call_t *c)
 {
     c->program_out = &sentinel_program;
     return clopts_program_create(c->root, &c->command, 1, &c->program_out);
@@ -1556,7 +1556,7 @@ NAOS_TEST(every_failure_point_is_released)
             /* Only the first two fault points are in test_decl_root(). */
             NAOS_CHECK_UINT_LE(fail_at, 2);
             NAOS_CHECK_UINT_EQ(test_alloc.calls, fail_at);
-            NAOS_CHECK_INT_EQ(test_decl_last, CLOPTS_DECL_OUT_OF_MEMORY);
+            NAOS_CHECK_INT_EQ(test_decl_last, CLOPTS_ERROR_OUT_OF_MEMORY);
             NAOS_CHECK_TRUE(test_alloc_end());
             continue;
         }

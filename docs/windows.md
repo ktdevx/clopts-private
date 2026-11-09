@@ -115,13 +115,13 @@ int wmain(int argc, wchar_t **wargv)
     clopts_result_t *result;
     int code = 0;
 
-    if (clopts_command_create("app", &root) != CLOPTS_DECL_NONE)
+    if (clopts_command_create("app", &root) != CLOPTS_ERROR_NONE)
     {
         fputs("app: error: out of memory\n", stderr);
         return 1;
     }
     /* ... declare options and positionals on root ... */
-    if (clopts_program_create(root, NULL, 0, &program) != CLOPTS_DECL_NONE)
+    if (clopts_program_create(root, NULL, 0, &program) != CLOPTS_ERROR_NONE)
     {
         fputs("app: error: out of memory\n", stderr);
         clopts_command_destroy(root);

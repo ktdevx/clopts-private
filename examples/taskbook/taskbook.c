@@ -115,7 +115,7 @@ static int run_done(const clopts_result_t *result, const struct taskbook_options
     do                               \
     {                                \
         e = (call);                  \
-        if (e != CLOPTS_DECL_NONE)   \
+        if (e != CLOPTS_ERROR_NONE)   \
         {                            \
             goto fail;               \
         }                            \
@@ -124,11 +124,11 @@ static int run_done(const clopts_result_t *result, const struct taskbook_options
 /*
  * Declares the program into *out, from the bottom up: the root and the
  * commands first, then the program. Returns the declaration error that stopped
- * it, or CLOPTS_DECL_NONE.
+ * it, or CLOPTS_ERROR_NONE.
  */
-static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_options *opts)
+static clopts_error_t declare(clopts_program_t **out, struct taskbook_options *opts)
 {
-    clopts_decl_error_t e;
+    clopts_error_t e;
     clopts_command_t *root = NULL;
     clopts_command_t *add = NULL;
     clopts_command_t *list = NULL;
@@ -219,7 +219,7 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     opts->list = list;
     opts->done = done;
     opts->help_command = help;
-    return CLOPTS_DECL_NONE;
+    return CLOPTS_ERROR_NONE;
 
 fail:
     /* Nothing was handed to a program: every handle that is not attached is still ours. */
@@ -302,11 +302,11 @@ int main(int argc, char **argv)
     clopts_argv_t *args;
     clopts_env_t *env;
     clopts_result_t *result;
-    clopts_decl_error_t error;
+    clopts_error_t error;
     int code;
 
     error = declare(&program, &opts);
-    if (error != CLOPTS_DECL_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         fprintf(stderr, "taskbook: error: invalid declaration: %s\n", clopts_decl_error_message(error));
         return 1;

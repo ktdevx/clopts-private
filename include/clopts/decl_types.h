@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "clopts/error.h"
 #include "clopts/export.h"
 
 #ifdef __cplusplus
@@ -28,9 +29,9 @@ extern "C" {
  * together with the root:
  *
  *     clopts_option_t *verbose;
- *     if (clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_DECL_NONE) ...
+ *     if (clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_ERROR_NONE) ...
  *     clopts_option_set_help(verbose, "Print more details");
- *     if (clopts_command_add_option(root, verbose) != CLOPTS_DECL_NONE) {
+ *     if (clopts_command_add_option(root, verbose) != CLOPTS_ERROR_NONE) {
  *         clopts_option_destroy(verbose);  // a failed attach leaves it with the caller
  *         ...
  *     }
@@ -51,8 +52,8 @@ extern "C" {
  *     them. These handles stay valid, at the same address, until
  *     clopts_program_destroy().
  *
- * Errors: every builder function returns CLOPTS_DECL_NONE on success and
- * another clopts_decl_error_t right away on failure, leaving every handle
+ * Errors: every builder function returns CLOPTS_ERROR_NONE on success and
+ * another clopts_error_t right away on failure, leaving every handle
  * unchanged. Nothing is recorded for later: a program built only from
  * successful calls is always valid. Checks that need only the option or
  * positional itself are made by its constructor and setters; checks against
@@ -86,53 +87,6 @@ typedef struct clopts_command clopts_command_t;
 typedef struct clopts_option clopts_option_t;
 typedef struct clopts_positional clopts_positional_t;
 typedef struct clopts_result clopts_result_t;
-
-/* Outcome of a builder function. */
-typedef enum clopts_decl_error
-{
-    CLOPTS_DECL_NONE = 0,
-    /* Malformed command / option / positional name or empty env name. */
-    CLOPTS_DECL_INVALID_NAME = 1,
-    /* An option has neither a long nor a short name. */
-    CLOPTS_DECL_NO_NAME = 2,
-    /* Two commands of a program share a name. */
-    CLOPTS_DECL_DUPLICATE_COMMAND = 3,
-    /* Option names collide within a command. */
-    CLOPTS_DECL_DUPLICATE_OPTION = 4,
-    /* negatable set on an option that is not a FLAG. */
-    CLOPTS_DECL_NOT_NEGATABLE = 5,
-    /* A negatable FLAG x and an option named no-x in the same command. */
-    CLOPTS_DECL_NEGATION_CONFLICT = 6,
-    /* A default value set on a FLAG / COUNT. */
-    CLOPTS_DECL_DEFAULT_NOT_ALLOWED = 7,
-    /* An environment variable set on a FLAG / COUNT. */
-    CLOPTS_DECL_ENV_NOT_ALLOWED = 8,
-    /* required and a default value both set. */
-    CLOPTS_DECL_REQUIRED_WITH_DEFAULT = 9,
-    /* required set on a FLAG / COUNT. */
-    CLOPTS_DECL_REQUIRED_NOT_ALLOWED = 10,
-    /* A required positional attached after an optional one. */
-    CLOPTS_DECL_POSITIONAL_ORDER = 11,
-    /* A positional attached after a variadic one. */
-    CLOPTS_DECL_VARIADIC_POSITION = 12,
-    /* A delimiter on a non-LIST option, a count limit on a non-COUNT option or terminal on a non-FLAG option. */
-    CLOPTS_DECL_ATTRIBUTE_KIND = 13,
-    /* Positionals on the root of a program with subcommands. */
-    CLOPTS_DECL_MIXED_LAYOUT = 14,
-    /* An option kind outside clopts_option_kind_t. */
-    CLOPTS_DECL_INVALID_KIND = 15,
-    /* Not returned: a NULL handle or out pointer is a contract violation (assert). The value is kept stable. */
-    CLOPTS_DECL_INVALID_ARGUMENT = 16,
-    /* An allocation failed. */
-    CLOPTS_DECL_OUT_OF_MEMORY = 17
-} clopts_decl_error_t;
-
-/*
- * Returns a static English description of error (for example "duplicate
- * option name"), for the messages of the program that declares the options.
- * NULL for CLOPTS_DECL_NONE and for values outside clopts_decl_error_t.
- */
-CLOPTS_API const char *clopts_decl_error_message(clopts_decl_error_t error);
 
 #ifdef __cplusplus
 }

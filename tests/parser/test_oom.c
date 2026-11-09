@@ -326,7 +326,7 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
  * every fault point from fail_at on fails.
  *
  * A failed allocation during the assembly makes that builder call return
- * CLOPTS_DECL_OUT_OF_MEMORY and change nothing; the later builder calls get
+ * CLOPTS_ERROR_OUT_OF_MEMORY and change nothing; the later builder calls get
  * NULL handles, and clopts_program_create() at the end (which allocates) fails
  * as well, so the fixture releases the root with everything attached to it
  * and the commands, and leaves the whole struct zeroed. So every fault point
