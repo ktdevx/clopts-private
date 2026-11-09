@@ -74,7 +74,7 @@
   - _Depends: 2.4_
   - _Requirements: 7.6, 7.7_
 
-- [ ] 4. 利用者向けの文書
+- [x] 4. 利用者向けの文書
 - [x] 4.1 (P) API リファレンスの章を書く
   - 設計の ApiReferenceDoc の節の構成どおりに書く。全体の流れ、ハンドルと寿命の表、宣言、解析と状態の表、結果とエラーのアクセサ、使い方エラー 7 種と宣言エラー 15 種の表、文面の出力、メモリの所有と寿命、プラットフォームの関数の一覧
   - 内容は公開ヘッダの注釈と矛盾させない。各公開関数を少なくとも 1 回、バッククォート付きで書く。taskbook の使い方エラーの出力を `clopts-check` の印付きで載せる
@@ -106,7 +106,7 @@
   - _Depends: 2.2_
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 6.3, 6.4_
 
-- [ ] 4.5 README と `docs/` の入口を書く
+- [x] 4.5 README と `docs/` の入口を書く
   - 設計の ReadmeDoc どおりに、README を全面的に書き直す。概要（Sirraide/clopts との区別）、特徴、最小サンプル（`clopts-source` の印と `hello --help` の `clopts-check` の印）、取り込み方 3 通りと形式の選び方、対応環境、文書への導線、ライセンス（MIT と The CLOpts Authors だけ。Monde には触れない）
   - `docs/README.md` に、章の表（api、parsing、integration、windows、abi）と読む順序と README への導線を置く
   - 完了条件: sources と links を直接呼ぶと成功する（README の最小サンプルが `tests/docs/readme_minimal.c` と一致し、README と `docs/*.md` の相対リンクがすべて解決し、`docs/dev/` を指さない）。README の取り込み方の記述例が 4.3 の章と同じ形である
