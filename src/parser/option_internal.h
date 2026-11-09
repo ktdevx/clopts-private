@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_PARSER_OPTION_H
-#define CLOPTS_PARSER_OPTION_H
+#ifndef CLOPTS_PARSER_OPTION_INTERNAL_H
+#define CLOPTS_PARSER_OPTION_INTERNAL_H
 
 #include "clopts/option.h"
 
@@ -12,7 +12,7 @@
 #include <stddef.h>
 
 /*
- * Internal representation of an option (parser_option.c). An option holds
+ * Internal representation of an option (option.c). An option holds
  * its own attributes only: it does not point to the command it is attached
  * to, it only knows its position there. Attached, it is owned by that
  * command and read-only.
@@ -39,4 +39,4 @@ struct clopts_option
 /* Releases option and its strings, attached or not (used when its command is released). */
 void clopts_parser_option_release(clopts_option_t *option);
 
-#endif /* CLOPTS_PARSER_OPTION_H */
+#endif /* CLOPTS_PARSER_OPTION_INTERNAL_H */

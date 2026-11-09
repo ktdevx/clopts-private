@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite decl_option: the checks of an option alone, made by
- * clopts_option_create() and the option setters (parser_option.c). None of these
+ * clopts_option_create() and the option setters (option.c). None of these
  * tests creates a program or a command: an option does not depend on them.
  * The checks against the other options are in the decl suite.
  *
