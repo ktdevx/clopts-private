@@ -11,6 +11,7 @@
  */
 
 #include "parser/parser_internal.h"
+#include "test_alloc.h"
 #include "test_fixtures.h"
 
 #include <naos/naos.h>
@@ -31,7 +32,6 @@
  */
 typedef struct sample
 {
-    clopts_parser_probe_t probe;
     clopts_program_t *program;
     clopts_command_t *root;
     clopts_option_t *force;
@@ -76,18 +76,14 @@ static int other_handler(const clopts_result_t *result, void *userdata)
 
 static int build_userdata;
 
-/* Builds the sample program with a probe that never fails (counts only). */
+/* Builds the sample program. */
 static void sample_init(sample_t *s)
 {
-    s->probe.fail_at = 0;
-    s->probe.calls = 0;
-    s->probe.live = 0;
     s->program = clopts_program_new("tool");
     if (s->program == NULL)
     {
         return;
     }
-    clopts_parser_set_probe(s->program, &s->probe);
     s->root = clopts_program_root(s->program);
     s->force = clopts_command_add_flag(s->root, "force", 'f');
     clopts_option_set_negatable(s->force, true);
@@ -119,9 +115,15 @@ static clopts_parser_slot_t *slot_of(clopts_result_t *result, const clopts_optio
     return clopts_parser_result_slot(result, &ref);
 }
 
+/*
+ * Starts the allocation count of the test (test_alloc_begin, before anything
+ * of the test is allocated), builds the sample program into s and creates a
+ * result of it.
+ */
 #define SAMPLE_BEGIN(s, result)                                                     \
     do                                                                              \
     {                                                                               \
+        test_alloc_begin(0);                                                        \
         sample_init(&(s));                                                          \
         NAOS_REQUIRE_NOT_NULL((s).program);                                         \
         NAOS_REQUIRE_INT_EQ((s).program->error.status, CLOPTS_OK);                  \
@@ -162,11 +164,11 @@ NAOS_TEST(new_allocates_one_slot_per_root_option)
     sample_t s;
     clopts_result_t *result;
     size_t i;
+    long live;
 
     SAMPLE_BEGIN(s, result);
     NAOS_CHECK_INT_EQ(result->status, CLOPTS_OK);
     NAOS_CHECK_PTR_EQ(result->program, s.program);
-    NAOS_CHECK_PTR_EQ(result->probe, &s.probe);
     NAOS_CHECK_FALSE(result->parsed);
     NAOS_CHECK_NULL(result->command);
     NAOS_REQUIRE_UINT_EQ(result->global_count, 6);
@@ -182,24 +184,36 @@ NAOS_TEST(new_allocates_one_slot_per_root_option)
         NAOS_CHECK_UINT_EQ(result->global_slots[i].items.elem_size, sizeof(char *));
     }
 
+    /* The result and its slot array are two blocks of the allocator. */
+    live = test_alloc.live;
     clopts_result_free(result);
+    NAOS_CHECK_INT_EQ(test_alloc.live, live - 2);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(new_without_root_options_has_no_slots)
 {
     clopts_program_t *program;
     clopts_result_t *result;
+    size_t calls;
+    long live;
 
+    test_alloc_begin(0);
     program = clopts_program_new("tool");
     NAOS_REQUIRE_NOT_NULL(program);
+    calls = test_alloc.calls;
+    live = test_alloc.live;
     result = clopts_parser_result_new(program);
     NAOS_REQUIRE_NOT_NULL(result);
     NAOS_CHECK_NULL(result->global_slots);
     NAOS_CHECK_UINT_EQ(result->global_count, 0);
+    /* Only the result itself is allocated. */
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, calls + 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, live + 1);
     clopts_result_free(result);
     clopts_program_free(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(select_allocates_command_slots)
@@ -218,7 +232,7 @@ NAOS_TEST(select_allocates_command_slots)
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(select_command_without_options)
@@ -234,7 +248,7 @@ NAOS_TEST(select_command_without_options)
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(result_slot_returns_the_slot_of_the_ref)
@@ -332,9 +346,9 @@ NAOS_TEST(value_last_one_wins)
 
     SAMPLE_BEGIN(s, result);
     slot = slot_of(result, s.config);
-    clopts_parser_slot_set_value(result->probe, slot, first, CLOPTS_SOURCE_EXPLICIT);
+    clopts_parser_slot_set_value(slot, first, CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_PTR_EQ(clopts_result_value(result, s.config), first);
-    clopts_parser_slot_set_value(result->probe, slot, second, CLOPTS_SOURCE_EXPLICIT);
+    clopts_parser_slot_set_value(slot, second, CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_PTR_EQ(clopts_result_value(result, s.config), second);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.config), CLOPTS_SOURCE_EXPLICIT);
 
@@ -352,8 +366,8 @@ NAOS_TEST(list_concatenates_split_items)
 
     SAMPLE_BEGIN(s, result);
     slot = slot_of(result, s.include);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, first, ',', CLOPTS_SOURCE_EXPLICIT), 0);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, second, ',', CLOPTS_SOURCE_EXPLICIT), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, first, ',', CLOPTS_SOURCE_EXPLICIT), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, second, ',', CLOPTS_SOURCE_EXPLICIT), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, s.include), 3);
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.include, 0), "a");
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.include, 1), "b");
@@ -364,7 +378,7 @@ NAOS_TEST(list_concatenates_split_items)
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(list_keeps_empty_items)
@@ -375,7 +389,7 @@ NAOS_TEST(list_keeps_empty_items)
 
     SAMPLE_BEGIN(s, result);
     slot = slot_of(result, s.include);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, "a,,b,", ',', CLOPTS_SOURCE_EXPLICIT), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, "a,,b,", ',', CLOPTS_SOURCE_EXPLICIT), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, s.include), 4);
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.include, 0), "a");
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.include, 1), "");
@@ -383,19 +397,19 @@ NAOS_TEST(list_keeps_empty_items)
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.include, 3), "");
 
     /* an empty value is one empty item */
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, "", ',', CLOPTS_SOURCE_EXPLICIT), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, "", ',', CLOPTS_SOURCE_EXPLICIT), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, s.include), 5);
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.include, 4), "");
 
     /* a lone delimiter gives two empty items */
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, ",", ',', CLOPTS_SOURCE_EXPLICIT), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, ",", ',', CLOPTS_SOURCE_EXPLICIT), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, s.include), 7);
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.include, 5), "");
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.include, 6), "");
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(list_without_delimiter_takes_the_value_as_one_item)
@@ -406,15 +420,15 @@ NAOS_TEST(list_without_delimiter_takes_the_value_as_one_item)
 
     SAMPLE_BEGIN(s, result);
     slot = slot_of(result, s.tag);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, "a,b", '\0', CLOPTS_SOURCE_EXPLICIT), 0);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, "", '\0', CLOPTS_SOURCE_EXPLICIT), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, "a,b", '\0', CLOPTS_SOURCE_EXPLICIT), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, "", '\0', CLOPTS_SOURCE_EXPLICIT), 0);
     NAOS_REQUIRE_UINT_EQ(clopts_result_list_count(result, s.tag), 2);
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.tag, 0), "a,b");
     NAOS_CHECK_STR_EQ(clopts_result_list_at(result, s.tag, 1), "");
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(source_is_overwritten_by_the_last_record)
@@ -425,18 +439,18 @@ NAOS_TEST(source_is_overwritten_by_the_last_record)
 
     SAMPLE_BEGIN(s, result);
     slot = slot_of(result, s.config);
-    clopts_parser_slot_set_value(result->probe, slot, "default", CLOPTS_SOURCE_DEFAULT);
+    clopts_parser_slot_set_value(slot, "default", CLOPTS_SOURCE_DEFAULT);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.config), CLOPTS_SOURCE_DEFAULT);
-    clopts_parser_slot_set_value(result->probe, slot, "env", CLOPTS_SOURCE_ENV);
+    clopts_parser_slot_set_value(slot, "env", CLOPTS_SOURCE_ENV);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.config), CLOPTS_SOURCE_ENV);
-    clopts_parser_slot_set_value(result->probe, slot, "argv", CLOPTS_SOURCE_EXPLICIT);
+    clopts_parser_slot_set_value(slot, "argv", CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.config), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_STR_EQ(clopts_result_value(result, s.config), "argv");
 
     slot = slot_of(result, s.include);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, "x", ',', CLOPTS_SOURCE_DEFAULT), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, "x", ',', CLOPTS_SOURCE_DEFAULT), 0);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.include), CLOPTS_SOURCE_DEFAULT);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot, "y", ',', CLOPTS_SOURCE_ENV), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot, "y", ',', CLOPTS_SOURCE_ENV), 0);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.include), CLOPTS_SOURCE_ENV);
 
     slot = slot_of(result, s.force);
@@ -445,7 +459,7 @@ NAOS_TEST(source_is_overwritten_by_the_last_record)
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(environment_copy_is_owned_by_the_slot)
@@ -459,33 +473,33 @@ NAOS_TEST(environment_copy_is_owned_by_the_slot)
 
     SAMPLE_BEGIN(s, result);
     slot = slot_of(result, s.config);
-    before = s.probe.live;
-    copy = clopts_parser_strdup(result->probe, "from-env");
+    before = test_alloc.live;
+    copy = clopts_core_strdup("from-env");
     NAOS_REQUIRE_NOT_NULL(copy);
-    clopts_parser_slot_own(result->probe, slot, copy);
-    clopts_parser_slot_set_value(result->probe, slot, copy, CLOPTS_SOURCE_ENV);
+    clopts_parser_slot_own(slot, copy);
+    clopts_parser_slot_set_value(slot, copy, CLOPTS_SOURCE_ENV);
     NAOS_CHECK_PTR_EQ(slot->owned, copy);
     NAOS_CHECK_PTR_EQ(clopts_result_value(result, s.config), copy);
     NAOS_CHECK_INT_EQ(clopts_result_source(result, s.config), CLOPTS_SOURCE_ENV);
-    NAOS_CHECK_INT_EQ(s.probe.live, before + 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, before + 1);
 
     /* owning a new copy releases the previous one */
-    second = clopts_parser_strdup(result->probe, "again");
+    second = clopts_core_strdup("again");
     NAOS_REQUIRE_NOT_NULL(second);
-    clopts_parser_slot_own(result->probe, slot, second);
+    clopts_parser_slot_own(slot, second);
     NAOS_CHECK_PTR_EQ(slot->owned, second);
     NAOS_CHECK_PTR_EQ(slot->value, second);
-    NAOS_CHECK_INT_EQ(s.probe.live, before + 1);
+    NAOS_CHECK_INT_EQ(test_alloc.live, before + 1);
 
     /* a borrowed value replaces it and the copy is released (value == owned) */
-    clopts_parser_slot_set_value(result->probe, slot, "argv", CLOPTS_SOURCE_EXPLICIT);
+    clopts_parser_slot_set_value(slot, "argv", CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_NULL(slot->owned);
     NAOS_CHECK_STR_EQ(clopts_result_value(result, s.config), "argv");
-    NAOS_CHECK_INT_EQ(s.probe.live, before);
+    NAOS_CHECK_INT_EQ(test_alloc.live, before);
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(positionals_point_into_argv_in_order)
@@ -515,7 +529,7 @@ NAOS_TEST(positionals_point_into_argv_in_order)
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /* ---- accessors by handle ---------------------------------------------- */
@@ -531,11 +545,11 @@ NAOS_TEST(accessors_return_the_slot_of_the_handle)
     clopts_parser_slot_add_count(slot_of(result, s.verbose), 0);
     clopts_parser_slot_add_count(slot_of(result, s.verbose), 0);
     clopts_parser_slot_add_count(slot_of(result, s.jobs), 8);
-    clopts_parser_slot_set_value(result->probe, slot_of(result, s.config), "c.conf", CLOPTS_SOURCE_DEFAULT);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot_of(result, s.include), "i", ',',
+    clopts_parser_slot_set_value(slot_of(result, s.config), "c.conf", CLOPTS_SOURCE_DEFAULT);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot_of(result, s.include), "i", ',',
                                                        CLOPTS_SOURCE_ENV), 0);
     clopts_parser_slot_set_flag(slot_of(result, s.release), true, CLOPTS_SOURCE_EXPLICIT);
-    clopts_parser_slot_set_value(result->probe, slot_of(result, s.build_output), "out", CLOPTS_SOURCE_EXPLICIT);
+    clopts_parser_slot_set_value(slot_of(result, s.build_output), "out", CLOPTS_SOURCE_EXPLICIT);
 
     NAOS_REQUIRE_INT_EQ(clopts_result_status(result), CLOPTS_OK);
     NAOS_CHECK_TRUE(clopts_result_flag(result, s.force));
@@ -556,7 +570,7 @@ NAOS_TEST(accessors_return_the_slot_of_the_handle)
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(command_options_are_unset_without_a_selected_command)
@@ -622,13 +636,13 @@ static void record_everything(sample_t *s, clopts_result_t *result)
     clopts_parser_slot_set_flag(slot_of(result, s->force), true, CLOPTS_SOURCE_EXPLICIT);
     clopts_parser_slot_add_count(slot_of(result, s->verbose), 0);
     clopts_parser_slot_add_count(slot_of(result, s->jobs), 8);
-    clopts_parser_slot_set_value(result->probe, slot_of(result, s->config), "c", CLOPTS_SOURCE_EXPLICIT);
-    (void)clopts_parser_slot_append_list(result->probe, slot_of(result, s->include), "a,b", ',',
+    clopts_parser_slot_set_value(slot_of(result, s->config), "c", CLOPTS_SOURCE_EXPLICIT);
+    (void)clopts_parser_slot_append_list(slot_of(result, s->include), "a,b", ',',
                                          CLOPTS_SOURCE_EXPLICIT);
-    (void)clopts_parser_slot_append_list(result->probe, slot_of(result, s->tag), "t", '\0',
+    (void)clopts_parser_slot_append_list(slot_of(result, s->tag), "t", '\0',
                                          CLOPTS_SOURCE_EXPLICIT);
     clopts_parser_slot_set_flag(slot_of(result, s->release), true, CLOPTS_SOURCE_EXPLICIT);
-    clopts_parser_slot_set_value(result->probe, slot_of(result, s->build_output), "o", CLOPTS_SOURCE_EXPLICIT);
+    clopts_parser_slot_set_value(slot_of(result, s->build_output), "o", CLOPTS_SOURCE_EXPLICIT);
     (void)clopts_parser_result_add_positional(result, token);
 }
 
@@ -664,7 +678,7 @@ NAOS_TEST(value_accessors_are_unset_unless_ok_or_no_command)
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(no_command_keeps_only_the_root_values)
@@ -687,7 +701,7 @@ NAOS_TEST(no_command_keeps_only_the_root_values)
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /* Fills every error field of result. */
@@ -848,19 +862,19 @@ NAOS_TEST(free_after_the_program_releases_everything)
 
     SAMPLE_BEGIN(s, result);
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_select(result, s.build), 0);
-    copy = clopts_parser_strdup(result->probe, "env");
+    copy = clopts_core_strdup("env");
     NAOS_REQUIRE_NOT_NULL(copy);
-    clopts_parser_slot_own(result->probe, slot_of(result, s.config), copy);
-    clopts_parser_slot_set_value(result->probe, slot_of(result, s.config), copy, CLOPTS_SOURCE_ENV);
-    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(result->probe, slot_of(result, s.include), "a,b,c", ',',
+    clopts_parser_slot_own(slot_of(result, s.config), copy);
+    clopts_parser_slot_set_value(slot_of(result, s.config), copy, CLOPTS_SOURCE_ENV);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot_of(result, s.include), "a,b,c", ',',
                                                        CLOPTS_SOURCE_EXPLICIT), 0);
-    clopts_parser_slot_set_value(result->probe, slot_of(result, s.build_output), "o", CLOPTS_SOURCE_EXPLICIT);
+    clopts_parser_slot_set_value(slot_of(result, s.build_output), "o", CLOPTS_SOURCE_EXPLICIT);
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_add_positional(result, token), 0);
 
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_GT(s.probe.live, 0);
+    NAOS_CHECK_INT_GT(test_alloc.live, 0);
     clopts_result_free(result);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(failing_result_new_leaks_nothing)
@@ -868,31 +882,31 @@ NAOS_TEST(failing_result_new_leaks_nothing)
     sample_t s;
     clopts_result_t *result;
     size_t n;
-    size_t base;
     long live;
 
+    test_alloc_begin(0);
     sample_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
-    base = s.probe.calls;
-    live = s.probe.live;
+    live = test_alloc.live;
     for (n = 1; n < 10; n++)
     {
-        s.probe.fail_at = base + n;
+        /* The n-th fault point from here on fails. */
+        test_alloc_set_fail_at(test_alloc.calls + n);
         result = clopts_parser_result_new(s.program);
         if (result != NULL)
         {
             break;
         }
-        NAOS_CHECK_INT_EQ(s.probe.live, live);
-        s.probe.calls = base;
+        NAOS_CHECK_INT_EQ(test_alloc.live, live);
     }
+    test_alloc_set_fail_at(0);
     NAOS_REQUIRE_NOT_NULL(result);
-    /* the result and its slot array are two fault points */
+    /* the result (calloc) and its slot array (calloc) are two fault points */
     NAOS_CHECK_UINT_EQ(n, 3);
     clopts_result_free(result);
-    NAOS_CHECK_INT_EQ(s.probe.live, live);
+    NAOS_CHECK_INT_EQ(test_alloc.live, live);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(failing_select_leaves_the_result_unchanged)
@@ -903,18 +917,20 @@ NAOS_TEST(failing_select_leaves_the_result_unchanged)
 
     SAMPLE_BEGIN(s, result);
     clopts_parser_slot_add_count(slot_of(result, s.verbose), 0);
-    live = s.probe.live;
-    s.probe.fail_at = s.probe.calls + 1;
+    live = test_alloc.live;
+    /* the slot array of build is the next fault point */
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     NAOS_CHECK_INT_EQ(clopts_parser_result_select(result, s.build), -1);
+    test_alloc_set_fail_at(0);
     NAOS_CHECK_NULL(result->command);
     NAOS_CHECK_NULL(result->command_slots);
     NAOS_CHECK_UINT_EQ(result->command_count, 0);
-    NAOS_CHECK_INT_EQ(s.probe.live, live);
+    NAOS_CHECK_INT_EQ(test_alloc.live, live);
     NAOS_CHECK_UINT_EQ(clopts_result_count(result, s.verbose), 1);
 
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(failing_append_list_keeps_a_freeable_result)
@@ -927,9 +943,10 @@ NAOS_TEST(failing_append_list_keeps_a_freeable_result)
     for (n = 1; n < 20; n++)
     {
         SAMPLE_BEGIN(s, result);
-        s.probe.fail_at = s.probe.calls + n;
-        rc = clopts_parser_slot_append_list(result->probe, slot_of(result, s.include), "a,b,c", ',',
+        test_alloc_set_fail_at(test_alloc.calls + n);
+        rc = clopts_parser_slot_append_list(slot_of(result, s.include), "a,b,c", ',',
                                             CLOPTS_SOURCE_EXPLICIT);
+        test_alloc_set_fail_at(0);
         if (rc == 0)
         {
             NAOS_CHECK_UINT_EQ(clopts_result_list_count(result, s.include), 3);
@@ -941,14 +958,18 @@ NAOS_TEST(failing_append_list_keeps_a_freeable_result)
         }
         clopts_result_free(result);
         clopts_program_free(s.program);
-        NAOS_CHECK_INT_EQ(s.probe.live, 0);
+        NAOS_CHECK_TRUE(test_alloc_end());
         if (rc == 0)
         {
             break;
         }
     }
-    /* three copies and three pushes: the seventh fault point is not reached */
-    NAOS_CHECK_UINT_EQ(n, 7);
+    /*
+     * Three item copies and the item buffer, allocated by the first push
+     * (capacity 8; the other two pushes do not grow it): four fault points,
+     * so the fifth is not reached.
+     */
+    NAOS_CHECK_UINT_EQ(n, 5);
 }
 
 NAOS_TEST(failing_add_positional_keeps_a_freeable_result)
@@ -958,12 +979,15 @@ NAOS_TEST(failing_add_positional_keeps_a_freeable_result)
     char token[] = "file";
 
     SAMPLE_BEGIN(s, result);
-    s.probe.fail_at = s.probe.calls + 1;
+    /* the first push allocates the buffer of the positionals */
+    test_alloc_set_fail_at(test_alloc.calls + 1);
     NAOS_CHECK_INT_EQ(clopts_parser_result_add_positional(result, token), -1);
+    test_alloc_set_fail_at(0);
     NAOS_CHECK_UINT_EQ(result->positionals.len, 0);
+    NAOS_CHECK_NULL(result->positionals.data);
     clopts_result_free(result);
     clopts_program_free(s.program);
-    NAOS_CHECK_INT_EQ(s.probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /* ==== through clopts_parse_with_env (7.5) ============================== */
@@ -1019,7 +1043,7 @@ static clopts_result_t *parse_env(clopts_program_t *program, char **argv, fixtur
 #define TOOL_BEGIN(f)                                                               \
     do                                                                              \
     {                                                                               \
-        fixture_tool_init(&(f), NULL);                                              \
+        fixture_tool_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
     } while (0)
 
@@ -1127,7 +1151,7 @@ NAOS_TEST(parse_result_without_subcommands_has_no_command)
     fixture_env_t env;
     clopts_result_t *result;
 
-    fixture_filt_init(&f, NULL);
+    fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     fixture_env_init(&env, NULL, 0);
     result = parse_env(f.program, argv, &env);
@@ -1150,7 +1174,7 @@ NAOS_TEST(parse_then_run_calls_the_filt_handler)
     fixture_env_t env;
     clopts_result_t *result;
 
-    fixture_filt_init(&f, NULL);
+    fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     fixture_env_init(&env, NULL, 0);
     fixture_handler_reset(&fixture_filt_handler_record, 42);
@@ -1209,13 +1233,13 @@ NAOS_TEST(parse_out_of_memory_result_is_freed_once)
      */
     static const fixture_env_var_t vars[] = { { "TOOL_CONFIG", "/etc/t" } };
     char *argv[] = { "tool", "cat", "--tags", "a,b,c", "f", NULL };
-    clopts_parser_probe_t probe = { 0, 0, 0 };
     fixture_tool_t t;
     fixture_env_t env;
     clopts_result_t *result;
 
     /* The result, the cat slots and the list items exist when the lookup fails. */
-    fixture_tool_init(&t, &probe);
+    test_alloc_begin(0);
+    fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     env.fail_next = true;
@@ -1225,7 +1249,7 @@ NAOS_TEST(parse_out_of_memory_result_is_freed_once)
     clopts_result_free(NULL);
     clopts_result_free(clopts_parser_result_oom());
     fixture_tool_free(&t);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(parse_twice_gives_independent_results)
@@ -1241,13 +1265,13 @@ NAOS_TEST(parse_twice_gives_independent_results)
     };
     char *first_argv[] = { "tool", "cat", "--tags", "p,q", "f", NULL };
     char *second_argv[] = { "tool", "build", "src", "-o", "out", "-k", "k1,k2", NULL };
-    clopts_parser_probe_t probe = { 0, 0, 0 };
     fixture_tool_t t;
     fixture_env_t env;
     clopts_result_t *first;
     clopts_result_t *second;
 
-    fixture_tool_init(&t, &probe);
+    test_alloc_begin(0);
+    fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     first = parse_env(t.program, first_argv, &env);
@@ -1278,7 +1302,7 @@ NAOS_TEST(parse_twice_gives_independent_results)
     NAOS_CHECK_STR_EQ(clopts_result_list_at(second, t.keys, 0), "k1");
     clopts_result_free(second);
     fixture_tool_free(&t);
-    NAOS_CHECK_INT_EQ(probe.live, 0);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(parse_after_an_error_gives_an_independent_result)
@@ -1297,7 +1321,7 @@ NAOS_TEST(parse_after_an_error_gives_an_independent_result)
     clopts_result_t *result;
 
     TOOL_BEGIN(t);
-    fixture_filt_init(&f, NULL);
+    fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     fixture_env_init(&env, NULL, 0);
     error_result = parse_env(t.program, bad, &env);

@@ -534,7 +534,6 @@ int clopts_result_run(const clopts_result_t *result)
 
 void clopts_result_free(clopts_result_t *result)
 {
-
     if ((result == NULL) || (result == &parser_result_sentinel))
     {
         return;

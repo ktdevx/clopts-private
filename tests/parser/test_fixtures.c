@@ -15,16 +15,12 @@
 
 fixture_handler_record_t fixture_build_handler_record;
 
-void fixture_tool_init(fixture_tool_t *f, clopts_parser_probe_t *probe)
+void fixture_tool_init(fixture_tool_t *f)
 {
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
     f->program = clopts_program_new("tool");
-    if ((f->program != NULL) && (probe != NULL))
-    {
-        clopts_parser_set_probe(f->program, probe);
-    }
     f->root = clopts_program_root(f->program);
     clopts_command_set_description(f->root, "A fictional tool with subcommands.");
     clopts_program_set_version(f->program, "1.2.3");
@@ -108,16 +104,12 @@ void fixture_tool_free(fixture_tool_t *f)
 
 fixture_handler_record_t fixture_filt_handler_record;
 
-void fixture_filt_init(fixture_filt_t *f, clopts_parser_probe_t *probe)
+void fixture_filt_init(fixture_filt_t *f)
 {
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
     f->program = clopts_program_new("filt");
-    if ((f->program != NULL) && (probe != NULL))
-    {
-        clopts_parser_set_probe(f->program, probe);
-    }
     f->root = clopts_program_root(f->program);
     clopts_command_set_description(f->root, "A fictional filter without subcommands.");
     clopts_command_set_handler(f->root, fixture_handler, &fixture_filt_handler_record);
@@ -143,16 +135,12 @@ void fixture_filt_free(fixture_filt_t *f)
 
 /* ---- strict ------------------------------------------------------------ */
 
-void fixture_strict_init(fixture_strict_t *f, clopts_parser_probe_t *probe)
+void fixture_strict_init(fixture_strict_t *f)
 {
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
     f->program = clopts_program_new("strict");
-    if ((f->program != NULL) && (probe != NULL))
-    {
-        clopts_parser_set_probe(f->program, probe);
-    }
     f->root = clopts_program_root(f->program);
     clopts_command_set_description(f->root, "A fictional program with a required global option.");
 

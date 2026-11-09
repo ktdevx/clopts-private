@@ -61,7 +61,7 @@ static clopts_result_t *parse_checked(clopts_program_t *program, char **argv)
 /* Builds the tool fixture into f and parses argv with it. */
 static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
-    fixture_tool_init(f, NULL);
+    fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
     return parse_checked(f->program, argv);
 }
@@ -69,7 +69,7 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 /* Builds the filt fixture into f and parses argv with it. */
 static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
 {
-    fixture_filt_init(f, NULL);
+    fixture_filt_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
     return parse_checked(f->program, argv);
 }
@@ -115,7 +115,7 @@ NAOS_TEST(fixture_long_names_and_kinds_are_as_designed)
     fixture_filt_t f;
     fixture_strict_t s;
 
-    fixture_tool_init(&t, NULL);
+    fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_CHECK_STR_EQ(t.verbose->long_name, "verbose");
     NAOS_CHECK_INT_EQ(t.verbose->kind, CLOPTS_PARSER_COUNT);
@@ -133,12 +133,12 @@ NAOS_TEST(fixture_long_names_and_kinds_are_as_designed)
     NAOS_CHECK_STR_EQ(t.tags->long_name, "tags");
     fixture_tool_free(&t);
 
-    fixture_filt_init(&f, NULL);
+    fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_STR_EQ(f.lines->long_name, "lines");
     fixture_filt_free(&f);
 
-    fixture_strict_init(&s, NULL);
+    fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_CHECK_STR_EQ(s.token->long_name, "token");
     fixture_strict_free(&s);
@@ -148,7 +148,7 @@ NAOS_TEST(fixture_only_color_is_negatable)
 {
     fixture_tool_t t;
 
-    fixture_tool_init(&t, NULL);
+    fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_CHECK_TRUE(t.color->negatable);
     NAOS_CHECK_FALSE(t.verbose->negatable);
