@@ -33,13 +33,13 @@ static clopts_error_t program_check_new(const clopts_command_t *root, clopts_com
         assert(commands[i] != NULL);
         for (j = 0; j < i; j++)
         {
-            if (strcmp(commands[j]->name, commands[i]->name) == 0)
+            if (strcmp(clopts_command_name(commands[j]), clopts_command_name(commands[i])) == 0)
             {
                 return CLOPTS_ERROR_DUPLICATE_COMMAND;
             }
         }
     }
-    if ((count > 0) && (root->positionals.len > 0))
+    if ((count > 0) && (clopts_command_positional_count(root) > 0))
     {
         return CLOPTS_ERROR_MIXED_LAYOUT;
     }

@@ -50,7 +50,8 @@
  * can see the call set it to NULL. They are never read or written.
  */
 static clopts_program_t sentinel_program;
-static clopts_command_t sentinel_command;
+static char sentinel_command_storage;
+#define SENTINEL_COMMAND ((clopts_command_t *)&sentinel_command_storage)
 
 /* Returns option index of scope. */
 static const clopts_option_t *option_at(const clopts_command_t *scope, size_t index)
@@ -169,9 +170,9 @@ static void expect_attach_error(clopts_command_t *scope, clopts_option_t *option
 
     NAOS_REQUIRE_NOT_NULL(scope);
     NAOS_REQUIRE_NOT_NULL(option);
-    len = scope->options.len;
+    len = clopts_command_option_count(scope);
     NAOS_CHECK_INT_EQ(clopts_command_add_option(scope, option), error);
-    NAOS_CHECK_UINT_EQ(scope->options.len, len);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(scope), len);
     clopts_option_destroy(option);
 }
 
@@ -183,9 +184,9 @@ static void expect_attach_positional_error(clopts_command_t *scope, clopts_posit
 
     NAOS_REQUIRE_NOT_NULL(scope);
     NAOS_REQUIRE_NOT_NULL(positional);
-    len = scope->positionals.len;
+    len = clopts_command_positional_count(scope);
     NAOS_CHECK_INT_EQ(clopts_command_add_positional(scope, positional), error);
-    NAOS_CHECK_UINT_EQ(scope->positionals.len, len);
+    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(scope), len);
     clopts_positional_destroy(positional);
 }
 
@@ -218,8 +219,8 @@ static void expect_program_error(clopts_command_t *root, clopts_command_t *const
     {
         if (all[i] != NULL)
         {
-            options[i] = all[i]->options.len;
-            positionals[i] = all[i]->positionals.len;
+            options[i] = clopts_command_option_count(all[i]);
+            positionals[i] = clopts_command_positional_count(all[i]);
         }
     }
 
@@ -230,8 +231,8 @@ static void expect_program_error(clopts_command_t *root, clopts_command_t *const
         if (all[i] != NULL)
         {
             NAOS_NOTE("handle %u", (unsigned)i);
-            NAOS_CHECK_UINT_EQ(all[i]->options.len, options[i]);
-            NAOS_CHECK_UINT_EQ(all[i]->positionals.len, positionals[i]);
+            NAOS_CHECK_UINT_EQ(clopts_command_option_count(all[i]), options[i]);
+            NAOS_CHECK_UINT_EQ(clopts_command_positional_count(all[i]), positionals[i]);
         }
     }
 }
@@ -322,7 +323,7 @@ NAOS_TEST(command_name_invalid)
     for (i = 0; i < COUNT_OF(names); i++)
     {
         NAOS_NOTE("name=\"%s\"", (names[i] != NULL) ? names[i] : "(null)");
-        out = &sentinel_command;
+        out = SENTINEL_COMMAND;
         NAOS_CHECK_INT_EQ(clopts_command_create(names[i], &out), CLOPTS_ERROR_INVALID_NAME);
         NAOS_CHECK_NULL(out);
     }
@@ -521,9 +522,9 @@ NAOS_TEST(help_and_version_names_are_accepted)
     add(help, CLOPTS_OPTION_COUNT, NULL, 'h');
     add(help, CLOPTS_OPTION_LIST, "version", 'v');
     program = finish(root);
-    NAOS_CHECK_UINT_EQ(root->options.len, 2);
-    NAOS_CHECK_UINT_EQ(build->options.len, 2);
-    NAOS_CHECK_UINT_EQ(help->options.len, 2);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 2);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(build), 2);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(help), 2);
     clopts_program_destroy(program);
 }
 
@@ -553,9 +554,9 @@ NAOS_TEST(option_same_name_in_root_and_command_is_accepted)
     add(root, CLOPTS_OPTION_COUNT, "output", '\0');
 
     program = finish(root);
-    NAOS_CHECK_UINT_EQ(root->options.len, 4);
-    NAOS_CHECK_UINT_EQ(build->options.len, 4);
-    NAOS_CHECK_UINT_EQ(copy->options.len, 3);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 4);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(build), 4);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(copy), 3);
     clopts_program_destroy(program);
 }
 
@@ -584,9 +585,9 @@ NAOS_TEST(negation_across_root_and_command_is_accepted)
     add(copy, CLOPTS_OPTION_FLAG, "no-sign", '\0');
 
     program = finish(root);
-    NAOS_CHECK_UINT_EQ(root->options.len, 4);
-    NAOS_CHECK_UINT_EQ(build->options.len, 3);
-    NAOS_CHECK_UINT_EQ(copy->options.len, 3);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 4);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(build), 3);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(copy), 3);
     clopts_program_destroy(program);
 }
 
@@ -612,8 +613,8 @@ NAOS_TEST(option_duplicate_in_same_command)
     add(build, CLOPTS_OPTION_FLAG, "Release", 'R');
     add(build, CLOPTS_OPTION_FLAG, "r", '\0');
     add(build, CLOPTS_OPTION_FLAG, "f", 'F');
-    NAOS_CHECK_UINT_EQ(build->options.len, 4);
-    NAOS_CHECK_UINT_EQ(root->options.len, 1);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(build), 4);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 1);
     clopts_command_destroy(build);
     clopts_command_destroy(root);
 }
@@ -639,8 +640,8 @@ NAOS_TEST(option_negation_conflict_on_add)
 
     /* only the command itself is checked */
     add(build, CLOPTS_OPTION_FLAG, "no-color", '\0');
-    NAOS_CHECK_UINT_EQ(root->options.len, 1);
-    NAOS_CHECK_UINT_EQ(build->options.len, 4);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 1);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(build), 4);
     clopts_command_destroy(build);
     clopts_command_destroy(root);
 }
@@ -666,8 +667,8 @@ NAOS_TEST(negatable_with_existing_no_option)
 
     /* only the command itself is checked */
     attach(root, make_negatable("cache", '\0'));
-    NAOS_CHECK_UINT_EQ(root->options.len, 2);
-    NAOS_CHECK_UINT_EQ(build->options.len, 3);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 2);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(build), 3);
     clopts_command_destroy(build);
     clopts_command_destroy(root);
 }
@@ -684,7 +685,7 @@ NAOS_TEST(option_no_prefix_without_negatable_flag_is_allowed)
     attach(root, make_negatable("Cache", '\0'));
     add(root, CLOPTS_OPTION_FLAG, "no-cache", '\0');
     add(root, CLOPTS_OPTION_FLAG, "No-Cache", '\0');
-    NAOS_CHECK_UINT_EQ(root->options.len, 8);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 8);
     clopts_command_destroy(root);
 }
 
@@ -711,7 +712,7 @@ NAOS_TEST(option_attach_checks_follow_order)
     add(root, CLOPTS_OPTION_FLAG, "no-cache", '\0');
     expect_attach_error(root, make(CLOPTS_OPTION_FLAG, "no-color", 'q'), CLOPTS_ERROR_DUPLICATE_OPTION);
     expect_attach_error(root, make_negatable("cache", 'q'), CLOPTS_ERROR_DUPLICATE_OPTION);
-    NAOS_CHECK_UINT_EQ(root->options.len, 4);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 4);
     clopts_command_destroy(root);
 }
 
@@ -758,7 +759,7 @@ NAOS_TEST(required_positional_after_optional)
 
     /* an optional one is allowed */
     add_positional(copy, "dst");
-    NAOS_CHECK_UINT_EQ(copy->positionals.len, 2);
+    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(copy), 2);
     clopts_command_destroy(copy);
 }
 
@@ -787,7 +788,7 @@ NAOS_TEST(positional_order_allowed)
     clopts_positional_set_variadic(d, true);
     attach_positional(root, d);
 
-    NAOS_REQUIRE_UINT_EQ(root->positionals.len, 4);
+    NAOS_REQUIRE_UINT_EQ(clopts_command_positional_count(root), 4);
     NAOS_CHECK_TRUE(clopts_positional_required(a));
     NAOS_CHECK_TRUE(clopts_positional_required(b));
     NAOS_CHECK_FALSE(clopts_positional_variadic(b));
@@ -821,7 +822,7 @@ NAOS_TEST(negatable_unset_is_not_checked)
     color = make(CLOPTS_OPTION_FLAG, "color", '\0');
     EXPECT_OK(clopts_option_set_negatable(color, false));
     attach(root, color);
-    NAOS_CHECK_UINT_EQ(root->options.len, 3);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 3);
     clopts_command_destroy(root);
 }
 
@@ -972,11 +973,11 @@ NAOS_TEST(tool_like_declaration_is_ok)
     attach_positional(copy, positional);
 
     program = finish(root);
-    NAOS_CHECK_UINT_EQ(root->options.len, 4);
-    NAOS_CHECK_UINT_EQ(build->options.len, 5);
-    NAOS_CHECK_UINT_EQ(build->positionals.len, 2);
-    NAOS_CHECK_UINT_EQ(copy->options.len, 2);
-    NAOS_CHECK_UINT_EQ(copy->positionals.len, 2);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(root), 4);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(build), 5);
+    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(build), 2);
+    NAOS_CHECK_UINT_EQ(clopts_command_option_count(copy), 2);
+    NAOS_CHECK_UINT_EQ(clopts_command_positional_count(copy), 2);
     NAOS_CHECK_UINT_EQ(clopts_program_command_count(program), 2);
 
     result = parse_tokens(program, tokens);
