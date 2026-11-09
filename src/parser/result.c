@@ -22,6 +22,23 @@
 #include <string.h>
 
 /*
+ * A result. Its layout is private to this file: the rest of the parser and
+ * the tests read and record into it through the functions of this file.
+ */
+struct clopts_result
+{
+    clopts_status_t status;
+    const clopts_command_t *command;  /* selected command, or NULL */
+    const clopts_option_t *terminal;  /* TERMINATED: the terminal option, else NULL */
+    clopts_parser_error_t error;
+    clopts_parser_slot_t *global_slots;   /* one per global option */
+    size_t global_count;
+    clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */
+    size_t command_count;
+    clopts_core_vec_t positionals;    /* const char * elements pointing into argv */
+};
+
+/*
  * The out-of-memory sentinel. Never written to; shared between threads
  * safely because it is a const static object.
  */

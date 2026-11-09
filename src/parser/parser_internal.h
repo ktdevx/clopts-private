@@ -173,21 +173,10 @@ typedef struct clopts_parser_error
 } clopts_parser_error_t;
 
 /*
- * Only the functions of result.c write to a result; everything else in src/
- * records into it through them.
+ * The layout of a result (struct clopts_result) is private to result.c:
+ * everything else reads and records into a result through the functions
+ * below.
  */
-struct clopts_result
-{
-    clopts_status_t status;
-    const clopts_command_t *command;  /* selected command, or NULL */
-    const clopts_option_t *terminal;  /* TERMINATED: the terminal option, else NULL */
-    clopts_parser_error_t error;
-    clopts_parser_slot_t *global_slots;   /* one per global option */
-    size_t global_count;
-    clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */
-    size_t command_count;
-    clopts_core_vec_t positionals;    /* const char * elements pointing into argv */
-};
 
 /*
  * Allocates a result for program with one slot per global option. Returns NULL

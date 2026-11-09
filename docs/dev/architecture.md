@@ -81,10 +81,10 @@ classDiagram
 |----|--------------|
 | `clopts_program_t` | `src/parser/program.c` |
 | `clopts_command_t` | `src/parser/command.c` |
-| `clopts_option_t` | `src/parser/option.c`（parser の中で使う追加の読み取り関数は `parser_internal.h` にある） |
+| `clopts_option_t` | `src/parser/option.c` |
 | `clopts_positional_t` | `src/parser/positional.c` |
 | `clopts_scope_t` | `src/parser/parser_internal.h`（Program と Command に埋め込むため。読み書きは `scope.c` の関数だけで行う） |
-| `clopts_result_t` | `src/parser/parser_internal.h`（走査・解決・結果のファイルが共有する） |
+| `clopts_result_t` | `src/parser/result.c`（解析のほかのファイルとテストは、`result.c` の関数で読み、記録する） |
 
 読み取り関数に NULL のハンドルを渡すのは契約違反で、`assert` で検出する。
 
