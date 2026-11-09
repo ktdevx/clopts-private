@@ -95,7 +95,7 @@ tech.md の「公開ヘッダに構造体の定義を置かない」という規
 ### 1. 公開ヘッダ
 
 - [ ] `include/clopts/alloc.h` を新しく作り、`clopts_allocator_t` と `clopts_set_allocator` を宣言する。`clopts.h` から取り込む。
-- [ ] `tests/abi/check_header_rules.cmake`: 構造体・共用体の定義の検査を削除する（ファイル冒頭の説明、155–156 行の判定、263 行の報告文）。この検査のための例 `tests/abi/fixtures/header_rules/bad/struct_def/` と、それを使う `tests/abi/CMakeLists.txt` のテストを削除する。構造体の定義を含むヘッダが通ることを、`good/` に例を足して確かめる。
+- [ ] `tests/abi/check_header_rules.cmake`: 構造体・共用体の定義の検査を削除する（ファイル冒頭の説明、155–156 行の判定、263 行の報告文）。この検査のための例 `tests/abi/fixtures/header_rules/bad/struct_def/`・`bad/union_def/` と、それを使う `tests/abi/CMakeLists.txt` のテスト（158–162 行あたり）を削除する。構造体の定義を含むヘッダが通ることを、`good/` に例を足して確かめる。
 - [ ] ヘッダの C99 / C++ のコンパイル検査が通ることを確かめる。
 
 ### 2. core
