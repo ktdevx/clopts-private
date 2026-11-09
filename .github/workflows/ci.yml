@@ -82,8 +82,6 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
 
-      # CLOPTS_INSTALL is ON by default at top level, so the test step also
-      # runs integration.package_selection (static + shared in one prefix).
       - name: Configure
         run: >-
           cmake -S . -B build -DCLOPTS_WERROR=ON

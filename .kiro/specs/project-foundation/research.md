@@ -311,3 +311,7 @@
 - `integration.package_selection` の実行時間（Windows で約 1 分の見込み）。超えるようなら、7.6 の範囲で 1 環境に絞る。
 - `$<TARGET_RUNTIME_DLLS>` が空のときの `copy_if_different` を避けるため、共有版の WIN32 に限ってコマンドを足す。
 - C++ の翻訳単位を fixture に入れるので、C++ コンパイラのない環境では integration テストが構成に失敗する。CI の 5 環境では問題ない。
+
+## 追記（2026-11-09）: 並存 install をやめた
+
+上の Gap Analysis と Design Decisions のうち、静的版と共有版を同じ prefix に並べて install し、config で形式を選ぶ部分（6.7、12.6、13 の行と「config の形式選択」）は、調査時の記録として残す。現在の設計は「1 つの prefix に 1 つの形式」で、理由は design.md の InstallHelper / PackageConfig の Design Decision にある。

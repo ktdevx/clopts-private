@@ -7,7 +7,7 @@ CLOpts を使おうとする開発者は、取り込み方（`FetchContent` / `a
 `README.md` は `# CLOpts` の 1 行だけ。project-foundation が install/export（静的・共有の両方）を用意し、core-parser / help-and-messages / platform-argv が API（ビルダー + 不透明ハンドル）を提供し、abi-compat が ABI の方針と検査を用意した時点で、文書とサンプルがない状態になる。Monde の `.kiro/specs/docs-and-release` と `docs/dev/release.md`、`.github/workflows/release.yml` が参考になる（ただし Monde はバイナリ配布、CLOpts はソース配布）。
 
 ## Desired Outcome
-- `README.md` に、概要（C++ の同名プロジェクト Sirraide/clopts との区別を含む）、特徴、最小のサンプル、取り込み方 3 通り、静的と共有の選び方（`CLOPTS_BUILD_SHARED`、`find_package(CLOpts COMPONENTS static|shared)`）、ライセンス（Monde 由来の表示を含む）が書かれている。
+- `README.md` に、概要（C++ の同名プロジェクト Sirraide/clopts との区別を含む）、特徴、最小のサンプル、取り込み方 3 通り、静的と共有の選び方（`CLOPTS_BUILD_SHARED`、install 経路では prefix ごとに 1 つの形式）、ライセンス（Monde 由来の表示を含む）が書かれている。
 - `docs/` に API リファレンス（ハンドルの種類と寿命、ビルダー関数、最初のエラーを記録する方式、結果とエラーのアクセサ、エラー種別、メモリの所有、解析規則の一覧: `--`、`-` 単体、並べ替え、`--no-x`、カウント、環境変数の優先順位）と、Windows での注意（UTF-8 argv の取得、`wmain`、`activeCodePage`、DLL 名に版が入らないこと、PATH 上の DLL の衝突）がある。ABI の方針（abi-compat が所有する文書）への導線がある。
 - `examples/` にサブコマンドあり・なしの 2 つのサンプルプログラムがあり、CI でビルドされ、ヘルプ出力が文書の記載と一致することがテストで検査される。
 - 利用側プロジェクトを模した統合テストが、`FetchContent`（または `add_subdirectory`）と `install` → `find_package(CLOpts CONFIG)` の両経路で、静的版と共有版のそれぞれについて CI で通る。

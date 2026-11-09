@@ -97,12 +97,7 @@ cmake -S app -B build-app -DCMAKE_PREFIX_PATH=/opt/clopts
 
 指定した版と install されている版の照合は、ABI の互換の単位に合わせている。0.x の間は同じ minor の中で指定した版以上のもの（`0.1.0` を指定すれば 0.1.x）、1.0.0 以降は同じ major の中で指定した版以上のものが見つかる。版の規則と互換の単位は [ABI の互換性](abi.md) の章を参照する。また、ポインタの大きさが違う構成（32 ビットと 64 ビット）でビルドした install は見つからない。
 
-`find_package` が成功すると、次の変数がセットされる。
-
-| 変数 | 値 |
-|------|----|
-| `CLOpts_LIBRARY_TYPE` | 選ばれた形式。`STATIC` または `SHARED` |
-| `CLOpts_static_FOUND`、`CLOpts_shared_FOUND` | 選ばれた形式の方が `TRUE`、他方が `FALSE` |
+`find_package` が成功すると、変数 `CLOpts_LIBRARY_TYPE` に、見つかった形式（`STATIC` または `SHARED`）がセットされる。
 
 ## CMake のオプション
 
@@ -149,68 +144,25 @@ add_subdirectory(external/clopts)
 
 ## 形式の選択（install 経路）
 
-`add_subdirectory` と `FetchContent` では、形式は `CLOPTS_BUILD_SHARED` で決まる。install 経路では、どの形式を install するかと、`find_package` でどの形式を選ぶかの 2 つを決める。
+`add_subdirectory` と `FetchContent` では、形式は `CLOPTS_BUILD_SHARED` で決まる。install 経路では、install した形式がそのまま使われる。1 つの prefix に入る形式は 1 つだけで、`find_package` では形式を選ばない（`COMPONENTS` は受け付けない）。どちらの形式が見つかったかは、`CLOpts_LIBRARY_TYPE`（`STATIC` または `SHARED`）で確かめられる。
 
-### 静的版と共有版を並べて install する
-
-静的版と共有版は、同じ prefix に並べて install できる。同じ版のソースを、`CLOPTS_BUILD_SHARED` だけを変えて 2 回ビルドし、同じ prefix に install する。
+静的版と共有版の両方を使いたいときは、別々の prefix に install し、利用側を構成するときに `CMAKE_PREFIX_PATH` で使う方を渡す。
 
 ```sh
 cmake -S clopts -B build-static -DCMAKE_BUILD_TYPE=Release -DCLOPTS_BUILD_TESTING=OFF -DCLOPTS_BUILD_SHARED=OFF
 cmake --build build-static
-cmake --install build-static --prefix /opt/clopts
+cmake --install build-static --prefix /opt/clopts-static
 
 cmake -S clopts -B build-shared -DCMAKE_BUILD_TYPE=Release -DCLOPTS_BUILD_TESTING=OFF -DCLOPTS_BUILD_SHARED=ON
 cmake --build build-shared
-cmake --install build-shared --prefix /opt/clopts
+cmake --install build-shared --prefix /opt/clopts-shared
 ```
 
-2 つの形式は、互いのファイルを上書きしない。package config の中では、形式ごとのターゲットのファイル（`CLOptsStaticTargets.cmake`、`CLOptsSharedTargets.cmake`）が別々に置かれ、`CLOptsConfig.cmake` と `CLOptsConfigVersion.cmake` は 2 つの形式で共通である。MSVC では、静的ライブラリは `clopts_static.lib`、共有版のインポートライブラリは `clopts.lib` という別の名前になる。
-
-### COMPONENTS で形式を指定する
-
-`find_package` の `COMPONENTS` に `static` または `shared` を書くと、その形式を選ぶ。
-
-```cmake
-find_package(CLOpts 0.1.0 CONFIG REQUIRED COMPONENTS static)
+```sh
+cmake -S app -B build-app -DCMAKE_PREFIX_PATH=/opt/clopts-shared
 ```
 
-```cmake
-find_package(CLOpts 0.1.0 CONFIG REQUIRED COMPONENTS shared)
-```
-
-### COMPONENTS がないときの既定の順序
-
-`COMPONENTS` を書かないときは、次の順に形式を決める。
-
-1. 変数 `CLOPTS_SHARED_LIBS` が定義されていれば、その値（ON なら共有版、OFF なら静的版）
-2. そうでなければ、`BUILD_SHARED_LIBS` の値（ON なら共有版、未定義か OFF なら静的版）
-3. 1 か 2 で決めた形式が install されていなければ、install されている方の形式
-
-たとえば、両方を install した prefix では、何も指定しなければ静的版が、`BUILD_SHARED_LIBS` が ON の利用側では共有版が選ばれる。`BUILD_SHARED_LIBS` が ON でも、`CLOPTS_SHARED_LIBS` を OFF にすれば静的版が選ばれる。静的版だけを install した prefix では、`CLOPTS_SHARED_LIBS` を ON にしても静的版が選ばれる（3 による）。既定の順序で形式が見つからなくても失敗しないので、決まった形式が必要なときは `COMPONENTS` で指定する。
-
-```cmake
-set(CLOPTS_SHARED_LIBS ON)
-find_package(CLOpts 0.1.0 CONFIG REQUIRED)
-```
-
-どの形式が選ばれたかは、`CLOpts_LIBRARY_TYPE`（`STATIC` または `SHARED`）で確かめられる。
-
-### 形式を選べなかったとき
-
-次のときは、`find_package` が CLOpts を見つからなかったものとして扱う（`CLOpts_FOUND` が FALSE になる）。理由は `CLOpts_NOT_FOUND_MESSAGE` にセットされ、CMake が「Reason given by package:」に続けて表示する。
-
-| 状況 | 表示される理由 |
-|------|----------------|
-| `COMPONENTS` で指定した形式が install されていない | `CLOpts: the shared form (component 'shared') is not installed in <package config のディレクトリ>` |
-| `static` と `shared` を両方指定した | `CLOpts: components 'static' and 'shared' cannot be used together; request only one of them` |
-| `static`、`shared` 以外の必須のコンポーネントを指定した | `CLOpts: unknown component(s): <名前> (available components: static, shared)` |
-| 同じビルドで、すでに別の形式の `CLOpts::clopts` が読み込まれている | `CLOpts: the shared form was requested, but CLOpts::clopts has already been loaded as the static form; only one form can be used in a build` |
-| どちらの形式も install されていない | `CLOpts: neither the static nor the shared form is installed in <package config のディレクトリ>` |
-
-`REQUIRED` を付けていれば、構成がこの理由を示すエラーで止まる。`REQUIRED` を付けていなければ警告が出て構成は続くので、`CLOpts_FOUND` を見て処理を分ける。
-
-1 つのビルドで使える形式は 1 つだけである。2 回目の `find_package` は、1 回目と同じ形式なら成功し、違う形式を `COMPONENTS` で求めると上の表のとおり失敗する。`COMPONENTS` を書かない 2 回目の `find_package` は、すでに読み込まれている形式を使う。
+同じ prefix に別の形式を install すると、package config（`CLOptsConfig.cmake`、`CLOptsConfigVersion.cmake`、`CLOptsTargets.cmake`）は後から install した形式のものに置き換わり、その形式が使われる。前の形式のライブラリのファイルは残るが、使われない。MSVC では、静的ライブラリと共有版のインポートライブラリがどちらも `clopts.lib` なので、後から install した方で上書きされる。形式を変えるときは、別の prefix を使うか、prefix の中の CLOpts のファイルを消してから install する。
 
 ## 静的と共有の選び方
 
@@ -286,8 +238,7 @@ CI では、5 つの環境（Linux の GCC と Clang、macOS の Apple Clang、W
 | 経路 | テスト | 確かめていること |
 |------|--------|------------------|
 | `add_subdirectory` | `integration.subdirectory` | その構成の形式の CLOpts を `add_subdirectory` で加え、C と C++ の利用側がビルドでき、実行できること。CLOpts の警告のフラグと内部用の定義が利用側に伝わらないこと |
-| install → `find_package` | `integration.install_find_package` | その構成の CLOpts を install し、`find_package(CLOpts <版> CONFIG REQUIRED)` で見つけ、`CLOPTS_SHARED_LIBS` で求めた形式が選ばれ、C と C++ の利用側がビルドでき、実行できること |
-| 形式の選択 | `integration.package_selection` | 静的版と共有版を同じ prefix に並べて install でき、`COMPONENTS`、`CLOPTS_SHARED_LIBS`、`BUILD_SHARED_LIBS`、既定、install されている方への切り替えで正しい形式が選ばれること。`static` と `shared` の同時指定と、install されていない形式の指定が、理由を示して失敗すること |
+| install → `find_package` | `integration.install_find_package` | その構成の CLOpts を install し、`find_package(CLOpts <版> CONFIG REQUIRED)` で見つけ、`CLOpts_LIBRARY_TYPE` と `CLOpts::clopts` がその構成の形式であり、C と C++ の利用側がビルドでき、実行できること |
 | 内部関数を隠すこと | `integration.internal_hidden` | 共有版の構成だけ。利用側が CLOpts の内部関数を呼ぶとリンクに失敗すること |
 
 `FetchContent` の経路は、CI で直接は検査していない。`FetchContent_MakeAvailable` は取得したソースを `add_subdirectory` と同じ方法で加えるので、取り込んだ後の扱いは `add_subdirectory` の経路の検査で確かめられている。

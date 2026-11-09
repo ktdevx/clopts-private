@@ -14,14 +14,16 @@ include(CMakePackageConfigHelpers)
 #
 # Installs the clopts library (static or shared, as built), the include/clopts/
 # header tree and the package files under <libdir>/cmake/CLOpts:
-#   CLOpts<Kind>Targets.cmake    export set of this form (<Kind> is Static or
-#                                Shared; namespace CLOpts::), so that a static
-#                                and a shared build installed into the same
-#                                prefix do not overwrite each other
-#   CLOptsStaticRuntime.cmake    static form only: the MSVC runtime library
-#                                (CRT) the build used
-#   CLOptsConfig.cmake           identical for both forms; selects the form
-#   CLOptsConfigVersion.cmake    identical for both forms
+#   CLOptsTargets.cmake          export set (namespace CLOpts::)
+#   CLOptsConfig.cmake           loads CLOptsTargets.cmake; records the form
+#                                (STATIC or SHARED) and, for the static form,
+#                                the MSVC runtime library (CRT) the build used
+#   CLOptsConfigVersion.cmake    version file
+#
+# A prefix holds one form. Every package file has the same name for both
+# forms, so installing the other form into the same prefix replaces them all
+# consistently (the last install wins); library files of the earlier form are
+# left behind but no longer referenced.
 #
 # The version comes from the root project() only; the compatibility rule is
 # CLOPTS_VERSION_COMPATIBILITY, set by clopts_create_library()
@@ -40,13 +42,20 @@ function(clopts_install)
 
     get_target_property(type clopts TYPE)
     if(type STREQUAL "STATIC_LIBRARY")
-        set(kind "Static")
+        set(CLOPTS_PACKAGE_LIBRARY_TYPE "STATIC")
     elseif(type STREQUAL "SHARED_LIBRARY")
-        set(kind "Shared")
+        set(CLOPTS_PACKAGE_LIBRARY_TYPE "SHARED")
     else()
         message(FATAL_ERROR
             "clopts_install: unexpected type '${type}' of the clopts target "
             "(see cmake/CloptsInstall.cmake)")
+    endif()
+
+    # Recorded as a plain string (empty for the shared form, when unset, or
+    # when not using MSVC); see CLOptsConfig.cmake.in for how it is compared.
+    set(CLOPTS_RECORDED_MSVC_RUNTIME_LIBRARY "")
+    if(CLOPTS_PACKAGE_LIBRARY_TYPE STREQUAL "STATIC" AND MSVC)
+        set(CLOPTS_RECORDED_MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
     endif()
 
     set(config_dir "${CMAKE_INSTALL_LIBDIR}/cmake/CLOpts")
@@ -56,7 +65,7 @@ function(clopts_install)
     # LIBRARY: versioned shared object and its namelink (Linux / macOS).
     # RUNTIME: DLL (Windows).
     install(TARGETS clopts
-        EXPORT CLOpts${kind}Targets
+        EXPORT CLOptsTargets
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
@@ -64,31 +73,12 @@ function(clopts_install)
     install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/clopts"
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     )
-    install(EXPORT CLOpts${kind}Targets
+    install(EXPORT CLOptsTargets
         NAMESPACE CLOpts::
-        FILE CLOpts${kind}Targets.cmake
+        FILE CLOptsTargets.cmake
         DESTINATION "${config_dir}"
     )
 
-    if(kind STREQUAL "Static")
-        # Recorded as a plain string (empty when unset or not using MSVC); see
-        # CLOptsConfig.cmake.in for how it is compared.
-        set(CLOPTS_RECORDED_MSVC_RUNTIME_LIBRARY "")
-        if(MSVC)
-            set(CLOPTS_RECORDED_MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
-        endif()
-        configure_file(
-            "${PROJECT_SOURCE_DIR}/cmake/CLOptsStaticRuntime.cmake.in"
-            "${gen_dir}/CLOptsStaticRuntime.cmake"
-            @ONLY
-        )
-        install(FILES "${gen_dir}/CLOptsStaticRuntime.cmake"
-            DESTINATION "${config_dir}"
-        )
-    endif()
-
-    # The config does not depend on the form, so that either build may
-    # overwrite it when both are installed into the same prefix.
     configure_package_config_file(
         "${PROJECT_SOURCE_DIR}/cmake/CLOptsConfig.cmake.in"
         "${gen_dir}/CLOptsConfig.cmake"

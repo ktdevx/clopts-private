@@ -19,6 +19,6 @@ CLOpts の版ごとの変更をこのファイルに記録する。版番号は 
 - 宣言から作るヘルプ、使い方、版、エラーの文面の出力（`clopts_write_help`、`clopts_write_usage`、`clopts_write_version`、`clopts_write_error`、`clopts_write_usage_hint`）。ライブラリ自身は入出力も `exit` もせず、文面は書き込みのコールバックに渡す。`FILE*` に出すための `clopts_file_write` を公開ヘッダに置く。
 - ライブラリ全体で使うアロケーターを差し替える `clopts_set_allocator` と、その 4 つの関数（`malloc_fn`、`calloc_fn`、`realloc_fn`、`free_fn`）をまとめる構造体 `clopts_allocator_t`（`clopts/alloc.h`）。ライブラリの確保と解放は、すべてこのアロケーターを通る。`clopts_allocator_t` の配置は凍結し、拡張するときは別の型と関数を足す。
 - Windows のコマンドラインから UTF-8 の argv を得る `clopts_argv_get`（他の OS では変換しない）と、`wmain` 向けの `clopts_argv_from_wide`。環境変数を UTF-8 で引く `clopts_env_new` と `clopts_env_lookup`。
-- 静的ライブラリと共有ライブラリのどちらでもビルドできる CMake の構成（`CLOPTS_BUILD_SHARED`）。`add_subdirectory`、`FetchContent`、install してからの `find_package(CLOpts CONFIG)` の 3 通りで取り込め、install 経路では静的版と共有版を並べて置いて `COMPONENTS static` / `COMPONENTS shared` で選べる。
+- 静的ライブラリと共有ライブラリのどちらでもビルドできる CMake の構成（`CLOPTS_BUILD_SHARED`）。`add_subdirectory`、`FetchContent`、install してからの `find_package(CLOpts CONFIG)` の 3 通りで取り込め、install 経路では install した形式がそのまま使われ（1 つの prefix に 1 つの形式）、`CLOpts_LIBRARY_TYPE` で確かめられる。
 - 共有ライブラリの ABI の検査（ラベル `abi`）。公開シンボル一覧 `abi/clopts.symbols` と export されるシンボルの照合、公開ヘッダの規則の検査、C と C++ からのヘッダの取り込みの検査、CI での前の版との abidiff による比較。版から SOVERSION を決める規則。
 - 文書とサンプル。README、`docs/` の各章（API リファレンス、解析規則、取り込み手順、Windows での注意、ABI の互換性）、サンプルプログラム `examples/taskbook`（サブコマンドあり）と `examples/textcount`（サブコマンドなし）。文書に載せたコードと出力の例は、テスト（ラベル `docs`）で実際のソースと実行結果に照合する。

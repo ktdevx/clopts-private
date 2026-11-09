@@ -5,7 +5,7 @@
 
 **現状**: `README.md` は `# CLOpts` の 1 行だけ。project-foundation が install/export（静的・共有の両方）を、core-parser / help-and-messages / platform-argv が API（ビルダー + 不透明ハンドル）を、abi-compat が ABI の方針と検査を用意したが、利用者向けの文書、サンプル、取り込み経路の統合テスト、リリース手順はない。Monde には `docs/`、`docs/dev/release.md`、`tests/docs/docs_check.cmake`、`.github/workflows/release.yml` があるが、アプリケーション向け（バイナリ配布）であり、ライブラリ向け（ソース配布）の文書はこれから書く。
 
-**何を変えるか**: `README.md` に概要（C++ の同名プロジェクト Sirraide/clopts との区別を含む）、特徴、最小のサンプル、取り込み方 3 通り、静的と共有の選び方（`CLOPTS_BUILD_SHARED`、`find_package(CLOpts COMPONENTS static|shared)`）、ライセンスを書く。`docs/` に API リファレンス（ハンドルの種類と寿命、ビルダー関数、最初のエラーを記録する方式、結果とエラーのアクセサ、エラー種別、メモリの所有、解析規則の一覧: `--`、`-` 単体、並べ替え、`--no-x`、カウント、環境変数の優先順位）、Windows での注意（UTF-8 argv の取得、`wmain`、`activeCodePage`、DLL 名に版が入らないこと、PATH 上の DLL の衝突）、Naos の版更新手順を置き、abi-compat の ABI 方針文書への導線を張る。`examples/` にサブコマンドあり・なしの 2 サンプルを置き、CI でビルドし、文書中のサンプル出力を実行結果と CTest で突き合わせる（Monde の `monde-check` マーカー方式）。利用側プロジェクトを模した統合テストを、`FetchContent`（または `add_subdirectory`）と `install` → `find_package(CLOpts CONFIG)` の 2 経路 × 静的／共有で CI に通す。リリース手順（`docs/dev/release.md`。semver、pre-1.0 は minor で互換を壊してよく 1.0.0 から ABI 後方互換を保証、リリース前の ABI 検査の確認、SOVERSION を上げる判断手順）と、タグから GitHub Release を作りソースアーカイブと変更履歴を添えるワークフロー、CHANGELOG の形式を決める。文書は日本語が主で、コード中の識別子とヘルプ出力は英語。ライセンス表示は MIT、`The CLOpts Authors` のみ（Monde の著作権表示は併記せず、Naos はテスト専用なので THIRD_PARTY_NOTICES に載せない）。
+**何を変えるか**: `README.md` に概要（C++ の同名プロジェクト Sirraide/clopts との区別を含む）、特徴、最小のサンプル、取り込み方 3 通り、静的と共有の選び方（`CLOPTS_BUILD_SHARED`、install 経路では prefix ごとに 1 つの形式）、ライセンスを書く。`docs/` に API リファレンス（ハンドルの種類と寿命、ビルダー関数、最初のエラーを記録する方式、結果とエラーのアクセサ、エラー種別、メモリの所有、解析規則の一覧: `--`、`-` 単体、並べ替え、`--no-x`、カウント、環境変数の優先順位）、Windows での注意（UTF-8 argv の取得、`wmain`、`activeCodePage`、DLL 名に版が入らないこと、PATH 上の DLL の衝突）、Naos の版更新手順を置き、abi-compat の ABI 方針文書への導線を張る。`examples/` にサブコマンドあり・なしの 2 サンプルを置き、CI でビルドし、文書中のサンプル出力を実行結果と CTest で突き合わせる（Monde の `monde-check` マーカー方式）。利用側プロジェクトを模した統合テストを、`FetchContent`（または `add_subdirectory`）と `install` → `find_package(CLOpts CONFIG)` の 2 経路 × 静的／共有で CI に通す。リリース手順（`docs/dev/release.md`。semver、pre-1.0 は minor で互換を壊してよく 1.0.0 から ABI 後方互換を保証、リリース前の ABI 検査の確認、SOVERSION を上げる判断手順）と、タグから GitHub Release を作りソースアーカイブと変更履歴を添えるワークフロー、CHANGELOG の形式を決める。文書は日本語が主で、コード中の識別子とヘルプ出力は英語。ライセンス表示は MIT、`The CLOpts Authors` のみ（Monde の著作権表示は併記せず、Naos はテスト専用なので THIRD_PARTY_NOTICES に載せない）。
 
 **範囲外**: ライブラリの機能追加・変更、API の設計と挙動（core-parser、help-and-messages、platform-argv）、ABI の方針文書と自動検査そのもの（abi-compat）、ビルド基盤そのもの（project-foundation）、パッケージマネージャ（vcpkg / Conan）への登録、単一ファイル化、事前ビルド済みバイナリ、Monde 側の置き換え手順。
 
@@ -32,7 +32,7 @@ docs-and-release は、CLOpts を使う開発者がソースを読まずに取�
 - **Out of scope**: ライブラリの機能追加・挙動の変更、英語版の README・文書（文書は日本語だけ）、取り込み経路の統合テストの追加（FetchContent 経路の新しいテストを含む。既存の統合テストを使う）、v0.1.0 を含む実際のリリースの発行（タグを打つのは本 spec の完了後に保守者が手順書に沿って行う）、パッケージマネージャ（vcpkg / Conan）への登録、単一ファイル化、事前ビルド済みバイナリの配布、Monde 側の置き換え手順、ABI 方針の文書（`docs/abi.md`）と ABI の検査そのもの。
 - **Adjacent expectations**:
   - core-parser、help-and-messages、platform-argv が公開 API とその挙動、ヘルプ・エラー文面を提供する。本 spec の文書はそれらの挙動を説明するだけで、文書と挙動が食い違うときは挙動に合わせて文書を直す。
-  - project-foundation が install / export、静的／共有の選択（`CLOPTS_BUILD_SHARED`、`find_package(CLOpts CONFIG)` での形式の選択）と、`add_subdirectory` 経路と install → `find_package` 経路の統合テスト（静的版・共有版の CI ジョブ）を提供する。本 spec はこれらを変えず、取り込み手順の記述をこれらに合わせる。
+  - project-foundation が install / export、静的／共有の選択（`CLOPTS_BUILD_SHARED`、install した形式を `find_package(CLOpts CONFIG)` で提供し `CLOpts_LIBRARY_TYPE` で知らせること）と、`add_subdirectory` 経路と install → `find_package` 経路の統合テスト（静的版・共有版の CI ジョブ）を提供する。本 spec はこれらを変えず、取り込み手順の記述をこれらに合わせる。
   - abi-compat が ABI 方針の文書（`docs/abi.md`）、公開シンボル一覧、ABI の検査（`docs/dev/abi-checks.md`）を提供する。本 spec の文書とリリース手順書はそれらへ導線を張り、内容を重複して書かない。
   - 将来の機能追加の spec は、本 spec が定める変更履歴の形式と、文書の更新の規約に従う。
 
@@ -47,7 +47,7 @@ docs-and-release は、CLOpts を使う開発者がソースを読まずに取�
 3. The README shall 主な特徴として、少なくとも宣言からの解析とヘルプ文面の生成、構造化エラー、ライブラリが入出力も `exit` もしないこと、Windows での UTF-8 の引数、静的／共有の選択と 1.0.0 以降の ABI 後方互換を挙げる。
 4. The README shall プログラムを宣言し、解析し、結果を読み、エラーまたはヘルプを表示し、後始末するまでの一通りを含む最小のサンプルコードを載せる。
 5. The README shall 取り込み方として、`add_subdirectory`、`FetchContent`、install した後の `find_package(CLOpts CONFIG)` の 3 通りを、それぞれ利用側の CMake の記述例とともに示し、どの経路でも `CLOpts::clopts` にリンクすることを示す。
-6. The README shall 静的と共有の選び方として、`add_subdirectory` / `FetchContent` 経路では `CLOPTS_BUILD_SHARED`（既定は `BUILD_SHARED_LIBS`）で、`find_package` 経路では形式を指定する方法（`COMPONENTS static` / `COMPONENTS shared` を含む）で選べることを示す。
+6. The README shall 静的と共有の選び方として、`add_subdirectory` / `FetchContent` 経路では `CLOPTS_BUILD_SHARED`（既定は `BUILD_SHARED_LIBS`）で、install → `find_package` 経路では install した形式がそのまま使われ、両方を使うときは prefix を分けて `CMAKE_PREFIX_PATH` で選ぶことを示す。
 7. The README shall 対応環境（CMake の最低版、C の規格、CI で検査しているコンパイラと OS）を示す。
 8. The README shall 詳細を `docs/` の各章に委ね、各章への相対リンクを持つ。
 9. The README shall ライセンス欄に、MIT License であることと著作権者が The CLOpts Authors であることだけを示し、Monde への言及や Monde の著作権表示を含めない。
@@ -86,7 +86,7 @@ docs-and-release は、CLOpts を使う開発者がソースを読まずに取�
 1. The user documentation shall 取り込み手順の章で、`add_subdirectory`、`FetchContent`、install → `find_package(CLOpts CONFIG)` の 3 通りの手順を、利用側の CMake の記述例とともに示す。
 2. The user documentation shall FetchContent の記述例で、版のタグを指定して取得する書き方を示す。
 3. The user documentation shall CLOpts のオプション（`CLOPTS_BUILD_SHARED`、`CLOPTS_BUILD_TESTING`、`CLOPTS_BUILD_EXAMPLES`、`CLOPTS_INSTALL`、`CLOPTS_WERROR`）の意味と既定値（トップレベルかどうかで変わるものを含む）と、親プロジェクトから上書きする方法を示す。
-4. The user documentation shall install 経路で静的版と共有版を同じ場所に並べて install できることと、`find_package` で形式を選ぶ方法と、選べなかったときに何が起きるかを示す。
+4. The user documentation shall install 経路では 1 つの prefix に 1 つの形式が入り、`find_package` は install した形式を提供すること（`CLOpts_LIBRARY_TYPE` で確かめられること）と、両方の形式を使うときは別々の prefix に install すること、同じ prefix に別の形式を install したときに何が起きるかを示す。
 5. The user documentation shall 静的と共有の選び方の目安（共有版の利点、Windows で DLL を実行ファイルから見える場所に置く必要があること、1.0.0 より前は minor ごとに ABI が変わること）を示し、ABI 方針の文書（`docs/abi.md`）への相対リンクを持つ。
 6. The user documentation shall MSVC の CRT 種別は利用側の設定を継承することと、install 経路でビルド時と利用時の CRT 種別が異なるときの扱いを示す。
 7. The user documentation shall 取り込み手順に載せる記述例の形（ターゲット名、`find_package` の呼び方、形式の選び方）を、既存の統合テストの利用側プロジェクトが使う形と食い違わないようにし、どの経路が CI で静的版・共有版について検査されているかを示す。

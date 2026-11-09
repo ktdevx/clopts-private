@@ -202,6 +202,19 @@
   - 完了条件: 上記がすべて満たされ、要件 1〜15 の各受入条件に対応するテストまたは確認結果を列挙できる
   - _Requirements: 1.2, 1.3, 1.6, 1.7, 2.3, 2.5, 2.6, 2.7, 2.8, 2.10, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 4.5, 4.6, 4.7, 4.8, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.9, 10.1, 10.2, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
+## 改訂（2026-11-09: 1 つの prefix に 1 つの形式）
+
+> 静的版と共有版を同じ prefix に並べて install し、package config で形式を選ぶ仕組みをやめた（requirements.md の Requirement 13 の書き直しと 6.7、7.6、12.6、13.2〜13.5 の削除、design.md の InstallHelper / PackageConfig の Design Decision）。上の 7.1 の MSVC の出力名、9 の形式ごとの install と形式の選択、10.2 の MSVC の出力名の検査、10.4 の全体、11 の `integration.package_selection` は、このタスクで置き換えた。
+
+- [x] 13. 配布: 1 つの prefix に 1 つの形式にする
+  - MSVC の静的版の出力名の変更をやめる（静的版も `clopts.lib`）
+  - ターゲット定義を `CLOptsTargets.cmake` の 1 つに戻し、形式（`CLOpts_LIBRARY_TYPE`）と静的版の MSVC の CRT 種別を config に書き込む。`CLOptsStaticRuntime.cmake.in` を削除する
+  - package config から形式の選択（`COMPONENTS`、`CLOPTS_SHARED_LIBS`、`BUILD_SHARED_LIBS`、入っている方への切り替え、失敗の理由、`CLOpts_<c>_FOUND`）を削除する
+  - `integration.package_selection`（`run_package_selection.cmake`、`fixtures/package_select`）を削除する。`integration.install_find_package` には `CLOPTS_SHARED_LIBS` を渡さない。形式の決定の fixture は、静的版の出力名がどの環境でも空であることを検査する
+  - 完了条件: Linux の GCC で、静的版と共有版の両方の `ctest` が全件通る（`integration.install_find_package` を含む）。install した prefix に `CLOptsConfig.cmake`、`CLOptsConfigVersion.cmake`、`CLOptsTargets.cmake`（と構成ごとのファイル）だけが置かれ、config の `CLOpts_LIBRARY_TYPE` が形式どおりである。CI の 10 ジョブが通る
+  - _Boundary: LibraryHelper, InstallHelper, PackageConfig, ToolchainTests, IntegrationTests, CIWorkflow_
+  - _Requirements: 5.3, 5.6, 5.7, 13.1, 13.6_
+
 ## Implementation Notes
 
 > 以下は初版（タスク 1〜6）の実装メモ。改訂（タスク 7〜12）でも有効なものは引き継ぐ。`clopts_writer_file` と `core_writer_file.c` に関する記述は、タスク 8 で無効になる。
@@ -213,9 +226,9 @@
 - `toolchain.vla_fails` は `CLOPTS_WERROR=OFF` で取り込み、失敗が `-Werror=vla` そのものから来ることを確かめる（要件 3.7 は WERROR に依存しない）。`no_global_state` はルートのディレクトリスコープの変数も検出できるよう、CLOpts が追加したディレクトリを再帰的に検査する。
 - `-Wall` 単独の INTERFACE 漏れは利用側に `-Werror` がないためコンパイルでは検出できない（未使用引数で落ちるのは `-Wall -Wextra -Werror` がそろって漏れたときだけ）。そのため consumer フィクスチャは構成時に `CLOpts::clopts` の `INTERFACE_COMPILE_OPTIONS` に警告フラグがないこと、`INTERFACE_COMPILE_DEFINITIONS` に `_CRT_SECURE_NO_WARNINGS` がないことも検査する。design.md の IntegrationTests の記述はこの検査を反映していない。
 - MSVC の `/W4 /WX` では `(char)0xFF` のような定数の切り捨てキャストが C4310 でエラーになる。バイト値は `'\xFF'` のような文字リテラルで書く。CI の 5 環境（windows-latest は Visual Studio 18 2026）で全 31 テストが通ることを確認済み。
-- （改訂 9）package config は、形式を指定しない 2 回目の `find_package` では既に読み込まれた形式をそのまま使う（失敗するのは明示のコンポーネントが異なるときだけ）。二重読み込みの判定は `TARGET CLOpts::clopts` の有無なので、兄弟ディレクトリで別々の形式を読み込むと両方成功する（IMPORTED ターゲットはディレクトリスコープ）。`OPTIONAL_COMPONENTS static|shared` も明示の要求として扱う。
+- （改訂 9。改訂 13 で形式の選択をやめたので無効）package config は、形式を指定しない 2 回目の `find_package` では既に読み込まれた形式をそのまま使う（失敗するのは明示のコンポーネントが異なるときだけ）。二重読み込みの判定は `TARGET CLOpts::clopts` の有無なので、兄弟ディレクトリで別々の形式を読み込むと両方成功する（IMPORTED ターゲットはディレクトリスコープ）。`OPTIONAL_COMPONENTS static|shared` も明示の要求として扱う。
 - （改訂 10.1）`run_fixture.cmake` の `FAIL_REGEX` は CMake の `MATCHES` で照合する（`\d` などは使えない）。stdout と stderr をまとめた出力が対象。`FAIL_REGEX` は `build_fail` / `configure_fail` 以外と組み合わせると構成エラーになる。
 - （改訂 10.3）`run_fixture.cmake` は C コンパイラだけを子に渡すので、consumer fixture の C++ は既定の C++ コンパイラ（Clang の構成でも g++）でビルドされる。`consumer_cpp.cpp` は `&clopts_parse` を volatile ポインタに入れて、C++ からの C リンケージ（と Windows の dllimport）を実際にリンクで検査する。
-- （改訂 10.4）`run_package_selection.cmake` の `.lib` 並存の検査（12.6）は、静的版の prefix に `.lib` があるときだけ走る（MSVC 系では常にある。MinGW は `.a` / `.dll.a` なので飛ばし、その旨を表示する）。失敗理由の正規表現の空白は、CMake がメッセージを折り返すため任意の空白に一致させている。
+- （改訂 10.4。改訂 13 でテストごと削除したので無効）`run_package_selection.cmake` の `.lib` 並存の検査（12.6）は、静的版の prefix に `.lib` があるときだけ走る（MSVC 系では常にある。MinGW は `.a` / `.dll.a` なので飛ばし、その旨を表示する）。失敗理由の正規表現の空白は、CMake がメッセージを折り返すため任意の空白に一致させている。
 - （改訂 11）PR #6 の CI（run 42452776792）で 10 ジョブすべてが成功した。windows-msvc は静的版 330 件、共有版 331 件で、`integration.package_selection` は MSVC で約 24 秒かかる。
 - （改訂 12）要件 2.5（子プロジェクトとしての既定値）、4.6 / 4.7（Naos の固定とオフライン経路）、9.8（assert）は、登録済みのテストではなく一回限りの確認と目視で検証している。`decl.h` / `parse.h` の構造体は core-parser の作り直しで扱う。

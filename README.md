@@ -188,13 +188,13 @@ set(CLOPTS_BUILD_SHARED ON)
 add_subdirectory(external/clopts)
 ```
 
-install 経路では、静的版と共有版を同じ prefix に並べて install でき、`find_package` の `COMPONENTS static` または `COMPONENTS shared` で形式を指定する。`COMPONENTS` を書かないときは、`CLOPTS_SHARED_LIBS`、`BUILD_SHARED_LIBS` の順に見て形式を決める。
+install 経路では、install した形式がそのまま使われる。1 つの prefix に入る形式は 1 つだけなので、両方を使いたいときは別々の prefix に install し、利用側の `CMAKE_PREFIX_PATH` で使う方を渡す。見つかった形式は `CLOpts_LIBRARY_TYPE`（`STATIC` または `SHARED`）で確かめられる。
 
-```cmake
-find_package(CLOpts 0.1.0 CONFIG REQUIRED COMPONENTS shared)
+```sh
+cmake -S app -B build-app -DCMAKE_PREFIX_PATH=/opt/clopts-shared
 ```
 
-共有版は、複数のプログラムで 1 つの CLOpts を共有したいときや、利用側を再ビルドせずに不具合の修正版へ差し替えたいときに向く。ただし、1.0.0 より前は minor の版が上がるごとに ABI が変わる。Windows では、DLL を実行ファイルから見える場所（実行ファイルと同じディレクトリなど）に置く必要がある。ビルドの後に共有版の DLL を実行ファイルの横にコピーする記述、並べて install する手順、`COMPONENTS` がないときの順序の詳細は [取り込み手順](docs/integration.md#静的と共有の選び方) の章に、ABI の保証の範囲は [ABI の互換性](docs/abi.md) の章にある。
+共有版は、複数のプログラムで 1 つの CLOpts を共有したいときや、利用側を再ビルドせずに不具合の修正版へ差し替えたいときに向く。ただし、1.0.0 より前は minor の版が上がるごとに ABI が変わる。Windows では、DLL を実行ファイルから見える場所（実行ファイルと同じディレクトリなど）に置く必要がある。ビルドの後に共有版の DLL を実行ファイルの横にコピーする記述は [取り込み手順](docs/integration.md#静的と共有の選び方) の章に、2 つの形式を別々の prefix に install する手順は同じ章の [形式の選択](docs/integration.md#形式の選択install-経路) の節に、ABI の保証の範囲は [ABI の互換性](docs/abi.md) の章にある。
 
 ## 対応環境
 

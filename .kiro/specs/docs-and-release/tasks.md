@@ -92,8 +92,8 @@
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 6.3, 8.3_
 
 - [x] 4.3 (P) 取り込み手順の章を書く
-  - 設計の IntegrationDoc どおりに書く。3 通りの手順（FetchContent は版のタグを指定）、CMake オプションの表と親からの上書き、形式の選択（並べて install、`COMPONENTS`、既定の順序、失敗の扱い）、静的と共有の目安、MSVC の CRT、CI で検査している経路
-  - 記述例のターゲット名と `find_package` の呼び方を、`tests/integration/fixtures/consumer` と `package_select`、`cmake/CLOptsConfig.cmake.in` の挙動と突き合わせる
+  - 設計の IntegrationDoc どおりに書く。3 通りの手順（FetchContent は版のタグを指定）、CMake オプションの表と親からの上書き、形式の選択（1 つの prefix に 1 つの形式、prefix を分ける手順、同じ prefix への上書き）、静的と共有の目安、MSVC の CRT、CI で検査している経路
+  - 記述例のターゲット名と `find_package` の呼び方を、`tests/integration/fixtures/consumer`、`cmake/CLOptsConfig.cmake.in` の挙動と突き合わせる
   - 完了条件: 記述例と統合テストの fixture の対応（経路ごとに、どの fixture の何行と同じ形か）を確かめた結果を示せる。links を直接呼ぶと、この章のリンク（`docs/abi.md` を含む）が解決する
   - _Boundary: IntegrationDoc_
   - _Depends: 2.2_
