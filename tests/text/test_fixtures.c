@@ -5,10 +5,10 @@
  * Definitions of the shared help test fixtures (see test_fixtures.h).
  *
  * The help texts of tool are those of the output example in the design
- * (HelpLayout), so that the layout tests can compare against it. Each
+ * (TextLayout), so that the layout tests can compare against it. Each
  * program is created first (test_decl_begin()), then filled
  * (test_decl_command(), then test_decl_finish()); -h/--help and --version
- * come from test_decl.h and the help command from clopts/help.h, declared
+ * come from test_decl.h and the help command from clopts/text.h, declared
  * last.
  */
 
@@ -24,7 +24,7 @@
  * Adds -h/--help and, when version is not NULL, --version to program as
  * global options (NULL program does nothing).
  */
-static void help_fixture_add_terminals(clopts_program_t *program, const clopts_option_t **help,
+static void text_fixture_add_terminals(clopts_program_t *program, const clopts_option_t **help,
                                        const clopts_option_t **version)
 {
     if (program == NULL)
@@ -39,7 +39,7 @@ static void help_fixture_add_terminals(clopts_program_t *program, const clopts_o
 }
 
 /* Makes the help command and remembers it as the last subcommand of program. */
-static clopts_command_t *help_fixture_add_help_command(clopts_program_t *program)
+static clopts_command_t *text_fixture_add_help_command(clopts_program_t *program)
 {
     clopts_command_t *command = NULL;
 
@@ -55,7 +55,7 @@ static clopts_command_t *help_fixture_add_help_command(clopts_program_t *program
  * Adds the remembered commands to program; on failure everything was
  * released, so the fixture struct (size bytes at f) is cleared.
  */
-static clopts_program_t *help_fixture_finish(clopts_program_t *program, void *f, size_t size)
+static clopts_program_t *text_fixture_finish(clopts_program_t *program, void *f, size_t size)
 {
     program = test_decl_finish(program);
 
@@ -68,7 +68,7 @@ static clopts_program_t *help_fixture_finish(clopts_program_t *program, void *f,
 
 /* ---- tool -------------------------------------------------------------- */
 
-void help_fixture_tool_init(help_fixture_tool_t *f)
+void text_fixture_tool_init(text_fixture_tool_t *f)
 {
     assert(f != NULL);
 
@@ -94,7 +94,7 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     test_decl_check(clopts_option_set_help(f->config, "Configuration file"));
     test_decl_check(clopts_option_set_env(f->config, "TOOL_CONFIG"));
     f->config = test_decl_global_attach(f->program, f->config);
-    help_fixture_add_terminals(f->program, &f->help, &f->version);
+    text_fixture_add_terminals(f->program, &f->help, &f->version);
 
     /* build */
     f->build = test_decl_command(f->program, "build");
@@ -171,12 +171,12 @@ void help_fixture_tool_init(help_fixture_tool_t *f)
     }
     f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
 
-    f->help_command = help_fixture_add_help_command(f->program);
-    f->program = help_fixture_finish(f->program, f, sizeof(*f));
+    f->help_command = text_fixture_add_help_command(f->program);
+    f->program = text_fixture_finish(f->program, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
 
-void help_fixture_tool_free(help_fixture_tool_t *f)
+void text_fixture_tool_free(text_fixture_tool_t *f)
 {
     assert(f != NULL);
 
@@ -186,7 +186,7 @@ void help_fixture_tool_free(help_fixture_tool_t *f)
 
 /* ---- filt -------------------------------------------------------------- */
 
-void help_fixture_filt_init(help_fixture_filt_t *f)
+void text_fixture_filt_init(text_fixture_filt_t *f)
 {
     assert(f != NULL);
 
@@ -219,12 +219,12 @@ void help_fixture_filt_init(help_fixture_filt_t *f)
         clopts_positional_set_variadic(f->file, true);
     }
     f->file = test_decl_global_attach_positional(f->program, f->file);
-    help_fixture_add_terminals(f->program, &f->help, NULL);
-    f->program = help_fixture_finish(f->program, f, sizeof(*f));
+    text_fixture_add_terminals(f->program, &f->help, NULL);
+    f->program = text_fixture_finish(f->program, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
 
-void help_fixture_filt_free(help_fixture_filt_t *f)
+void text_fixture_filt_free(text_fixture_filt_t *f)
 {
     assert(f != NULL);
 
@@ -234,26 +234,26 @@ void help_fixture_filt_free(help_fixture_filt_t *f)
 
 /* ---- bare -------------------------------------------------------------- */
 
-void help_fixture_bare_init(help_fixture_bare_t *f)
+void text_fixture_bare_init(text_fixture_bare_t *f)
 {
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
     test_decl_reset();
     f->program = test_decl_begin("bare");
-    help_fixture_add_terminals(f->program, &f->help, &f->version);
+    text_fixture_add_terminals(f->program, &f->help, &f->version);
 
     f->run = test_decl_command(f->program, "run");
     if (f->run != NULL)
     {
         test_decl_check(clopts_command_set_summary(f->run, "Run the task"));
     }
-    f->help_command = help_fixture_add_help_command(f->program);
-    f->program = help_fixture_finish(f->program, f, sizeof(*f));
+    f->help_command = text_fixture_add_help_command(f->program);
+    f->program = text_fixture_finish(f->program, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
 
-void help_fixture_bare_free(help_fixture_bare_t *f)
+void text_fixture_bare_free(text_fixture_bare_t *f)
 {
     assert(f != NULL);
 
@@ -263,7 +263,7 @@ void help_fixture_bare_free(help_fixture_bare_t *f)
 
 /* ---- wide -------------------------------------------------------------- */
 
-void help_fixture_wide_init(help_fixture_wide_t *f)
+void text_fixture_wide_init(text_fixture_wide_t *f)
 {
     assert(f != NULL);
 
@@ -271,21 +271,21 @@ void help_fixture_wide_init(help_fixture_wide_t *f)
     test_decl_reset();
     f->program = test_decl_begin("wide");
 
-    f->naive = test_decl_option(CLOPTS_OPTION_FLAG, HELP_FIXTURE_NAIVE, '\0');
+    f->naive = test_decl_option(CLOPTS_OPTION_FLAG, TEXT_FIXTURE_NAIVE, '\0');
     test_decl_check(clopts_option_set_help(f->naive, "Trust every input"));
     f->naive = test_decl_global_attach(f->program, f->naive);
 
-    f->nihongo = test_decl_option(CLOPTS_OPTION_VALUE, HELP_FIXTURE_NIHONGO, 'j');
-    test_decl_check(clopts_option_set_value_name(f->nihongo, HELP_FIXTURE_ATAI));
+    f->nihongo = test_decl_option(CLOPTS_OPTION_VALUE, TEXT_FIXTURE_NIHONGO, 'j');
+    test_decl_check(clopts_option_set_value_name(f->nihongo, TEXT_FIXTURE_ATAI));
     test_decl_check(clopts_option_set_help(f->nihongo, "Japanese text"));
     f->nihongo = test_decl_global_attach(f->program, f->nihongo);
 
     f->raw = test_decl_option(CLOPTS_OPTION_VALUE, "raw", '\0');
-    test_decl_check(clopts_option_set_value_name(f->raw, HELP_FIXTURE_RAW_VALUE_NAME));
+    test_decl_check(clopts_option_set_value_name(f->raw, TEXT_FIXTURE_RAW_VALUE_NAME));
     test_decl_check(clopts_option_set_help(f->raw, "Raw bytes"));
     f->raw = test_decl_global_attach(f->program, f->raw);
 
-    f->file = test_decl_positional(HELP_FIXTURE_FILE);
+    f->file = test_decl_positional(TEXT_FIXTURE_FILE);
     if (f->file != NULL)
     {
         test_decl_check(clopts_positional_set_help(f->file, "Input files"));
@@ -295,12 +295,12 @@ void help_fixture_wide_init(help_fixture_wide_t *f)
         clopts_positional_set_variadic(f->file, true);
     }
     f->file = test_decl_global_attach_positional(f->program, f->file);
-    help_fixture_add_terminals(f->program, &f->help, NULL);
-    f->program = help_fixture_finish(f->program, f, sizeof(*f));
+    text_fixture_add_terminals(f->program, &f->help, NULL);
+    f->program = text_fixture_finish(f->program, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
 
-void help_fixture_wide_free(help_fixture_wide_t *f)
+void text_fixture_wide_free(text_fixture_wide_t *f)
 {
     assert(f != NULL);
 
@@ -310,21 +310,21 @@ void help_fixture_wide_free(help_fixture_wide_t *f)
 
 /* ---- write callbacks --------------------------------------------------- */
 
-void help_recorder_init(help_recorder_t *rec)
+void text_recorder_init(text_recorder_t *rec)
 {
     assert(rec != NULL);
 
     memset(rec, 0, sizeof(*rec));
 }
 
-int help_recorder_write(void *ctx, const char *data, size_t len)
+int text_recorder_write(void *ctx, const char *data, size_t len)
 {
-    help_recorder_t *rec = (help_recorder_t *)ctx;
+    text_recorder_t *rec = (text_recorder_t *)ctx;
 
     assert(rec != NULL);
     rec->calls++;
 
-    if (len > (HELP_RECORDER_SIZE - rec->len))
+    if (len > (TEXT_RECORDER_SIZE - rec->len))
     {
         rec->overflow = true;
         return 1;
@@ -339,18 +339,18 @@ int help_recorder_write(void *ctx, const char *data, size_t len)
     return 0;
 }
 
-void help_failer_init(help_failer_t *failer, size_t fail_at)
+void text_failer_init(text_failer_t *failer, size_t fail_at)
 {
     assert(failer != NULL);
 
     memset(failer, 0, sizeof(*failer));
     failer->fail_at = fail_at;
-    help_recorder_init(&failer->written);
+    text_recorder_init(&failer->written);
 }
 
-int help_failer_write(void *ctx, const char *data, size_t len)
+int text_failer_write(void *ctx, const char *data, size_t len)
 {
-    help_failer_t *failer = (help_failer_t *)ctx;
+    text_failer_t *failer = (text_failer_t *)ctx;
 
     assert(failer != NULL);
     failer->calls++;
@@ -365,5 +365,5 @@ int help_failer_write(void *ctx, const char *data, size_t len)
         failer->failed = true;
         return 1;
     }
-    return help_recorder_write(&failer->written, data, len);
+    return text_recorder_write(&failer->written, data, len);
 }

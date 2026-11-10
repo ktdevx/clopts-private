@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Unit tests for the ready-made FILE* callback of clopts/writer.h (the static
- * inline clopts_file_write), through which the help module's output usually
+ * inline clopts_file_write), through which the text module's output usually
  * reaches a stream.
  */
 
@@ -34,7 +34,7 @@ static size_t read_back(FILE *stream, char *buf, size_t size)
  * File used by the read-only stream test. It is created in the working
  * directory of the test run and removed by the test.
  */
-static const char read_only_path[] = "clopts_help_tests_file_write_read_only.tmp";
+static const char read_only_path[] = "clopts_text_tests_file_write_read_only.tmp";
 
 NAOS_TEST(file_write_writes_all_bytes_in_order)
 {

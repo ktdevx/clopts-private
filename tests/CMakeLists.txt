@@ -4,7 +4,7 @@
 add_subdirectory(core)
 add_subdirectory(decl)
 add_subdirectory(parser)
-add_subdirectory(help)
+add_subdirectory(text)
 add_subdirectory(platform)
 add_subdirectory(toolchain)
 add_subdirectory(integration)

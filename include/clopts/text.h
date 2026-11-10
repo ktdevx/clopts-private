@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_HELP_H
-#define CLOPTS_HELP_H
+#ifndef CLOPTS_TEXT_H
+#define CLOPTS_TEXT_H
 
 #include "clopts/decl_types.h"
 #include "clopts/export.h"
@@ -102,4 +102,4 @@ CLOPTS_API bool clopts_help_find_target(const clopts_program_t *program, const c
 }
 #endif
 
-#endif /* CLOPTS_HELP_H */
+#endif /* CLOPTS_TEXT_H */

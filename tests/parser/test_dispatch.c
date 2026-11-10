@@ -715,7 +715,7 @@ NAOS_TEST(tool_help_with_command_takes_it_as_positional)
 
 /*
  * The parser does not check the name given to the help command: an unknown
- * name is resolved later by clopts_help_find_target() of the help module.
+ * name is resolved later by clopts_help_find_target() of the text module.
  */
 NAOS_TEST(tool_help_with_unknown_name_is_ok_at_parse_level)
 {

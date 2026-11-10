@@ -11,7 +11,7 @@
  * without a declaration error. Nothing is reserved: -h/--help, --version
  * and the help command of the fixtures are ordinary declarations, listed
  * where they are declared. The expected texts are derived by hand from
- * the rules of the design (HelpLayout): 2 spaces of indentation,
+ * the rules of the design (TextLayout): 2 spaces of indentation,
  * descriptions at column 2 + W + 2 where W is the widest left column of the
  * list.
  */
@@ -25,9 +25,9 @@
 
 NAOS_TEST(fixture_tool_builds_ok)
 {
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.build);
@@ -45,30 +45,30 @@ NAOS_TEST(fixture_tool_builds_ok)
     NAOS_CHECK_NOT_NULL(f.copy_src);
     NAOS_CHECK_NOT_NULL(f.copy_dst);
 
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
     NAOS_CHECK_NULL(f.program);
 }
 
 NAOS_TEST(fixture_filt_builds_ok)
 {
-    help_fixture_filt_t f;
+    text_fixture_filt_t f;
 
-    help_fixture_filt_init(&f);
+    text_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.lines);
     NAOS_CHECK_NOT_NULL(f.help);
     NAOS_CHECK_NOT_NULL(f.file);
 
-    help_fixture_filt_free(&f);
+    text_fixture_filt_free(&f);
     NAOS_CHECK_NULL(f.program);
 }
 
 NAOS_TEST(fixture_bare_builds_ok)
 {
-    help_fixture_bare_t f;
+    text_fixture_bare_t f;
 
-    help_fixture_bare_init(&f);
+    text_fixture_bare_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.run);
@@ -76,19 +76,19 @@ NAOS_TEST(fixture_bare_builds_ok)
     NAOS_CHECK_NOT_NULL(f.help);
     NAOS_CHECK_NOT_NULL(f.version);
 
-    help_fixture_bare_free(&f);
+    text_fixture_bare_free(&f);
     NAOS_CHECK_NULL(f.program);
 }
 
 NAOS_TEST(fixture_free_accepts_a_cleared_struct)
 {
-    help_fixture_tool_t tool = {0};
-    help_fixture_filt_t filt = {0};
-    help_fixture_bare_t bare = {0};
+    text_fixture_tool_t tool = {0};
+    text_fixture_filt_t filt = {0};
+    text_fixture_bare_t bare = {0};
 
-    help_fixture_tool_free(&tool);
-    help_fixture_filt_free(&filt);
-    help_fixture_bare_free(&bare);
+    text_fixture_tool_free(&tool);
+    text_fixture_filt_free(&filt);
+    text_fixture_bare_free(&bare);
     NAOS_CHECK_NULL(tool.program);
     NAOS_CHECK_NULL(filt.program);
     NAOS_CHECK_NULL(bare.program);
@@ -97,18 +97,18 @@ NAOS_TEST(fixture_free_accepts_a_cleared_struct)
 /* ---- helpers ----------------------------------------------------------- */
 
 /* Writes the help of command (NULL: the program) of program into rec. */
-static clopts_write_status_t write_help(help_recorder_t *rec, const clopts_program_t *program,
+static clopts_write_status_t write_help(text_recorder_t *rec, const clopts_program_t *program,
                                         const clopts_command_t *command)
 {
-    help_recorder_init(rec);
-    return clopts_write_help(program, command, help_recorder_write, rec);
+    text_recorder_init(rec);
+    return clopts_write_help(program, command, text_recorder_write, rec);
 }
 
 /* The help of command (NULL: the program) of program is exactly expected. */
 #define CHECK_HELP(program, command, expected)                                       \
     do                                                                               \
     {                                                                                \
-        static help_recorder_t rec_;                                                 \
+        static text_recorder_t rec_;                                                 \
         NAOS_CHECK_INT_EQ(write_help(&rec_, (program), (command)), CLOPTS_WRITE_OK); \
         NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));         \
     } while (0)
@@ -166,12 +166,12 @@ static const char tool_help[] =
 
 NAOS_TEST(help_tool_global)
 {
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, NULL, tool_help);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(help_tool_build)
@@ -195,12 +195,12 @@ NAOS_TEST(help_tool_build)
         "      --config <FILE>  Configuration file [env: TOOL_CONFIG]\n"
         "  -h, --help           Show this help\n"
         "      --version        Show version information\n";
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, f.build, expected);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(help_tool_copy_uses_the_summary)
@@ -221,12 +221,12 @@ NAOS_TEST(help_tool_copy_uses_the_summary)
         "      --config <FILE>  Configuration file [env: TOOL_CONFIG]\n"
         "  -h, --help           Show this help\n"
         "      --version        Show version information\n";
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, f.copy, expected);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(help_tool_help_command)
@@ -246,12 +246,12 @@ NAOS_TEST(help_tool_help_command)
         "      --config <FILE>  Configuration file [env: TOOL_CONFIG]\n"
         "  -h, --help           Show this help\n"
         "      --version        Show version information\n";
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, f.help_command, expected);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 static const char filt_help[] =
@@ -268,12 +268,12 @@ static const char filt_help[] =
 
 NAOS_TEST(help_filt_without_subcommands)
 {
-    help_fixture_filt_t f;
+    text_fixture_filt_t f;
 
-    help_fixture_filt_init(&f);
+    text_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, NULL, filt_help);
-    help_fixture_filt_free(&f);
+    text_fixture_filt_free(&f);
 }
 
 NAOS_TEST(help_bare_run_has_only_the_global_options)
@@ -287,12 +287,12 @@ NAOS_TEST(help_bare_run_has_only_the_global_options)
         "Global Options:\n"
         "  -h, --help     Show this help\n"
         "      --version  Show version information\n";
-    help_fixture_bare_t f;
+    text_fixture_bare_t f;
 
-    help_fixture_bare_init(&f);
+    text_fixture_bare_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, f.run, expected);
-    help_fixture_bare_free(&f);
+    text_fixture_bare_free(&f);
 }
 
 NAOS_TEST(help_bare_global_without_description)
@@ -309,12 +309,12 @@ NAOS_TEST(help_bare_global_without_description)
         "      --version  Show version information\n"
         "\n"
         "Run 'bare <command> --help' for help on a command.\n";
-    help_fixture_bare_t f;
+    text_fixture_bare_t f;
 
-    help_fixture_bare_init(&f);
+    text_fixture_bare_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HELP(f.program, NULL, expected);
-    help_fixture_bare_free(&f);
+    text_fixture_bare_free(&f);
 }
 
 NAOS_TEST(help_without_global_options_has_no_options_and_no_run_line)
@@ -329,7 +329,7 @@ NAOS_TEST(help_without_global_options_has_no_options_and_no_run_line)
         "\n"
         "Commands:\n"
         "  init\n";
-    static help_recorder_t rec;
+    static text_recorder_t rec;
     layout_nover_t f;
 
     layout_nover_init(&f);
@@ -363,33 +363,33 @@ NAOS_TEST(help_subcommand_without_text_or_options)
 #define CHECK_USAGE(program, command, expected)                                                   \
     do                                                                                            \
     {                                                                                             \
-        static help_recorder_t rec_;                                                              \
-        help_recorder_init(&rec_);                                                                \
-        NAOS_CHECK_INT_EQ(clopts_write_usage((program), (command), help_recorder_write, &rec_),   \
+        static text_recorder_t rec_;                                                              \
+        text_recorder_init(&rec_);                                                                \
+        NAOS_CHECK_INT_EQ(clopts_write_usage((program), (command), text_recorder_write, &rec_),   \
                           CLOPTS_WRITE_OK);                                                       \
         NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));                      \
     } while (0)
 
 NAOS_TEST(usage_global)
 {
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_USAGE(f.program, NULL, "Usage: tool [<options>] <command> [<arguments>]\n");
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(usage_subcommand)
 {
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
     layout_nover_t g;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_USAGE(f.program, f.build, "Usage: tool build [<options>] <SRC> [<EXTRA>...]\n");
     CHECK_USAGE(f.program, f.copy, "Usage: tool copy [<options>] <SRC> <DST>\n");
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 
     layout_nover_init(&g);
     NAOS_REQUIRE_NOT_NULL(g.program);
@@ -399,29 +399,29 @@ NAOS_TEST(usage_subcommand)
 
 NAOS_TEST(usage_without_subcommands)
 {
-    help_fixture_filt_t f;
-    help_fixture_bare_t b;
+    text_fixture_filt_t f;
+    text_fixture_bare_t b;
 
-    help_fixture_filt_init(&f);
+    text_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_USAGE(f.program, NULL, "Usage: filt [<options>] <FILE>...\n");
-    help_fixture_filt_free(&f);
+    text_fixture_filt_free(&f);
 
-    help_fixture_bare_init(&b);
+    text_fixture_bare_init(&b);
     NAOS_REQUIRE_NOT_NULL(b.program);
     CHECK_USAGE(b.program, b.run, "Usage: bare run [<options>]\n");
-    help_fixture_bare_free(&b);
+    text_fixture_bare_free(&b);
 }
 
 NAOS_TEST(usage_is_the_first_line_of_the_help)
 {
-    static help_recorder_t help;
-    static help_recorder_t usage;
-    help_fixture_tool_t f;
+    static text_recorder_t help;
+    static text_recorder_t usage;
+    text_fixture_tool_t f;
     const clopts_command_t *commands[3];
     size_t i;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     commands[0] = NULL;
     commands[1] = f.build;
@@ -431,14 +431,14 @@ NAOS_TEST(usage_is_the_first_line_of_the_help)
         const char *newline;
 
         NAOS_REQUIRE_INT_EQ(write_help(&help, f.program, commands[i]), CLOPTS_WRITE_OK);
-        help_recorder_init(&usage);
-        NAOS_REQUIRE_INT_EQ(clopts_write_usage(f.program, commands[i], help_recorder_write, &usage),
+        text_recorder_init(&usage);
+        NAOS_REQUIRE_INT_EQ(clopts_write_usage(f.program, commands[i], text_recorder_write, &usage),
                             CLOPTS_WRITE_OK);
         newline = strchr(help.buf, '\n');
         NAOS_REQUIRE_NOT_NULL(newline);
         NAOS_CHECK_MEM_EQ(usage.buf, usage.len, help.buf, (size_t)(newline - help.buf) + 1);
     }
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 /* ---- version line and usage hint --------------------------------------- */
@@ -447,39 +447,39 @@ NAOS_TEST(usage_is_the_first_line_of_the_help)
 #define CHECK_VERSION(program, version, expected)                                                 \
     do                                                                                            \
     {                                                                                             \
-        static help_recorder_t rec_;                                                              \
-        help_recorder_init(&rec_);                                                                \
-        NAOS_CHECK_INT_EQ(clopts_write_version((program), (version), help_recorder_write, &rec_), \
+        static text_recorder_t rec_;                                                              \
+        text_recorder_init(&rec_);                                                                \
+        NAOS_CHECK_INT_EQ(clopts_write_version((program), (version), text_recorder_write, &rec_), \
                           CLOPTS_WRITE_OK);                                                       \
         NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));                      \
     } while (0)
 
 NAOS_TEST(version_line)
 {
-    help_fixture_tool_t f;
-    help_fixture_bare_t b;
+    text_fixture_tool_t f;
+    text_fixture_bare_t b;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_VERSION(f.program, "1.2.3", "tool 1.2.3\n");
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 
-    help_fixture_bare_init(&b);
+    text_fixture_bare_init(&b);
     NAOS_REQUIRE_NOT_NULL(b.program);
     CHECK_VERSION(b.program, "0.1", "bare 0.1\n");
-    help_fixture_bare_free(&b);
+    text_fixture_bare_free(&b);
 }
 
 NAOS_TEST(version_line_does_not_need_a_version_option)
 {
     /* The version string is the caller's: a program without --version has a version line too. */
-    help_fixture_filt_t f;
+    text_fixture_filt_t f;
     layout_nover_t g;
 
-    help_fixture_filt_init(&f);
+    text_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_VERSION(f.program, "2.0", "filt 2.0\n");
-    help_fixture_filt_free(&f);
+    text_fixture_filt_free(&f);
 
     /* An empty version is written as is. */
     layout_nover_init(&g);
@@ -490,63 +490,63 @@ NAOS_TEST(version_line_does_not_need_a_version_option)
 
 NAOS_TEST(version_line_unavailable_without_version)
 {
-    static help_recorder_t rec;
-    help_fixture_tool_t f;
-    help_fixture_filt_t g;
+    static text_recorder_t rec;
+    text_fixture_tool_t f;
+    text_fixture_filt_t g;
 
     /* A NULL version gives UNAVAILABLE, even when the program declares --version. */
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    help_recorder_init(&rec);
-    NAOS_CHECK_INT_EQ(clopts_write_version(f.program, NULL, help_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
+    text_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_version(f.program, NULL, text_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(rec.calls, 0);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 
-    help_fixture_filt_init(&g);
+    text_fixture_filt_init(&g);
     NAOS_REQUIRE_NOT_NULL(g.program);
-    help_recorder_init(&rec);
-    NAOS_CHECK_INT_EQ(clopts_write_version(g.program, NULL, help_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
+    text_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_version(g.program, NULL, text_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(rec.calls, 0);
-    help_fixture_filt_free(&g);
+    text_fixture_filt_free(&g);
 }
 
 /* The usage hint of command (NULL: the program) of program is exactly expected. */
 #define CHECK_HINT(program, command, expected)                                                       \
     do                                                                                               \
     {                                                                                                \
-        static help_recorder_t rec_;                                                                 \
-        help_recorder_init(&rec_);                                                                   \
-        NAOS_CHECK_INT_EQ(clopts_write_usage_hint((program), (command), help_recorder_write, &rec_), \
+        static text_recorder_t rec_;                                                                 \
+        text_recorder_init(&rec_);                                                                   \
+        NAOS_CHECK_INT_EQ(clopts_write_usage_hint((program), (command), text_recorder_write, &rec_), \
                           CLOPTS_WRITE_OK);                                                          \
         NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));                         \
     } while (0)
 
 NAOS_TEST(usage_hint_without_command)
 {
-    help_fixture_tool_t f;
-    help_fixture_filt_t g;
+    text_fixture_tool_t f;
+    text_fixture_filt_t g;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HINT(f.program, NULL, "Run 'tool --help' for usage.\n");
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 
-    help_fixture_filt_init(&g);
+    text_fixture_filt_init(&g);
     NAOS_REQUIRE_NOT_NULL(g.program);
     CHECK_HINT(g.program, NULL, "Run 'filt --help' for usage.\n");
-    help_fixture_filt_free(&g);
+    text_fixture_filt_free(&g);
 }
 
 NAOS_TEST(usage_hint_with_command)
 {
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     CHECK_HINT(f.program, f.build, "Run 'tool build --help' for usage.\n");
     CHECK_HINT(f.program, f.copy, "Run 'tool copy --help' for usage.\n");
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 /* ---- shadowed global options ------------------------------------------- */
@@ -806,7 +806,7 @@ static clopts_program_t *layout_run_line_program(const char *global_long, char g
 static void layout_check_run_line(const clopts_program_t *program, bool expected)
 {
     static const char run_line[] = "\nRun 'run <command> --help' for help on a command.\n";
-    static help_recorder_t rec;
+    static text_recorder_t rec;
     size_t len = strlen(run_line);
     bool ends_with_it;
 
@@ -855,15 +855,15 @@ NAOS_TEST(run_line_needs_a_global_long_option_named_help)
 
 NAOS_TEST(run_line_is_not_in_the_help_of_a_program_without_subcommands)
 {
-    static help_recorder_t rec;
-    help_fixture_filt_t f;
+    static text_recorder_t rec;
+    text_fixture_filt_t f;
 
     /* filt has a global --help but no subcommand. */
-    help_fixture_filt_init(&f);
+    text_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_INT_EQ(write_help(&rec, f.program, NULL), CLOPTS_WRITE_OK);
     NAOS_CHECK_NULL(strstr(rec.buf, "Run '"));
-    help_fixture_filt_free(&f);
+    text_fixture_filt_free(&f);
 }
 
 /* ---- the help command ------------------------------------------------- */
@@ -946,12 +946,12 @@ static void layout_check_target(const clopts_program_t *program, int argc, char 
 NAOS_TEST(help_target_without_a_positional_is_the_program)
 {
     char *argv[] = { "tool", "help", NULL };
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     layout_check_target(f.program, LAYOUT_ARGC(argv), argv, CLOPTS_PARSE_OK, true, NULL);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(help_target_names_a_known_command)
@@ -959,14 +959,14 @@ NAOS_TEST(help_target_names_a_known_command)
     char *argv_build[] = { "tool", "help", "build", NULL };
     char *argv_help[] = { "tool", "help", "help", NULL };
     char *argv_global[] = { "tool", "-v", "help", "copy", NULL };
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     layout_check_target(f.program, LAYOUT_ARGC(argv_build), argv_build, CLOPTS_PARSE_OK, true, f.build);
     layout_check_target(f.program, LAYOUT_ARGC(argv_help), argv_help, CLOPTS_PARSE_OK, true, f.help_command);
     layout_check_target(f.program, LAYOUT_ARGC(argv_global), argv_global, CLOPTS_PARSE_OK, true, f.copy);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(help_target_of_an_unknown_command_is_false)
@@ -974,13 +974,13 @@ NAOS_TEST(help_target_of_an_unknown_command_is_false)
     char *argv[] = { "tool", "help", "bulid", NULL };
     /* The program name is not a subcommand. */
     char *argv_program[] = { "tool", "help", "tool", NULL };
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     layout_check_target(f.program, LAYOUT_ARGC(argv), argv, CLOPTS_PARSE_OK, false, NULL);
     layout_check_target(f.program, LAYOUT_ARGC(argv_program), argv_program, CLOPTS_PARSE_OK, false, NULL);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(help_target_of_a_status_other_than_ok_is_false)
@@ -989,9 +989,9 @@ NAOS_TEST(help_target_of_a_status_other_than_ok_is_false)
     char *argv_no_command[] = { "tool", NULL };
     char *argv_usage[] = { "tool", "help", "build", "copy", NULL };
     const clopts_command_t *target = (const clopts_command_t *)&layout_stale_option;
-    help_fixture_tool_t f;
+    text_fixture_tool_t f;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     layout_check_target(f.program, LAYOUT_ARGC(argv_terminated), argv_terminated, CLOPTS_PARSE_TERMINATED, false, NULL);
     layout_check_target(f.program, LAYOUT_ARGC(argv_no_command), argv_no_command, CLOPTS_PARSE_NO_COMMAND, false, NULL);
@@ -1000,31 +1000,31 @@ NAOS_TEST(help_target_of_a_status_other_than_ok_is_false)
     /* A NULL result reads as out of memory. */
     NAOS_CHECK_FALSE(clopts_help_find_target(f.program, NULL, &target));
     NAOS_CHECK_NULL(target);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 /* ---- determinism ------------------------------------------------------- */
 
 /* Every text of command (NULL: the program) of program, concatenated into rec. */
-static void write_all(help_recorder_t *rec, const clopts_program_t *program, const clopts_command_t *command)
+static void write_all(text_recorder_t *rec, const clopts_program_t *program, const clopts_command_t *command)
 {
-    help_recorder_init(rec);
-    NAOS_CHECK_INT_EQ(clopts_write_help(program, command, help_recorder_write, rec), CLOPTS_WRITE_OK);
-    NAOS_CHECK_INT_EQ(clopts_write_usage(program, command, help_recorder_write, rec), CLOPTS_WRITE_OK);
-    NAOS_CHECK_INT_EQ(clopts_write_version(program, "1.2.3", help_recorder_write, rec), CLOPTS_WRITE_OK);
-    NAOS_CHECK_INT_EQ(clopts_write_usage_hint(program, command, help_recorder_write, rec), CLOPTS_WRITE_OK);
+    text_recorder_init(rec);
+    NAOS_CHECK_INT_EQ(clopts_write_help(program, command, text_recorder_write, rec), CLOPTS_WRITE_OK);
+    NAOS_CHECK_INT_EQ(clopts_write_usage(program, command, text_recorder_write, rec), CLOPTS_WRITE_OK);
+    NAOS_CHECK_INT_EQ(clopts_write_version(program, "1.2.3", text_recorder_write, rec), CLOPTS_WRITE_OK);
+    NAOS_CHECK_INT_EQ(clopts_write_usage_hint(program, command, text_recorder_write, rec), CLOPTS_WRITE_OK);
     NAOS_CHECK_FALSE(rec->overflow);
 }
 
 NAOS_TEST(generation_is_repeatable_and_keeps_the_declaration)
 {
-    static help_recorder_t first;
-    static help_recorder_t second;
-    help_fixture_tool_t f;
+    static text_recorder_t first;
+    static text_recorder_t second;
+    text_fixture_tool_t f;
     const clopts_command_t *commands[4];
     size_t i;
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     commands[0] = NULL;
     commands[1] = f.build;
@@ -1038,7 +1038,7 @@ NAOS_TEST(generation_is_repeatable_and_keeps_the_declaration)
     }
     /* The declaration is unchanged, and so is its help. */
     CHECK_HELP(f.program, NULL, tool_help);
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 /* ---- shape of every text ----------------------------------------------- */
@@ -1111,7 +1111,7 @@ NAOS_TEST(shape_check_rejects_each_malformed_text)
 }
 
 /* The text in rec, written by a call that returned status, is well formed. */
-static void layout_check_shape(const help_recorder_t *rec, clopts_write_status_t status)
+static void layout_check_shape(const text_recorder_t *rec, clopts_write_status_t status)
 {
     const char *problem;
 
@@ -1133,29 +1133,29 @@ static void layout_check_shape(const help_recorder_t *rec, clopts_write_status_t
  */
 static void layout_check_texts(const clopts_program_t *program, const clopts_command_t *command)
 {
-    static help_recorder_t rec;
+    static text_recorder_t rec;
     clopts_write_status_t status;
 
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
     NAOS_TRACE_PUSH("help");
-    layout_check_shape(&rec, clopts_write_help(program, command, help_recorder_write, &rec));
+    layout_check_shape(&rec, clopts_write_help(program, command, text_recorder_write, &rec));
     NAOS_TRACE_POP();
 
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
     NAOS_TRACE_PUSH("usage");
-    layout_check_shape(&rec, clopts_write_usage(program, command, help_recorder_write, &rec));
+    layout_check_shape(&rec, clopts_write_usage(program, command, text_recorder_write, &rec));
     NAOS_TRACE_POP();
 
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
     NAOS_TRACE_PUSH("usage hint");
-    layout_check_shape(&rec, clopts_write_usage_hint(program, command, help_recorder_write, &rec));
+    layout_check_shape(&rec, clopts_write_usage_hint(program, command, text_recorder_write, &rec));
     NAOS_TRACE_POP();
 
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
     NAOS_TRACE_PUSH("version");
-    layout_check_shape(&rec, clopts_write_version(program, "1.0", help_recorder_write, &rec));
-    help_recorder_init(&rec);
-    status = clopts_write_version(program, NULL, help_recorder_write, &rec);
+    layout_check_shape(&rec, clopts_write_version(program, "1.0", text_recorder_write, &rec));
+    text_recorder_init(&rec);
+    status = clopts_write_version(program, NULL, text_recorder_write, &rec);
     NAOS_CHECK_INT_EQ(status, CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
     NAOS_TRACE_POP();
@@ -1163,17 +1163,17 @@ static void layout_check_texts(const clopts_program_t *program, const clopts_com
 
 NAOS_TEST(every_text_of_the_fixtures_is_well_formed)
 {
-    help_fixture_tool_t tool;
-    help_fixture_filt_t filt;
-    help_fixture_bare_t bare;
-    help_fixture_wide_t wide;
+    text_fixture_tool_t tool;
+    text_fixture_filt_t filt;
+    text_fixture_bare_t bare;
+    text_fixture_wide_t wide;
     layout_nover_t nover;
     size_t i;
 
-    help_fixture_tool_init(&tool);
-    help_fixture_filt_init(&filt);
-    help_fixture_bare_init(&bare);
-    help_fixture_wide_init(&wide);
+    text_fixture_tool_init(&tool);
+    text_fixture_filt_init(&filt);
+    text_fixture_bare_init(&bare);
+    text_fixture_wide_init(&wide);
     layout_nover_init(&nover);
     NAOS_REQUIRE_NOT_NULL(tool.program);
     NAOS_REQUIRE_NOT_NULL(filt.program);
@@ -1208,10 +1208,10 @@ NAOS_TEST(every_text_of_the_fixtures_is_well_formed)
         }
     }
     clopts_program_destroy(nover.program);
-    help_fixture_wide_free(&wide);
-    help_fixture_bare_free(&bare);
-    help_fixture_filt_free(&filt);
-    help_fixture_tool_free(&tool);
+    text_fixture_wide_free(&wide);
+    text_fixture_bare_free(&bare);
+    text_fixture_filt_free(&filt);
+    text_fixture_tool_free(&tool);
 }
 
 NAOS_SUITE(layout,
