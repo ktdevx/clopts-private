@@ -10,7 +10,7 @@
  *
  * consumer_parse_check() runs declaration -> parse -> lookup -> release with
  * public functions only. consumer_help_check() calls the five text writers
- * of clopts/text/write.h and clopts_decl_error_get_message() of clopts/decl/decl_error.h
+ * of clopts/text/write.h and clopts_error_get_message() of clopts/base/error.h
  * through the umbrella header (in a shared build, each call
  * must resolve against an exported symbol). consumer_argv_check() calls
  * every function of clopts/process/argv.h (clopts_argv_create_from_wide only on Windows)
@@ -45,16 +45,16 @@ static int consumer_parse_check(void)
     const char *value;
     int failed = 0;
 
-    if (clopts_program_create("consumer", &program) != CLOPTS_DECL_ERROR_NONE)
+    if (clopts_program_create("consumer", &program) != CLOPTS_ERROR_NONE)
     {
         return 1;
     }
-    if (clopts_option_create(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_DECL_ERROR_NONE)
+    if (clopts_option_create(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_ERROR_NONE)
     {
         clopts_program_destroy(program);
         return 1;
     }
-    if (clopts_program_add_option(program, name) != CLOPTS_DECL_ERROR_NONE)
+    if (clopts_program_add_option(program, name) != CLOPTS_ERROR_NONE)
     {
         clopts_option_destroy(name);
         clopts_program_destroy(program);
@@ -104,7 +104,7 @@ static int consumer_help_check(void)
     clopts_result_t *result;
     int failed = 0;
 
-    if (clopts_program_create("consumer", &program) != CLOPTS_DECL_ERROR_NONE)
+    if (clopts_program_create("consumer", &program) != CLOPTS_ERROR_NONE)
     {
         return 1;
     }
@@ -115,7 +115,7 @@ static int consumer_help_check(void)
         !consumer_write_status_valid(clopts_write_usage_hint(program, NULL, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR,
                                                         consumer_discard, NULL)) ||
-        (clopts_decl_error_get_message(CLOPTS_DECL_ERROR_DUPLICATE_OPTION) == NULL))
+        (clopts_error_get_message(CLOPTS_ERROR_DUPLICATE) == NULL))
     {
         failed = 1;
     }

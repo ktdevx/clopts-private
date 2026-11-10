@@ -111,7 +111,7 @@ int wmain(int argc, wchar_t **wargv)
     clopts_result_t *result;
     int code = 0;
 
-    if (clopts_program_create("app", &program) != CLOPTS_DECL_ERROR_NONE)
+    if (clopts_program_create("app", &program) != CLOPTS_ERROR_NONE)
     {
         fputs("app: error: out of memory\n", stderr);
         return 1;
@@ -151,7 +151,7 @@ Windows では、CRT の `getenv` も、値を ANSI のコードページで返�
 - Windows では、変数の値を `GetEnvironmentVariableW` で UTF-16 のまま読み、UTF-8 に変換する。変数の名前（`clopts_option_set_env` で宣言した名前）は UTF-8 として UTF-16 に変換してから引く。Windows では、環境変数の名前の大文字と小文字は区別されない。
 - Windows 以外の OS では、`getenv` で読んだ値をそのまま使う（パススルー）。値は変換も検査もされない。
 - 解析は、読んだ値をすぐに複製する。結果の値は、後で環境変数が変わっても変わらない。読むために使う作業用のバッファは解析ごとに作り、解析の中で解放する。そのため、同じプログラムを複数のスレッドから同時に解析してよいことは変わらない。
-- 環境変数の名前は、宣言のときに検査される。空のもの、`=` を含むもの、正しい UTF-8 でないものは、`clopts_option_set_env` が `CLOPTS_DECL_ERROR_INVALID_NAME` を返す。
+- 環境変数の名前は、宣言のときに検査される。空のもの、`=` を含むもの、正しい UTF-8 でないものは、`clopts_option_set_env` が `CLOPTS_ERROR_INVALID_NAME` を返す。
 
 ### 読めない値
 

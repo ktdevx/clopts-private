@@ -41,7 +41,7 @@ struct clopts_command
     clopts_scope_t scope; /* the options and positionals of the command */
 };
 
-clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **out)
+clopts_error_t clopts_command_create(const char *name, clopts_command_t **out)
 {
     clopts_command_t *command;
 
@@ -51,20 +51,20 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
 
     if (!clopts_name_valid_command(name))
     {
-        return CLOPTS_DECL_ERROR_INVALID_NAME;
+        return CLOPTS_ERROR_INVALID_NAME;
     }
 
     command = (clopts_command_t *)clopts_mem_calloc(1, sizeof(*command));
     if (command == NULL)
     {
-        return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
     command->name = clopts_mem_strdup(name);
     if (command->name == NULL)
     {
         clopts_mem_free(command);
-        return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
     command->summary = NULL;
@@ -73,7 +73,7 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
 
     *out = command;
 
-    return CLOPTS_DECL_ERROR_NONE;
+    return CLOPTS_ERROR_NONE;
 }
 
 void clopts_command_destroy(clopts_command_t *command)
@@ -90,28 +90,28 @@ void clopts_command_destroy(clopts_command_t *command)
     clopts_mem_free(command);
 }
 
-clopts_decl_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
+clopts_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
 {
     assert(command != NULL);
-    return (clopts_mem_replace_string(&command->summary, summary) == 0) ? CLOPTS_DECL_ERROR_NONE
-                                                                         : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
+    return (clopts_mem_replace_string(&command->summary, summary) == 0) ? CLOPTS_ERROR_NONE
+                                                                         : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_decl_error_t clopts_command_set_description(clopts_command_t *command, const char *description)
+clopts_error_t clopts_command_set_description(clopts_command_t *command, const char *description)
 {
     assert(command != NULL);
-    return (clopts_mem_replace_string(&command->description, description) == 0) ? CLOPTS_DECL_ERROR_NONE
-                                                                                 : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
+    return (clopts_mem_replace_string(&command->description, description) == 0) ? CLOPTS_ERROR_NONE
+                                                                                 : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_decl_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option)
+clopts_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option)
 {
     assert(command != NULL);
     assert(option != NULL);
     return clopts_scope_add_option(&command->scope, option);
 }
 
-clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clopts_positional_t *positional)
+clopts_error_t clopts_command_add_positional(clopts_command_t *command, clopts_positional_t *positional)
 {
     assert(command != NULL);
     assert(positional != NULL);

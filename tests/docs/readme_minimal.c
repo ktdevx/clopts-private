@@ -4,21 +4,21 @@
 #include "clopts/clopts.h"
 
 /* Runs one declaration call; on an error, jumps to the cleanup of the function. */
-#define CHECK(call)                  \
-    do                               \
-    {                                \
-        e = (call);                  \
-        if (e != CLOPTS_DECL_ERROR_NONE)   \
-        {                            \
-            goto fail;               \
-        }                            \
+#define CHECK(call)                 \
+    do                              \
+    {                               \
+        e = (call);                 \
+        if (e != CLOPTS_ERROR_NONE) \
+        {                           \
+            goto fail;              \
+        }                           \
     } while (0)
 
 /* Declares: hello [-g TEXT] [-h] [--version] NAME */
-static clopts_decl_error_t declare(clopts_program_t **out, clopts_option_t **greeting,
+static clopts_error_t declare(clopts_program_t **out, clopts_option_t **greeting,
                               const clopts_option_t **version)
 {
-    clopts_decl_error_t e;
+    clopts_error_t e;
     clopts_program_t *program = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
@@ -55,7 +55,7 @@ static clopts_decl_error_t declare(clopts_program_t **out, clopts_option_t **gre
     option = NULL;
 
     *out = program;
-    return CLOPTS_DECL_ERROR_NONE;
+    return CLOPTS_ERROR_NONE;
 
 fail:
     /* Whatever is not attached is still ours; the program owns the rest. */
@@ -72,13 +72,13 @@ int main(int argc, char **argv)
     const clopts_option_t *version = NULL;
     clopts_argv_t *args;
     clopts_result_t *result;
-    clopts_decl_error_t error;
+    clopts_error_t error;
     int code = 0;
 
     error = declare(&program, &greeting, &version);
-    if (error != CLOPTS_DECL_ERROR_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
-        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_decl_error_get_message(error));
+        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_error_get_message(error));
         return 1;
     }
 

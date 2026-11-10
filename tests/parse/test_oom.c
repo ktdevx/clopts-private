@@ -394,29 +394,29 @@ typedef struct build_state
 } build_state_t;
 
 /* One builder call on a build_state_t. */
-typedef clopts_decl_error_t (*build_step_fn)(build_state_t *st);
+typedef clopts_error_t (*build_step_fn)(build_state_t *st);
 
-static clopts_decl_error_t step_create(build_state_t *st)
+static clopts_error_t step_create(build_state_t *st)
 {
     return clopts_program_create("tool", &st->program);
 }
 
-static clopts_decl_error_t step_describe(build_state_t *st)
+static clopts_error_t step_describe(build_state_t *st)
 {
     return clopts_program_set_description(st->program, st->description);
 }
 
-static clopts_decl_error_t step_add_option(build_state_t *st)
+static clopts_error_t step_add_option(build_state_t *st)
 {
     return clopts_program_add_option(st->program, st->option);
 }
 
-static clopts_decl_error_t step_add_command(build_state_t *st)
+static clopts_error_t step_add_command(build_state_t *st)
 {
     return clopts_program_add_command(st->program, st->command);
 }
 
-static clopts_decl_error_t step_add_positional(build_state_t *st)
+static clopts_error_t step_add_positional(build_state_t *st)
 {
     return clopts_program_add_positional(st->flat, st->positional);
 }
@@ -461,7 +461,7 @@ static void check_view_eq(const program_view_t *actual, const program_view_t *ex
  * Runs step once per fault point it passes, failing only that one: run n
  * makes the n-th allocation of the call fail (and the call returns at it),
  * until a run passes no failing fault point. Every failing run must return
- * CLOPTS_DECL_ERROR_OUT_OF_MEMORY, keep no block it allocated and change neither
+ * CLOPTS_ERROR_OUT_OF_MEMORY, keep no block it allocated and change neither
  * program; the caller still owns the handle and passes it again, so a
  * release of it by the failing call would show as a bad release. The last
  * run must succeed. Returns the number of failing runs.
@@ -478,7 +478,7 @@ static size_t sweep_step(build_step_fn step, build_state_t *st)
         program_view_t after[2];
         size_t base = test_alloc.calls;
         long live = test_alloc.live;
-        clopts_decl_error_t error;
+        clopts_error_t error;
 
         NAOS_NOTE("fault point %u of the call", (unsigned)n);
         view_take(&before[0], st->program);
@@ -489,12 +489,12 @@ static size_t sweep_step(build_step_fn step, build_state_t *st)
         if (test_alloc.calls - base < n)
         {
             done = true;
-            NAOS_CHECK_INT_EQ(error, CLOPTS_DECL_ERROR_NONE);
+            NAOS_CHECK_INT_EQ(error, CLOPTS_ERROR_NONE);
         }
         else
         {
             failing++;
-            NAOS_CHECK_INT_EQ(error, CLOPTS_DECL_ERROR_OUT_OF_MEMORY);
+            NAOS_CHECK_INT_EQ(error, CLOPTS_ERROR_OUT_OF_MEMORY);
             NAOS_CHECK_INT_EQ(test_alloc.live, live);
             view_take(&after[0], st->program);
             view_take(&after[1], st->flat);
@@ -557,14 +557,14 @@ NAOS_TEST(sweep_program_builder_calls)
 
         name[4] = (char)('a' + i);
         st.command = NULL;
-        NAOS_REQUIRE_INT_EQ(clopts_command_create(name, &st.command), CLOPTS_DECL_ERROR_NONE);
+        NAOS_REQUIRE_INT_EQ(clopts_command_create(name, &st.command), CLOPTS_ERROR_NONE);
         NAOS_CHECK_UINT_EQ(sweep_step(step_add_command, &st), ((i == 0) || (i == 8)) ? 1 : 0);
         NAOS_REQUIRE_UINT_EQ(clopts_program_get_command_count(st.program), i + 1);
         NAOS_CHECK_PTR_EQ(clopts_program_get_command_at(st.program, i), st.command);
         NAOS_CHECK_PTR_EQ(clopts_program_find_command(st.program, name), st.command);
     }
 
-    NAOS_REQUIRE_INT_EQ(clopts_program_create("flat", &st.flat), CLOPTS_DECL_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_program_create("flat", &st.flat), CLOPTS_ERROR_NONE);
     for (i = 0; i < BUILD_ATTACHES; i++)
     {
         char name[8] = "ARG-A";
@@ -588,7 +588,7 @@ NAOS_TEST(sweep_program_builder_calls)
  * test_decl_begin()), and every fault point from fail_at on fails.
  *
  * A failed allocation during the assembly makes that builder call return
- * CLOPTS_DECL_ERROR_OUT_OF_MEMORY and change nothing; an option or positional whose
+ * CLOPTS_ERROR_OUT_OF_MEMORY and change nothing; an option or positional whose
  * attach fails is released by the helper, and the later builder calls get
  * NULL handles. The program is built incrementally, so what is left depends
  * on where the fault point is:

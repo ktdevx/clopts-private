@@ -323,14 +323,14 @@ static void process_env_tool_init(process_env_tool_t *tool, const char *env_name
 
     tool->program = NULL;
     tool->output = NULL;
-    if (clopts_program_create("tool", &tool->program) != CLOPTS_DECL_ERROR_NONE)
+    if (clopts_program_create("tool", &tool->program) != CLOPTS_ERROR_NONE)
     {
         return;
     }
-    if ((clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_DECL_ERROR_NONE)
-        || (clopts_option_set_env(output, env_name) != CLOPTS_DECL_ERROR_NONE)
-        || (clopts_option_set_default(output, default_value) != CLOPTS_DECL_ERROR_NONE)
-        || (clopts_program_add_option(tool->program, output) != CLOPTS_DECL_ERROR_NONE))
+    if ((clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_ERROR_NONE)
+        || (clopts_option_set_env(output, env_name) != CLOPTS_ERROR_NONE)
+        || (clopts_option_set_default(output, default_value) != CLOPTS_ERROR_NONE)
+        || (clopts_program_add_option(tool->program, output) != CLOPTS_ERROR_NONE))
     {
         clopts_option_destroy(output);
         output = NULL;

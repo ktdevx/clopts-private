@@ -8,9 +8,9 @@
 
 #include <stddef.h>
 
+#include "clopts/base/error.h"
 #include "clopts/base/export.h"
 #include "clopts/decl/command.h"
-#include "clopts/decl/decl_error.h"
 #include "clopts/decl/option.h"
 #include "clopts/decl/positional.h"
 #include "clopts/decl/scope.h"
@@ -51,9 +51,9 @@ extern "C" {
  * and then added to the program:
  *
  *     clopts_option_t *verbose;
- *     if (clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_DECL_ERROR_NONE) ...
+ *     if (clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_ERROR_NONE) ...
  *     clopts_option_set_help(verbose, "Print more details");
- *     if (clopts_program_add_option(program, verbose) != CLOPTS_DECL_ERROR_NONE) {
+ *     if (clopts_program_add_option(program, verbose) != CLOPTS_ERROR_NONE) {
  *         clopts_option_destroy(verbose);  // a failed attach leaves it with the caller
  *         ...
  *     }
@@ -75,8 +75,8 @@ extern "C" {
  *     attached to them. These handles stay valid, at the same address, until
  *     clopts_program_destroy().
  *
- * Errors: every builder function that can fail returns CLOPTS_DECL_ERROR_NONE on
- * success and another clopts_decl_error_t right away on failure, leaving every
+ * Errors: every builder function that can fail returns CLOPTS_ERROR_NONE on
+ * success and another clopts_error_t right away on failure, leaving every
  * handle unchanged. clopts_positional_set_required() and
  * clopts_positional_set_variadic() cannot fail and return nothing. Nothing
  * is recorded for later: a program built only from successful calls is
@@ -116,42 +116,41 @@ typedef struct clopts_program clopts_program_t;
  * be NULL or empty, start with '-' or contain white space (INVALID_NAME).
  * out must not be NULL (contract violation, caught by assert).
  */
-CLOPTS_API clopts_decl_error_t clopts_program_create(const char *name, clopts_program_t **out);
+CLOPTS_API clopts_error_t clopts_program_create(const char *name, clopts_program_t **out);
 
 /* Releases program and everything attached to it. NULL does nothing. */
 CLOPTS_API void clopts_program_destroy(clopts_program_t *program);
 
 /* Description in the program help. */
-CLOPTS_API clopts_decl_error_t clopts_program_set_description(clopts_program_t *program, const char *description);
+CLOPTS_API clopts_error_t clopts_program_set_description(clopts_program_t *program, const char *description);
 
 /*
  * Attaches option to program as a global option. On success program owns
  * option, and option stays valid (read-only) as long as program does. On
- * failure nothing changes and the caller still owns option: DUPLICATE_OPTION
- * or NEGATION_CONFLICT (within the global options). option must not be
- * attached already (the behavior is undefined, see above).
+ * failure nothing changes and the caller still owns option: DUPLICATE or
+ * CONFLICT (the negated form of a flag), within the global options. option
+ * must not be attached already (the behavior is undefined, see above).
  */
-CLOPTS_API clopts_decl_error_t clopts_program_add_option(clopts_program_t *program, clopts_option_t *option);
+CLOPTS_API clopts_error_t clopts_program_add_option(clopts_program_t *program, clopts_option_t *option);
 
 /*
  * Attaches positional to program, after the positionals already attached.
  * Ownership and preconditions as with clopts_program_add_option().
- * MIXED_LAYOUT (program has subcommands), VARIADIC_POSITION (the last
- * attached one is variadic) or POSITIONAL_ORDER (positional is required and
- * the last attached one is optional), in that order.
+ * CONFLICT (program has subcommands), then ORDER (the last attached one is
+ * variadic, or positional is required and the last attached one is
+ * optional).
  */
-CLOPTS_API clopts_decl_error_t clopts_program_add_positional(clopts_program_t *program,
-                                                        clopts_positional_t *positional);
+CLOPTS_API clopts_error_t clopts_program_add_positional(clopts_program_t *program, clopts_positional_t *positional);
 
 /*
  * Adds command to program as a subcommand, after the subcommands already
  * added. On success program owns command, and command stays valid
  * (read-only) as long as program does. On failure nothing changes and the
- * caller still owns command: DUPLICATE_COMMAND (a subcommand of the same
- * name) or MIXED_LAYOUT (program has positionals), in that order. command
+ * caller still owns command: DUPLICATE (a subcommand of the same name) or
+ * CONFLICT (program has positionals), in that order. command
  * must not be added already (the behavior is undefined, see above).
  */
-CLOPTS_API clopts_decl_error_t clopts_program_add_command(clopts_program_t *program, clopts_command_t *command);
+CLOPTS_API clopts_error_t clopts_program_add_command(clopts_program_t *program, clopts_command_t *command);
 
 /* ---- read functions: a NULL program is a contract violation (assert) ---- */
 

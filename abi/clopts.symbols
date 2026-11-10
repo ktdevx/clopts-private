@@ -30,6 +30,9 @@
 # clopts/base/mem.h
 clopts_set_allocator
 
+# clopts/base/error.h
+clopts_error_get_message
+
 # clopts/decl/program.h
 clopts_program_create
 clopts_program_destroy
@@ -98,9 +101,6 @@ clopts_positional_get_name
 clopts_positional_get_help
 clopts_positional_is_required
 clopts_positional_is_variadic
-
-# clopts/decl/decl_error.h
-clopts_decl_error_get_message
 
 # clopts/parse/parse.h
 clopts_parse

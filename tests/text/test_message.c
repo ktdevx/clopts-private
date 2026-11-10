@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite message: the version line and the usage hint, the texts of every
- * usage error kind, the out-of-memory line, the prefixes, the texts of clopts_decl_error_get_message() and the
+ * usage error kind, the out-of-memory line, the prefixes, the texts of clopts_error_get_message() and the
  * coverage of the text tables.
  *
  * The usage errors are caused by parsing real argv against the fictional
@@ -300,7 +300,7 @@ NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
     message_run_t run;
 
     target = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 't');
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_DECL_ERROR_NONE);
+    NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_ERROR_NONE);
     target = test_decl_global_attach(program, target);
     program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(program);
@@ -333,7 +333,7 @@ NAOS_TEST(invalid_env_value_names_the_variable)
     text_recorder_t rec;
 
     format = test_decl_option(CLOPTS_OPTION_VALUE, "format", '\0');
-    NAOS_CHECK_INT_EQ(clopts_option_set_env(format, "TOOL_FORMAT"), CLOPTS_DECL_ERROR_NONE);
+    NAOS_CHECK_INT_EQ(clopts_option_set_env(format, "TOOL_FORMAT"), CLOPTS_ERROR_NONE);
     format = test_decl_global_attach(program, format);
     program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(program);
@@ -729,39 +729,29 @@ NAOS_TEST(usage_hint_with_command)
 
 /* Largest value of each kind enum; a new kind must raise them (12.2). */
 #define MESSAGE_USAGE_KIND_MAX 8
-#define MESSAGE_DECL_KIND_MAX 17
+#define MESSAGE_DECL_KIND_MAX 7
 
-NAOS_TEST(decl_error_message_of_every_kind)
+NAOS_TEST(error_message_of_every_kind)
 {
     static const struct
     {
-        clopts_decl_error_t kind;
+        clopts_error_t kind;
         const char *text;
     } cases[] = {
-        { CLOPTS_DECL_ERROR_INVALID_NAME, "invalid name" },
-        { CLOPTS_DECL_ERROR_NO_NAME, "option has neither a long nor a short name" },
-        { CLOPTS_DECL_ERROR_DUPLICATE_COMMAND, "duplicate command name" },
-        { CLOPTS_DECL_ERROR_DUPLICATE_OPTION, "duplicate option name" },
-        { CLOPTS_DECL_ERROR_NOT_NEGATABLE, "only a flag can be negatable" },
-        { CLOPTS_DECL_ERROR_NEGATION_CONFLICT, "conflicts with the negated form of a flag" },
-        { CLOPTS_DECL_ERROR_DEFAULT_NOT_ALLOWED, "a flag or count cannot have a default value" },
-        { CLOPTS_DECL_ERROR_ENV_NOT_ALLOWED, "a flag or count cannot have an environment variable" },
-        { CLOPTS_DECL_ERROR_REQUIRED_WITH_DEFAULT, "a required option cannot have a default value" },
-        { CLOPTS_DECL_ERROR_REQUIRED_NOT_ALLOWED, "a flag or count cannot be required" },
-        { CLOPTS_DECL_ERROR_POSITIONAL_ORDER, "a required argument cannot follow an optional one" },
-        { CLOPTS_DECL_ERROR_VARIADIC_POSITION, "only the last argument can be variadic" },
-        { CLOPTS_DECL_ERROR_ATTRIBUTE_KIND, "attribute does not apply to this kind of option" },
-        { CLOPTS_DECL_ERROR_MIXED_LAYOUT, "a program cannot have both arguments and subcommands" },
-        { CLOPTS_DECL_ERROR_INVALID_KIND, "invalid option kind" },
-        { CLOPTS_DECL_ERROR_INVALID_ARGUMENT, "invalid argument" },
-        { CLOPTS_DECL_ERROR_OUT_OF_MEMORY, "out of memory" },
+        { CLOPTS_ERROR_INVALID_ARGUMENT, "invalid argument" },
+        { CLOPTS_ERROR_INVALID_NAME, "invalid name" },
+        { CLOPTS_ERROR_DUPLICATE, "duplicate name" },
+        { CLOPTS_ERROR_NOT_APPLICABLE, "does not apply to this kind" },
+        { CLOPTS_ERROR_CONFLICT, "conflicts with another setting" },
+        { CLOPTS_ERROR_ORDER, "out of order" },
+        { CLOPTS_ERROR_OUT_OF_MEMORY, "out of memory" },
     };
     size_t i;
 
     NAOS_CHECK_UINT_EQ(sizeof(cases) / sizeof(cases[0]), MESSAGE_DECL_KIND_MAX);
     for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
-        const char *text = clopts_decl_error_get_message(cases[i].kind);
+        const char *text = clopts_error_get_message(cases[i].kind);
 
         NAOS_TRACE_PUSH("kind %d", (int)cases[i].kind);
         NAOS_REQUIRE_NOT_NULL(text);
@@ -770,7 +760,7 @@ NAOS_TEST(decl_error_message_of_every_kind)
     }
 }
 
-NAOS_TEST(decl_error_message_of_a_builder_error)
+NAOS_TEST(error_message_of_a_builder_error)
 {
     /* The kind returned by a failed builder call has its text. */
     clopts_program_t *program = test_decl_begin("tool");
@@ -782,23 +772,22 @@ NAOS_TEST(decl_error_message_of_a_builder_error)
     NAOS_REQUIRE_NOT_NULL(first);
     second = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "out", '\0');
     NAOS_CHECK_NULL(second);
-    NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
-    NAOS_CHECK_STR_EQ(clopts_decl_error_get_message(test_decl_last), "duplicate option name");
+    NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_ERROR_DUPLICATE);
+    NAOS_CHECK_STR_EQ(clopts_error_get_message(test_decl_last), "duplicate name");
     test_decl_discard(program);
 }
 
-NAOS_TEST(decl_error_message_of_a_mixed_layout)
+NAOS_TEST(error_message_of_a_conflict)
 {
-    /* A subcommand added to a program with positionals is refused with the layout text. */
+    /* A subcommand added to a program with positionals is refused as a conflict. */
     clopts_program_t *program = test_decl_begin("tool");
     clopts_command_t *command = NULL;
 
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "FILE"));
-    NAOS_REQUIRE_INT_EQ(clopts_command_create("run", &command), CLOPTS_DECL_ERROR_NONE);
-    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_DECL_ERROR_MIXED_LAYOUT);
-    NAOS_CHECK_STR_EQ(clopts_decl_error_get_message(CLOPTS_DECL_ERROR_MIXED_LAYOUT),
-                      "a program cannot have both arguments and subcommands");
+    NAOS_REQUIRE_INT_EQ(clopts_command_create("run", &command), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_ERROR_CONFLICT);
+    NAOS_CHECK_STR_EQ(clopts_error_get_message(CLOPTS_ERROR_CONFLICT), "conflicts with another setting");
     /* The failed call left the command with the caller. */
     clopts_command_destroy(command);
     test_decl_discard(program);
@@ -826,17 +815,17 @@ NAOS_TEST(usage_text_covers_every_kind)
     }
 }
 
-NAOS_TEST(decl_error_message_covers_every_kind)
+NAOS_TEST(error_message_covers_every_kind)
 {
     const char *texts[MESSAGE_DECL_KIND_MAX + 1];
     int i;
     int j;
 
-    NAOS_CHECK_NULL(clopts_decl_error_get_message(CLOPTS_DECL_ERROR_NONE));
-    NAOS_CHECK_NULL(clopts_decl_error_get_message((clopts_decl_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
+    NAOS_CHECK_NULL(clopts_error_get_message(CLOPTS_ERROR_NONE));
+    NAOS_CHECK_NULL(clopts_error_get_message((clopts_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
     for (i = 1; i <= MESSAGE_DECL_KIND_MAX; i++)
     {
-        texts[i] = clopts_decl_error_get_message((clopts_decl_error_t)i);
+        texts[i] = clopts_error_get_message((clopts_error_t)i);
         NAOS_REQUIRE_NOT_NULL(texts[i]);
         NAOS_CHECK_TRUE(texts[i][0] != '\0');
         for (j = 1; j < i; j++)
@@ -939,11 +928,11 @@ NAOS_SUITE(message,
     NAOS_ADD_TEST(version_line_unavailable_without_version),
     NAOS_ADD_TEST(usage_hint_without_command),
     NAOS_ADD_TEST(usage_hint_with_command),
-    NAOS_ADD_TEST(decl_error_message_of_every_kind),
-    NAOS_ADD_TEST(decl_error_message_of_a_builder_error),
-    NAOS_ADD_TEST(decl_error_message_of_a_mixed_layout),
+    NAOS_ADD_TEST(error_message_of_every_kind),
+    NAOS_ADD_TEST(error_message_of_a_builder_error),
+    NAOS_ADD_TEST(error_message_of_a_conflict),
     NAOS_ADD_TEST(usage_text_covers_every_kind),
-    NAOS_ADD_TEST(decl_error_message_covers_every_kind),
+    NAOS_ADD_TEST(error_message_covers_every_kind),
     NAOS_ADD_TEST(failer_fails_on_the_nth_call_and_counts_later_calls),
     NAOS_ADD_TEST(failer_fails_on_the_first_call),
     NAOS_ADD_TEST(failer_with_zero_never_fails)

@@ -11,19 +11,19 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-clopts_decl_error_t test_decl_last = CLOPTS_DECL_ERROR_NONE;
+clopts_error_t test_decl_last = CLOPTS_ERROR_NONE;
 unsigned test_decl_failures = 0;
 
 void test_decl_reset(void)
 {
-    test_decl_last = CLOPTS_DECL_ERROR_NONE;
+    test_decl_last = CLOPTS_ERROR_NONE;
     test_decl_failures = 0;
 }
 
-clopts_decl_error_t test_decl_check(clopts_decl_error_t error)
+clopts_error_t test_decl_check(clopts_error_t error)
 {
     test_decl_last = error;
-    if (error != CLOPTS_DECL_ERROR_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
         test_decl_failures++;
     }
@@ -181,7 +181,7 @@ clopts_program_t *test_decl_finish(clopts_program_t *program)
     }
     for (i = 0; i < draft->count; i++)
     {
-        if (test_decl_check(clopts_program_add_command(program, draft->commands[i])) != CLOPTS_DECL_ERROR_NONE)
+        if (test_decl_check(clopts_program_add_command(program, draft->commands[i])) != CLOPTS_ERROR_NONE)
         {
             /* The commands before i belong to program now. */
             test_decl_release_from(draft, i);
@@ -215,9 +215,9 @@ clopts_positional_t *test_decl_positional(const char *name)
 }
 
 /* Keeps option when error is NONE; otherwise releases it. Returns what is kept. */
-static clopts_option_t *test_decl_keep_option(clopts_decl_error_t error, clopts_option_t *option)
+static clopts_option_t *test_decl_keep_option(clopts_error_t error, clopts_option_t *option)
 {
-    if (test_decl_check(error) != CLOPTS_DECL_ERROR_NONE)
+    if (test_decl_check(error) != CLOPTS_ERROR_NONE)
     {
         clopts_option_destroy(option);
         return NULL;
@@ -226,9 +226,9 @@ static clopts_option_t *test_decl_keep_option(clopts_decl_error_t error, clopts_
 }
 
 /* Keeps positional when error is NONE; otherwise releases it. Returns what is kept. */
-static clopts_positional_t *test_decl_keep_positional(clopts_decl_error_t error, clopts_positional_t *positional)
+static clopts_positional_t *test_decl_keep_positional(clopts_error_t error, clopts_positional_t *positional)
 {
-    if (test_decl_check(error) != CLOPTS_DECL_ERROR_NONE)
+    if (test_decl_check(error) != CLOPTS_ERROR_NONE)
     {
         clopts_positional_destroy(positional);
         return NULL;
@@ -308,8 +308,8 @@ static clopts_option_t *test_decl_terminal(const char *l, char s, const char *he
     {
         return NULL;
     }
-    if ((test_decl_check(clopts_option_set_terminal(option, true)) != CLOPTS_DECL_ERROR_NONE)
-        || (test_decl_check(clopts_option_set_help(option, help)) != CLOPTS_DECL_ERROR_NONE))
+    if ((test_decl_check(clopts_option_set_terminal(option, true)) != CLOPTS_ERROR_NONE)
+        || (test_decl_check(clopts_option_set_help(option, help)) != CLOPTS_ERROR_NONE))
     {
         clopts_option_destroy(option);
         return NULL;

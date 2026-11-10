@@ -83,25 +83,25 @@ static int run(const clopts_result_t *result, const struct textcount_options *op
 }
 
 /* Runs one declaration call; on an error, jumps to the cleanup of the function. */
-#define CHECK(call)                  \
-    do                               \
-    {                                \
-        e = (call);                  \
-        if (e != CLOPTS_DECL_ERROR_NONE)   \
-        {                            \
-            goto fail;               \
-        }                            \
+#define CHECK(call)                 \
+    do                              \
+    {                               \
+        e = (call);                 \
+        if (e != CLOPTS_ERROR_NONE) \
+        {                           \
+            goto fail;              \
+        }                           \
     } while (0)
 
 /*
  * Creates the terminal FLAG named long_name / short_name with help into
- * *out. Returns the declaration error, or CLOPTS_DECL_ERROR_NONE; on an error *out
+ * *out. Returns the declaration error, or CLOPTS_ERROR_NONE; on an error *out
  * is NULL and nothing is left to release.
  */
-static clopts_decl_error_t create_terminal(const char *long_name, char short_name, const char *help,
+static clopts_error_t create_terminal(const char *long_name, char short_name, const char *help,
                                       clopts_option_t **out)
 {
-    clopts_decl_error_t e;
+    clopts_error_t e;
     clopts_option_t *option = NULL;
 
     *out = NULL;
@@ -109,7 +109,7 @@ static clopts_decl_error_t create_terminal(const char *long_name, char short_nam
     CHECK(clopts_option_set_terminal(option, true));
     CHECK(clopts_option_set_help(option, help));
     *out = option;
-    return CLOPTS_DECL_ERROR_NONE;
+    return CLOPTS_ERROR_NONE;
 
 fail:
     clopts_option_destroy(option);
@@ -119,11 +119,11 @@ fail:
 /*
  * Declares the program into *out: the program, then its options and
  * positionals. Returns the declaration error that stopped it, or
- * CLOPTS_DECL_ERROR_NONE.
+ * CLOPTS_ERROR_NONE.
  */
-static clopts_decl_error_t declare(clopts_program_t **out, struct textcount_options *opts)
+static clopts_error_t declare(clopts_program_t **out, struct textcount_options *opts)
 {
-    clopts_decl_error_t e;
+    clopts_error_t e;
     clopts_program_t *program = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *positional = NULL;
@@ -184,7 +184,7 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct textcount_opti
     positional = NULL; /* now owned by the program */
 
     *out = program;
-    return CLOPTS_DECL_ERROR_NONE;
+    return CLOPTS_ERROR_NONE;
 
 fail:
     /* Whatever is not attached is still ours; the program owns the rest. */
@@ -234,13 +234,13 @@ int main(int argc, char **argv)
     clopts_program_t *program = NULL;
     clopts_argv_t *args;
     clopts_result_t *result;
-    clopts_decl_error_t error;
+    clopts_error_t error;
     int code;
 
     error = declare(&program, &opts);
-    if (error != CLOPTS_DECL_ERROR_NONE)
+    if (error != CLOPTS_ERROR_NONE)
     {
-        fprintf(stderr, "textcount: error: invalid declaration: %s\n", clopts_decl_error_get_message(error));
+        fprintf(stderr, "textcount: error: invalid declaration: %s\n", clopts_error_get_message(error));
         return 1;
     }
 

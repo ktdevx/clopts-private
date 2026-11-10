@@ -8,8 +8,8 @@
 
 | モジュール | ディレクトリ | 役割 |
 |------------|--------------|------|
-| base | `src/base/` | ドメインを知らない部品。メモリ（使うアロケーターと、その差し替え `clopts/base/mem.h`、確保の窓口。ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`） |
-| decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則（`name.c`）と 1 つの範囲の中での比べ方（`scope.c`）、書かれた名前がどのオプションを指すか（`lookup.c`）、宣言エラーの説明。公開ヘッダは `clopts/decl/` |
+| base | `src/base/` | ドメインを知らない部品。メモリ（使うアロケーターと、その差し替え `clopts/base/mem.h`、確保の窓口。ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`）、エラーの種類とその説明（`error.c`、`clopts/base/error.h`。ビルダー関数が返す） |
+| decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則（`name.c`）と 1 つの範囲の中での比べ方（`scope.c`）、書かれた名前がどのオプションを指すか（`lookup.c`）。公開ヘッダは `clopts/decl/` |
 | parse | `src/parse/` | 解析の入口と手順（`parse.c`）、argv の要素の読み取り（`token.c`）、走査（`scan.c`）、環境変数と既定値の解決（`resolve.c`）、必須の検査（`require.c`）、途中の記録（`matches.c`、`slot.c`）、使い方エラー（`usage_error.c`）、結果（`result.c`）。公開ヘッダは `clopts/parse/` |
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）を書き込みのコールバックへ出す。公開の入口（`write.c`、`clopts/text/write.h`）、ヘルプと Usage 行（`help.c`）、1 行の文面（`message.c`）、書き込みと計測の 2 つのモードを持つ出力先（`out.c`） |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
@@ -78,9 +78,9 @@ classDiagram
 
 - Program はプログラム自身の範囲である。名前（プログラムの名前）・説明・グローバルオプション・サブコマンドのないプログラムの位置引数を直接持つ。
 - Command はサブコマンドだけを表す。
-- Scope（`src/decl/scope.c`、`clopts_scope_t`）は、オプションと位置引数の配列と、それに関わる検査（名前の重なり、否定形との衝突、位置引数の順序）と、1 つの範囲の中での名前の比べ方をまとめる。Program と Command はこれを構造体に埋め込み、`clopts_program_get_scope()` / `clopts_command_get_scope()` で読み取り専用で渡す。公開するのは読み取り（`clopts/decl/scope.h`）だけで、オプションと位置引数を足す関数は持ち主に残す。足すときの規則は持ち主ごとに違う（`MIXED_LAYOUT`）からである。
+- Scope（`src/decl/scope.c`、`clopts_scope_t`）は、オプションと位置引数の配列と、それに関わる検査（名前の重なり、否定形との衝突、位置引数の順序）と、1 つの範囲の中での名前の比べ方をまとめる。Program と Command はこれを構造体に埋め込み、`clopts_program_get_scope()` / `clopts_command_get_scope()` で読み取り専用で渡す。公開するのは読み取り（`clopts/decl/scope.h`）だけで、オプションと位置引数を足す関数は持ち主に残す。足すときの規則は持ち主ごとに違う（プログラムは、サブコマンドがあると位置引数を持てない）からである。
 - 関係はすべてコンポジション（所有）である。子は親を指さない。オプションと位置引数は自分を渡したプログラムやコマンドを、コマンドは自分を渡したプログラムを知らない。
-- Program が位置引数を持つなら、サブコマンドは持てない（`CLOPTS_DECL_ERROR_MIXED_LAYOUT`）。この排他は型ではなく検査で守る（「[設計の判断](#設計の判断)」）。
+- Program が位置引数を持つなら、サブコマンドは持てない（`CLOPTS_ERROR_CONFLICT`）。この排他は型ではなく検査で守る（「[設計の判断](#設計の判断)」）。
 
 ### 構造体の置き場所
 
@@ -113,7 +113,7 @@ text は公開 API だけを読む。プログラム自身の範囲とサブコ�
 | オプション・位置引数だけで決まるもの（種類、名前の形、属性の組み合わせ） | 作る関数と属性の関数（`option.c`、`positional.c`） |
 | 同じ範囲のほかのオプション・位置引数との関係（名前の重なり、否定形との衝突、位置引数の順序） | Scope の共通処理（`scope.c`）。`clopts_program_add_option/positional` と `clopts_command_add_option/positional` から使う |
 | サブコマンドの名前の重なり | `clopts_program_add_command` |
-| `MIXED_LAYOUT` | `clopts_program_add_command`（位置引数が既にあるとき、名前の重なりの後）と `clopts_program_add_positional`（サブコマンドが既にあるとき、Scope の検査の前） |
+| 位置引数とサブコマンドの排他 | `clopts_program_add_command`（位置引数が既にあるとき、名前の重なりの後）と `clopts_program_add_positional`（サブコマンドが既にあるとき、Scope の検査の前） |
 
 名前の規則（名前の形）は `src/decl/name.c` に、1 つの範囲の中での名前の比べ方（バイト単位の完全一致、`--no-<name>`、短い名前）は `src/decl/scope.c` にまとめてある。ビルダーの検査も、解析の検索（`src/decl/lookup.c`）も、ヘルプがグローバルオプションを隠すかの判定（`clopts_scope_shadows_option`）も、名前はここで比べる。
 
@@ -158,6 +158,6 @@ text は公開 API だけを読む。プログラム自身の範囲とサブコ�
 
 ### 採らなかった案
 
-- **Composite（Command が子コマンドを持つ木）にして Program を消す。** 入れ子のサブコマンドにもそのまま対応できるが、仕様は深さ 1 が前提である（検索の順、ヘルプ、`MIXED_LAYOUT`）。また、凍結とスレッド安全の境界を Program が担っているので、消すと失うものが多い。
+- **Composite（Command が子コマンドを持つ木）にして Program を消す。** 入れ子のサブコマンドにもそのまま対応できるが、仕様は深さ 1 が前提である（検索の順、ヘルプ、位置引数とサブコマンドの排他）。また、凍結とスレッド安全の境界を Program が担っているので、消すと失うものが多い。
 - **公開 API は変えず、内部だけ Scope で整える。** (program, command) の組を渡す煩雑さは減るが、root が Command であることの歪みは残る。移行の途中段階として実際に通った。
-- **レイアウト（単一コマンドかディスパッチか）を型で分ける。** `MIXED_LAYOUT` を型で表せるが、C ではハンドル型と関数が倍近くに増える。検査のままにした。
+- **レイアウト（単一コマンドかディスパッチか）を型で分ける。** 位置引数とサブコマンドの排他を型で表せるが、C ではハンドル型と関数が倍近くに増える。検査のままにした。
