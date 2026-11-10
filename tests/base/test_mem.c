@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite alloc: the allocation gateway (clopts_mem_alloc / malloc_array /
+ * Suite mem: the allocation gateway (clopts_mem_alloc / malloc_array /
  * calloc / realloc / strdup / strndup / free), clopts_mem_replace_string()
  * and clopts_set_allocator().
  *
@@ -18,7 +18,6 @@
 #include "base/vec.h"
 #include "test_alloc.h"
 
-#include <clopts/base/allocator.h>
 #include <naos/naos.h>
 
 #include <stdint.h>
@@ -418,7 +417,7 @@ NAOS_TEST(vec_push_failure_keeps_the_elements)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-NAOS_SUITE(alloc,
+NAOS_SUITE(mem,
     NAOS_ADD_TEST(standard_functions_allocate_and_free),
     NAOS_ADD_TEST(set_allocator_routes_every_function),
     NAOS_ADD_TEST(set_allocator_copies_the_struct),

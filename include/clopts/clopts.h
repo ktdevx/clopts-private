@@ -6,7 +6,7 @@
 #ifndef CLOPTS_CLOPTS_H
 #define CLOPTS_CLOPTS_H
 
-#include "clopts/base/allocator.h"
+#include "clopts/base/mem.h"
 #include "clopts/base/export.h"
 #include "clopts/decl/program.h"
 #include "clopts/parse/parse.h"

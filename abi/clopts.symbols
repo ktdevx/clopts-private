@@ -27,7 +27,7 @@
 # list or by no longer exporting the symbol. See docs/dev/abi-checks.md for
 # the full procedure.
 
-# clopts/base/allocator.h
+# clopts/base/mem.h
 clopts_set_allocator
 
 # clopts/decl/program.h

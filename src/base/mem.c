@@ -2,21 +2,71 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Allocation gateway: the only place of the library that calls the
- * functions of the allocator in use (allocator.c).
+ * Memory of the library: the allocator in use (clopts_set_allocator,
+ * include/clopts/base/mem.h) and the allocation gateway, the only place of
+ * the library that calls its functions.
  */
 
 #include "base/mem.h"
 
-#include "base/allocator.h"
 #include "base/size.h"
 
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
+
+/*
+ * The standard functions, wrapped: the address of a CRT function imported
+ * from a DLL is not an address constant (MSVC C4232), so the static
+ * initializer below uses these instead.
+ */
+static void *std_malloc(size_t size)
+{
+    return malloc(size);
+}
+
+static void *std_calloc(size_t count, size_t size)
+{
+    return calloc(count, size);
+}
+
+static void *std_realloc(void *ptr, size_t size)
+{
+    return realloc(ptr, size);
+}
+
+static void std_free(void *ptr)
+{
+    free(ptr);
+}
+
+static const clopts_allocator_t std_allocator = {
+    std_malloc, std_calloc, std_realloc, std_free
+};
+
+/* The allocator in use. Starts as the standard functions. */
+static clopts_allocator_t current = {
+    std_malloc, std_calloc, std_realloc, std_free
+};
+
+void clopts_set_allocator(const clopts_allocator_t *allocator)
+{
+    if (allocator == NULL)
+    {
+        current = std_allocator;
+        return;
+    }
+
+    assert(allocator->malloc_fn != NULL);
+    assert(allocator->calloc_fn != NULL);
+    assert(allocator->realloc_fn != NULL);
+    assert(allocator->free_fn != NULL);
+    current = *allocator;
+}
 
 void *clopts_mem_alloc(size_t size)
 {
-    return clopts_allocator_get()->malloc_fn((size == 0) ? 1 : size);
+    return current.malloc_fn((size == 0) ? 1 : size);
 }
 
 void *clopts_mem_alloc_array(size_t count, size_t size)
@@ -40,9 +90,9 @@ void *clopts_mem_calloc(size_t count, size_t size)
     }
     if (bytes == 0)
     {
-        return clopts_allocator_get()->calloc_fn(1, 1);
+        return current.calloc_fn(1, 1);
     }
-    return clopts_allocator_get()->calloc_fn(count, size);
+    return current.calloc_fn(count, size);
 }
 
 void *clopts_mem_realloc(void *ptr, size_t size)
@@ -51,7 +101,7 @@ void *clopts_mem_realloc(void *ptr, size_t size)
     {
         return clopts_mem_alloc(size);
     }
-    return clopts_allocator_get()->realloc_fn(ptr, (size == 0) ? 1 : size);
+    return current.realloc_fn(ptr, (size == 0) ? 1 : size);
 }
 
 char *clopts_mem_strdup(const char *s)
@@ -107,6 +157,6 @@ void clopts_mem_free(void *ptr)
 {
     if (ptr != NULL)
     {
-        clopts_allocator_get()->free_fn(ptr);
+        current.free_fn(ptr);
     }
 }

@@ -6,14 +6,16 @@
 #ifndef CLOPTS_SRC_BASE_MEM_H
 #define CLOPTS_SRC_BASE_MEM_H
 
+#include "clopts/base/mem.h"
+
 #include <stddef.h>
 
 /*
  * Allocation gateway.
  *
  * Every allocation and release of the library goes through these functions,
- * which call the allocator in use (base/allocator.h). A size of 0 is
- * allocated as 1 byte, so NULL always means failure. Products and sums are
+ * which call the allocator in use (clopts_set_allocator, mem.c). A size of
+ * 0 is allocated as 1 byte, so NULL always means failure. Products and sums are
  * checked with clopts_size_mul / clopts_size_add; on overflow nothing is
  * allocated and NULL is returned.
  */
