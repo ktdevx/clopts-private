@@ -8,7 +8,9 @@
 #   - Blank lines and lines starting with "#" (after optional whitespace) are
 #     ignored.
 #   - Order is free; by convention names are grouped per public header under a
-#     "# clopts/<header>.h" comment, in the header's declaration order.
+#     "# clopts/<module>/<header>.h" comment, in the header's declaration
+#     order, and the groups follow the modules (base, decl, parse, process,
+#     text).
 #   - Only CLOPTS_API functions are listed; static inline functions in the
 #     public headers (e.g. clopts_file_write) are not exported and are not
 #     listed.
@@ -25,19 +27,24 @@
 # list or by no longer exporting the symbol. See docs/dev/abi-checks.md for
 # the full procedure.
 
-# clopts/alloc.h
+# clopts/base/mem.h
 clopts_set_allocator
 
-# clopts/argv.h
-clopts_argv_create
-clopts_argv_create_from_wide windows
-clopts_argv_get_status
-clopts_argv_get_count
-clopts_argv_get_values
-clopts_argv_get_error_index
-clopts_argv_destroy
+# clopts/decl/program.h
+clopts_program_create
+clopts_program_destroy
+clopts_program_set_description
+clopts_program_add_option
+clopts_program_add_positional
+clopts_program_add_command
+clopts_program_get_name
+clopts_program_get_description
+clopts_program_get_scope
+clopts_program_get_command_count
+clopts_program_get_command_at
+clopts_program_find_command
 
-# clopts/command.h
+# clopts/decl/command.h
 clopts_command_create
 clopts_command_destroy
 clopts_command_set_summary
@@ -47,15 +54,16 @@ clopts_command_add_positional
 clopts_command_get_name
 clopts_command_get_summary
 clopts_command_get_description
-clopts_command_get_option_count
-clopts_command_get_option_at
-clopts_command_get_positional_count
-clopts_command_get_positional_at
+clopts_command_get_scope
 
-# clopts/decl_error.h
-clopts_decl_error_get_message
+# clopts/decl/scope.h
+clopts_scope_get_option_count
+clopts_scope_get_option_at
+clopts_scope_get_positional_count
+clopts_scope_get_positional_at
+clopts_scope_shadows_option
 
-# clopts/option.h
+# clopts/decl/option.h
 clopts_option_create
 clopts_option_destroy
 clopts_option_set_help
@@ -80,31 +88,7 @@ clopts_option_is_required
 clopts_option_is_negatable
 clopts_option_is_terminal
 
-# clopts/parse.h
-clopts_parse
-clopts_parse_with_env
-clopts_result_get_status
-clopts_result_get_command
-clopts_result_get_terminal_option
-clopts_result_get_usage_error
-clopts_result_get_error_command
-clopts_result_get_error_option
-clopts_result_get_error_positional
-clopts_result_get_error_token
-clopts_result_get_error_argv_index
-clopts_result_get_error_name_len
-clopts_result_get_error_short_name
-clopts_result_get_flag
-clopts_result_get_count
-clopts_result_get_value
-clopts_result_get_list_count
-clopts_result_get_list_at
-clopts_result_get_source
-clopts_result_get_positional_count
-clopts_result_get_positional_at
-clopts_result_destroy
-
-# clopts/positional.h
+# clopts/decl/positional.h
 clopts_positional_create
 clopts_positional_destroy
 clopts_positional_set_help
@@ -115,24 +99,47 @@ clopts_positional_get_help
 clopts_positional_is_required
 clopts_positional_is_variadic
 
-# clopts/program.h
-clopts_program_create
-clopts_program_destroy
-clopts_program_set_description
-clopts_program_add_option
-clopts_program_add_positional
-clopts_program_add_command
-clopts_program_get_name
-clopts_program_get_description
-clopts_program_get_option_count
-clopts_program_get_option_at
-clopts_program_get_positional_count
-clopts_program_get_positional_at
-clopts_program_get_command_count
-clopts_program_get_command_at
-clopts_program_find_command
+# clopts/decl/decl_error.h
+clopts_decl_error_get_message
 
-# clopts/text.h
+# clopts/parse/parse.h
+clopts_parse
+clopts_parse_with_env
+
+# clopts/parse/result.h
+clopts_result_get_status
+clopts_result_get_command
+clopts_result_get_terminal_option
+clopts_result_get_usage_error
+clopts_result_get_flag
+clopts_result_get_count
+clopts_result_get_value
+clopts_result_get_list_count
+clopts_result_get_list_at
+clopts_result_get_source
+clopts_result_get_positional_count
+clopts_result_get_positional_at
+clopts_result_destroy
+
+# clopts/parse/usage_error.h
+clopts_usage_error_get_kind
+clopts_usage_error_get_option
+clopts_usage_error_get_positional
+clopts_usage_error_get_token
+clopts_usage_error_get_argv_index
+clopts_usage_error_get_name_len
+clopts_usage_error_get_short_name
+
+# clopts/process/argv.h
+clopts_argv_create
+clopts_argv_create_from_wide windows
+clopts_argv_get_status
+clopts_argv_get_count
+clopts_argv_get_values
+clopts_argv_get_error_index
+clopts_argv_destroy
+
+# clopts/text/write.h
 clopts_write_help
 clopts_write_usage
 clopts_write_version

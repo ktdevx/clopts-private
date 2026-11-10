@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * TextOut: output sink in write or measure mode, and the UTF-8 display width.
+ * Output: write mode and measure mode.
  *
  * Write mode passes the bytes to the callback and stops calling it after the
  * first failure. Measure mode writes nothing and
@@ -10,18 +10,20 @@
  * can first measure a row and then write it.
  */
 
-#include "text/text_internal.h"
+#include "text/out.h"
+
+#include "base/utf8.h"
 
 #include <assert.h>
 #include <string.h>
 
-/* Spaces written per callback call by clopts_text_out_spaces. */
-#define TEXT_OUT_SPACES_CHUNK 32
+/* Spaces written per callback call by clopts_out_spaces. */
+#define OUT_SPACES_CHUNK 32
 
-static const char text_out_spaces_buf[TEXT_OUT_SPACES_CHUNK + 1] =
+static const char spaces[OUT_SPACES_CHUNK + 1] =
     "                                ";
 
-void clopts_text_out_init(clopts_text_out_t *out, clopts_write_fn fn, void *ctx)
+void clopts_out_init(clopts_out_t *out, clopts_write_fn fn, void *ctx)
 {
     assert(out != NULL);
 
@@ -31,7 +33,7 @@ void clopts_text_out_init(clopts_text_out_t *out, clopts_write_fn fn, void *ctx)
     out->width = 0;
 }
 
-void clopts_text_out_bytes(clopts_text_out_t *out, const char *data, size_t len)
+void clopts_out_bytes(clopts_out_t *out, const char *data, size_t len)
 {
     assert(out != NULL);
     assert((len == 0) || (data != NULL));
@@ -42,7 +44,7 @@ void clopts_text_out_bytes(clopts_text_out_t *out, const char *data, size_t len)
     }
     if (out->fn == NULL)
     {
-        out->width += clopts_text_width(data, len);
+        out->width += clopts_utf8_count(data, len);
         return;
     }
     if (out->failed)
@@ -55,120 +57,32 @@ void clopts_text_out_bytes(clopts_text_out_t *out, const char *data, size_t len)
     }
 }
 
-void clopts_text_out_str(clopts_text_out_t *out, const char *s)
+void clopts_out_str(clopts_out_t *out, const char *s)
 {
     assert(s != NULL);
 
-    clopts_text_out_bytes(out, s, strlen(s));
+    clopts_out_bytes(out, s, strlen(s));
 }
 
-void clopts_text_out_char(clopts_text_out_t *out, char c)
+void clopts_out_char(clopts_out_t *out, char c)
 {
-    clopts_text_out_bytes(out, &c, 1);
+    clopts_out_bytes(out, &c, 1);
 }
 
-void clopts_text_out_spaces(clopts_text_out_t *out, size_t count)
+void clopts_out_spaces(clopts_out_t *out, size_t count)
 {
     while (count > 0)
     {
-        size_t chunk = (count < TEXT_OUT_SPACES_CHUNK) ? count : TEXT_OUT_SPACES_CHUNK;
+        size_t chunk = (count < OUT_SPACES_CHUNK) ? count : OUT_SPACES_CHUNK;
 
-        clopts_text_out_bytes(out, text_out_spaces_buf, chunk);
+        clopts_out_bytes(out, spaces, chunk);
         count -= chunk;
     }
 }
 
-clopts_write_status_t clopts_text_out_status(const clopts_text_out_t *out)
+clopts_write_status_t clopts_out_status(const clopts_out_t *out)
 {
     assert(out != NULL);
 
     return out->failed ? CLOPTS_WRITE_FAILED : CLOPTS_WRITE_OK;
-}
-
-/*
- * Length of the valid UTF-8 sequence starting at p (at most avail bytes), or
- * 0 when no valid sequence starts there. The ranges of the second byte rule
- * out overlong forms (E0, F0), surrogates (ED) and code points above U+10FFFF
- * (F4); C0, C1 and F5..FF never start a sequence.
- */
-static size_t text_utf8_sequence(const unsigned char *p, size_t avail)
-{
-    unsigned char lead = p[0];
-    unsigned char lo = 0x80;
-    unsigned char hi = 0xBF;
-    size_t n;
-    size_t i;
-
-    if (lead < 0x80)
-    {
-        return 1;
-    }
-    if ((lead >= 0xC2) && (lead <= 0xDF))
-    {
-        n = 2;
-    }
-    else if ((lead >= 0xE0) && (lead <= 0xEF))
-    {
-        n = 3;
-        if (lead == 0xE0)
-        {
-            lo = 0xA0;
-        }
-        else if (lead == 0xED)
-        {
-            hi = 0x9F;
-        }
-    }
-    else if ((lead >= 0xF0) && (lead <= 0xF4))
-    {
-        n = 4;
-        if (lead == 0xF0)
-        {
-            lo = 0x90;
-        }
-        else if (lead == 0xF4)
-        {
-            hi = 0x8F;
-        }
-    }
-    else
-    {
-        return 0;
-    }
-
-    if (avail < n)
-    {
-        return 0;
-    }
-    if ((p[1] < lo) || (p[1] > hi))
-    {
-        return 0;
-    }
-    for (i = 2; i < n; i++)
-    {
-        if ((p[i] < 0x80) || (p[i] > 0xBF))
-        {
-            return 0;
-        }
-    }
-    return n;
-}
-
-size_t clopts_text_width(const char *data, size_t len)
-{
-    const unsigned char *p = (const unsigned char *)data;
-    size_t width = 0;
-    size_t i = 0;
-
-    assert((len == 0) || (data != NULL));
-
-    while (i < len)
-    {
-        size_t n = text_utf8_sequence(p + i, len - i);
-
-        /* an invalid byte is one column on its own; resume at the next byte */
-        i += (n != 0) ? n : 1;
-        width++;
-    }
-    return width;
 }

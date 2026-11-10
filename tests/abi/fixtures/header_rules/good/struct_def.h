@@ -2,7 +2,7 @@
 #ifndef GOOD_STRUCT_DEF_H
 #define GOOD_STRUCT_DEF_H
 
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 
 typedef struct good_layout
 {

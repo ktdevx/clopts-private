@@ -27,7 +27,7 @@
 
    `CLOPTS_API` のない宣言は `abi.header_rules` が違反として報告する。宣言は `extern "C"` の中（各公開ヘッダの `#ifdef __cplusplus` で囲まれた範囲）に置く。
 2. 定義を `src/<module>/` に書く。
-3. `abi/clopts.symbols` の、宣言したヘッダの組（`# clopts/<header>.h` の注釈の下）に、ヘッダの中の宣言順に合わせた位置で名前を足す。
+3. `abi/clopts.symbols` の、宣言したヘッダの組（`# clopts/<module>/<header>.h` の注釈の下）に、ヘッダの中の宣言順に合わせた位置で名前を足す。
 4. 互換を保つ変更なので、SOVERSION は変えない（`docs/abi.md` の「互換を保つ変更」）。
 
 ### 消すとき
@@ -45,23 +45,23 @@
 - 名前は `^clopts_[a-z0-9_]+$` に合うこと。重複してはいけない。
 - 名前は OS によらず同じに書く（macOS の先頭の `_` は付けない）。
 - 載せるのは `CLOPTS_API` の付いた関数だけ。公開ヘッダの `static inline` の関数（`clopts_file_write`）は export されないので載せない。
-- 特定の OS でだけ宣言・export される関数は、名前の後に空白で区切って OS の注記を 1 つ書く。受け付ける注記は `windows` だけである。現在は `include/clopts/argv.h` の `#ifdef _WIN32` の中で宣言される `clopts_argv_create_from_wide` が該当する。
+- 特定の OS でだけ宣言・export される関数は、名前の後に空白で区切って OS の注記を 1 つ書く。受け付ける注記は `windows` だけである。現在は `include/clopts/process/argv.h` の `#ifdef _WIN32` の中で宣言される `clopts_argv_create_from_wide` が該当する。
 
   ```text
-  # clopts/argv.h
+  # clopts/process/argv.h
   clopts_argv_create_from_wide windows
   ```
 
   注記 `windows` の付いた名前は、Windows の照合（`FORMAT` が `dumpbin` / `objdump-pe`）でだけ export を要求し、Linux と macOS（`nm-elf` / `nm-macho`）では一覧に無いものとして扱う。C++ のリンク検査（`abi.headers_cxx`）では、その名前の参照を `#ifdef _WIN32` で囲んで生成する。`windows` 以外の語や、3 語以上の行は形式の誤りになる。Windows 専用の公開関数を足すときは、この注記を付ける。
-- 並び順は自由だが、公開ヘッダごとに `# clopts/<header>.h` の注釈でまとめ、ヘッダの中の宣言順に並べることを推奨する（並び順は検査しない）。
+- 並び順は自由だが、公開ヘッダごとに `# clopts/<module>/<header>.h` の注釈でまとめ、ヘッダの中の宣言順に並べることを推奨する（並び順は検査しない）。
 
 ```text
-# clopts/program.h
+# clopts/decl/program.h
 clopts_program_create
 clopts_program_destroy
 ...
 
-# clopts/argv.h
+# clopts/process/argv.h
 clopts_argv_create_from_wide windows
 ```
 
@@ -177,7 +177,7 @@ CI で見慣れない名前が `extra` に出たら、次の順に判断する�
  <repo>/tests/abi/fixtures/header_rules/bad/missing_api/missing_api.h:10: function 'bad_unmarked' lacks CLOPTS_API
 ```
 
-- `<file>:<line>: function '<name>' lacks CLOPTS_API`: その行から始まる関数の宣言に `CLOPTS_API` がない。公開関数なら付け、公開しないなら公開ヘッダから内部ヘッダ（`src/<module>/<module>_internal.h`）へ移す。
+- `<file>:<line>: function '<name>' lacks CLOPTS_API`: その行から始まる関数の宣言に `CLOPTS_API` がない。公開関数なら付け、公開しないなら公開ヘッダから内部ヘッダ（`include/clopts/<module>/x.h` に対する `src/<module>/x.h`。[設計の考え方](design.md) の 3 章）へ移す。
 - 行は文の開始行である。違反はすべてまとめて出る。
 
 ### `abi.headers_c` / `abi.headers_cxx`: コンパイルとリンクの失敗
@@ -186,7 +186,7 @@ CI で見慣れない名前が `extra` に出たら、次の順に判断する�
 
 - コンパイルの失敗は、ビルドの出力の `check_<header>.c`（C99）か `check_<header>.cpp`（C++11）の名前で、どのヘッダがどちらの言語で通らないかが分かる。ヘッダは単独で include されるので、そのヘッダが必要な別の公開ヘッダを自分で include していないことも、ここで分かる。
 - 警告もエラーになる（C は CLOpts と同じ設定で `CLOPTS_WERROR=ON`、C++ は GCC / Clang で `-Wall -Wextra -Wpedantic -Werror`、MSVC で `/W4 /WX`）。
-- `extern "C"` の欠落は、コンパイルではなく `abi_link_check` のリンクで、C++ の修飾された名前（引数の型付きの名前）の未定義参照として出る。たとえば `include/clopts/text.h` の `extern "C" {` と `}` を外すと、Linux の GCC では次のようになる。
+- `extern "C"` の欠落は、コンパイルではなく `abi_link_check` のリンクで、C++ の修飾された名前（引数の型付きの名前）の未定義参照として出る。たとえば `include/clopts/text/write.h` の `extern "C" {` と `}` を外すと、Linux の GCC では次のようになる。
 
   ```text
   [100%] Linking CXX executable abi_link_check
@@ -309,9 +309,9 @@ abi-compare: compatible: no incompatible ABI change from v1.0.0 to 1.0.0 (abidif
 
 (b) 公開関数を 1 つ追加。手順どおり 3 つのファイルを同じ変更で更新した。
 
-- `include/clopts/positional.h`: `clopts_positional_set_help` の宣言の後に `CLOPTS_API int clopts_positional_abi_probe(const clopts_positional_t *positional);` を追加
-- `src/parser/parser_positional.c`: 定義（`return positional != NULL;`）を追加
-- `abi/clopts.symbols`: `# clopts/positional.h` の組の `clopts_positional_set_help` の次の行に `clopts_positional_abi_probe` を追加
+- `include/clopts/decl/positional.h`: `clopts_positional_set_help` の宣言の後に `CLOPTS_API int clopts_positional_abi_probe(const clopts_positional_t *positional);` を追加
+- `src/decl/positional.c`: 定義（`return positional != NULL;`）を追加
+- `abi/clopts.symbols`: `# clopts/decl/positional.h` の組の `clopts_positional_set_help` の次の行に `clopts_positional_abi_probe` を追加
 
 ```text
 abi-compare: compatible: no incompatible ABI change from v1.0.0 to 1.0.0 (abidiff exit status 4)
@@ -328,7 +328,7 @@ Variables changes summary: 0 Removed, 0 Changed, 0 Added variable
 
 abidiff は追加を ABI の変更（ビット 4）として報告するが、互換のない変更（ビット 8）ではないので `compatible` と判定され、報告もジョブの出力に残る。
 
-(c) 公開関数を 1 つ削除。(b) を戻してから、`include/clopts/positional.h` の `clopts_positional_set_help` の宣言、`src/parser/parser_positional.c` の定義、`abi/clopts.symbols` の行を消した（比較のビルドは `CLOPTS_BUILD_TESTING=OFF` なので、この関数を呼ぶテストはビルドされない）。
+(c) 公開関数を 1 つ削除。(b) を戻してから、`include/clopts/decl/positional.h` の `clopts_positional_set_help` の宣言、`src/decl/positional.c` の定義、`abi/clopts.symbols` の行を消した（比較のビルドは `CLOPTS_BUILD_TESTING=OFF` なので、この関数を呼ぶテストはビルドされない）。
 
 ```text
 abi-compare: incompatible: incompatible ABI change from v1.0.0 to 1.0.0 (abidiff exit status 12)

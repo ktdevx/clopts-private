@@ -13,7 +13,7 @@
  *   tool         with subcommands, description "A sample tool for testing."
  *     global: -v/--verbose COUNT, -c/--color negatable FLAG,
  *             --config VALUE <FILE> (env TOOL_CONFIG),
- *             -h/--help and --version (clopts/text.h)
+ *             -h/--help and --version (clopts/text/write.h)
  *     build:  summary and description,
  *             -o/--output VALUE <FILE> required,
  *             -k/--keys LIST <KEY> ',' (default "a,b"),

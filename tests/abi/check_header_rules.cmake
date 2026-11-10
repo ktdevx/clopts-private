@@ -9,8 +9,8 @@
 #
 # Variables (-D):
 #   HEADER_DIR  Required. The directory of the public headers. Every *.h
-#               directly in it is checked (listed again on every run, in name
-#               order), so a new header needs no registration.
+#               in it and its subdirectories is checked (listed again on every
+#               run, in path order), so a new header needs no registration.
 #
 # Each header is normalized first; removed text leaves its line breaks, so line
 # numbers stay those of the file:
@@ -167,7 +167,7 @@ macro(_check_header_rules_classify file)
     endif()
 endmacro()
 
-file(GLOB _headers LIST_DIRECTORIES false "${HEADER_DIR}/*.h")
+file(GLOB_RECURSE _headers LIST_DIRECTORIES false "${HEADER_DIR}/*.h")
 list(SORT _headers)
 list(LENGTH _headers _header_count)
 if(_header_count EQUAL 0)

@@ -1,7 +1,7 @@
 /* Bad: a function declared without CLOPTS_API, over several lines. */
 #include <stddef.h>
 
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 
 #ifdef __cplusplus
 extern "C" {

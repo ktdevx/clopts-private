@@ -18,7 +18,7 @@
 #                                     (EXPECT=run_ok). Registered only when
 #                                     CLOPTS_INSTALL is ON.
 #   integration.internal_hidden       fixtures/internal_symbol references the
-#                                     internal clopts_core_size_mul; linking
+#                                     internal clopts_size_mul; linking
 #                                     against the shared library must fail on
 #                                     that symbol (EXPECT=build_fail). Shared
 #                                     builds only: a static library has no
@@ -90,5 +90,5 @@ endif()
 # Only the shared library hides its internal functions.
 if(CLOPTS_BUILD_SHARED)
     _clopts_integration_add_test(internal_hidden internal_symbol build_fail SUBDIRECTORY
-        FAIL_REGEX clopts_core_size_mul)
+        FAIL_REGEX clopts_size_mul)
 endif()

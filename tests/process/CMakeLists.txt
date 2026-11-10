@@ -4,7 +4,7 @@
 set(clopts_process_test_sources
     process_tests_main.c
     test_util.c
-    test_split.c
+    test_cmdline.c
     test_argv.c
     test_env.c
     test_oom.c

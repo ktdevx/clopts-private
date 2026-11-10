@@ -6,12 +6,12 @@
 #ifndef CLOPTS_CLOPTS_H
 #define CLOPTS_CLOPTS_H
 
-#include "clopts/alloc.h"
-#include "clopts/argv.h"
-#include "clopts/decl.h"
-#include "clopts/env.h"
-#include "clopts/parse.h"
-#include "clopts/text.h"
-#include "clopts/writer.h"
+#include "clopts/base/mem.h"
+#include "clopts/base/export.h"
+#include "clopts/decl/program.h"
+#include "clopts/parse/parse.h"
+#include "clopts/process/argv.h"
+#include "clopts/process/env.h"
+#include "clopts/text/write.h"
 
 #endif /* CLOPTS_CLOPTS_H */

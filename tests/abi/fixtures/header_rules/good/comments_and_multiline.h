@@ -3,7 +3,7 @@
 #ifndef GOOD_COMMENTS_AND_MULTILINE_H
 #define GOOD_COMMENTS_AND_MULTILINE_H
 
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 
 #ifdef __cplusplus
 extern "C" {

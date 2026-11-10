@@ -2,12 +2,12 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Unit tests for the ready-made FILE* callback of clopts/writer.h (the static
+ * Unit tests for the ready-made FILE* callback of clopts/text/write.h (the static
  * inline clopts_file_write), through which the text module's output usually
  * reaches a stream.
  */
 
-#include "clopts/writer.h"
+#include "clopts/text/write.h"
 
 #include <naos/naos.h>
 

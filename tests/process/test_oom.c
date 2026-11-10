@@ -6,7 +6,7 @@
  * (tests/support/test_alloc.h) over handle creation, the Windows
  * conversions and environment lookups. Each run gives the sentinel or
  * FAILED when a fault point failed and the expected outcome otherwise, and leaves no block alive after the release. The
- * allocation gateway itself is tested by core (tests/core/test_alloc.c).
+ * allocation gateway itself is tested by base (tests/base/test_mem.c).
  *
  * It also checks that the helpers of test_util hold the longest array they
  * accept, which the long inputs of the sweeps rely on.
@@ -14,7 +14,8 @@
 
 #include "test_util.h"
 
-#include "process/process_internal.h"
+#include "process/argv_impl.h"
+#include "process/env.h"
 
 #include "test_alloc.h"
 
@@ -127,7 +128,7 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
         args = make(input);
         stats->runs++;
         NAOS_CHECK_NOT_NULL(args);
-        if (args == clopts_process_argv_sentinel())
+        if (args == clopts_argv_sentinel())
         {
             stats->oom_runs++;
             NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
@@ -142,7 +143,7 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
         if (test_alloc.calls < fail_at)
         {
             stats->succeeded = true;
-            NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
+            NAOS_CHECK_TRUE(args != clopts_argv_sentinel());
         }
         clopts_argv_destroy(args);
         NAOS_CHECK_TRUE(test_alloc_end());
@@ -151,7 +152,7 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
 
 static clopts_argv_t *oom_make_passthrough(const void *input)
 {
-    return clopts_process_argv_passthrough(3, (char *const *)input);
+    return clopts_argv_passthrough(3, (char *const *)input);
 }
 
 /* One fault point: the handle (process_argv_new). */
@@ -174,12 +175,12 @@ NAOS_TEST(sweep_passthrough)
 #ifdef _WIN32
 static clopts_argv_t *oom_make_from_cmdline(const void *input)
 {
-    return clopts_process_argv_from_cmdline((const wchar_t *)input);
+    return clopts_argv_from_cmdline((const wchar_t *)input);
 }
 
 static clopts_argv_t *oom_make_convert(const void *input)
 {
-    return clopts_process_argv_convert(3, (const wchar_t *const *)input);
+    return clopts_argv_convert(3, (const wchar_t *const *)input);
 }
 
 /* The command line: two fault points, the work block and then the handle block. */
@@ -266,17 +267,17 @@ NAOS_TEST(sweep_env_lookup_long_value)
 
     for (offset = 1; (offset <= OOM_SWEEP_LIMIT) && (!succeeded); ++offset)
     {
-        clopts_process_env_ctx_t env;
+        clopts_env_t env;
         const char *value = NULL;
         clopts_env_status_t status;
         size_t start;
 
         NAOS_NOTE("env lookup fault point %u", (unsigned)offset);
         test_alloc_begin(0);
-        clopts_process_env_init(&env);
+        clopts_env_init(&env);
         start = test_alloc.calls;
         test_alloc_set_fail_at(start + offset);
-        status = clopts_process_env_lookup(&env, "CLOPTS_TEST_OOM_LONG", &value);
+        status = clopts_env_lookup(&env, "CLOPTS_TEST_OOM_LONG", &value);
         if (status == CLOPTS_ENV_FAILED)
         {
             oom_runs++;
@@ -298,7 +299,7 @@ NAOS_TEST(sweep_env_lookup_long_value)
             NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
         }
         test_alloc_set_fail_at(0);
-        clopts_process_env_release(&env);
+        clopts_env_release(&env);
         NAOS_CHECK_TRUE(test_alloc_end());
     }
     test_alloc_set_fail_at(0);

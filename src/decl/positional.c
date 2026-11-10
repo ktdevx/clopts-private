@@ -2,13 +2,14 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Positional (clopts/positional.h): creation, release and attributes.
+ * Positional (clopts/decl/positional.h): creation, release and attributes.
  * Nothing here reads or writes a command or a program; the order of the
  * positionals is checked when one is attached (command.c).
  */
 
-#include "clopts/positional.h"
-#include "decl/decl_internal.h"
+#include "clopts/decl/positional.h"
+
+#include "base/mem.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -39,16 +40,16 @@ clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional
         return CLOPTS_DECL_ERROR_INVALID_NAME;
     }
 
-    positional = (clopts_positional_t *)clopts_core_calloc(1, sizeof(*positional));
+    positional = (clopts_positional_t *)clopts_mem_calloc(1, sizeof(*positional));
     if (positional == NULL)
     {
         return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
     }
 
-    positional->name = clopts_core_strdup(name);
+    positional->name = clopts_mem_strdup(name);
     if (positional->name == NULL)
     {
-        clopts_core_free(positional);
+        clopts_mem_free(positional);
         return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
     }
 
@@ -68,15 +69,15 @@ void clopts_positional_destroy(clopts_positional_t *positional)
         return;
     }
 
-    clopts_core_free(positional->name);
-    clopts_core_free(positional->help);
-    clopts_core_free(positional);
+    clopts_mem_free(positional->name);
+    clopts_mem_free(positional->help);
+    clopts_mem_free(positional);
 }
 
 clopts_decl_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help)
 {
     assert(positional != NULL);
-    return (clopts_core_replace_string(&positional->help, help) == 0) ? CLOPTS_DECL_ERROR_NONE
+    return (clopts_mem_replace_string(&positional->help, help) == 0) ? CLOPTS_DECL_ERROR_NONE
                                                                       : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 

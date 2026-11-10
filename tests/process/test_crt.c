@@ -12,7 +12,8 @@
 
 #include "test_util.h"
 
-#include "process/process_internal.h"
+#include "process/argv_impl.h"
+#include "process/utf16.h"
 
 #include <naos/naos.h>
 
@@ -27,7 +28,7 @@ NAOS_TEST(u16_from_ascii_builds_a_wide_command_line)
     process_test_u16_t cmdline;
     process_test_u16_t a;
     process_test_u16_t b;
-    clopts_process_u16_t *args[2];
+    clopts_utf16_t *args[2];
     static const char *const expected[] = {"p", "foo\"bar", NULL};
 
     process_test_u16_from_ascii(&cmdline, "p \"foo\"\"bar\"");

@@ -3,14 +3,17 @@
  * SPDX-License-Identifier: MIT
  *
  * Process environment lookup contexts: their initialization, release and
- * value buffers. The lookup itself is in win32.c or posix.c.
+ * value buffers. The lookup itself is in env_posix.c or env_win32.c.
  */
 
-#include "process/process_internal.h"
+#include "process/env.h"
+
+#include "base/mem.h"
+#include "process/utf16.h"
 
 #include <assert.h>
 
-void clopts_process_env_init(clopts_process_env_ctx_t *env)
+void clopts_env_init(clopts_env_t *env)
 {
     assert(env != NULL);
     env->value = NULL;
@@ -19,15 +22,15 @@ void clopts_process_env_init(clopts_process_env_ctx_t *env)
     env->wide_cap = 0;
 }
 
-void clopts_process_env_release(clopts_process_env_ctx_t *env)
+void clopts_env_release(clopts_env_t *env)
 {
     assert(env != NULL);
-    clopts_core_free(env->value);
-    clopts_core_free(env->wide);
-    clopts_process_env_init(env);
+    clopts_mem_free(env->value);
+    clopts_mem_free(env->wide);
+    clopts_env_init(env);
 }
 
-int clopts_process_env_reserve_value(clopts_process_env_ctx_t *env, size_t bytes)
+int clopts_env_reserve_value(clopts_env_t *env, size_t bytes)
 {
     char *grown;
 
@@ -37,18 +40,18 @@ int clopts_process_env_reserve_value(clopts_process_env_ctx_t *env, size_t bytes
         return 0;
     }
     /* The old contents need not survive, so the buffer is replaced, not copied. */
-    grown = (char *)clopts_core_malloc(bytes);
+    grown = (char *)clopts_mem_alloc(bytes);
     if (grown == NULL)
     {
         return -1;
     }
-    clopts_core_free(env->value);
+    clopts_mem_free(env->value);
     env->value = grown;
     env->value_cap = bytes;
     return 0;
 }
 
-int clopts_process_env_reserve_wide(clopts_process_env_ctx_t *env, size_t units)
+int clopts_env_reserve_wide(clopts_env_t *env, size_t units)
 {
     void *grown;
 
@@ -57,13 +60,13 @@ int clopts_process_env_reserve_wide(clopts_process_env_ctx_t *env, size_t units)
     {
         return 0;
     }
-    /* NULL both when units * sizeof(clopts_process_u16_t) overflows and when the allocation fails. */
-    grown = clopts_core_malloc_array(units, sizeof(clopts_process_u16_t));
+    /* NULL both when units * sizeof(clopts_utf16_t) overflows and when the allocation fails. */
+    grown = clopts_mem_alloc_array(units, sizeof(clopts_utf16_t));
     if (grown == NULL)
     {
         return -1;
     }
-    clopts_core_free(env->wide);
+    clopts_mem_free(env->wide);
     env->wide = grown;
     env->wide_cap = units;
     return 0;

@@ -2,9 +2,9 @@
 
 この章は、Windows で CLOpts を使うときの注意を示す。非 ASCII の引数と環境変数を UTF-8 で受け取る方法、`wmain` を使うときの変換、実行ファイルのマニフェストの `activeCodePage` との関係、共有版の DLL の置き場所、コンソールへ UTF-8 の文面を出すときのコードページを扱う。
 
-argv のための関数は `clopts/argv.h` にある。関数ごとの引数と戻り値の一覧は [API リファレンス](api.md#argv-の取得) の章にある。解析の関数と結果の読み方は同じ章の残りの節で、引数の解釈の規則は [解析規則](parsing.md) の章で示す。
+argv のための関数は `clopts/process/argv.h` にある。関数ごとの引数と戻り値の一覧は [API リファレンス](api.md#argv-の取得) の章にある。解析の関数と結果の読み方は同じ章の残りの節で、引数の解釈の規則は [解析規則](parsing.md) の章で示す。
 
-CLOpts は、引数と環境変数の値を UTF-8 の文字列として扱う。Windows 以外の OS では、`clopts/argv.h` の関数は何も変換しない（後で述べるパススルー）。そのため、この章の手順どおりに書いたプログラムは、同じソースのまま Linux や macOS でもビルドでき、動く。サンプルの `examples/taskbook/taskbook.c` と `examples/textcount/textcount.c` は、この章の手順で書かれている。
+CLOpts は、引数と環境変数の値を UTF-8 の文字列として扱う。Windows 以外の OS では、`clopts/process/argv.h` の関数は何も変換しない（後で述べるパススルー）。そのため、この章の手順どおりに書いたプログラムは、同じソースのまま Linux や macOS でもビルドでき、動く。サンプルの `examples/taskbook/taskbook.c` と `examples/textcount/textcount.c` は、この章の手順で書かれている。
 
 ## UTF-8 の argv を得る
 
@@ -86,7 +86,7 @@ Windows で `clopts_argv_create` に 0 と NULL を渡すと、同じソース�
 
 ### 解放の順序
 
-`clopts_parse` の結果は、argv の文字列を借用している。`clopts_result_get_positional_at` と `clopts_result_get_error_token` は argv の要素そのものを返し、ほかの値も argv の文字列を指すことがある。そのため、argv のハンドルは、結果を使い終えてから解放する。
+`clopts_parse` の結果は、argv の文字列を借用している。`clopts_result_get_positional_at` と `clopts_usage_error_get_token` は argv の要素そのものを返し、ほかの値も argv の文字列を指すことがある。そのため、argv のハンドルは、結果を使い終えてから解放する。
 
 1. 結果から値を読み、文面を出す（`clopts_write_*`）。
 2. `clopts_result_destroy` で結果を解放する。
@@ -155,7 +155,7 @@ Windows では、CRT の `getenv` も、値を ANSI のコードページで返�
 
 ### 読めない値
 
-Windows で、変数の値が正しい UTF-16 でない（対になっていないサロゲートを含む）と、その値は UTF-8 にできない。このとき解析は `CLOPTS_PARSE_USAGE_ERROR` で終わり、`clopts_result_get_usage_error` は `CLOPTS_USAGE_INVALID_ENV_VALUE` を、`clopts_result_get_error_option` はそのオプションを返す。argv の誤りと同じく、`clopts_write_error` が 1 行の文面を出す（`invalid value in environment variable '<変数名>'`）。
+Windows で、変数の値が正しい UTF-16 でない（対になっていないサロゲートを含む）と、その値は UTF-8 にできない。このとき解析は `CLOPTS_PARSE_USAGE_ERROR` で終わり、`clopts_result_get_usage_error` が返す使い方エラーの種別（`clopts_usage_error_get_kind`）は `CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE` で、`clopts_usage_error_get_option` はそのオプションを返す。argv の誤りと同じく、`clopts_write_error` が 1 行の文面を出す（`invalid value in environment variable '<変数名>'`）。
 
 - そのオプションの既定値は使われない。値を直すのは利用者の側なので、黙って既定値にはしない。
 - argv に終端オプション（`--help` や `--version`）があれば、argv の誤りと同じく、そちらが優先される。
@@ -199,7 +199,7 @@ CLOpts の関数は、このマニフェストを必要としない。`clopts_ar
 
 ヘルプやエラーの文面には、宣言した説明や、利用者が渡した引数（エラーのトークン）が入る。argv と環境変数を UTF-8 で得ると、これらの文面も UTF-8 になる。
 
-CLOpts の文面の関数（`clopts_write_*`）は、書き込みのコールバックを通してだけ書き、コンソールに直接は出力しない。`clopts/writer.h` の `clopts_file_write` は、受け取ったバイト列を `fwrite` でそのまま書き、符号化を変換しない。ライブラリは、コンソールのコードページも変えない。
+CLOpts の文面の関数（`clopts_write_*`）は、書き込みのコールバックを通してだけ書き、コンソールに直接は出力しない。`clopts/text/write.h` の `clopts_file_write` は、受け取ったバイト列を `fwrite` でそのまま書き、符号化を変換しない。ライブラリは、コンソールのコードページも変えない。
 
 Windows のコンソールは、既定では UTF-8 ではないコードページ（OEM のコードページ。日本語の環境なら CP932 など）で文字を表示する。そのままでは、非 ASCII の文字を含む UTF-8 の文面が文字化けする。マニフェストの `activeCodePage` も、コンソールのコードページは変えない。
 

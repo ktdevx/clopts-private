@@ -10,17 +10,17 @@ clopts_program_destroy
 clopts_command_add_flag
 clopts_option_set_help
 
-# clopts/parse.h
+# clopts/parse/parse.h
 clopts_parse
 clopts_result_get_status
 clopts_result_destroy
 
-# clopts/argv.h
+# clopts/process/argv.h
 clopts_argv_create
 clopts_argv_create_from_wide windows
 clopts_argv_destroy
 clopts_env_create
 clopts_env_destroy
 
-# clopts/text.h
+# clopts/text/write.h
 clopts_write_help

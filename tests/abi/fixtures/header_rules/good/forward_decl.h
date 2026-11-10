@@ -2,7 +2,7 @@
 #ifndef GOOD_FORWARD_DECL_H
 #define GOOD_FORWARD_DECL_H
 
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 
 typedef struct good_handle good_handle_t;
 struct good_other;
