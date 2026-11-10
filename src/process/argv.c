@@ -8,7 +8,7 @@
 
 #include "process/argv_impl.h"
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 
 #include <assert.h>
 

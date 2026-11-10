@@ -7,7 +7,7 @@
  * the library that calls its functions.
  */
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 
 #include "base/size.h"
 

@@ -14,7 +14,7 @@
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）を書き込みのコールバックへ出す。公開の入口（`write.c`、`clopts/text/write.h`）、ヘルプと Usage 行（`help.c`）、1 行の文面（`message.c`）、書き込みと計測の 2 つのモードを持つ出力先（`out.c`） |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
 
-名前とファイルの付け方は [設計の考え方](design.md) に従う。構造体の操作が構造体と同じヘッダにあることはテスト `structure.names`（`tests/structure/check_names.cmake`）で、宣言のない定義はコンパイラ（`-Wmissing-prototypes`）で検査する。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h` と定義 `x.c` を 1 組持たせ、構造体 `clopts_x_t` の操作は `clopts_x_*` と名付けて同じヘッダに置く（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。それ以外の名前は、何をするか、何を表すかで付ける（`src/base/alloc.h` の `clopts_malloc`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
+名前とファイルの付け方は [設計の考え方](design.md) に従う。構造体の操作が構造体と同じヘッダにあることはテスト `structure.names`（`tests/structure/check_names.cmake`）で、宣言のない定義はコンパイラ（`-Wmissing-prototypes`）で検査する。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h` と定義 `x.c` を 1 組持たせ、構造体 `clopts_x_t` の操作は `clopts_x_*` と名付けて同じヘッダに置く（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。公開ヘッダ `x.h` を持つ概念の内部ヘッダは `x_internal.h` と名付ける（`src/decl/scope_internal.h`）。それ以外の名前は、何をするか、何を表すかで付ける（`src/base/alloc_internal.h` の `clopts_malloc`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
 
 依存の向きは次のとおりである。
 
@@ -29,9 +29,9 @@ flowchart LR
     process --> base
 ```
 
-- decl、parse、text、process は base の内部ヘッダ（`base/alloc.h`、`base/vec.h` など）を使う。base はほかのモジュールに依存しない。
+- decl、parse、text、process は base の内部ヘッダ（`base/alloc_internal.h`、`base/vec.h` など）を使う。base はほかのモジュールに依存しない。
 - decl は解析を知らない。parse は宣言を公開の読み取り関数で読み、書かれた名前を decl の内部ヘッダ `decl/lookup.h`（選ばれたコマンド、プログラムの順に引く）で引く。宣言には書き込まない。
-- parse は、プロセスの環境変数を process の内部ヘッダ `process/env.h`（`clopts_env_lookup` と、その文脈 `clopts_env_t`）で読む。参照のコールバックが渡されなかったときに、解析の入口（`parse.c`）が文脈をスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`require.c`）は参照のコールバックを引数で受け取るだけで、OS を知らない。プロセスの環境を読むのは process だけである。
+- parse は、プロセスの環境変数を process の内部ヘッダ `process/env_internal.h`（`clopts_env_lookup` と、その文脈 `clopts_env_t`）で読む。参照のコールバックが渡されなかったときに、解析の入口（`parse.c`）が文脈をスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`require.c`）は参照のコールバックを引数で受け取るだけで、OS を知らない。プロセスの環境を読むのは process だけである。
 - text は decl と parse の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。
 - 内部ヘッダの関数は、共有ライブラリから export しない。
 - 依存の向きはテスト `structure.modules`（ラベル `structure`、`tests/structure/check_structure.cmake`）で、`src/` と `include/clopts/` の両方について検査する。各モジュールが include してよいほかのモジュールは上の図のとおりで（text は decl と parse の公開ヘッダだけ）、ファイルごとの例外はない。実装ヘッダ（`x_impl.h`）は、同じモジュールのファイルしか include できない。`<windows.h>` の include は `process/*_win32.c` の外に、環境変数を読む関数（`getenv` など）の呼び出しは process の外に置けない。モジュールを足すときは、このスクリプトの規則にも足す。
@@ -95,10 +95,10 @@ classDiagram
 | `clopts_scope_t` | 継承される型 | `src/decl/scope_impl.h`（Program と Command が埋め込む。配列は `scope.c` の関数だけで書く） |
 | `clopts_matches_t` | ハンドル | `src/parse/matches.c`（解析の途中の記録） |
 | `clopts_slot_t` | 値の型 | `src/parse/slot.h`（1 つのオプションの記録） |
-| `clopts_usage_error_t` | 値の型（公開では不透明） | `src/parse/usage_error.h`（解析の各段が書き、結果が写しを持つ） |
+| `clopts_usage_error_t` | 値の型（公開では不透明） | `src/parse/usage_error_internal.h`（解析の各段が書き、結果が写しを持つ） |
 | `clopts_result_t` | ハンドル | `src/parse/result.c`（一度だけ作り、以後は読むだけ） |
 | `clopts_argv_t` | 継承される型（公開では不透明） | `src/process/argv_impl.h`（`argv.c` と OS ごとの `argv_posix.c`、`argv_win32.c` が使う） |
-| `clopts_env_t` | 値の型 | `src/process/env.h`（解析の入口がスタックに置く） |
+| `clopts_env_t` | 値の型 | `src/process/env_internal.h`（解析の入口がスタックに置く） |
 
 読み取り関数に NULL のハンドルを渡すのは契約違反で、`assert` で検出する。
 

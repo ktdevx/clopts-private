@@ -100,7 +100,12 @@ set(_clopts_structure_names_op_outside_type
     "base/alloc\\.h:2: 'clopts_vec_sum' is an operation of clopts_vec_t but is not declared with it \\(base/vec\\.h\\)")
 set(_clopts_structure_names_public_op_outside_type
     "clopts/parse/parse\\.h:2: 'clopts_result_get_count' is an operation of clopts_result_t but is not declared with it \\(parse/result\\.h\\)")
-foreach(_clopts_structure_case IN ITEMS internal_header op_outside_type public_op_outside_type)
+set(_clopts_structure_names_same_name_as_public
+    "parse/result\\.h:1: has the name of the public header clopts/parse/result\\.h")
+set(_clopts_structure_names_internal_without_public
+    "base/vec_internal\\.h:1: _internal is only for the internal header of a public header")
+foreach(_clopts_structure_case IN ITEMS internal_header op_outside_type public_op_outside_type same_name_as_public
+                                        internal_without_public)
     set(_clopts_structure_case_dir "${_clopts_structure_names}/bad/${_clopts_structure_case}")
     set(_clopts_structure_include_arg "")
     if(IS_DIRECTORY "${_clopts_structure_case_dir}/include")

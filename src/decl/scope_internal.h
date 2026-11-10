@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_SRC_DECL_SCOPE_H
-#define CLOPTS_SRC_DECL_SCOPE_H
+#ifndef CLOPTS_SRC_DECL_SCOPE_INTERNAL_H
+#define CLOPTS_SRC_DECL_SCOPE_INTERNAL_H
 
 #include "clopts/decl/scope.h"
 
@@ -35,4 +35,4 @@ const clopts_option_t *clopts_scope_find_long(const clopts_scope_t *scope, const
 /* Looks up the short name written as "-<c>". Returns the option, or NULL (always for c '\0'). */
 const clopts_option_t *clopts_scope_find_short(const clopts_scope_t *scope, char c);
 
-#endif /* CLOPTS_SRC_DECL_SCOPE_H */
+#endif /* CLOPTS_SRC_DECL_SCOPE_INTERNAL_H */

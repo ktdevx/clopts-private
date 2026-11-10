@@ -15,7 +15,7 @@
  * values are read.
  */
 
-#include "parse/result.h"
+#include "parse/result_internal.h"
 #include "test_fixtures.h"
 #include "test_decl.h"
 

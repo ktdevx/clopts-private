@@ -9,7 +9,7 @@
 #include "clopts/decl/program.h"
 
 #include "parse/matches.h"
-#include "parse/usage_error.h"
+#include "parse/usage_error_internal.h"
 
 #include <stdbool.h>
 

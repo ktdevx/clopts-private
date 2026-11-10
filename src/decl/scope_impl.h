@@ -6,7 +6,7 @@
 #ifndef CLOPTS_SRC_DECL_SCOPE_IMPL_H
 #define CLOPTS_SRC_DECL_SCOPE_IMPL_H
 
-#include "decl/scope.h"
+#include "decl/scope_internal.h"
 
 #include "base/vec.h"
 #include "clopts/base/error.h"

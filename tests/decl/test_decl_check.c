@@ -38,7 +38,7 @@
 #include "clopts/parse/parse.h"
 #include "decl/lookup.h"
 #include "decl/name.h"
-#include "decl/scope.h"
+#include "decl/scope_internal.h"
 #include "test_alloc.h"
 #include "test_decl.h"
 

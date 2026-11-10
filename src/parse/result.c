@@ -8,10 +8,10 @@
  * declaration, so the result may be released after the program.
  */
 
-#include "parse/result.h"
+#include "parse/result_internal.h"
 
-#include "base/alloc.h"
-#include "parse/usage_error.h"
+#include "base/alloc_internal.h"
+#include "parse/usage_error_internal.h"
 
 #include <assert.h>
 #include <stdbool.h>

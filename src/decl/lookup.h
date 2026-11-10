@@ -18,7 +18,7 @@
  * selected command (when there is one) is looked up first and then the
  * program, so a name of the command shadows the same global option. Within
  * each scope the rules of clopts_scope_find_long() and
- * clopts_scope_find_short() apply (decl/scope.h).
+ * clopts_scope_find_short() apply (decl/scope_internal.h).
  */
 
 /* Where a looked-up option was found. */

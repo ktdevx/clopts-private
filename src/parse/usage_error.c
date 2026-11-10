@@ -6,7 +6,7 @@
  * "no error".
  */
 
-#include "parse/usage_error.h"
+#include "parse/usage_error_internal.h"
 
 #include <assert.h>
 

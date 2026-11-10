@@ -9,7 +9,7 @@
 
 #include "clopts/decl/positional.h"
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 #include "base/str.h"
 
 #include <assert.h>

@@ -6,9 +6,9 @@
  * value buffers. The lookup itself is in env_posix.c or env_win32.c.
  */
 
-#include "process/env.h"
+#include "process/env_internal.h"
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 #include "process/utf16.h"
 
 #include <assert.h>

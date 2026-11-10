@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_SRC_PARSE_RESULT_H
-#define CLOPTS_SRC_PARSE_RESULT_H
+#ifndef CLOPTS_SRC_PARSE_RESULT_INTERNAL_H
+#define CLOPTS_SRC_PARSE_RESULT_INTERNAL_H
 
 #include "clopts/parse/result.h"
 
@@ -32,4 +32,4 @@ clopts_result_t *clopts_result_create(clopts_parse_status_t status, const clopts
  */
 clopts_result_t *clopts_result_sentinel(void);
 
-#endif /* CLOPTS_SRC_PARSE_RESULT_H */
+#endif /* CLOPTS_SRC_PARSE_RESULT_INTERNAL_H */

@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_SRC_PROCESS_ENV_H
-#define CLOPTS_SRC_PROCESS_ENV_H
+#ifndef CLOPTS_SRC_PROCESS_ENV_INTERNAL_H
+#define CLOPTS_SRC_PROCESS_ENV_INTERNAL_H
 
 #include "clopts/process/env.h"
 
@@ -55,4 +55,4 @@ int clopts_env_reserve_wide(clopts_env_t *env, size_t units);
  */
 clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **value);
 
-#endif /* CLOPTS_SRC_PROCESS_ENV_H */
+#endif /* CLOPTS_SRC_PROCESS_ENV_INTERNAL_H */

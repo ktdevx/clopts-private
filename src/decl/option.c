@@ -16,7 +16,7 @@
 
 #include "clopts/decl/option.h"
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 #include "base/str.h"
 #include "decl/name.h"
 

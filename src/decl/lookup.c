@@ -8,7 +8,7 @@
 
 #include "decl/lookup.h"
 
-#include "decl/scope.h"
+#include "decl/scope_internal.h"
 
 #include <assert.h>
 

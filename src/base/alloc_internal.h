@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_SRC_BASE_ALLOC_H
-#define CLOPTS_SRC_BASE_ALLOC_H
+#ifndef CLOPTS_SRC_BASE_ALLOC_INTERNAL_H
+#define CLOPTS_SRC_BASE_ALLOC_INTERNAL_H
 
 #include "clopts/base/alloc.h"
 
@@ -35,4 +35,4 @@ void *clopts_realloc(void *ptr, size_t size);
 /* Releases ptr, allocated by the functions above. NULL is ignored. */
 void clopts_free(void *ptr);
 
-#endif /* CLOPTS_SRC_BASE_ALLOC_H */
+#endif /* CLOPTS_SRC_BASE_ALLOC_INTERNAL_H */

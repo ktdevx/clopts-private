@@ -7,7 +7,7 @@
 
 #include "parse/slot.h"
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 #include "base/str.h"
 
 #include <assert.h>

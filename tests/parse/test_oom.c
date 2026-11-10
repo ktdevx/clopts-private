@@ -18,7 +18,7 @@
  * the vec growth) is tested in the core suite.
  */
 
-#include "parse/result.h"
+#include "parse/result_internal.h"
 #include "test_alloc.h"
 #include "test_fixtures.h"
 #include "test_decl.h"

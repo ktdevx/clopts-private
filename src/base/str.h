@@ -11,7 +11,7 @@
 /*
  * Owned strings.
  *
- * The copies are allocated through the allocation gateway (base/alloc.h)
+ * The copies are allocated through the allocation gateway (base/alloc_internal.h)
  * and released with clopts_free().
  */
 

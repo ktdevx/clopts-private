@@ -1,5 +1,5 @@
 /* Good: process may touch the OS. */
-#include "process/env.h"
+#include "process/env_internal.h"
 
 #include <windows.h>
 

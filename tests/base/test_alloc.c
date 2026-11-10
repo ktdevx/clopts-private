@@ -13,7 +13,7 @@
  * vec (only when its buffer grows).
  */
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 #include "base/vec.h"
 #include "test_alloc.h"
 

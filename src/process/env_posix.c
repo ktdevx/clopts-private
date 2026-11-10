@@ -6,7 +6,7 @@
  * getenv(), whose pointer is lent as is. The library calls getenv only here.
  */
 
-#include "process/env.h"
+#include "process/env_internal.h"
 
 #include <assert.h>
 #include <stddef.h>

@@ -23,7 +23,7 @@
  * the out-of-memory sentinel.
  *
  * Without a lookup callback, the process environment is read through the
- * process module (process/env.h), with a lookup context that lives on the
+ * process module (process/env_internal.h), with a lookup context that lives on the
  * stack of parse() for this parse only. The steps themselves see a lookup
  * callback only.
  */
@@ -33,10 +33,10 @@
 #include "parse/matches.h"
 #include "parse/require.h"
 #include "parse/resolve.h"
-#include "parse/result.h"
+#include "parse/result_internal.h"
 #include "parse/scan.h"
-#include "parse/usage_error.h"
-#include "process/env.h"
+#include "parse/usage_error_internal.h"
+#include "process/env_internal.h"
 
 #include <assert.h>
 

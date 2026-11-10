@@ -10,7 +10,7 @@
  * replaces, resets and keeps the old string on failure.
  */
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 #include "base/str.h"
 #include "test_alloc.h"
 

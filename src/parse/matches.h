@@ -18,12 +18,12 @@
  * environment: the selected command, one slot per option of the program and
  * of the selected command, and the positionals. The scan, the resolution and
  * the required checks write and read them; the finished result
- * (parse/result.h) takes them over and is read only.
+ * (parse/result_internal.h) takes them over and is read only.
  *
  * A slot has the same index as its option in its scope and is found from
  * the option by its address. Matches never point to the program and are
  * released without reading the declaration, so they may outlive it. Every
- * allocation goes through the allocation gateway (base/alloc.h), and whatever
+ * allocation goes through the allocation gateway (base/alloc_internal.h), and whatever
  * was allocated is linked to the matches at once, so
  * clopts_matches_destroy() releases it even after a failure.
  */

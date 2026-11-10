@@ -19,9 +19,9 @@
 
 #include "base/str.h"
 #include "parse/matches.h"
-#include "parse/result.h"
+#include "parse/result_internal.h"
 #include "parse/slot.h"
-#include "parse/usage_error.h"
+#include "parse/usage_error_internal.h"
 #include "test_alloc.h"
 #include "test_fixtures.h"
 #include "test_decl.h"

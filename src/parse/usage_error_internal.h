@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_SRC_PARSE_USAGE_ERROR_H
-#define CLOPTS_SRC_PARSE_USAGE_ERROR_H
+#ifndef CLOPTS_SRC_PARSE_USAGE_ERROR_INTERNAL_H
+#define CLOPTS_SRC_PARSE_USAGE_ERROR_INTERNAL_H
 
 #include "clopts/parse/usage_error.h"
 
@@ -12,7 +12,7 @@
 
 /*
  * Usage error (usage_error.c). The scan, the resolution and the required
- * checks fill one in; the result keeps a copy (parse/result.h).
+ * checks fill one in; the result keeps a copy (parse/result_internal.h).
  */
 struct clopts_usage_error
 {
@@ -32,4 +32,4 @@ struct clopts_usage_error
  */
 void clopts_usage_error_init(clopts_usage_error_t *error, clopts_usage_error_kind_t kind);
 
-#endif /* CLOPTS_SRC_PARSE_USAGE_ERROR_H */
+#endif /* CLOPTS_SRC_PARSE_USAGE_ERROR_INTERNAL_H */

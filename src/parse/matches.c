@@ -7,7 +7,7 @@
 
 #include "parse/matches.h"
 
-#include "base/alloc.h"
+#include "base/alloc_internal.h"
 #include "base/vec.h"
 
 #include <assert.h>
