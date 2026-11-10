@@ -8,15 +8,15 @@
  * It also checks that the wide fixture, with non-ASCII names and bytes that
  * are not valid UTF-8, is built without a declaration error.
  *
- * The rows are written with clopts_help_write_list (help_internal.h), one
+ * The rows are written with clopts_text_write_list (text_internal.h), one
  * small declaration per notation; the expected bytes are derived by hand
- * from the rules of the design (HelpLayout).
+ * from the rules of the design (TextLayout).
  */
 
 #include "test_fixtures.h"
 #include "test_decl.h"
 
-#include "help/help_internal.h"
+#include "text/text_internal.h"
 
 #include <naos/naos.h>
 
@@ -39,20 +39,20 @@ static clopts_program_t *new_program(void)
 }
 
 /* Writes the count rows at rows as one list into rec. */
-static clopts_write_status_t write_rows(help_recorder_t *rec, const clopts_help_row_t *rows, size_t count)
+static clopts_write_status_t write_rows(text_recorder_t *rec, const clopts_text_row_t *rows, size_t count)
 {
-    clopts_help_out_t out;
+    clopts_text_out_t out;
 
-    help_recorder_init(rec);
-    clopts_help_out_init(&out, help_recorder_write, rec);
-    clopts_help_write_list(&out, rows, count);
-    return clopts_help_out_status(&out);
+    text_recorder_init(rec);
+    clopts_text_out_init(&out, text_recorder_write, rec);
+    clopts_text_write_list(&out, rows, count);
+    return clopts_text_out_status(&out);
 }
 
 /* A row of option. */
-static clopts_help_row_t option_row(const clopts_option_t *option)
+static clopts_text_row_t option_row(const clopts_option_t *option)
 {
-    clopts_help_row_t row;
+    clopts_text_row_t row;
 
     row.option = option;
     row.left = NULL;
@@ -61,17 +61,17 @@ static clopts_help_row_t option_row(const clopts_option_t *option)
 }
 
 /* Writes option as a list of one row into rec. */
-static clopts_write_status_t write_option(help_recorder_t *rec, const clopts_option_t *option)
+static clopts_write_status_t write_option(text_recorder_t *rec, const clopts_option_t *option)
 {
-    clopts_help_row_t row = option_row(option);
+    clopts_text_row_t row = option_row(option);
 
     return write_rows(rec, &row, 1);
 }
 
 /* A fixed row. */
-static clopts_help_row_t fixed_row(const char *left, const char *help)
+static clopts_text_row_t fixed_row(const char *left, const char *help)
 {
-    clopts_help_row_t row;
+    clopts_text_row_t row;
 
     row.option = NULL;
     row.left = left;
@@ -83,7 +83,7 @@ static clopts_help_row_t fixed_row(const char *left, const char *help)
 #define CHECK_ROW(option, expected)                                                \
     do                                                                             \
     {                                                                              \
-        static help_recorder_t rec_;                                               \
+        static text_recorder_t rec_;                                               \
         NAOS_CHECK_INT_EQ(write_option(&rec_, (option)), CLOPTS_WRITE_OK);         \
         NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));       \
     } while (0)
@@ -92,10 +92,10 @@ static clopts_help_row_t fixed_row(const char *left, const char *help)
 
 NAOS_TEST(fixture_wide_builds_ok)
 {
-    help_fixture_wide_t f;
+    text_fixture_wide_t f;
     clopts_result_t *result;
 
-    help_fixture_wide_init(&f);
+    text_fixture_wide_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.naive);
@@ -109,18 +109,18 @@ NAOS_TEST(fixture_wide_builds_ok)
     NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     clopts_result_destroy(result);
 
-    help_fixture_wide_free(&f);
+    text_fixture_wide_free(&f);
     NAOS_CHECK_NULL(f.program);
 }
 
 NAOS_TEST(fixture_wide_names_have_the_intended_bytes)
 {
     /* The byte lengths pin the spellings used by the alignment tests. */
-    NAOS_CHECK_UINT_EQ(strlen(HELP_FIXTURE_NAIVE), 6);
-    NAOS_CHECK_UINT_EQ(strlen(HELP_FIXTURE_NIHONGO), 9);
-    NAOS_CHECK_UINT_EQ(strlen(HELP_FIXTURE_ATAI), 3);
-    NAOS_CHECK_UINT_EQ(strlen(HELP_FIXTURE_FILE), 12);
-    NAOS_CHECK_MEM_EQ(HELP_FIXTURE_RAW_VALUE_NAME, strlen(HELP_FIXTURE_RAW_VALUE_NAME),
+    NAOS_CHECK_UINT_EQ(strlen(TEXT_FIXTURE_NAIVE), 6);
+    NAOS_CHECK_UINT_EQ(strlen(TEXT_FIXTURE_NIHONGO), 9);
+    NAOS_CHECK_UINT_EQ(strlen(TEXT_FIXTURE_ATAI), 3);
+    NAOS_CHECK_UINT_EQ(strlen(TEXT_FIXTURE_FILE), 12);
+    NAOS_CHECK_MEM_EQ(TEXT_FIXTURE_RAW_VALUE_NAME, strlen(TEXT_FIXTURE_RAW_VALUE_NAME),
                       "\x42\xFF\xC0\xAF\xE6\x97\x45", (size_t)7);
 }
 
@@ -423,7 +423,7 @@ NAOS_TEST(no_description_with_notes_starts_the_notes_at_the_description)
 
 NAOS_TEST(list_of_no_rows_writes_nothing)
 {
-    help_recorder_t rec;
+    text_recorder_t rec;
 
     NAOS_CHECK_INT_EQ(write_rows(&rec, NULL, 0), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
@@ -438,11 +438,11 @@ NAOS_TEST(list_pads_every_row_to_the_widest_left_column)
         "      --config <FILE>  Configuration file [env: TOOL_CONFIG]\n"
         "  -h, --help           Show this help\n"
         "      --version        Show version information\n";
-    help_fixture_tool_t f;
-    help_recorder_t rec;
-    clopts_help_row_t rows[5];
+    text_fixture_tool_t f;
+    text_recorder_t rec;
+    clopts_text_row_t rows[5];
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
 
@@ -454,7 +454,7 @@ NAOS_TEST(list_pads_every_row_to_the_widest_left_column)
     NAOS_CHECK_INT_EQ(write_rows(&rec, rows, 5), CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
 
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(list_aligns_each_list_on_its_own_widest_left_column)
@@ -464,11 +464,11 @@ NAOS_TEST(list_aligns_each_list_on_its_own_widest_left_column)
         "  -k, --keys <KEY>[,<KEY>...]  Keys to include (default: a,b)\n"
         "  -h, --help                   Show this help\n"
         "  -x\n";
-    help_fixture_tool_t f;
-    help_recorder_t rec;
-    clopts_help_row_t rows[4];
+    text_fixture_tool_t f;
+    text_recorder_t rec;
+    clopts_text_row_t rows[4];
 
-    help_fixture_tool_init(&f);
+    text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
 
@@ -480,7 +480,7 @@ NAOS_TEST(list_aligns_each_list_on_its_own_widest_left_column)
     NAOS_CHECK_INT_EQ(write_rows(&rec, rows, 4), CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
 
-    help_fixture_tool_free(&f);
+    text_fixture_tool_free(&f);
 }
 
 NAOS_TEST(list_aligns_descriptions_in_code_points_with_non_ascii_names)
@@ -491,21 +491,21 @@ NAOS_TEST(list_aligns_descriptions_in_code_points_with_non_ascii_names)
      * W = 19, so every description starts after 2 + 19 + 2 = 23 code points.
      */
     static const char expected[] =
-        "      --" HELP_FIXTURE_NAIVE "          Trust every input\n"
-        "  -j, --" HELP_FIXTURE_NIHONGO " <" HELP_FIXTURE_ATAI ">        Japanese text\n"
-        "      --raw <" HELP_FIXTURE_RAW_VALUE_NAME ">  Raw bytes\n"
+        "      --" TEXT_FIXTURE_NAIVE "          Trust every input\n"
+        "  -j, --" TEXT_FIXTURE_NIHONGO " <" TEXT_FIXTURE_ATAI ">        Japanese text\n"
+        "      --raw <" TEXT_FIXTURE_RAW_VALUE_NAME ">  Raw bytes\n"
         "  -h, --help           Show this help\n";
     static const char *const descriptions[] = {
         "Trust every input", "Japanese text", "Raw bytes", "Show this help"
     };
-    help_fixture_wide_t f;
-    help_recorder_t rec;
-    clopts_help_row_t rows[4];
+    text_fixture_wide_t f;
+    text_recorder_t rec;
+    clopts_text_row_t rows[4];
     const char *line;
     size_t byte_starts[4];
     size_t i;
 
-    help_fixture_wide_init(&f);
+    text_fixture_wide_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
 
@@ -526,7 +526,7 @@ NAOS_TEST(list_aligns_descriptions_in_code_points_with_non_ascii_names)
         NAOS_REQUIRE_NOT_NULL(end);
         NAOS_REQUIRE_NOT_NULL(start);
         NAOS_CHECK_TRUE(start < end);
-        NAOS_CHECK_UINT_EQ(clopts_help_width(line, (size_t)(start - line)), 23);
+        NAOS_CHECK_UINT_EQ(clopts_text_width(line, (size_t)(start - line)), 23);
         byte_starts[i] = (size_t)(start - line);
         line = end + 1;
     }
@@ -535,7 +535,7 @@ NAOS_TEST(list_aligns_descriptions_in_code_points_with_non_ascii_names)
     NAOS_CHECK_UINT_EQ(byte_starts[0], 24);
     NAOS_CHECK_UINT_EQ(byte_starts[1], 23 + 6 + 2);
 
-    help_fixture_wide_free(&f);
+    text_fixture_wide_free(&f);
 }
 
 NAOS_SUITE(option_row,

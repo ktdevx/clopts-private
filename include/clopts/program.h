@@ -28,7 +28,7 @@ extern "C" {
  * clopts/decl_types.h.
  *
  * Once the program is first parsed (clopts/parse.h) or written
- * (clopts/help.h), it must not change any more: calling a builder function on
+ * (clopts/text.h), it must not change any more: calling a builder function on
  * it or on anything attached to it is a contract violation (the behavior is
  * undefined; it is not detected). It can then be parsed and read from several
  * threads at the same time.

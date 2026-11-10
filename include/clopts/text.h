@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_HELP_H
-#define CLOPTS_HELP_H
+#ifndef CLOPTS_TEXT_H
+#define CLOPTS_TEXT_H
 
 #include "clopts/decl_types.h"
 #include "clopts/export.h"
@@ -17,9 +17,9 @@ extern "C" {
 
 /*
  * Text API: help, Usage line, version line, usage hint and error line of a
- * program, and the help command the help texts go with. --help and
- * --version are ordinary terminal FLAG options that the program declares
- * itself (clopts/option.h). Every function writes its text through
+ * program. --help and --version are ordinary terminal FLAG options, and a
+ * help command is an ordinary subcommand, that the program declares itself
+ * (clopts/option.h, clopts/command.h). Every function writes its text through
  * write_fn(ctx, ...) only; nothing is written to a stream directly. To write
  * to a FILE*, pass the ready-made callback of clopts/writer.h, e.g.
  * clopts_write_help(program, NULL, clopts_file_write, stdout).
@@ -78,28 +78,8 @@ CLOPTS_API clopts_write_status_t clopts_write_usage_hint(const clopts_program_t 
 CLOPTS_API clopts_write_status_t clopts_write_error(const clopts_program_t *program, const clopts_result_t *result,
                                                     unsigned flags, clopts_write_fn write_fn, void *ctx);
 
-/* ---- the help command ---- */
-
-/*
- * Creates an unattached subcommand "help" ("Show help for a command") with
- * one optional positional COMMAND into *out, to be added with
- * clopts_program_add_command() like the other subcommands. clopts_help_find_target()
- * reads a result that selected it.
- */
-CLOPTS_API clopts_decl_error_t clopts_help_command_create(clopts_command_t **out);
-
-/*
- * For a result of program whose status is OK: reads the first positional as
- * the name of the command to show the help of. Returns true and sets *target
- * to NULL (no positional: the program help) or to the subcommand of that
- * name; returns false and sets *target to NULL when no subcommand has that
- * name, or when the status is not OK.
- */
-CLOPTS_API bool clopts_help_find_target(const clopts_program_t *program, const clopts_result_t *result,
-                                   const clopts_command_t **target);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CLOPTS_HELP_H */
+#endif /* CLOPTS_TEXT_H */

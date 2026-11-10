@@ -8,29 +8,29 @@
 
 | モジュール | ディレクトリ | 役割 |
 |------------|--------------|------|
-| core | `src/core/` | アロケーターの窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、書き込みのコールバック |
+| core | `src/core/` | アロケーターの窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列 |
 | decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則と比べ方、宣言エラーの説明 |
 | parser | `src/parser/` | 解析の入口と手順、名前での検索、argv の走査、環境変数と既定値の解決、必須の検査、結果のハンドル |
-| help | `src/help/` | ヘルプ・使い方・版・エラーの文面の出力と、help サブコマンドなどの宣言の補助 |
+| text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）の書き込みのコールバックへの出力と、help サブコマンドの宣言と結果の読み取りの補助 |
 | platform | `src/platform/` | Windows のコマンドラインの分割と UTF-8 への変換、プロセスの環境変数の UTF-8 での参照（解析が使う） |
 
 依存の向きは次のとおりである。
 
 ```mermaid
 flowchart LR
-    help --> parser_api["clopts/*.h（公開 API）"]
+    text --> parser_api["clopts/*.h（公開 API）"]
     parser --> decl
     parser --> platform
     decl --> core
     parser --> core
-    help --> core
+    text --> core
     platform --> core
 ```
 
-- decl、parser、help、platform は core の内部ヘッダ `core/core_internal.h` を使う。core はほかのモジュールに依存しない。
+- decl、parser、text、platform は core の内部ヘッダ `core/core_internal.h` を使う。core はほかのモジュールに依存しない。
 - decl は解析を知らない。parser は decl の内部ヘッダ `decl/decl_internal.h`（Scope の読み取りと名前の比べ方）で宣言を読み、書き込まない。
 - parser は、プロセスの環境変数を platform の内部ヘッダ（`clopts_platform_env_lookup` と、その文脈 `clopts_platform_env_t`）で読む。文脈は解決（`resolve.c`）のスタックに置き、解析ごとに作って解放する。プロセスの環境を読むのは platform だけである。
-- help は decl と parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。help は、ライブラリの利用者が書けることしかしていない。
+- text は decl と parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。
 - 各モジュールの内部ヘッダ（`<module>/<module>_internal.h`）の関数は、共有ライブラリから export しない。
 
 ## 宣言モデル
@@ -94,7 +94,7 @@ classDiagram
 
 読み取り関数に NULL のハンドルを渡すのは契約違反で、`assert` で検出する。
 
-help は公開 API だけを読むので、プログラム自身の範囲とサブコマンドを同じに扱うための小さな値型 `help_scope_t`（`src/help/help_layout.c`）を持つ。`command` が NULL ならプログラムを表す。
+text は公開 API だけを読むので、プログラム自身の範囲とサブコマンドを同じに扱うための小さな値型 `text_scope_t`（`src/text/text_layout.c`）を持つ。`command` が NULL ならプログラムを表す。
 
 ### 検査の置き場所
 
@@ -145,7 +145,7 @@ help は公開 API だけを読むので、プログラム自身の範囲とサ�
 ### 決めたこと
 
 - **凍結は契約にする。** 1 回の呼び出しで作る形をやめたので、Program は組み立て途中にも存在する。最初の `clopts_parse` / `clopts_write_*` より後でビルダー関数を呼ぶのは契約違反とし、検出しない。今の「渡した後のハンドルは読み取り専用」と同じ扱いで、`clopts_program_seal` のような関数は足さない。
-- **help・version のオプションを作る関数は置かない。** 終端の FLAG を作って説明を付けて渡すだけで、利用者がオプションの API で簡単に書ける。program と command のどちらに渡すかで関数を分ける必要もない。`help` コマンドを作る `clopts_help_command_create` と `clopts_help_find_target` は残した。
+- **help・version のオプションを作る関数は置かない。** 終端の FLAG を作って説明を付けて渡すだけで、利用者がオプションの API で簡単に書ける。program と command のどちらに渡すかで関数を分ける必要もない。同じ理由で、`help` コマンドを作る関数と、その対象のコマンドを引く関数も置かない。コマンドと位置引数を作って渡すだけで、対象は `clopts_program_find_command` で引ける。
 
 ### 採らなかった案
 

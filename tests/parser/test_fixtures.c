@@ -9,13 +9,13 @@
  * limit and positionals) with the builder functions: the program and its
  * global options first, then the commands, which test_decl_finish() adds.
  * The terminal options -h/--help and --version come from test_decl.h, the
- * help command from clopts/help.h.
+ * help command from clopts/text.h.
  */
 
 #include "test_fixtures.h"
 #include "test_decl.h"
 
-#include "clopts/help.h"
+#include "clopts/text.h"
 
 #include <assert.h>
 #include <string.h>
@@ -211,11 +211,7 @@ void fixture_tool_init(fixture_tool_t *f)
     f->cat_file = test_decl_attach_positional(f->cat, f->cat_file);
 
     /* help */
-    if (f->program != NULL)
-    {
-        test_decl_check(clopts_help_command_create(&f->help_command));
-        f->help_command = test_decl_adopt(f->program, f->help_command);
-    }
+    f->help_command = test_decl_help_command(f->program);
 
     f->program = test_decl_finish(f->program);
     if (f->program == NULL)

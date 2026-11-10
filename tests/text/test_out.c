@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite out: the output sink of the help module (write and measure modes,
+ * Suite out: the output sink of the text module (write and measure modes,
  * no call after a failure) and the UTF-8 display width.
  *
  * It also checks the recording callback of the shared fixtures, which the
@@ -11,7 +11,7 @@
 
 #include "test_fixtures.h"
 
-#include "help/help_internal.h"
+#include "text/text_internal.h"
 
 #include <naos/naos.h>
 
@@ -20,17 +20,17 @@
 
 NAOS_TEST(recorder_concatenates_bytes_and_counts_calls)
 {
-    help_recorder_t rec;
+    text_recorder_t rec;
 
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
     NAOS_CHECK_UINT_EQ(rec.calls, 0);
     NAOS_CHECK_FALSE(rec.overflow);
     NAOS_CHECK_STR_EQ(rec.buf, "");
 
-    NAOS_CHECK_INT_EQ(help_recorder_write(&rec, "ab", 2), 0);
-    NAOS_CHECK_INT_EQ(help_recorder_write(&rec, "xyz", 0), 0);
-    NAOS_CHECK_INT_EQ(help_recorder_write(&rec, "c\0d", 3), 0);
+    NAOS_CHECK_INT_EQ(text_recorder_write(&rec, "ab", 2), 0);
+    NAOS_CHECK_INT_EQ(text_recorder_write(&rec, "xyz", 0), 0);
+    NAOS_CHECK_INT_EQ(text_recorder_write(&rec, "c\0d", 3), 0);
 
     NAOS_CHECK_UINT_EQ(rec.calls, 3);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, "abc\0d", (size_t)5);
@@ -40,24 +40,24 @@ NAOS_TEST(recorder_concatenates_bytes_and_counts_calls)
 
 NAOS_TEST(recorder_rejects_a_write_that_does_not_fit)
 {
-    static char big[HELP_RECORDER_SIZE];
-    help_recorder_t rec;
+    static char big[TEXT_RECORDER_SIZE];
+    text_recorder_t rec;
 
     memset(big, 'x', sizeof(big));
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
 
-    NAOS_CHECK_INT_EQ(help_recorder_write(&rec, big, sizeof(big) - 1), 0);
-    NAOS_CHECK_INT_EQ(help_recorder_write(&rec, "yz", 2), 1);
+    NAOS_CHECK_INT_EQ(text_recorder_write(&rec, big, sizeof(big) - 1), 0);
+    NAOS_CHECK_INT_EQ(text_recorder_write(&rec, "yz", 2), 1);
     NAOS_CHECK_TRUE(rec.overflow);
     NAOS_CHECK_UINT_EQ(rec.len, sizeof(big) - 1);
-    NAOS_CHECK_INT_EQ(help_recorder_write(&rec, "y", 1), 0);
+    NAOS_CHECK_INT_EQ(text_recorder_write(&rec, "y", 1), 0);
     NAOS_CHECK_UINT_EQ(rec.len, sizeof(big));
     NAOS_CHECK_UINT_EQ(rec.calls, 3);
     NAOS_CHECK_INT_EQ(rec.buf[rec.len - 1], 'y');
     NAOS_CHECK_INT_EQ(rec.buf[rec.len], '\0');
 
     /* init empties it again */
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
     NAOS_CHECK_UINT_EQ(rec.calls, 0);
     NAOS_CHECK_FALSE(rec.overflow);
@@ -65,29 +65,29 @@ NAOS_TEST(recorder_rejects_a_write_that_does_not_fit)
 
 NAOS_TEST(recorder_works_as_a_write_fn)
 {
-    clopts_write_fn fn = help_recorder_write;
-    help_recorder_t rec;
+    clopts_write_fn fn = text_recorder_write;
+    text_recorder_t rec;
 
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
     NAOS_CHECK_INT_EQ(fn(&rec, "hello\n", 6), 0);
     NAOS_CHECK_UINT_EQ(rec.calls, 1);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, "hello\n", (size_t)6);
 }
 
-/* ---- clopts_help_width -------------------------------------------------- */
+/* ---- clopts_text_width -------------------------------------------------- */
 
 /* Width of a string literal, embedded NULs included. */
-#define WIDTH_OF(lit) clopts_help_width((lit), sizeof(lit) - 1)
+#define WIDTH_OF(lit) clopts_text_width((lit), sizeof(lit) - 1)
 
 NAOS_TEST(width_counts_ascii_bytes)
 {
-    NAOS_CHECK_UINT_EQ(clopts_help_width("", 0), 0);
+    NAOS_CHECK_UINT_EQ(clopts_text_width("", 0), 0);
     NAOS_CHECK_UINT_EQ(WIDTH_OF("a"), 1);
     NAOS_CHECK_UINT_EQ(WIDTH_OF("--verbose"), 9);
     NAOS_CHECK_UINT_EQ(WIDTH_OF("a\0b"), 3);
     NAOS_CHECK_UINT_EQ(WIDTH_OF("\x7F"), 1);
     /* only len bytes are looked at */
-    NAOS_CHECK_UINT_EQ(clopts_help_width("abcdef", 2), 2);
+    NAOS_CHECK_UINT_EQ(clopts_text_width("abcdef", 2), 2);
 }
 
 NAOS_TEST(width_counts_a_valid_sequence_as_one)
@@ -108,10 +108,10 @@ NAOS_TEST(width_counts_a_valid_sequence_as_one)
     NAOS_CHECK_UINT_EQ(WIDTH_OF("\xF4\x8F\xBF\xBF"), 1);
     /* mixed with ASCII */
     NAOS_CHECK_UINT_EQ(WIDTH_OF("a\xC3\xAF\xE6\x97\xA5\xF0\x9F\x98\x80" "z"), 5);
-    NAOS_CHECK_UINT_EQ(WIDTH_OF(HELP_FIXTURE_NAIVE), 5);
-    NAOS_CHECK_UINT_EQ(WIDTH_OF(HELP_FIXTURE_NIHONGO), 3);
-    NAOS_CHECK_UINT_EQ(WIDTH_OF(HELP_FIXTURE_ATAI), 1);
-    NAOS_CHECK_UINT_EQ(WIDTH_OF(HELP_FIXTURE_FILE), 4);
+    NAOS_CHECK_UINT_EQ(WIDTH_OF(TEXT_FIXTURE_NAIVE), 5);
+    NAOS_CHECK_UINT_EQ(WIDTH_OF(TEXT_FIXTURE_NIHONGO), 3);
+    NAOS_CHECK_UINT_EQ(WIDTH_OF(TEXT_FIXTURE_ATAI), 1);
+    NAOS_CHECK_UINT_EQ(WIDTH_OF(TEXT_FIXTURE_FILE), 4);
 }
 
 NAOS_TEST(width_counts_each_byte_of_an_overlong_form)
@@ -149,7 +149,7 @@ NAOS_TEST(width_counts_each_byte_of_a_truncated_sequence)
     NAOS_CHECK_UINT_EQ(WIDTH_OF("\xE6\x97"), 2);
     NAOS_CHECK_UINT_EQ(WIDTH_OF("\xF0\x9F\x98"), 3);
     /* cut by len, not by a NUL */
-    NAOS_CHECK_UINT_EQ(clopts_help_width("\xE6\x97\xA5", 2), 2);
+    NAOS_CHECK_UINT_EQ(clopts_text_width("\xE6\x97\xA5", 2), 2);
     /* interrupted by an ASCII byte or by the lead byte of a valid sequence */
     NAOS_CHECK_UINT_EQ(WIDTH_OF("\xE6\x97" "E"), 3);
     NAOS_CHECK_UINT_EQ(WIDTH_OF("\xF0\x9F" "a"), 3);
@@ -170,29 +170,29 @@ NAOS_TEST(width_counts_each_lone_continuation_byte)
 
 NAOS_TEST(width_of_the_fixture_raw_value_name_is_seven)
 {
-    NAOS_CHECK_UINT_EQ(WIDTH_OF(HELP_FIXTURE_RAW_VALUE_NAME), 7);
+    NAOS_CHECK_UINT_EQ(WIDTH_OF(TEXT_FIXTURE_RAW_VALUE_NAME), 7);
 }
 
 /* ---- write mode --------------------------------------------------------- */
 
-#define RAW_LEN (sizeof(HELP_FIXTURE_RAW_VALUE_NAME) - 1)
-#define WRITTEN_IN_ORDER "ab\0" HELP_FIXTURE_NIHONGO "=   " HELP_FIXTURE_RAW_VALUE_NAME
+#define RAW_LEN (sizeof(TEXT_FIXTURE_RAW_VALUE_NAME) - 1)
+#define WRITTEN_IN_ORDER "ab\0" TEXT_FIXTURE_NIHONGO "=   " TEXT_FIXTURE_RAW_VALUE_NAME
 
 NAOS_TEST(write_mode_passes_every_output_to_the_callback_in_order)
 {
-    help_recorder_t rec;
-    clopts_help_out_t out;
+    text_recorder_t rec;
+    clopts_text_out_t out;
 
-    help_recorder_init(&rec);
-    clopts_help_out_init(&out, help_recorder_write, &rec);
+    text_recorder_init(&rec);
+    clopts_text_out_init(&out, text_recorder_write, &rec);
 
-    clopts_help_out_bytes(&out, "ab\0", 3);
-    clopts_help_out_str(&out, HELP_FIXTURE_NIHONGO);
-    clopts_help_out_char(&out, '=');
-    clopts_help_out_spaces(&out, 3);
-    clopts_help_out_bytes(&out, HELP_FIXTURE_RAW_VALUE_NAME, RAW_LEN);
+    clopts_text_out_bytes(&out, "ab\0", 3);
+    clopts_text_out_str(&out, TEXT_FIXTURE_NIHONGO);
+    clopts_text_out_char(&out, '=');
+    clopts_text_out_spaces(&out, 3);
+    clopts_text_out_bytes(&out, TEXT_FIXTURE_RAW_VALUE_NAME, RAW_LEN);
 
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(rec.calls, 5);
     NAOS_CHECK_FALSE(rec.overflow);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, WRITTEN_IN_ORDER, sizeof(WRITTEN_IN_ORDER) - 1);
@@ -200,18 +200,18 @@ NAOS_TEST(write_mode_passes_every_output_to_the_callback_in_order)
 
 NAOS_TEST(write_mode_does_not_call_the_callback_for_zero_bytes)
 {
-    help_recorder_t rec;
-    clopts_help_out_t out;
+    text_recorder_t rec;
+    clopts_text_out_t out;
 
-    help_recorder_init(&rec);
-    clopts_help_out_init(&out, help_recorder_write, &rec);
+    text_recorder_init(&rec);
+    clopts_text_out_init(&out, text_recorder_write, &rec);
 
-    clopts_help_out_bytes(&out, "abc", 0);
-    clopts_help_out_bytes(&out, NULL, 0);
-    clopts_help_out_str(&out, "");
-    clopts_help_out_spaces(&out, 0);
+    clopts_text_out_bytes(&out, "abc", 0);
+    clopts_text_out_bytes(&out, NULL, 0);
+    clopts_text_out_str(&out, "");
+    clopts_text_out_spaces(&out, 0);
 
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(rec.calls, 0);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
 }
@@ -219,38 +219,38 @@ NAOS_TEST(write_mode_does_not_call_the_callback_for_zero_bytes)
 NAOS_TEST(write_mode_writes_many_spaces)
 {
     static char expected[200];
-    help_recorder_t rec;
-    clopts_help_out_t out;
+    text_recorder_t rec;
+    clopts_text_out_t out;
 
     memset(expected, ' ', sizeof(expected));
-    help_recorder_init(&rec);
-    clopts_help_out_init(&out, help_recorder_write, &rec);
+    text_recorder_init(&rec);
+    clopts_text_out_init(&out, text_recorder_write, &rec);
 
-    clopts_help_out_spaces(&out, sizeof(expected));
+    clopts_text_out_spaces(&out, sizeof(expected));
 
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, sizeof(expected));
 }
 
 NAOS_TEST(write_mode_stops_calling_after_the_first_failure)
 {
-    help_failer_t failer;
-    clopts_help_out_t out;
+    text_failer_t failer;
+    clopts_text_out_t out;
 
-    help_failer_init(&failer, 3);
-    clopts_help_out_init(&out, help_failer_write, &failer);
+    text_failer_init(&failer, 3);
+    clopts_text_out_init(&out, text_failer_write, &failer);
 
-    clopts_help_out_str(&out, "Usage:");
-    clopts_help_out_char(&out, ' ');
-    NAOS_CHECK_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    clopts_text_out_str(&out, "Usage:");
+    clopts_text_out_char(&out, ' ');
+    NAOS_CHECK_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
 
-    clopts_help_out_str(&out, "tool"); /* the 3rd call fails */
-    clopts_help_out_spaces(&out, 2);
-    clopts_help_out_bytes(&out, "[OPTIONS]", 9);
-    clopts_help_out_char(&out, '\n');
-    clopts_help_out_str(&out, "more");
+    clopts_text_out_str(&out, "tool"); /* the 3rd call fails */
+    clopts_text_out_spaces(&out, 2);
+    clopts_text_out_bytes(&out, "[OPTIONS]", 9);
+    clopts_text_out_char(&out, '\n');
+    clopts_text_out_str(&out, "more");
 
-    NAOS_CHECK_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_FAILED);
+    NAOS_CHECK_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_FAILED);
     NAOS_CHECK_TRUE(failer.failed);
     NAOS_CHECK_UINT_EQ(failer.calls, 3);
     NAOS_CHECK_UINT_EQ(failer.calls_after_failure, 0);
@@ -259,17 +259,17 @@ NAOS_TEST(write_mode_stops_calling_after_the_first_failure)
 
 NAOS_TEST(write_mode_keeps_a_failure_on_the_first_call)
 {
-    help_failer_t failer;
-    clopts_help_out_t out;
+    text_failer_t failer;
+    clopts_text_out_t out;
 
-    help_failer_init(&failer, 1);
-    clopts_help_out_init(&out, help_failer_write, &failer);
+    text_failer_init(&failer, 1);
+    clopts_text_out_init(&out, text_failer_write, &failer);
 
-    clopts_help_out_str(&out, "a");
-    clopts_help_out_str(&out, "b");
-    clopts_help_out_spaces(&out, 100);
+    clopts_text_out_str(&out, "a");
+    clopts_text_out_str(&out, "b");
+    clopts_text_out_spaces(&out, 100);
 
-    NAOS_CHECK_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_FAILED);
+    NAOS_CHECK_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_FAILED);
     NAOS_CHECK_UINT_EQ(failer.calls, 1);
     NAOS_CHECK_UINT_EQ(failer.calls_after_failure, 0);
     NAOS_CHECK_UINT_EQ(failer.written.len, 0);
@@ -277,17 +277,17 @@ NAOS_TEST(write_mode_keeps_a_failure_on_the_first_call)
 
 NAOS_TEST(write_mode_with_a_callback_that_never_fails_is_ok)
 {
-    help_failer_t failer;
-    clopts_help_out_t out;
+    text_failer_t failer;
+    clopts_text_out_t out;
 
-    help_failer_init(&failer, 0);
-    clopts_help_out_init(&out, help_failer_write, &failer);
+    text_failer_init(&failer, 0);
+    clopts_text_out_init(&out, text_failer_write, &failer);
 
-    clopts_help_out_str(&out, "a");
-    clopts_help_out_str(&out, "b");
-    clopts_help_out_char(&out, 'c');
+    clopts_text_out_str(&out, "a");
+    clopts_text_out_str(&out, "b");
+    clopts_text_out_char(&out, 'c');
 
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(failer.calls, 3);
     NAOS_CHECK_MEM_EQ(failer.written.buf, failer.written.len, "abc", (size_t)3);
 }
@@ -296,38 +296,38 @@ NAOS_TEST(write_mode_with_a_callback_that_never_fails_is_ok)
 
 NAOS_TEST(measure_mode_adds_widths_without_writing)
 {
-    clopts_help_out_t out;
+    clopts_text_out_t out;
 
-    clopts_help_out_init(&out, NULL, NULL);
+    clopts_text_out_init(&out, NULL, NULL);
     NAOS_CHECK_UINT_EQ(out.width, 0);
 
-    clopts_help_out_str(&out, "--");                                /* 2 */
-    clopts_help_out_str(&out, HELP_FIXTURE_NIHONGO);                /* 3 */
-    clopts_help_out_char(&out, ' ');                                /* 1 */
-    clopts_help_out_spaces(&out, 40);                               /* 40 */
-    clopts_help_out_bytes(&out, HELP_FIXTURE_RAW_VALUE_NAME, RAW_LEN); /* 7 */
-    clopts_help_out_bytes(&out, HELP_FIXTURE_NAIVE, 3);             /* "na" and a lone C3: 3 */
-    clopts_help_out_str(&out, "");                                  /* 0 */
-    clopts_help_out_spaces(&out, 0);                                /* 0 */
+    clopts_text_out_str(&out, "--");                                /* 2 */
+    clopts_text_out_str(&out, TEXT_FIXTURE_NIHONGO);                /* 3 */
+    clopts_text_out_char(&out, ' ');                                /* 1 */
+    clopts_text_out_spaces(&out, 40);                               /* 40 */
+    clopts_text_out_bytes(&out, TEXT_FIXTURE_RAW_VALUE_NAME, RAW_LEN); /* 7 */
+    clopts_text_out_bytes(&out, TEXT_FIXTURE_NAIVE, 3);             /* "na" and a lone C3: 3 */
+    clopts_text_out_str(&out, "");                                  /* 0 */
+    clopts_text_out_spaces(&out, 0);                                /* 0 */
 
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(out.width, 56);
 }
 
 NAOS_TEST(measure_mode_does_not_call_the_callback)
 {
-    help_recorder_t rec;
-    clopts_help_out_t out;
+    text_recorder_t rec;
+    clopts_text_out_t out;
 
-    help_recorder_init(&rec);
+    text_recorder_init(&rec);
     /* ctx is given, but without fn nothing is written to it */
-    clopts_help_out_init(&out, NULL, &rec);
+    clopts_text_out_init(&out, NULL, &rec);
 
-    clopts_help_out_str(&out, "abc");
-    clopts_help_out_char(&out, 'd');
-    clopts_help_out_spaces(&out, 5);
+    clopts_text_out_str(&out, "abc");
+    clopts_text_out_char(&out, 'd');
+    clopts_text_out_spaces(&out, 5);
 
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(out.width, 9);
     NAOS_CHECK_UINT_EQ(rec.calls, 0);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
@@ -335,25 +335,25 @@ NAOS_TEST(measure_mode_does_not_call_the_callback)
 
 NAOS_TEST(init_starts_over)
 {
-    help_failer_t failer;
-    help_recorder_t rec;
-    clopts_help_out_t out;
+    text_failer_t failer;
+    text_recorder_t rec;
+    clopts_text_out_t out;
 
-    help_failer_init(&failer, 1);
-    clopts_help_out_init(&out, help_failer_write, &failer);
-    clopts_help_out_str(&out, "x");
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_FAILED);
+    text_failer_init(&failer, 1);
+    clopts_text_out_init(&out, text_failer_write, &failer);
+    clopts_text_out_str(&out, "x");
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_FAILED);
 
-    clopts_help_out_init(&out, NULL, NULL);
-    clopts_help_out_str(&out, "xy");
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    clopts_text_out_init(&out, NULL, NULL);
+    clopts_text_out_str(&out, "xy");
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(out.width, 2);
 
-    help_recorder_init(&rec);
-    clopts_help_out_init(&out, help_recorder_write, &rec);
+    text_recorder_init(&rec);
+    clopts_text_out_init(&out, text_recorder_write, &rec);
     NAOS_CHECK_UINT_EQ(out.width, 0);
-    clopts_help_out_str(&out, "z");
-    NAOS_REQUIRE_INT_EQ(clopts_help_out_status(&out), CLOPTS_WRITE_OK);
+    clopts_text_out_str(&out, "z");
+    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, "z", (size_t)1);
 }
 
@@ -409,25 +409,25 @@ static clopts_write_status_t out_case_run(const out_case_t *c, clopts_write_fn f
  */
 static void out_check_case(const out_case_t *c)
 {
-    static help_recorder_t rec;
-    static help_failer_t failer;
+    static text_recorder_t rec;
+    static text_failer_t failer;
     size_t k;
 
-    help_recorder_init(&rec);
-    NAOS_REQUIRE_INT_EQ(out_case_run(c, help_recorder_write, &rec), CLOPTS_WRITE_OK);
+    text_recorder_init(&rec);
+    NAOS_REQUIRE_INT_EQ(out_case_run(c, text_recorder_write, &rec), CLOPTS_WRITE_OK);
     NAOS_REQUIRE_FALSE(rec.overflow);
     NAOS_REQUIRE_TRUE(rec.calls > 0);
 
-    help_failer_init(&failer, 0);
-    NAOS_CHECK_INT_EQ(out_case_run(c, help_failer_write, &failer), CLOPTS_WRITE_OK);
+    text_failer_init(&failer, 0);
+    NAOS_CHECK_INT_EQ(out_case_run(c, text_failer_write, &failer), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(failer.calls, rec.calls);
     NAOS_CHECK_MEM_EQ(failer.written.buf, failer.written.len, rec.buf, rec.len);
 
     for (k = 1; k <= rec.calls; k++)
     {
         NAOS_TRACE_PUSH("fail at call %u", (unsigned)k);
-        help_failer_init(&failer, k);
-        NAOS_CHECK_INT_EQ(out_case_run(c, help_failer_write, &failer), CLOPTS_WRITE_FAILED);
+        text_failer_init(&failer, k);
+        NAOS_CHECK_INT_EQ(out_case_run(c, text_failer_write, &failer), CLOPTS_WRITE_FAILED);
         NAOS_CHECK_TRUE(failer.failed);
         NAOS_CHECK_UINT_EQ(failer.calls, k);
         NAOS_CHECK_UINT_EQ(failer.calls_after_failure, 0);
@@ -448,16 +448,16 @@ static clopts_env_status_t out_env_unset(void *ctx, const char *name, const char
 
 NAOS_TEST(public_help_functions_stop_after_a_write_failure)
 {
-    help_fixture_tool_t tool;
-    help_fixture_filt_t filt;
-    help_fixture_bare_t bare;
-    help_fixture_wide_t wide;
+    text_fixture_tool_t tool;
+    text_fixture_filt_t filt;
+    text_fixture_bare_t bare;
+    text_fixture_wide_t wide;
     size_t i;
 
-    help_fixture_tool_init(&tool);
-    help_fixture_filt_init(&filt);
-    help_fixture_bare_init(&bare);
-    help_fixture_wide_init(&wide);
+    text_fixture_tool_init(&tool);
+    text_fixture_filt_init(&filt);
+    text_fixture_bare_init(&bare);
+    text_fixture_wide_init(&wide);
     NAOS_REQUIRE_NOT_NULL(tool.program);
     NAOS_REQUIRE_NOT_NULL(filt.program);
     NAOS_REQUIRE_NOT_NULL(bare.program);
@@ -489,20 +489,20 @@ NAOS_TEST(public_help_functions_stop_after_a_write_failure)
             NAOS_TRACE_POP();
         }
     }
-    help_fixture_wide_free(&wide);
-    help_fixture_bare_free(&bare);
-    help_fixture_filt_free(&filt);
-    help_fixture_tool_free(&tool);
+    text_fixture_wide_free(&wide);
+    text_fixture_bare_free(&bare);
+    text_fixture_filt_free(&filt);
+    text_fixture_tool_free(&tool);
 }
 
 NAOS_TEST(write_error_stops_after_a_write_failure)
 {
     char *argv[] = { "tool", "build", "--bad=1", NULL };
-    help_fixture_tool_t tool;
+    text_fixture_tool_t tool;
     clopts_result_t *usage_result;
     size_t i;
 
-    help_fixture_tool_init(&tool);
+    text_fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
     usage_result = clopts_parse_with_env(tool.program, 3, argv, out_env_unset, NULL);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(usage_result), CLOPTS_PARSE_USAGE_ERROR);
@@ -523,7 +523,7 @@ NAOS_TEST(write_error_stops_after_a_write_failure)
         }
     }
     clopts_result_destroy(usage_result);
-    help_fixture_tool_free(&tool);
+    text_fixture_tool_free(&tool);
 }
 
 /* ---- public functions: FILE* output ------------------------------------ */
@@ -536,13 +536,13 @@ NAOS_TEST(write_error_stops_after_a_write_failure)
  */
 static void out_check_file_help(const clopts_program_t *program)
 {
-    static help_recorder_t rec;
-    static char back[HELP_RECORDER_SIZE + 1];
+    static text_recorder_t rec;
+    static char back[TEXT_RECORDER_SIZE + 1];
     FILE *fp;
     size_t n;
 
-    help_recorder_init(&rec);
-    NAOS_REQUIRE_INT_EQ(clopts_write_help(program, NULL, help_recorder_write, &rec), CLOPTS_WRITE_OK);
+    text_recorder_init(&rec);
+    NAOS_REQUIRE_INT_EQ(clopts_write_help(program, NULL, text_recorder_write, &rec), CLOPTS_WRITE_OK);
     NAOS_REQUIRE_FALSE(rec.overflow);
 
     fp = tmpfile();
@@ -559,19 +559,19 @@ static void out_check_file_help(const clopts_program_t *program)
 
 NAOS_TEST(file_write_outputs_the_same_bytes_as_the_recorder)
 {
-    help_fixture_tool_t tool;
-    help_fixture_wide_t wide;
+    text_fixture_tool_t tool;
+    text_fixture_wide_t wide;
 
-    help_fixture_tool_init(&tool);
+    text_fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
     out_check_file_help(tool.program);
-    help_fixture_tool_free(&tool);
+    text_fixture_tool_free(&tool);
 
     /* non-ASCII names and bytes that are not valid UTF-8 pass through as is */
-    help_fixture_wide_init(&wide);
+    text_fixture_wide_init(&wide);
     NAOS_REQUIRE_NOT_NULL(wide.program);
     out_check_file_help(wide.program);
-    help_fixture_wide_free(&wide);
+    text_fixture_wide_free(&wide);
 }
 
 NAOS_SUITE(out,

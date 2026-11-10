@@ -46,15 +46,6 @@ clopts_command_get_positional_at
 # clopts/decl_error.h
 clopts_decl_error_get_message
 
-# clopts/help.h
-clopts_write_help
-clopts_write_usage
-clopts_write_version
-clopts_write_usage_hint
-clopts_write_error
-clopts_help_command_create
-clopts_help_find_target
-
 # clopts/option.h
 clopts_option_create
 clopts_option_destroy
@@ -140,3 +131,10 @@ clopts_program_get_positional_at
 clopts_program_get_command_count
 clopts_program_get_command_at
 clopts_program_find_command
+
+# clopts/text.h
+clopts_write_help
+clopts_write_usage
+clopts_write_version
+clopts_write_usage_hint
+clopts_write_error

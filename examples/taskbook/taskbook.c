@@ -239,7 +239,13 @@ static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_optio
     opts->done = command;
     command = NULL; /* now owned by the program */
 
-    CHECK(clopts_help_command_create(&command));
+    /* help [COMMAND]: an ordinary subcommand; run() resolves COMMAND itself. */
+    CHECK(clopts_command_create("help", &command));
+    CHECK(clopts_command_set_summary(command, "Show help for a command"));
+    CHECK(clopts_positional_create("COMMAND", &positional));
+    CHECK(clopts_positional_set_help(positional, "Command to show help for"));
+    CHECK(clopts_command_add_positional(command, positional));
+    positional = NULL; /* now owned by help */
     CHECK(clopts_program_add_command(program, command));
     opts->help_command = command;
     command = NULL; /* now owned by the program */
@@ -260,7 +266,7 @@ fail:
 static int run(const clopts_program_t *program, const clopts_result_t *result, const struct taskbook_options *opts)
 {
     const clopts_command_t *command = clopts_result_get_command(result);
-    const clopts_command_t *target;
+    const clopts_command_t *target = NULL;
 
     if (command == opts->add)
     {
@@ -274,12 +280,18 @@ static int run(const clopts_program_t *program, const clopts_result_t *result, c
     {
         return run_done(result, opts);
     }
-    /* help [COMMAND] */
-    if (!clopts_help_find_target(program, result, &target))
+    /* help [COMMAND]: without COMMAND, the help of the whole program */
+    if (clopts_result_get_positional_count(result) > 0)
     {
-        fprintf(stderr, "taskbook: error: unknown command '%s'\n", clopts_result_get_positional_at(result, 0));
-        clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
-        return 2;
+        const char *name = clopts_result_get_positional_at(result, 0);
+
+        target = clopts_program_find_command(program, name);
+        if (target == NULL)
+        {
+            fprintf(stderr, "taskbook: error: unknown command '%s'\n", name);
+            clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
+            return 2;
+        }
     }
     clopts_write_help(program, target, clopts_file_write, stdout);
     return 0;
