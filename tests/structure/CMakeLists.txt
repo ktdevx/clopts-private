@@ -3,8 +3,8 @@
 
 # Module boundaries of src/ and include/clopts/ (check_structure.cmake): the
 # dependencies between modules of docs/dev/architecture.md and the OS
-# boundary (only process touches the OS). Names of src/
-# (check_names.cmake): an internal function is named after its header
+# boundary (only process touches the OS). Names of src/ and include/clopts/
+# (check_names.cmake): an operation of a type is declared with its type
 # (docs/dev/design.md).
 set(_clopts_structure_script "${CMAKE_CURRENT_SOURCE_DIR}/check_structure.cmake")
 set(_clopts_structure_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
@@ -88,17 +88,25 @@ endforeach()
 set(_clopts_structure_names_script "${CMAKE_CURRENT_SOURCE_DIR}/check_names.cmake")
 set(_clopts_structure_names "${_clopts_structure_fixtures}/names")
 
-_clopts_structure_add_test(names "${PROJECT_SOURCE_DIR}/src" SCRIPT "${_clopts_structure_names_script}")
-_clopts_structure_add_test(names_selftest.good "${_clopts_structure_names}/good/src"
+_clopts_structure_add_test(names "${PROJECT_SOURCE_DIR}/src" INCLUDE_DIR "${PROJECT_SOURCE_DIR}/include"
     SCRIPT "${_clopts_structure_names_script}")
+_clopts_structure_add_test(names_selftest.good "${_clopts_structure_names}/good/src"
+    INCLUDE_DIR "${_clopts_structure_names}/good/include" SCRIPT "${_clopts_structure_names_script}")
 
 # Each bad case must report exactly its one violation.
 set(_clopts_structure_names_internal_header
     "base/base_internal\\.h:1: an internal header is named after a concept")
-set(_clopts_structure_names_wrong_prefix
-    "base/size\\.h:2: 'clopts_mem_size' is not named after its header")
-foreach(_clopts_structure_case IN ITEMS internal_header wrong_prefix)
+set(_clopts_structure_names_op_outside_type
+    "base/memory\\.h:2: 'clopts_vec_sum' is an operation of clopts_vec_t but is not declared with it \\(base/vec\\.h\\)")
+set(_clopts_structure_names_public_op_outside_type
+    "clopts/parse/parse\\.h:2: 'clopts_result_get_count' is an operation of clopts_result_t but is not declared with it \\(parse/result\\.h\\)")
+foreach(_clopts_structure_case IN ITEMS internal_header op_outside_type public_op_outside_type)
+    set(_clopts_structure_case_dir "${_clopts_structure_names}/bad/${_clopts_structure_case}")
+    set(_clopts_structure_include_arg "")
+    if(IS_DIRECTORY "${_clopts_structure_case_dir}/include")
+        set(_clopts_structure_include_arg INCLUDE_DIR "${_clopts_structure_case_dir}/include")
+    endif()
     _clopts_structure_add_test("names_selftest.${_clopts_structure_case}"
-        "${_clopts_structure_names}/bad/${_clopts_structure_case}/src" SCRIPT "${_clopts_structure_names_script}"
+        "${_clopts_structure_case_dir}/src" ${_clopts_structure_include_arg} SCRIPT "${_clopts_structure_names_script}"
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_names_${_clopts_structure_case}}")
 endforeach()
