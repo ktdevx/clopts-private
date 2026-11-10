@@ -744,11 +744,10 @@ typedef struct clopts_allocator
 - 呼び出しの後に `allocator` の指す構造体を変えても、解放しても、影響しない。
 - 設定してよいのは、ライブラリが確保したもの（プログラム、結果、argv のハンドル、環境変数の文脈）が 1 つも生きていないときだけである。ブロックは、解放する時点で設定されている `free_fn` で解放されるので、生きている間に変えると、確保したときとは別の関数で解放されてしまう。ライブラリはこの誤りを検出しない。通常は `main` の最初で 1 回呼ぶ。
 - メモリ不足の番兵（`clopts_parse` などや `clopts_argv_create` が確保に失敗したときに返す共有のオブジェクト）は、静的なオブジェクトで、アロケーターとは関係しない。
-- 構造体 `clopts_allocator_t` の配置は凍結されている。メンバーを足したり、削ったり、並べ替えたり、型を変えたりはしない。拡張が要るときは、別の型と別の関数を足す（[ABI の互換性](abi.md)）。
 
 ## プラットフォームの関数
 
-`clopts/platform.h` は、プロセスの argv と環境変数を UTF-8 で得て、`clopts_parse` / `clopts_parse_with_env` に渡すための関数を持つ。Windows でのふるまい（コマンドラインからの取得、`wmain`、`activeCodePage`）と使い分けは [Windows での注意](windows.md) の章で示す。ここでは関数の一覧だけを示す。列挙は、値を末尾に足すことでだけ拡張される。
+`clopts/platform.h` は、プロセスの argv と環境変数を UTF-8 で得て、`clopts_parse` / `clopts_parse_with_env` に渡すための関数を持つ。Windows でのふるまい（コマンドラインからの取得、`wmain`、`activeCodePage`）と使い分けは [Windows での注意](windows.md) の章で示す。ここでは関数の一覧だけを示す。
 
 ### argv
 

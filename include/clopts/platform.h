@@ -36,7 +36,7 @@ extern "C" {
 
 typedef struct clopts_argv clopts_argv_t;
 
-/* Outcome of clopts_argv_create() / clopts_argv_create_from_wide(). Values are only appended. */
+/* Outcome of clopts_argv_create() / clopts_argv_create_from_wide(). */
 typedef enum clopts_argv_status
 {
     CLOPTS_ARGV_OK = 0,
@@ -79,7 +79,7 @@ CLOPTS_API void clopts_argv_destroy(clopts_argv_t *args);
 
 typedef struct clopts_env clopts_env_t;
 
-/* Why the last clopts_env_lookup() call returned CLOPTS_ENV_FAILED. Values are only appended. */
+/* Why the last clopts_env_lookup() call returned CLOPTS_ENV_FAILED. */
 typedef enum clopts_env_error
 {
     CLOPTS_ENV_ERROR_NONE = 0,

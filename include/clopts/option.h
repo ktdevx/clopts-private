@@ -23,7 +23,7 @@ extern "C" {
  * passed to a setter is a contract violation (assert).
  */
 
-/* Kind of an option. The values are part of the ABI. */
+/* Kind of an option. */
 typedef enum clopts_option_kind
 {
     /* Takes no value. True when given; false via --no-<name> when negatable. */
