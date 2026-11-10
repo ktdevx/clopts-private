@@ -155,6 +155,46 @@ NAOS_TEST(env_empty_name)
     clopts_option_destroy(option);
 }
 
+/* No system can look up a name with '=', and the name is converted from UTF-8 on Windows. */
+NAOS_TEST(env_name_with_equals_or_invalid_utf8)
+{
+    static const char *const bad[] = {
+        "A=B", "=A", "A=",
+        "\xff",                     /* never in UTF-8 */
+        "A\xc3",                    /* truncated sequence */
+        "\xc0\xaf",                 /* overlong form of '/' */
+        "\xe0\x80\xaf",             /* overlong form of '/' */
+        "\xed\xa0\x80",             /* surrogate U+D800 */
+        "\xf4\x90\x80\x80",         /* above U+10FFFF */
+        "\x80",                     /* lone continuation byte */
+    };
+    static const char *const good[] = {
+        "TOOL_FORMAT", "tool-format", "A B",
+        "\xe5\x90\x8d",             /* U+540D */
+        "\xf0\x9f\x98\x80",         /* U+1F600 */
+        "\xed\x9f\xbf",             /* U+D7FF, just below the surrogates */
+        "\xf4\x8f\xbf\xbf",         /* U+10FFFF */
+    };
+    clopts_option_t *option;
+    size_t i;
+
+    option = make(CLOPTS_OPTION_VALUE, "format", '\0');
+    for (i = 0; i < sizeof(bad) / sizeof(bad[0]); i++)
+    {
+        NAOS_NOTE("bad name %u", (unsigned)i);
+        NAOS_CHECK_INT_EQ(clopts_option_set_env(option, bad[i]), CLOPTS_DECL_ERROR_INVALID_NAME);
+        NAOS_CHECK_NULL(clopts_option_get_env(option));
+    }
+    for (i = 0; i < sizeof(good) / sizeof(good[0]); i++)
+    {
+        NAOS_NOTE("good name %u", (unsigned)i);
+        EXPECT_OK(clopts_option_set_env(option, good[i]));
+        NAOS_CHECK_STR_EQ(clopts_option_get_env(option), good[i]);
+        EXPECT_OK(clopts_option_set_env(option, NULL));
+    }
+    clopts_option_destroy(option);
+}
+
 NAOS_TEST(env_unset_is_not_checked)
 {
     clopts_option_t *flag;
@@ -378,6 +418,7 @@ NAOS_SUITE(decl_option,
     NAOS_ADD_TEST(option_new_valid_names),
     NAOS_ADD_TEST(env_on_flag_or_count),
     NAOS_ADD_TEST(env_empty_name),
+    NAOS_ADD_TEST(env_name_with_equals_or_invalid_utf8),
     NAOS_ADD_TEST(env_unset_is_not_checked),
     NAOS_ADD_TEST(default_on_flag_or_count),
     NAOS_ADD_TEST(default_on_required),

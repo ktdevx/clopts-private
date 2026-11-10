@@ -313,6 +313,42 @@ NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
     clopts_program_destroy(program);
 }
 
+/* Environment lookup that reports every variable as set to a value that cannot be read. */
+static clopts_env_status_t message_env_invalid(void *ctx, const char *name, const char **value)
+{
+    (void)ctx;
+    (void)name;
+    (void)value;
+    return CLOPTS_ENV_INVALID;
+}
+
+NAOS_TEST(invalid_env_value_names_the_variable)
+{
+    /* A one-option declaration local to this test: --format VALUE with the variable TOOL_FORMAT. */
+    char *argv[] = { "tool", NULL };
+    const char *expected = "tool: error: invalid value in environment variable 'TOOL_FORMAT'\n";
+    clopts_program_t *program = test_decl_begin("tool");
+    clopts_option_t *format;
+    clopts_result_t *result;
+    help_recorder_t rec;
+
+    format = test_decl_option(CLOPTS_OPTION_VALUE, "format", '\0');
+    NAOS_CHECK_INT_EQ(clopts_option_set_env(format, "TOOL_FORMAT"), CLOPTS_DECL_ERROR_NONE);
+    format = test_decl_global_attach(program, format);
+    program = test_decl_finish(program);
+    NAOS_REQUIRE_NOT_NULL(program);
+    NAOS_REQUIRE_NOT_NULL(format);
+    result = clopts_parse_with_env(program, MESSAGE_ARGC(argv), argv, message_env_invalid, NULL);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_INVALID_ENV_VALUE);
+    help_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_error(program, result, MESSAGE_PREFIX_BOTH, help_recorder_write, &rec),
+                      CLOPTS_WRITE_OK);
+    NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, strlen(expected));
+    clopts_result_destroy(result);
+    clopts_program_destroy(program);
+}
+
 NAOS_TEST(missing_argument_names_the_positional)
 {
     char *argv[] = { "tool", "copy", "a", NULL };
@@ -584,7 +620,7 @@ NAOS_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory)
 /* ---- declaration error texts ------------------------------------------ */
 
 /* Largest value of each kind enum; a new kind must raise them (12.2). */
-#define MESSAGE_USAGE_KIND_MAX 7
+#define MESSAGE_USAGE_KIND_MAX 8
 #define MESSAGE_DECL_KIND_MAX 17
 
 NAOS_TEST(decl_error_message_of_every_kind)
@@ -776,6 +812,7 @@ NAOS_SUITE(message,
     NAOS_ADD_TEST(unexpected_value_to_a_negated_flag_names_the_long_name_of_the_option),
     NAOS_ADD_TEST(unexpected_value_to_a_terminal_option_names_the_part_before_the_equals_sign),
     NAOS_ADD_TEST(missing_option_names_the_long_name),
+    NAOS_ADD_TEST(invalid_env_value_names_the_variable),
     NAOS_ADD_TEST(missing_option_without_a_long_name_names_the_short_name),
     NAOS_ADD_TEST(missing_argument_names_the_positional),
     NAOS_ADD_TEST(missing_argument_of_a_program_without_subcommands),

@@ -2,7 +2,7 @@
 
 この章は、Windows で CLOpts を使うときの注意を示す。非 ASCII の引数と環境変数を UTF-8 で受け取る方法、`wmain` を使うときの変換、実行ファイルのマニフェストの `activeCodePage` との関係、共有版の DLL の置き場所、コンソールへ UTF-8 の文面を出すときのコードページを扱う。
 
-ここで使う関数は `clopts/platform.h` にある。関数ごとの引数と戻り値の一覧は [API リファレンス](api.md#プラットフォームの関数) の章にある。解析の関数と結果の読み方は同じ章の残りの節で、引数の解釈の規則は [解析規則](parsing.md) の章で示す。
+argv のための関数は `clopts/platform.h` にある。関数ごとの引数と戻り値の一覧は [API リファレンス](api.md#プラットフォームの関数) の章にある。解析の関数と結果の読み方は同じ章の残りの節で、引数の解釈の規則は [解析規則](parsing.md) の章で示す。
 
 CLOpts は、引数と環境変数の値を UTF-8 の文字列として扱う。Windows 以外の OS では、`clopts/platform.h` の関数は何も変換しない（後で述べるパススルー）。そのため、この章の手順どおりに書いたプログラムは、同じソースのまま Linux や macOS でもビルドでき、動く。サンプルの `examples/taskbook/taskbook.c` と `examples/textcount/textcount.c` は、この章の手順で書かれている。
 
@@ -30,15 +30,11 @@ textcount の `main` から抜き出すと、次のようになる（宣言と�
         return 1;
     }
 
-    /* If clopts_env_create failed, looking up TEXTCOUNT_ENCODING fails and the
-       parse reports out of memory. */
-    env = clopts_env_create();
-    result = clopts_parse_with_env(program, clopts_argv_get_count(args), clopts_argv_get_values(args),
-                                   clopts_env_lookup, env);
+    /* TEXTCOUNT_ENCODING is read from the process environment in UTF-8 too. */
+    result = clopts_parse(program, clopts_argv_get_count(args), clopts_argv_get_values(args));
     code = finish(program, result);
 
     clopts_result_destroy(result);
-    clopts_env_destroy(env);
     clopts_argv_destroy(args);
     clopts_program_destroy(program);
     return code;
@@ -96,7 +92,7 @@ Windows で `clopts_argv_create` に 0 と NULL を渡すと、同じソース�
 2. `clopts_result_destroy` で結果を解放する。
 3. `clopts_argv_destroy` で argv のハンドルを解放する。
 
-環境変数の文脈（`clopts_env_t`）は、この順序に入らない。次の節で述べるとおり、環境変数の値は解析中に複製されるので、`clopts_env_destroy` は解析の後ならいつ呼んでもよい。所有と寿命の規則の全体は、[API リファレンス](api.md) の章の「メモリの所有と寿命」の節にある。
+環境変数は、この順序に入らない。次の節で述べるとおり、解析が自分で読み、値を複製するので、利用側が解放するものはない。所有と寿命の規則の全体は、[API リファレンス](api.md) の章の「メモリの所有と寿命」の節にある。
 
 ## `wmain` を使うとき
 
@@ -150,31 +146,22 @@ int wmain(int argc, wchar_t **wargv)
 
 ## 環境変数を UTF-8 で得る
 
-Windows では、CRT の `getenv` も、値を ANSI のコードページで返す。環境変数のフォールバック（`clopts_option_set_env` で宣言したもの）で UTF-8 の値を得るには、`clopts_env_lookup` を `clopts_env_t` の文脈とともに `clopts_parse_with_env` に渡す。
+Windows では、CRT の `getenv` も、値を ANSI のコードページで返す。CLOpts は `getenv` を使わない。`clopts_parse` は、環境変数のフォールバック（`clopts_option_set_env` で宣言したもの）を、どの OS でも UTF-8 で読む。利用側が用意するものはない。前の節の textcount の抜粋のとおり、`clopts_parse` を呼ぶだけでよい。taskbook も同じ方法で `TASKBOOK_FORMAT` を読む。
 
-1. `clopts_env_create()` で文脈を作る。
-2. `clopts_parse_with_env` に、`getenv_fn` として `clopts_env_lookup` を、`ctx` としてその文脈を渡す。
-3. 解析の後で `clopts_env_destroy` を呼ぶ。
+- Windows では、変数の値を `GetEnvironmentVariableW` で UTF-16 のまま読み、UTF-8 に変換する。変数の名前（`clopts_option_set_env` で宣言した名前）は UTF-8 として UTF-16 に変換してから引く。Windows では、環境変数の名前の大文字と小文字は区別されない。
+- Windows 以外の OS では、`getenv` で読んだ値をそのまま使う（パススルー）。値は変換も検査もされない。
+- 解析は、読んだ値をすぐに複製する。結果の値は、後で環境変数が変わっても変わらない。読むために使う作業用のバッファは解析ごとに作り、解析の中で解放する。そのため、同じプログラムを複数のスレッドから同時に解析してよいことは変わらない。
+- 環境変数の名前は、宣言のときに検査される。空のもの、`=` を含むもの、正しい UTF-8 でないものは、`clopts_option_set_env` が `CLOPTS_DECL_ERROR_INVALID_NAME` を返す。
 
-前の節の textcount の抜粋が、この手順の例である。taskbook も同じ方法で `TASKBOOK_FORMAT` を読む。
+### 読めない値
 
-- Windows の `clopts_env_lookup` は、変数の値を `GetEnvironmentVariableW` で UTF-16 のまま読み、UTF-8 に変換する。変数の名前（`clopts_option_set_env` で宣言した名前）は UTF-8 として UTF-16 に変換してから引く。Windows では、環境変数の名前の大文字と小文字は区別されない。
-- Windows 以外の OS では、`getenv` で読んだ値をそのまま返す（パススルー）。値は変換されず、プロセスの環境の中を指す。
-- 返した値は文脈から借用したもので、同じ文脈での次の呼び出しか `clopts_env_destroy` まで有効である。解析の関数は値を受け取った直後に複製するので、結果の値は文脈を解放した後も読める。そのため、`clopts_env_destroy` は解析の後ならいつ呼んでもよい。argv のハンドルと違い、結果を使い終えるまで待つ必要はない。
-- `clopts_env_create` が確保に失敗して NULL を返しても、そのまま `clopts_parse_with_env` に渡してよい。そのときは環境変数を引く時点で `CLOPTS_ENV_FAILED` になり、解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる。`clopts_env_destroy` は NULL を無視する。
-- 1 つの文脈を、複数のスレッドから同時に使ってはならない。
+Windows で、変数の値が正しい UTF-16 でない（対になっていないサロゲートを含む）と、その値は UTF-8 にできない。このとき解析は `CLOPTS_PARSE_USAGE_ERROR` で終わり、`clopts_result_get_usage_error` は `CLOPTS_USAGE_INVALID_ENV_VALUE` を、`clopts_result_get_error_option` はそのオプションを返す。argv の誤りと同じく、`clopts_write_error` が 1 行の文面を出す（`invalid value in environment variable '<変数名>'`）。
 
-### 引き方の失敗
+- そのオプションの既定値は使われない。値を直すのは利用者の側なので、黙って既定値にはしない。
+- argv に終端オプション（`--help` や `--version`）があれば、argv の誤りと同じく、そちらが優先される。
+- 読めない値が複数あっても、報告されるのは宣言の順で最初の 1 つだけである。
 
-`clopts_env_lookup` が `CLOPTS_ENV_FAILED` を返すと、解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる。メモリ不足のほかに、Windows では次の場合にも失敗する。
-
-| `clopts_env_get_error` | 起きるとき |
-|--------------------|------------|
-| `CLOPTS_ENV_ERROR_INVALID_UTF16` | Windows で、変数の値が正しい UTF-16 でない |
-| `CLOPTS_ENV_ERROR_INVALID_NAME` | Windows で、引こうとした名前が正しい UTF-8 でない |
-| `CLOPTS_ENV_ERROR_OUT_OF_MEMORY` | メモリの確保に失敗した（Windows では、`GetEnvironmentVariableW` が変数がない以外の理由で失敗したときも） |
-
-解析が `CLOPTS_PARSE_OUT_OF_MEMORY` で終わったときに、本当のメモリ不足か環境変数の問題かを区別したければ、`clopts_env_get_error`（`env`）を見る。最後の引き方が失敗していれば、その理由を返し、`clopts_env_get_error_name`（`env`）が引こうとした名前を返す（名前を複製できなかったときは NULL）。最後の引き方が成功していれば `CLOPTS_ENV_ERROR_NONE` である。文脈が NULL のときは `CLOPTS_ENV_ERROR_OUT_OF_MEMORY` として読まれる。
+メモリの確保に失敗したとき（Windows では、`GetEnvironmentVariableW` が、変数がない以外の理由で失敗したときも）は、解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる。
 
 ## `activeCodePage` との関係
 
@@ -191,7 +178,7 @@ Windows 10 version 1903 以降では、実行ファイルのマニフェスト�
 </assembly>
 ```
 
-CLOpts の関数は、このマニフェストを必要としない。`clopts_argv_create`、`clopts_argv_create_from_wide`、`clopts_env_lookup` は、ANSI のコードページを経由せずに UTF-16 から直接 UTF-8 に変換するので、マニフェストがなくても、それより前の版の Windows でも、UTF-8 の引数と値が得られる。
+CLOpts の関数は、このマニフェストを必要としない。`clopts_argv_create`、`clopts_argv_create_from_wide` と、環境変数を読む `clopts_parse` は、ANSI のコードページを経由せずに UTF-16 から直接 UTF-8 に変換するので、マニフェストがなくても、それより前の版の Windows でも、UTF-8 の引数と値が得られる。
 
 マニフェストがあっても、CLOpts の関数のふるまいは変わらない。両方を使ってかまわない。マニフェストで `main` の `argv` が UTF-8 になるからといって `clopts_argv_create` を省くと、マニフェストのない環境（埋め込み忘れ、古い Windows）で文字が失われる。CLOpts の関数を使っておけば、マニフェストの有無に左右されない。
 

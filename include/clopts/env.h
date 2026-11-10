@@ -11,10 +11,9 @@ extern "C" {
 #endif
 
 /*
- * Environment lookup callback type, shared by the parser
- * (clopts_parse_with_env(), clopts/parse.h) and the platform layer
- * (clopts_env_lookup(), clopts/platform.h). Neither header depends on the
- * other: both include this one.
+ * Environment lookup callback type of clopts_parse_with_env()
+ * (clopts/parse.h): a source of environment values other than the process
+ * environment, for tests or for values read from elsewhere.
  */
 
 /* Return value of a clopts_getenv_fn. */
@@ -24,8 +23,13 @@ typedef enum clopts_env_status
     CLOPTS_ENV_FOUND = 0,
     /* Not set. *value is not read. */
     CLOPTS_ENV_UNSET = 1,
-    /* Lookup failed. The parse ends with CLOPTS_PARSE_OUT_OF_MEMORY. */
-    CLOPTS_ENV_FAILED = 2
+    /* Lookup failed for lack of memory. The parse ends with CLOPTS_PARSE_OUT_OF_MEMORY. */
+    CLOPTS_ENV_FAILED = 2,
+    /*
+     * Set, but its value cannot be given in UTF-8. *value is not read. The
+     * parse ends with CLOPTS_PARSE_USAGE_ERROR (CLOPTS_USAGE_INVALID_ENV_VALUE).
+     */
+    CLOPTS_ENV_INVALID = 3
 } clopts_env_status_t;
 
 /*

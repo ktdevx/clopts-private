@@ -215,7 +215,7 @@ clopts_argv_t *clopts_argv_create_from_wide(int argc, wchar_t *const *wargv)
  * must hold name_units code units (its NUL included). 0 on success, -1 when
  * the conversion fails.
  */
-static int platform_win32_env_put_name(clopts_env_t *env, const char *name, int name_units)
+static int platform_win32_env_put_name(clopts_platform_env_t *env, const char *name, int name_units)
 {
     int n;
 
@@ -223,16 +223,9 @@ static int platform_win32_env_put_name(clopts_env_t *env, const char *name, int 
     return (n == name_units) ? 0 : -1;
 }
 
-/* Records kind with name and returns FAILED. */
-static clopts_env_status_t platform_win32_env_failed(clopts_env_t *env, clopts_env_error_t kind, const char *name)
+clopts_env_status_t clopts_platform_env_lookup(void *ctx, const char *name, const char **value)
 {
-    clopts_platform_env_fail(env, kind, name);
-    return CLOPTS_ENV_FAILED;
-}
-
-clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **value)
-{
-    clopts_env_t *env;
+    clopts_platform_env_t *env;
     int name_units;
     size_t units;
     size_t room;
@@ -242,25 +235,17 @@ clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **
     size_t bytes;
     int n;
 
-    /* A NULL context fails without reading name or value. */
-    if (ctx == NULL)
-    {
-        return CLOPTS_ENV_FAILED;
-    }
+    assert(ctx != NULL);
     assert(name != NULL);
     assert(value != NULL);
-    env = (clopts_env_t *)ctx;
-    clopts_platform_env_clear(env);
+    env = (clopts_platform_env_t *)ctx;
 
     /* The name in UTF-16, its NUL included; invalid UTF-8 is not replaced. */
     name_units = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, NULL, 0);
     if (name_units <= 0)
     {
-        return platform_win32_env_failed(env,
-                                         (GetLastError() == ERROR_NO_UNICODE_TRANSLATION)
-                                             ? CLOPTS_ENV_ERROR_INVALID_NAME
-                                             : CLOPTS_ENV_ERROR_OUT_OF_MEMORY,
-                                         name);
+        /* No variable can have a name that is not valid UTF-8. */
+        return (GetLastError() == ERROR_NO_UNICODE_TRANSLATION) ? CLOPTS_ENV_UNSET : CLOPTS_ENV_FAILED;
     }
 
     /*
@@ -269,14 +254,14 @@ clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **
      */
     if (clopts_core_size_add((size_t)name_units, PLATFORM_WIN32_ENV_INITIAL_UNITS, &units) != 0)
     {
-        return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, name);
+        return CLOPTS_ENV_FAILED;
     }
     for (;;)
     {
         if ((clopts_platform_env_reserve_wide(env, units) != 0) ||
             (platform_win32_env_put_name(env, name, name_units) != 0))
         {
-            return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, name);
+            return CLOPTS_ENV_FAILED;
         }
         wvalue = (wchar_t *)env->wide + name_units;
         room = env->wide_cap - (size_t)name_units;
@@ -296,7 +281,7 @@ clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **
             }
             if (error != 0)
             {
-                return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, name);
+                return CLOPTS_ENV_FAILED;
             }
             break;   /* set to the empty string */
         }
@@ -310,11 +295,11 @@ clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **
          */
         if ((size_t)got >= (size_t)INT_MAX)
         {
-            return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, name);
+            return CLOPTS_ENV_FAILED;
         }
         if (clopts_core_size_add((size_t)name_units, ((size_t)got > room) ? (size_t)got : room + 1, &units) != 0)
         {
-            return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, name);
+            return CLOPTS_ENV_FAILED;
         }
     }
 
@@ -327,15 +312,15 @@ clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **
         case PLATFORM_WIN32_MEASURE_OK:
             break;
         case PLATFORM_WIN32_MEASURE_INVALID:
-            return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_INVALID_UTF16, name);
+            return CLOPTS_ENV_INVALID;
         default:
-            return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, name);
+            return CLOPTS_ENV_FAILED;
         }
     }
     if ((bytes > (size_t)INT_MAX) || (clopts_core_size_add(bytes, 1, &units) != 0) ||
         (clopts_platform_env_reserve_value(env, units) != 0))
     {
-        return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, name);
+        return CLOPTS_ENV_FAILED;
     }
     n = 0;
     if (got > 0)
@@ -344,7 +329,7 @@ clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **
                                 NULL);
         if (n != (int)bytes)
         {
-            return platform_win32_env_failed(env, CLOPTS_ENV_ERROR_OUT_OF_MEMORY, name);
+            return CLOPTS_ENV_FAILED;
         }
     }
     env->value[n] = '\0';

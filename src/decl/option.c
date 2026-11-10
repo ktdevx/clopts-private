@@ -165,7 +165,7 @@ clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *e
             return CLOPTS_DECL_ERROR_ENV_NOT_ALLOWED;
         }
 
-        if (env[0] == '\0')
+        if (!clopts_decl_valid_env_name(env))
         {
             return CLOPTS_DECL_ERROR_INVALID_NAME;
         }

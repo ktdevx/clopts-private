@@ -71,7 +71,7 @@ typedef enum clopts_parse_status
     CLOPTS_PARSE_NO_COMMAND = 2,
     /* A usage error in argv. */
     CLOPTS_PARSE_USAGE_ERROR = 3,
-    /* An allocation or the environment lookup failed. */
+    /* An allocation failed, or the environment lookup reported CLOPTS_ENV_FAILED. */
     CLOPTS_PARSE_OUT_OF_MEMORY = 4
 } clopts_parse_status_t;
 
@@ -92,7 +92,13 @@ typedef enum clopts_usage_error
     /* positional: a required positional got no token. */
     CLOPTS_USAGE_MISSING_ARGUMENT = 6,
     /* token: the first token beyond the declared positionals. */
-    CLOPTS_USAGE_UNEXPECTED_ARGUMENT = 7
+    CLOPTS_USAGE_UNEXPECTED_ARGUMENT = 7,
+    /*
+     * option: its environment variable is set but its value cannot be read
+     * in UTF-8 (Windows: not valid UTF-16; a lookup callback returned
+     * CLOPTS_ENV_INVALID). argv_index is -1.
+     */
+    CLOPTS_USAGE_INVALID_ENV_VALUE = 8
 } clopts_usage_error_t;
 
 /* Where an option's value came from. */
@@ -108,12 +114,18 @@ typedef enum clopts_source
  * Parses argv[1..argc-1] (argv[0] is skipped) against program. argc must be
  * >= 0 and argv[0..argc-1] NUL-terminated (argv is not read when argc == 0).
  * Neither program's declaration nor argv is modified. Environment variables
- * are looked up with getenv(). Never returns NULL: when an allocation fails
- * (or program is NULL) the shared out-of-memory sentinel is returned.
+ * are read from the process environment in UTF-8: on Windows with
+ * GetEnvironmentVariableW() and converted, elsewhere with getenv() and
+ * passed through as is. Never returns NULL: when an allocation fails (or
+ * program is NULL) the shared out-of-memory sentinel is returned.
  */
 CLOPTS_API clopts_result_t *clopts_parse(const clopts_program_t *program, int argc, char *const *argv);
 
-/* Same as clopts_parse(), with getenv_fn(env_ctx, ...) as lookup. NULL selects the default lookup. */
+/*
+ * Same as clopts_parse(), with getenv_fn(env_ctx, ...) as the source of the
+ * environment values instead of the process environment. NULL selects the
+ * process environment, as clopts_parse() does.
+ */
 CLOPTS_API clopts_result_t *clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
                                                   clopts_getenv_fn getenv_fn, void *env_ctx);
 

@@ -12,13 +12,14 @@
  *   3. a pending usage error ends the parse, unless the recovery scan finds
  *      a terminal option from its token on (scan.c);
  *   4. resolve environment variables / defaults (resolve.c);
- *   5. a terminal option ends the parse with TERMINATED;
+ *   5. a terminal option ends the parse with TERMINATED; otherwise an
+ *      environment value that cannot be read ends it with USAGE_ERROR;
  *   6. check required ones (check.c);
  *   7. OK, or NO_COMMAND when the program has subcommands and none was
  *      selected.
  *
- * Allocation and environment lookup failures after the result exists end
- * with CLOPTS_PARSE_OUT_OF_MEMORY on that result, which stays releasable with
+ * Allocation failures and lookups that report FAILED after the result exists
+ * end with CLOPTS_PARSE_OUT_OF_MEMORY on that result, which stays releasable with
  * clopts_result_destroy(). This file writes the final status of the result;
  * nothing else in the parse does.
  */
@@ -53,6 +54,7 @@ static void parse_run(const clopts_program_t *program, int argc, char *const *ar
                       void *env_ctx, clopts_result_t *result)
 {
     const clopts_option_t *terminal;
+    clopts_parser_resolve_status_t resolved;
     bool selected_scope;
 
     /* 2. 3. */
@@ -70,7 +72,8 @@ static void parse_run(const clopts_program_t *program, int argc, char *const *ar
 
     /* 4. */
     selected_scope = ((clopts_program_get_command_count(program) == 0) || (clopts_result_get_command(result) != NULL));
-    if (clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope) != 0)
+    resolved = clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope);
+    if (resolved == CLOPTS_PARSER_RESOLVE_OUT_OF_MEMORY)
     {
         clopts_parser_result_finish(result, CLOPTS_PARSE_OUT_OF_MEMORY);
         return;
@@ -81,6 +84,11 @@ static void parse_run(const clopts_program_t *program, int argc, char *const *ar
     {
         clopts_parser_result_set_terminal(result, terminal);
         clopts_parser_result_finish(result, CLOPTS_PARSE_TERMINATED);
+        return;
+    }
+    if (resolved == CLOPTS_PARSER_RESOLVE_INVALID)
+    {
+        clopts_parser_result_finish(result, CLOPTS_PARSE_USAGE_ERROR);
         return;
     }
 

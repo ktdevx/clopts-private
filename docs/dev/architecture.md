@@ -12,7 +12,7 @@
 | decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則と比べ方、宣言エラーの説明 |
 | parser | `src/parser/` | 解析の入口と手順、名前での検索、argv の走査、環境変数と既定値の解決、必須の検査、結果のハンドル |
 | help | `src/help/` | ヘルプ・使い方・版・エラーの文面の出力と、help サブコマンドなどの宣言の補助 |
-| platform | `src/platform/` | Windows のコマンドラインの分割と UTF-8 への変換、環境変数の参照（解析の既定の引き方も含む） |
+| platform | `src/platform/` | Windows のコマンドラインの分割と UTF-8 への変換、プロセスの環境変数の UTF-8 での参照（解析が使う） |
 
 依存の向きは次のとおりである。
 
@@ -29,7 +29,7 @@ flowchart LR
 
 - decl、parser、help、platform は core の内部ヘッダ `core/core_internal.h` を使う。core はほかのモジュールに依存しない。
 - decl は解析を知らない。parser は decl の内部ヘッダ `decl/decl_internal.h`（Scope の読み取りと名前の比べ方）で宣言を読み、書き込まない。
-- parser は、`getenv_fn` が NULL のときの環境変数の引き方を platform の内部ヘッダ（`clopts_platform_getenv_default`）から使う。プロセスの環境を読むのは platform だけである。
+- parser は、プロセスの環境変数を platform の内部ヘッダ（`clopts_platform_env_lookup` と、その文脈 `clopts_platform_env_t`）で読む。文脈は解決（`resolve.c`）のスタックに置き、解析ごとに作って解放する。プロセスの環境を読むのは platform だけである。
 - help は decl と parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。help は、ライブラリの利用者が書けることしかしていない。
 - 各モジュールの内部ヘッダ（`<module>/<module>_internal.h`）の関数は、共有ライブラリから export しない。
 
@@ -122,8 +122,8 @@ help は公開 API だけを読むので、プログラム自身の範囲とサ�
 1. 入口：NULL のプログラムを番兵として扱い、結果を確保する（失敗したらメモリ不足の番兵を返す）。
 2. 走査（`scan.c`）：サブコマンドがあれば、サブコマンドの前の走査をしてから本体の走査をする。なければ本体の走査だけをする。
 3. 使い方の誤りがあればそこで終わる。ただし、回復の走査（`scan.c`）がその位置から後ろに終端オプションを見つけたときは除く。
-4. 環境変数と既定値から値を解決する（`resolve.c`）。
-5. 終端オプションがあれば `CLOPTS_PARSE_TERMINATED` で終わる。
+4. 環境変数と既定値から値を解決する（`resolve.c`）。UTF-8 で読めない環境変数の値は、そのオプションを値なしのまま残し、最初の 1 つを誤りとして記録する。
+5. 終端オプションがあれば `CLOPTS_PARSE_TERMINATED` で終わる。なければ、4 で記録した誤りがあれば `CLOPTS_PARSE_USAGE_ERROR` で終わる。
 6. 必須のオプションと位置引数を検査する（`check.c`）。
 7. `CLOPTS_PARSE_OK`。サブコマンドがあるのに選ばれていなければ `CLOPTS_PARSE_NO_COMMAND`。
 

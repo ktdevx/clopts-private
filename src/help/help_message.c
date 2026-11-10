@@ -180,6 +180,13 @@ static void message_write_usage_argument(clopts_help_out_t *out, const clopts_re
             message_write_str(out, clopts_positional_get_name(positional));
         }
         break;
+    case CLOPTS_USAGE_INVALID_ENV_VALUE:
+        option = clopts_result_get_error_option(result);
+        if (option != NULL)
+        {
+            message_write_str(out, clopts_option_get_env(option));
+        }
+        break;
     }
     clopts_help_out_char(out, positional_name ? '>' : '\'');
 }
@@ -294,6 +301,8 @@ const char *clopts_help_usage_text(clopts_usage_error_t kind)
         return "missing argument";
     case CLOPTS_USAGE_UNEXPECTED_ARGUMENT:
         return "unexpected argument";
+    case CLOPTS_USAGE_INVALID_ENV_VALUE:
+        return "invalid value in environment variable";
     }
     return NULL;
 }

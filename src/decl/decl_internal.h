@@ -102,6 +102,12 @@ bool clopts_decl_valid_long_name(const char *name);
 bool clopts_decl_valid_short_name(char c);
 
 /*
+ * Environment variable name rule: not empty, no '=' (no system can look such
+ * a name up) and valid UTF-8 (the name is converted on Windows).
+ */
+bool clopts_decl_valid_env_name(const char *name);
+
+/*
  * Returns the index in scope of the first option whose long name is the
  * name_len bytes at name, or clopts_scope_option_count(scope) when there is
  * none.

@@ -14,10 +14,10 @@
 | `clopts/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（作成、解放、属性、読み取り） |
 | `clopts/positional.h` | 位置引数の関数（作成、解放、属性、読み取り） |
 | `clopts/parse.h` | 解析の関数、状態とエラー種別の列挙、結果とエラーのアクセサ |
-| `clopts/env.h` | 環境変数を引くコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse.h` と `clopts/platform.h` の両方が取り込む |
+| `clopts/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse.h` が取り込む |
 | `clopts/help.h` | ヘルプ・使い方・版・エラーの文面を出す関数と、`help` コマンドを宣言する関数 |
 | `clopts/writer.h` | 書き込みコールバックの型と、`FILE*` へ書く便宜関数 |
-| `clopts/platform.h` | UTF-8 の argv と環境変数を得る関数 |
+| `clopts/platform.h` | UTF-8 の argv を得る関数 |
 | `clopts/alloc.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
 
 引数がどの規則で解釈されるか（`--`、`-` 単体、並べ替え、`--no-<name>`、カウント、環境変数の優先順位など）は [解析規則](parsing.md) の章で、Windows での argv と環境変数の扱いは [Windows での注意](windows.md) の章で示す。共有ライブラリとしての互換性の方針は [ABI の互換性](abi.md) の章にある。
@@ -38,7 +38,7 @@
 | 追加 | `clopts_<型>_add_<要素>` | `clopts_program_add_option` |
 | 要素の数・要素 | `clopts_<型>_get_<要素>_count` / `clopts_<型>_get_<要素>_at` | `clopts_program_get_option_count` |
 | 検索 | `clopts_<型>_find_<対象>` | `clopts_program_find_command` |
-| その他の動作 | 動詞 | `clopts_parse`、`clopts_write_help`、`clopts_env_lookup` |
+| その他の動作 | 動詞 | `clopts_parse`、`clopts_write_help` |
 
 - `get` は読み取りだけに使う。`get` の関数が返すものは解放しない。
 - `create` の関数が作ったハンドルは、その型の `destroy` で解放する（`clopts_help_command_create` が作るコマンドは `clopts_command_destroy`）。ただし、プログラムかコマンドに渡したオプション・位置引数・コマンドは、プログラムと一緒に解放される（「[ハンドルと寿命](#ハンドルと寿命)」）。`clopts_parse` と `clopts_parse_with_env` が返す結果は `clopts_result_destroy` で解放する。
@@ -124,7 +124,6 @@ int main(int argc, char **argv)
     struct taskbook_options opts = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     clopts_program_t *program = NULL;
     clopts_argv_t *args;
-    clopts_env_t *env;
     clopts_result_t *result;
     clopts_decl_error_t error;
     int code;
@@ -146,13 +145,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    env = clopts_env_create();
-    result = clopts_parse_with_env(program, clopts_argv_get_count(args), clopts_argv_get_values(args),
-                                   clopts_env_lookup, env);
+    /* TASKBOOK_FORMAT is read from the process environment in UTF-8 too. */
+    result = clopts_parse(program, clopts_argv_get_count(args), clopts_argv_get_values(args));
     code = finish(program, result, &opts);
 
     clopts_result_destroy(result);
-    clopts_env_destroy(env);
     clopts_argv_destroy(args);
     clopts_program_destroy(program);
     return code;
@@ -248,7 +245,6 @@ Run 'taskbook --help' for usage.
 | `clopts_positional_t` | 位置引数 | `clopts_positional_create` | プログラムかコマンドに渡す前は `clopts_positional_destroy`。`clopts_program_add_positional` か `clopts_command_add_positional` で渡した後は、なし（プログラムと一緒に解放される） | 渡す前は `clopts_positional_destroy` まで。渡した後はプログラムの `clopts_program_destroy` まで（同じアドレスのまま） | 渡した後はプログラム |
 | `clopts_result_t` | 解析の結果 | `clopts_parse`、`clopts_parse_with_env` | `clopts_result_destroy` | `clopts_result_destroy` まで。ただしアクセサを呼べるのはプログラムの解放前だけ | プログラム、argv（結果の文字列が argv を借用する） |
 | `clopts_argv_t` | UTF-8 の argv | `clopts_argv_create`、`clopts_argv_create_from_wide`（Windows のみ） | `clopts_argv_destroy` | `clopts_argv_destroy` まで。Windows 以外では、渡した argv が有効な間だけ | Windows 以外では、呼び出し側の argv |
-| `clopts_env_t` | 環境変数を引くための文脈 | `clopts_env_create` | `clopts_env_destroy` | `clopts_env_destroy` まで | なし |
 
 オプションと位置引数は自分を渡したプログラムやコマンドを知らず、コマンドは自分を渡したプログラムを知らない。渡した後は読み取り専用になり、同じものを 2 回渡すこともできない。ライブラリはこれを検査しないので、渡した後に属性を変える関数や渡す関数を呼ぶことと、同じオプション・位置引数・コマンドを 2 回渡すことは契約違反で、動作は未定義になる。
 
@@ -260,7 +256,6 @@ Run 'taskbook --help' for usage.
 
 - `clopts_result_destroy` は、`clopts_program_destroy` の前でも後でも呼べる。ただし、結果のアクセサは、結果を作ったプログラムを解放する前にだけ呼べる。
 - 結果から得た文字列は argv を借用することがあるので、`clopts_argv_destroy` は結果を使い終えてから呼ぶ。
-- `clopts_env_destroy` は、解析が終わった後ならいつ呼んでもよい（環境変数の値は解析中に複製される）。
 - すべての解放関数は NULL を受け付け、何もしない。
 
 ## 宣言
@@ -376,7 +371,7 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 - オプションの長い名前: 上の規則に加えて、`=` を含むものは不正である。
 - オプションの短い名前: `-`、`=`、空白は使えない。
 - 位置引数の名前: NULL と空は不正である。
-- 環境変数の名前: 空は不正である。
+- 環境変数の名前: 空のもの、`=` を含むもの、正しい UTF-8 でないものは不正である（どの OS でも、そういう名前の変数は引けない）。
 - 予約された名前はない。`help`、`h`、`version` もふつうの名前で、`--help` が要るなら終端の FLAG として、`help` コマンドが要るなら `clopts/help.h` の関数で宣言する（「[ヘルプのための宣言](#ヘルプのための宣言)」）。
 - オプションの名前は、グローバルオプションの中と、同じコマンドの中では重ねられない。グローバルオプションとサブコマンドのオプションの間では重ねてよい。サブコマンドが選ばれた後は、そのコマンドの名前が先に探されるので、同じ名前のグローバルオプションは隠れる（[解析規則](parsing.md) の章）。
 - サブコマンドの名前は、同じプログラムの中では重ねられない。
@@ -402,8 +397,8 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 
 | 関数 | 引数と戻り値 |
 |------|--------------|
-| `clopts_parse`（`program, argc, argv`） | `argv[1]` から `argv[argc-1]` までを `program` の宣言に従って解析し、結果を返す（`argv[0]` は読み飛ばす）。`argc` は 0 以上で、`argv[0]` から `argv[argc-1]` は NUL で終わる文字列（`argc` が 0 なら argv は読まれない）。環境変数は `getenv()` で引く。宣言も argv も書き換えない。NULL は返さない。メモリの確保に失敗したとき（または `program` が NULL のとき）は、共有のメモリ不足の番兵を返す |
-| `clopts_parse_with_env`（`program, argc, argv, getenv_fn, env_ctx`） | `clopts_parse` と同じだが、環境変数を `getenv_fn(env_ctx, name, &value)` で引く。`getenv_fn` が NULL なら既定の引き方（`getenv()`）になる |
+| `clopts_parse`（`program, argc, argv`） | `argv[1]` から `argv[argc-1]` までを `program` の宣言に従って解析し、結果を返す（`argv[0]` は読み飛ばす）。`argc` は 0 以上で、`argv[0]` から `argv[argc-1]` は NUL で終わる文字列（`argc` が 0 なら argv は読まれない）。環境変数はプロセスの環境から UTF-8 で読む（Windows では `GetEnvironmentVariableW` で読んで UTF-8 に変換し、それ以外では `getenv()` の値をそのまま使う）。宣言も argv も書き換えない。NULL は返さない。メモリの確保に失敗したとき（または `program` が NULL のとき）は、共有のメモリ不足の番兵を返す |
+| `clopts_parse_with_env`（`program, argc, argv, getenv_fn, env_ctx`） | `clopts_parse` と同じだが、環境変数の値をプロセスの環境の代わりに `getenv_fn(env_ctx, name, &value)` から得る。テストや、設定ファイルなど別の出どころの値を渡すときに使う。`getenv_fn` が NULL なら `clopts_parse` と同じくプロセスの環境から読む |
 | `clopts_result_get_status`（`result`） | 結果の状態（`clopts_parse_status_t`）を返す |
 
 `clopts_parse_status_t` は次の 5 値をとる。表の「利用側の処理」は、taskbook と textcount のサンプルが従う終了コードの規約である。
@@ -413,8 +408,8 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 | `CLOPTS_PARSE_OK` | 解析に成功した | `clopts_result_get_command` で選ばれたコマンドを見て処理を選び、値を読んで処理する。結果を標準出力へ出し、0 を返す。`help` コマンド（`clopts_help_command_create`）なら、`clopts_help_find_target` で対象を得てヘルプを出す |
 | `CLOPTS_PARSE_TERMINATED` | 終端オプション（`clopts_option_set_terminal`）が argv に現れ、そこで解析を止めた。`clopts_result_get_terminal_option` がそのオプションを返す。必須のオプションと位置引数は検査されていない | `--help` なら `clopts_write_help` に `clopts_result_get_command` の値を渡してヘルプを、`--version` なら `clopts_write_version` で版を標準出力へ出し、0 を返す |
 | `CLOPTS_PARSE_NO_COMMAND` | サブコマンドのあるプログラムで、サブコマンドが現れなかった。読めるのはグローバルオプションの値だけ | `clopts_write_usage` と `clopts_write_usage_hint` を標準エラーへ出し、2 を返す |
-| `CLOPTS_PARSE_USAGE_ERROR` | argv に使い方の誤りがある | `clopts_write_error`（`CLOPTS_PREFIX_PROGRAM` と `CLOPTS_PREFIX_ERROR`）と、`clopts_result_get_error_command` の値を渡した `clopts_write_usage_hint` を標準エラーへ出し、2 を返す |
-| `CLOPTS_PARSE_OUT_OF_MEMORY` | メモリの確保か、環境変数の引き方が失敗した | `clopts_write_error` を標準エラーへ出し、1 を返す |
+| `CLOPTS_PARSE_USAGE_ERROR` | argv に使い方の誤りがある（または、環境変数の値を UTF-8 で読めない） | `clopts_write_error`（`CLOPTS_PREFIX_PROGRAM` と `CLOPTS_PREFIX_ERROR`）と、`clopts_result_get_error_command` の値を渡した `clopts_write_usage_hint` を標準エラーへ出し、2 を返す |
+| `CLOPTS_PARSE_OUT_OF_MEMORY` | メモリの確保に失敗した（`getenv_fn` が `CLOPTS_ENV_FAILED` を返したときも） | `clopts_write_error` を標準エラーへ出し、1 を返す |
 
 解析は、ヘルプ・版・エラーを含めて何も出力せず、`exit()` も呼ばない。文面を出すかどうか、どの終了コードで終わるかは、利用側が状態を見て決める。解析器には組み込みのオプションもコマンドもない。`--help`、`--version`、`help` コマンドは、ふつうの宣言として `clopts/help.h` の関数で足す。
 
@@ -433,9 +428,11 @@ Run 'taskbook --help' for usage.
 taskbook 1.2.3
 ```
 
-### 環境変数の引き方
+### 環境変数の出どころ
 
-`clopts_parse_with_env` に渡す `getenv_fn` は、`clopts/env.h` にある次の型のコールバックである。
+`clopts_parse` は、`clopts_option_set_env` で宣言した環境変数を、プロセスの環境から UTF-8 で読む。Windows でも、利用側が何かを用意する必要はない（[Windows での注意](windows.md) の章）。taskbook はこの方法で `TASKBOOK_FORMAT` を読む（`TASKBOOK_FORMAT=json taskbook list`）。
+
+値をプロセスの環境以外から渡すときは、`clopts_parse_with_env` に、`clopts/env.h` にある次の型のコールバックを渡す。
 
 ```c
 typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, const char **value);
@@ -447,9 +444,10 @@ typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, con
 |----|------|
 | `CLOPTS_ENV_FOUND` | 見つかった。`*value` に、コールバックが所有する文字列を入れる |
 | `CLOPTS_ENV_UNSET` | 設定されていない。`*value` は読まれない |
-| `CLOPTS_ENV_FAILED` | 引き方が失敗した。解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる |
+| `CLOPTS_ENV_FAILED` | メモリ不足で引けなかった。解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる |
+| `CLOPTS_ENV_INVALID` | 設定されているが、値を UTF-8 で表せない。`*value` は読まれない。解析は `CLOPTS_PARSE_USAGE_ERROR`（`CLOPTS_USAGE_INVALID_ENV_VALUE`）で終わる |
 
-`*value` に入れた文字列は、次にコールバックが呼ばれるまでか、解析の関数が戻るまでだけ有効であればよい。ライブラリはコールバックが戻った直後にそれを複製し、その後は読まず、解放もしない。UTF-8 の値を得るには、`clopts/platform.h` の `clopts_env_lookup` を `clopts_env_t` とともに渡す（「[プラットフォームの関数](#プラットフォームの関数)」を参照）。taskbook はこの方法で `TASKBOOK_FORMAT` を読む（`TASKBOOK_FORMAT=json taskbook list`）。
+`*value` に入れた文字列は、次にコールバックが呼ばれるまでか、解析の関数が戻るまでだけ有効であればよい。ライブラリはコールバックが戻った直後にそれを複製し、その後は読まず、解放もしない。
 
 <!-- clopts-check: env=TASKBOOK_FORMAT=json -- taskbook list -->
 ```text
@@ -523,6 +521,7 @@ color: false
 | `CLOPTS_USAGE_MISSING_OPTION` | 必須のオプションが argv からも環境変数からも値を得なかった（taskbook には必須のオプションがない） | `missing required option '<オプション>'` | option（argv_index は -1） |
 | `CLOPTS_USAGE_MISSING_ARGUMENT` | 必須の位置引数がない（`taskbook add`） | `missing argument <名前>` | positional（argv_index は -1） |
 | `CLOPTS_USAGE_UNEXPECTED_ARGUMENT` | 宣言した位置引数より多いトークン（`taskbook add a b`） | `unexpected argument '<トークン>'` | token（余った最初のトークン） |
+| `CLOPTS_USAGE_INVALID_ENV_VALUE` | オプションの環境変数が設定されているが、値を UTF-8 で読めない（Windows で正しい UTF-16 でない値。`getenv_fn` が `CLOPTS_ENV_INVALID` を返したときも）。そのオプションの既定値は使われない | `invalid value in environment variable '<変数名>'` | option（argv_index は -1） |
 
 argv に誤りが複数あっても、報告されるのは最初の 1 つだけである。ただし、誤りの後ろに終端オプション（`--help` や `--version`）がそのまま書かれていれば、そちらが優先される（[解析規則](parsing.md) の章を参照）。
 
@@ -582,7 +581,7 @@ Run 'taskbook add --help' for usage.
 
 | 種別 | 返す関数と起きる例 | 説明 |
 |------|--------------------|------|
-| `CLOPTS_DECL_ERROR_INVALID_NAME` | 不正なコマンド名・オプション名・位置引数名（`clopts_command_create`、`clopts_option_create`、`clopts_positional_create`）、空の環境変数名（`clopts_option_set_env`（`option, ""`）） | `invalid name` |
+| `CLOPTS_DECL_ERROR_INVALID_NAME` | 不正なコマンド名・オプション名・位置引数名（`clopts_command_create`、`clopts_option_create`、`clopts_positional_create`）、不正な環境変数名（空、`=` を含む、正しい UTF-8 でない。`clopts_option_set_env`（`option, ""`）） | `invalid name` |
 | `CLOPTS_DECL_ERROR_NO_NAME` | 長い名前も短い名前もないオプション（`clopts_option_create`（`CLOPTS_OPTION_FLAG, NULL, '\0', &option`）） | `option has neither a long nor a short name` |
 | `CLOPTS_DECL_ERROR_DUPLICATE_COMMAND` | 同じ名前のサブコマンドを 2 つ渡した（`clopts_program_add_command`） | `duplicate command name` |
 | `CLOPTS_DECL_ERROR_DUPLICATE_OPTION` | 同じコマンドの中でオプションの名前が重なった（`clopts_command_add_option`） | `duplicate option name` |
@@ -701,11 +700,11 @@ Run 'taskbook --help' for usage.
 ## メモリの所有と寿命
 
 - ビルダー関数に渡した文字列（名前、説明、値の名前、環境変数の名前、既定値）は、ライブラリが複製する。呼び出し側は、呼び出しの直後にその文字列を変更・解放してよい。`clopts_write_version` の `version` は複製されず、呼び出しの間だけ読まれる。
-- ライブラリが確保したものは、ライブラリの関数で解放する: プログラムとそれが持つハンドルは `clopts_program_destroy`、プログラムに渡していないコマンドは `clopts_command_destroy`、どこにも渡していないオプションと位置引数は `clopts_option_destroy` と `clopts_positional_destroy`、結果は `clopts_result_destroy`、argv のハンドルは `clopts_argv_destroy`、環境変数の文脈は `clopts_env_destroy`。ライブラリから得た文字列を `free()` してはならない。
+- ライブラリが確保したものは、ライブラリの関数で解放する: プログラムとそれが持つハンドルは `clopts_program_destroy`、プログラムに渡していないコマンドは `clopts_command_destroy`、どこにも渡していないオプションと位置引数は `clopts_option_destroy` と `clopts_positional_destroy`、結果は `clopts_result_destroy`、argv のハンドルは `clopts_argv_destroy`。ライブラリから得た文字列を `free()` してはならない。
 - ライブラリの確保と解放は、すべて設定されたアロケーター（既定は標準の `malloc` / `calloc` / `realloc` / `free`）を通る。差し替え方は「[アロケーター](#アロケーター)」で示す。
 - ライブラリは argv を書き換えない。宣言も、解析によって書き換えられない。
 - 結果から得た文字列（値、LIST の各値、位置引数、エラーのトークン）は、結果を解放するまで有効で、しかも呼び出し側がプログラムと argv の両方を生かしている間だけ有効である。`clopts_result_get_positional_at` と `clopts_result_get_error_token` は argv の要素そのものを返す。argv を `clopts_argv_create` で得たときは、結果を使い終えてから `clopts_argv_destroy` を呼ぶ。
-- 環境変数の値は、解析中にライブラリが複製する。`getenv_fn` が返す文字列は、次の呼び出しか解析の終わりまで有効であればよい。
+- 環境変数の値は、解析中にライブラリが複製する。結果の値は、環境変数が後で変わっても変わらない。`getenv_fn` が返す文字列は、次の呼び出しか解析の終わりまで有効であればよい。
 - 解放の順序: 結果のアクセサは、プログラムを解放する前に呼ぶ。`clopts_result_destroy` そのものは、`clopts_program_destroy` の前でも後でも呼べる。
 - メモリ不足の番兵（`clopts_parse` などが確保に失敗したときに返す共有の結果）は、`clopts_result_destroy` に渡しても何もしない。そのため、状態にかかわらず、得た結果は必ず `clopts_result_destroy` に渡してよい。
 - 文面の関数（`clopts_write_*`）はメモリを確保しない。
@@ -717,7 +716,6 @@ Run 'taskbook --help' for usage.
 - 解析は、どのストリームにも書かず、`exit()` も呼ばない。
 - 解析はプログラムに書き込まない。最初に解析するか文面を出した後は、呼び出し側もプログラムを変えない（契約）。そのため、同じプログラムを複数のスレッドから同時に解析してよい。
 - 文面の関数と読み取りの関数も、同じプログラムを複数のスレッドから同時に読んでよい。
-- 1 つの `clopts_env_t` を、複数のスレッドから同時に使ってはならない。
 - `clopts_set_allocator` は同期しない。ほかのスレッドがライブラリを使っていない間に呼ぶ。設定した関数は、ライブラリを使うすべてのスレッドから呼ばれうる。
 
 ## アロケーター
@@ -742,12 +740,12 @@ typedef struct clopts_allocator
 - ライブラリは、大きさ 0 では呼ばない（1 バイトとして確保する）。そのため、`malloc_fn`、`calloc_fn`、`realloc_fn` の NULL は、つねに確保の失敗を意味する。失敗した `realloc_fn` は、標準の `realloc` と同じく、元のブロックを有効なまま残すこと。
 - `calloc_fn` を呼ぶ前に、ライブラリが `count * size` のあふれを検査する。`free_fn` に NULL は渡さない。
 - 呼び出しの後に `allocator` の指す構造体を変えても、解放しても、影響しない。
-- 設定してよいのは、ライブラリが確保したもの（プログラム、結果、argv のハンドル、環境変数の文脈）が 1 つも生きていないときだけである。ブロックは、解放する時点で設定されている `free_fn` で解放されるので、生きている間に変えると、確保したときとは別の関数で解放されてしまう。ライブラリはこの誤りを検出しない。通常は `main` の最初で 1 回呼ぶ。
+- 設定してよいのは、ライブラリが確保したもの（プログラム、結果、argv のハンドル）が 1 つも生きていないときだけである。ブロックは、解放する時点で設定されている `free_fn` で解放されるので、生きている間に変えると、確保したときとは別の関数で解放されてしまう。ライブラリはこの誤りを検出しない。通常は `main` の最初で 1 回呼ぶ。
 - メモリ不足の番兵（`clopts_parse` などや `clopts_argv_create` が確保に失敗したときに返す共有のオブジェクト）は、静的なオブジェクトで、アロケーターとは関係しない。
 
 ## プラットフォームの関数
 
-`clopts/platform.h` は、プロセスの argv と環境変数を UTF-8 で得て、`clopts_parse` / `clopts_parse_with_env` に渡すための関数を持つ。Windows でのふるまい（コマンドラインからの取得、`wmain`、`activeCodePage`）と使い分けは [Windows での注意](windows.md) の章で示す。ここでは関数の一覧だけを示す。
+`clopts/platform.h` は、プロセスの argv を UTF-8 で得て、`clopts_parse` / `clopts_parse_with_env` に渡すための関数を持つ。環境変数は解析が自分で UTF-8 で読むので、ここには関数がない。Windows でのふるまい（コマンドラインからの取得、`wmain`、`activeCodePage`）と使い分けは [Windows での注意](windows.md) の章で示す。ここでは関数の一覧だけを示す。
 
 ### argv
 
@@ -770,16 +768,3 @@ NULL のハンドルは番兵と同じに読まれる（状態は `CLOPTS_ARGV_O
 | `CLOPTS_ARGV_CMDLINE_UNAVAILABLE` | Windows で、プロセスのコマンドラインを得られなかった |
 | `CLOPTS_ARGV_OUT_OF_MEMORY` | メモリの確保に失敗した |
 
-### 環境変数
-
-| 関数 | 引数と戻り値 |
-|------|--------------|
-| `clopts_env_create()` | 環境変数を引くための文脈を作って返す。確保に失敗すると NULL |
-| `clopts_env_destroy`（`env`） | 文脈と、それが返したすべての値を解放する。NULL は無視される |
-| `clopts_env_lookup`（`ctx, name, value`） | `clopts_getenv_fn` の型の関数。`clopts_env_t *` を `ctx` として `clopts_parse_with_env` に渡す。`name` の UTF-8 の値を `*value` に入れる（`ctx` から借用し、同じ `ctx` での次の呼び出しか `clopts_env_destroy` まで有効。Windows 以外ではプロセスの環境を指す）。`ctx` が NULL なら `name` を読まずに `CLOPTS_ENV_FAILED` を返す |
-| `clopts_env_get_error`（`env`） | 最後の `clopts_env_lookup` が `CLOPTS_ENV_FAILED` を返した理由（`clopts_env_error_t`）。FOUND と UNSET の後は NONE。NULL は `CLOPTS_ENV_ERROR_OUT_OF_MEMORY` として読まれる |
-| `clopts_env_get_error_name`（`env`） | 失敗した引き方に渡された名前（`env` が所有する複製）。失敗がないとき、または複製できなかったときは NULL |
-
-`clopts_env_error_t` の値は、`CLOPTS_ENV_ERROR_NONE`、`CLOPTS_ENV_ERROR_INVALID_UTF16`（Windows で、値が正しい UTF-16 でない）、`CLOPTS_ENV_ERROR_INVALID_NAME`（Windows で、名前が正しい UTF-8 でない）、`CLOPTS_ENV_ERROR_OUT_OF_MEMORY` である。
-
-`clopts_env_create` が NULL を返しても、そのまま `clopts_parse_with_env` に渡してよい。そのときは環境変数を引く時点で `CLOPTS_ENV_FAILED` になり、解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる（taskbook はこの扱いをしている）。

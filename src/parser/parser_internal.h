@@ -198,15 +198,28 @@ clopts_parser_scan_status_t clopts_parser_scan(clopts_result_t *result, const cl
  * Resolver (resolve.c).
  */
 
+/* Outcome of clopts_parser_resolve(). */
+typedef enum clopts_parser_resolve_status
+{
+    CLOPTS_PARSER_RESOLVE_DONE,
+    CLOPTS_PARSER_RESOLVE_INVALID,        /* an INVALID_ENV_VALUE error is recorded in result */
+    CLOPTS_PARSER_RESOLVE_OUT_OF_MEMORY   /* a lookup reported FAILED, or a copy could not be allocated */
+} clopts_parser_resolve_status_t;
+
 /*
  * Fills the VALUE / LIST slots that got nothing from argv, from the
  * environment and then from the default value, in declaration order. A found
- * environment value is copied before the callback is called again. Only the
- * global options are resolved when include_command is false. Returns 0, or
- * -1 (out of memory) when the lookup fails or a copy cannot be allocated.
+ * environment value is copied before the callback is called again. Without
+ * getenv_fn (NULL) the process environment is read. Only the global options
+ * are resolved when include_command is false. A value the lookup reports as
+ * INVALID leaves its slot unset; the first one is recorded as the error of
+ * result (its command: the selected one when include_command, else NULL),
+ * and the resolution goes on. Stops at the first FAILED lookup or
+ * allocation failure.
  */
-int clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *program,
-                          clopts_getenv_fn getenv_fn, void *env_ctx, bool include_command);
+clopts_parser_resolve_status_t clopts_parser_resolve(clopts_result_t *result, const clopts_program_t *program,
+                                                     clopts_getenv_fn getenv_fn, void *env_ctx,
+                                                     bool include_command);
 
 /*
  * Required checks (check.c).

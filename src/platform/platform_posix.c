@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MIT
  *
  * argv and environment lookup elsewhere than Windows: argv is passed through
- * and variables are read with getenv().
+ * and variables are read with getenv(), whose pointer is lent as is. The
+ * library calls getenv only here.
  */
 
 #include "platform/platform_internal.h"
@@ -20,27 +21,21 @@ clopts_argv_t *clopts_argv_create(int argc, char *const *argv)
     return clopts_platform_argv_passthrough(argc, argv);
 }
 
-clopts_env_status_t clopts_env_lookup(void *ctx, const char *name, const char **value)
+clopts_env_status_t clopts_platform_env_lookup(void *ctx, const char *name, const char **value)
 {
     const char *found;
 
-    /* A NULL context fails without reading name or value. */
-    if (ctx == NULL)
-    {
-        return CLOPTS_ENV_FAILED;
-    }
+    assert(ctx != NULL);
     assert(name != NULL);
     assert(value != NULL);
-    clopts_platform_env_clear((clopts_env_t *)ctx);
+    (void)ctx;   /* nothing is converted, so no buffer is needed */
+
     found = getenv(name);
     if (found == NULL)
     {
         return CLOPTS_ENV_UNSET;
     }
-    /*
-     * Borrowed from the process environment; an empty string is FOUND too.
-     * Nothing is allocated, so the lookup never fails here.
-     */
+    /* Borrowed from the process environment; an empty string is FOUND too. */
     *value = found;
     return CLOPTS_ENV_FOUND;
 }

@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite oom: sweeps that move the failing fault point of the test allocator
- * (tests/support/test_alloc.h) over handle creation, context creation, the
- * Windows conversions and environment lookups. Each run gives the sentinel,
- * NULL or a recorded OUT_OF_MEMORY when a fault point failed and the expected
- * outcome otherwise, and leaves no block alive after the release. The
+ * (tests/support/test_alloc.h) over handle creation, the Windows
+ * conversions and environment lookups. Each run gives the sentinel or
+ * FAILED when a fault point failed and the expected outcome otherwise, and leaves no block alive after the release. The
  * allocation gateway itself is tested by core (tests/core/test_alloc.c).
  *
  * It also checks that the helpers of test_util hold the longest array they
@@ -172,43 +171,6 @@ NAOS_TEST(sweep_passthrough)
     NAOS_CHECK_UINT_EQ(stats.runs, stats.oom_runs + 1);
 }
 
-/* Creating a context: one fault point (the context); NULL when it fails, never a leak. */
-NAOS_TEST(sweep_env_new)
-{
-    size_t fail_at;
-    size_t oom_runs = 0;
-    bool succeeded = false;
-
-    for (fail_at = 1; (fail_at <= OOM_SWEEP_LIMIT) && (!succeeded); ++fail_at)
-    {
-        clopts_env_t *env;
-
-        NAOS_NOTE("env_new fault point %u", (unsigned)fail_at);
-        test_alloc_begin(fail_at);
-        env = clopts_env_create();
-        if (env == NULL)
-        {
-            oom_runs++;
-            NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
-            NAOS_CHECK_INT_EQ(test_alloc.live, 0);
-        }
-        else
-        {
-            NAOS_CHECK_INT_EQ(clopts_env_get_error(env), CLOPTS_ENV_ERROR_NONE);
-            NAOS_CHECK_NULL(clopts_env_get_error_name(env));
-        }
-        if (test_alloc.calls < fail_at)
-        {
-            succeeded = true;
-            NAOS_CHECK_NOT_NULL(env);
-        }
-        clopts_env_destroy(env);
-        NAOS_CHECK_TRUE(test_alloc_end());
-    }
-    NAOS_CHECK_TRUE(succeeded);
-    NAOS_CHECK_UINT_EQ(oom_runs, 1);
-}
-
 #ifdef _WIN32
 static clopts_argv_t *oom_make_from_cmdline(const void *input)
 {
@@ -304,29 +266,21 @@ NAOS_TEST(sweep_env_lookup_long_value)
 
     for (offset = 1; (offset <= OOM_SWEEP_LIMIT) && (!succeeded); ++offset)
     {
-        clopts_env_t *env;
+        clopts_platform_env_t env;
         const char *value = NULL;
         clopts_env_status_t status;
         size_t start;
 
         NAOS_NOTE("env lookup fault point %u", (unsigned)offset);
-        /* The context is created without failures; the sweep starts after it. */
         test_alloc_begin(0);
-        env = clopts_env_create();
-        NAOS_CHECK_NOT_NULL(env);
-        if (env == NULL)
-        {
-            break;
-        }
+        clopts_platform_env_init(&env);
         start = test_alloc.calls;
         test_alloc_set_fail_at(start + offset);
-        status = clopts_env_lookup(env, "CLOPTS_TEST_OOM_LONG", &value);
+        status = clopts_platform_env_lookup(&env, "CLOPTS_TEST_OOM_LONG", &value);
         if (status == CLOPTS_ENV_FAILED)
         {
             oom_runs++;
             NAOS_CHECK_UINT_GE(test_alloc.calls, start + offset);
-            NAOS_CHECK_INT_EQ(clopts_env_get_error(env), CLOPTS_ENV_ERROR_OUT_OF_MEMORY);
-            NAOS_CHECK_NULL(clopts_env_get_error_name(env));
         }
         else
         {
@@ -337,7 +291,6 @@ NAOS_TEST(sweep_env_lookup_long_value)
                 NAOS_CHECK_UINT_EQ(strlen(value), (LONG_UNITS / 2) * 4);
                 NAOS_CHECK_INT_EQ(memcmp(value, "v\xe3\x81\x82", 4), 0);
             }
-            NAOS_CHECK_INT_EQ(clopts_env_get_error(env), CLOPTS_ENV_ERROR_NONE);
         }
         if (test_alloc.calls < start + offset)
         {
@@ -345,7 +298,7 @@ NAOS_TEST(sweep_env_lookup_long_value)
             NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
         }
         test_alloc_set_fail_at(0);
-        clopts_env_destroy(env);
+        clopts_platform_env_release(&env);
         NAOS_CHECK_TRUE(test_alloc_end());
     }
     test_alloc_set_fail_at(0);
@@ -360,14 +313,12 @@ NAOS_TEST(sweep_env_lookup_long_value)
 #ifndef _WIN32
 NAOS_SUITE(oom,
     NAOS_ADD_TEST(u16_helpers_fill_the_whole_capacity),
-    NAOS_ADD_TEST(sweep_passthrough),
-    NAOS_ADD_TEST(sweep_env_new)
+    NAOS_ADD_TEST(sweep_passthrough)
 )
 #else
 NAOS_SUITE(oom,
     NAOS_ADD_TEST(u16_helpers_fill_the_whole_capacity),
     NAOS_ADD_TEST(sweep_passthrough),
-    NAOS_ADD_TEST(sweep_env_new),
     NAOS_ADD_TEST(sweep_argv_from_cmdline),
     NAOS_ADD_TEST(sweep_argv_from_cmdline_invalid_utf16),
     NAOS_ADD_TEST(sweep_argv_convert),

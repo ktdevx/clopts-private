@@ -56,7 +56,10 @@ CLOPTS_API clopts_decl_error_t clopts_option_set_help(clopts_option_t *option, c
 /* VALUE / LIST: value name shown in help. */
 CLOPTS_API clopts_decl_error_t clopts_option_set_value_name(clopts_option_t *option, const char *value_name);
 
-/* VALUE / LIST: environment variable used when argv gives no value. ENV_NOT_ALLOWED, INVALID_NAME (empty). */
+/*
+ * VALUE / LIST: environment variable used when argv gives no value. ENV_NOT_ALLOWED, INVALID_NAME (empty,
+ * containing '=', or not valid UTF-8).
+ */
 CLOPTS_API clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *env);
 
 /* VALUE / LIST: default value. For LIST it is split by the delimiter. DEFAULT_NOT_ALLOWED, REQUIRED_WITH_DEFAULT. */

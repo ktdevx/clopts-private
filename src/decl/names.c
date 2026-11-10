@@ -52,6 +52,69 @@ bool clopts_decl_valid_short_name(char c)
     return ((c != '\0') && (c != '-') && (c != '=') && (!decl_is_space(c)));
 }
 
+/*
+ * True when the bytes at s, up to the NUL, are valid UTF-8: shortest forms
+ * only, no surrogates (U+D800..U+DFFF) and nothing above U+10FFFF.
+ */
+static bool decl_valid_utf8(const char *s)
+{
+    const unsigned char *p = (const unsigned char *)s;
+
+    while (*p != 0)
+    {
+        unsigned char c = *p;
+        size_t len;
+        unsigned char lo = 0x80;
+        unsigned char hi = 0xBF;
+        size_t i;
+
+        if (c < 0x80)
+        {
+            p++;
+            continue;
+        }
+        if ((c >= 0xC2) && (c <= 0xDF))
+        {
+            len = 2;
+        }
+        else if ((c >= 0xE0) && (c <= 0xEF))
+        {
+            len = 3;
+            lo = (c == 0xE0) ? 0xA0 : 0x80;   /* no overlong form */
+            hi = (c == 0xED) ? 0x9F : 0xBF;   /* no surrogate */
+        }
+        else if ((c >= 0xF0) && (c <= 0xF4))
+        {
+            len = 4;
+            lo = (c == 0xF0) ? 0x90 : 0x80;   /* no overlong form */
+            hi = (c == 0xF4) ? 0x8F : 0xBF;   /* nothing above U+10FFFF */
+        }
+        else
+        {
+            return false;
+        }
+        /* The second byte has the narrowed range, the others 80..BF; a NUL stops the check. */
+        if ((p[1] < lo) || (p[1] > hi))
+        {
+            return false;
+        }
+        for (i = 2; i < len; i++)
+        {
+            if ((p[i] < 0x80) || (p[i] > 0xBF))
+            {
+                return false;
+            }
+        }
+        p += len;
+    }
+    return true;
+}
+
+bool clopts_decl_valid_env_name(const char *name)
+{
+    return ((name != NULL) && (name[0] != '\0') && (strchr(name, '=') == NULL) && decl_valid_utf8(name));
+}
+
 /* ---- scopes ---------------------------------------------------------------- */
 
 /* True when long_name is exactly the name_len bytes at name. */

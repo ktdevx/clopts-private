@@ -6,6 +6,7 @@
 #ifndef CLOPTS_PLATFORM_INTERNAL_H
 #define CLOPTS_PLATFORM_INTERNAL_H
 
+#include "clopts/env.h"
 #include "clopts/platform.h"
 #include "core/core_internal.h"
 
@@ -16,7 +17,7 @@
  * Internal declarations of the platform module, shared by its source files
  * (platform_split.c, platform_argv.c, platform_env.c and platform_win32.c
  * or platform_posix.c), its tests (tests/platform/) and the parser (the
- * default environment lookup). None of these
+ * process environment lookup). None of these
  * symbols is exported from the shared library. Every allocation goes through
  * the allocation gateway of core (clopts_core_malloc and the others).
  */
@@ -37,16 +38,19 @@ struct clopts_argv
     char *const *argv;      /* argv[argc] == NULL; caller's array, same block, or the empty array */
 };
 
-/* Environment lookup context. */
-struct clopts_env
+/*
+ * Context of the process environment lookup: the buffers of the values it
+ * lends. One parse owns one (on its stack) for the duration of the
+ * resolution, so parses never share one. Nothing is allocated until a
+ * lookup needs it, and nothing at all elsewhere than Windows.
+ */
+typedef struct clopts_platform_env
 {
-    clopts_env_error_t error;
-    char *error_name;                 /* NULL or owned copy */
     char *value;                      /* UTF-8 value buffer (Windows) */
     size_t value_cap;
     void *wide;                       /* UTF-16 work buffer (Windows): name and value */
     size_t wide_cap;                  /* in clopts_platform_u16_t units */
-};
+} clopts_platform_env_t;
 
 /*
  * Command line splitting with the rules of the current MSVC CRT
@@ -70,24 +74,30 @@ clopts_argv_t *clopts_platform_argv_failure(clopts_argv_status_t status, int err
 /* A handle that borrows argv (count argc); the sentinel when the allocation fails. */
 clopts_argv_t *clopts_platform_argv_passthrough(int argc, char *const *argv);
 
-/*
- * Default environment lookup of clopts_parse() (platform_env.c): returns the
- * value of getenv(name) as a borrowed string, on every platform (on Windows
- * in the code page of the C runtime, unlike clopts_env_lookup()).
- * CLOPTS_ENV_FOUND with *value set, or CLOPTS_ENV_UNSET. ctx is not used.
- */
-clopts_env_status_t clopts_platform_getenv_default(void *ctx, const char *name, const char **value);
+/* Process environment lookup (platform_env.c, and platform_win32.c or platform_posix.c). */
 
-/* Environment lookup contexts (platform_env.c). */
-
-/* Clears the failure record (error NONE, error_name released). Called first by every lookup. */
-void clopts_platform_env_clear(clopts_env_t *env);
-/* Records kind and a copy of name; when the copy fails, records OUT_OF_MEMORY with error_name NULL. */
-void clopts_platform_env_fail(clopts_env_t *env, clopts_env_error_t kind, const char *name);
+/* Makes env empty: no buffer. */
+void clopts_platform_env_init(clopts_platform_env_t *env);
+/* Releases the buffers of env, leaving it empty. Every value it lent becomes invalid. */
+void clopts_platform_env_release(clopts_platform_env_t *env);
 /* Grows env->value to at least bytes (never shrinks). 0 on success, -1 on overflow or allocation failure. */
-int clopts_platform_env_reserve_value(clopts_env_t *env, size_t bytes);
+int clopts_platform_env_reserve_value(clopts_platform_env_t *env, size_t bytes);
 /* Grows env->wide to at least units code units. Same return values. */
-int clopts_platform_env_reserve_wide(clopts_env_t *env, size_t units);
+int clopts_platform_env_reserve_wide(clopts_platform_env_t *env, size_t units);
+
+/*
+ * The lookup of clopts_parse() in the process environment, a
+ * clopts_getenv_fn whose ctx is a clopts_platform_env_t *. Stores the UTF-8
+ * value of name in *value: on Windows read with GetEnvironmentVariableW() and
+ * converted into env->value (valid until the next lookup with env or its
+ * release); elsewhere getenv()'s pointer as is. Returns:
+ *   - CLOPTS_ENV_FOUND, an empty value included;
+ *   - CLOPTS_ENV_UNSET, also for a name that cannot be converted to UTF-16
+ *     (no variable can have it; the builder rejects such names anyway);
+ *   - CLOPTS_ENV_INVALID: Windows, the value is not valid UTF-16;
+ *   - CLOPTS_ENV_FAILED: an allocation or the system call failed.
+ */
+clopts_env_status_t clopts_platform_env_lookup(void *ctx, const char *name, const char **value);
 
 #ifdef _WIN32
 /* Windows argv conversion (platform_win32.c). */

@@ -233,7 +233,6 @@ int main(int argc, char **argv)
     struct textcount_options opts = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     clopts_program_t *program = NULL;
     clopts_argv_t *args;
-    clopts_env_t *env;
     clopts_result_t *result;
     clopts_decl_error_t error;
     int code;
@@ -255,15 +254,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* If clopts_env_create failed, looking up TEXTCOUNT_ENCODING fails and the
-       parse reports out of memory. */
-    env = clopts_env_create();
-    result = clopts_parse_with_env(program, clopts_argv_get_count(args), clopts_argv_get_values(args),
-                                   clopts_env_lookup, env);
+    /* TEXTCOUNT_ENCODING is read from the process environment in UTF-8 too. */
+    result = clopts_parse(program, clopts_argv_get_count(args), clopts_argv_get_values(args));
     code = finish(program, result, &opts);
 
     clopts_result_destroy(result);
-    clopts_env_destroy(env);
     clopts_argv_destroy(args);
     clopts_program_destroy(program);
     return code;
