@@ -104,7 +104,7 @@ static const clopts_slot_t *find_slot(const clopts_result_t *result, const clopt
     {
         return NULL;
     }
-    return clopts_matches_find(result->matches, option);
+    return clopts_matches_find_slot(result->matches, option);
 }
 
 clopts_parse_status_t clopts_result_get_status(const clopts_result_t *result)

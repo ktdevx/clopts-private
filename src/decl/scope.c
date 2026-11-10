@@ -47,13 +47,13 @@ void clopts_scope_release(clopts_scope_t *scope)
     {
         clopts_option_destroy(scope_option(scope, i));
     }
-    clopts_vec_free(&scope->options);
+    clopts_vec_release(&scope->options);
 
     for (i = 0; i < scope->positionals.len; i++)
     {
         clopts_positional_destroy(scope_positional(scope, i));
     }
-    clopts_vec_free(&scope->positionals);
+    clopts_vec_release(&scope->positionals);
 }
 
 /* ---- names ---------------------------------------------------------------- */

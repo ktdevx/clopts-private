@@ -22,6 +22,7 @@
 #include "clopts/decl/command.h"
 
 #include "base/memory.h"
+#include "base/string.h"
 #include "decl/name.h"
 #include "decl/scope_impl.h"
 

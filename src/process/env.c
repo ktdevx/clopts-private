@@ -61,7 +61,7 @@ int clopts_env_reserve_wide(clopts_env_t *env, size_t units)
         return 0;
     }
     /* NULL both when units * sizeof(clopts_utf16_t) overflows and when the allocation fails. */
-    grown = clopts_malloc_array(units, sizeof(clopts_utf16_t));
+    grown = clopts_calloc(units, sizeof(clopts_utf16_t));
     if (grown == NULL)
     {
         return -1;

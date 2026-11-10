@@ -253,7 +253,7 @@ static void sample_init(sample_t *s)
 /* Returns the slot of option (a global option or one of the selected command), found by its address. */
 static clopts_slot_t *slot_of(clopts_matches_t *matches, const clopts_option_t *option)
 {
-    clopts_slot_t *slot = (clopts_slot_t *)clopts_matches_find(matches, option);
+    clopts_slot_t *slot = (clopts_slot_t *)clopts_matches_find_slot(matches, option);
 
     NAOS_REQUIRE_NOT_NULL(slot);
     return slot;

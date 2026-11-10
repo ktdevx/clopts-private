@@ -13,7 +13,6 @@
 
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 
 /*
  * The standard functions, wrapped: the address of a CRT function imported
@@ -69,17 +68,6 @@ void *clopts_malloc(size_t size)
     return current.malloc_fn((size == 0) ? 1 : size);
 }
 
-void *clopts_malloc_array(size_t count, size_t size)
-{
-    size_t bytes;
-
-    if (clopts_size_mul(count, size, &bytes) != 0)
-    {
-        return NULL;
-    }
-    return clopts_malloc(bytes);
-}
-
 void *clopts_calloc(size_t count, size_t size)
 {
     size_t bytes;
@@ -102,55 +90,6 @@ void *clopts_realloc(void *ptr, size_t size)
         return clopts_malloc(size);
     }
     return current.realloc_fn(ptr, (size == 0) ? 1 : size);
-}
-
-char *clopts_strdup(const char *s)
-{
-    if (s == NULL)
-    {
-        return NULL;
-    }
-    return clopts_strndup(s, strlen(s));
-}
-
-int clopts_strrep(char **field, const char *value)
-{
-    char *copy;
-
-    assert(field != NULL);
-
-    copy = clopts_strdup(value);
-    if ((value != NULL) && (copy == NULL))
-    {
-        return -1;
-    }
-
-    clopts_free(*field);
-    *field = copy;
-
-    return 0;
-}
-
-char *clopts_strndup(const char *s, size_t len)
-{
-    size_t bytes;
-    char *copy;
-
-    assert(s != NULL);
-
-    if (clopts_size_add(len, 1, &bytes) != 0)
-    {
-        return NULL;
-    }
-
-    copy = (char *)clopts_malloc(bytes);
-    if (copy == NULL)
-    {
-        return NULL;
-    }
-    memcpy(copy, s, len);
-    copy[len] = '\0';
-    return copy;
 }
 
 void clopts_free(void *ptr)

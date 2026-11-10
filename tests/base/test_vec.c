@@ -62,7 +62,7 @@ NAOS_TEST(push_100_keeps_all_elements)
 
     NAOS_CHECK_UINT_EQ(vec.cap, 128);
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
 }
 
 NAOS_TEST(push_struct_elements_are_copied)
@@ -91,7 +91,7 @@ NAOS_TEST(push_struct_elements_are_copied)
     NAOS_CHECK_UINT_EQ(out->a, 42);
     NAOS_CHECK_DOUBLE_NEAR(out->b, 2.5, 0.0);
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
 }
 
 NAOS_TEST(capacity_starts_at_8_then_doubles)
@@ -135,7 +135,7 @@ NAOS_TEST(capacity_starts_at_8_then_doubles)
         NAOS_CHECK_INT_EQ(*(const int *)clopts_vec_at(&vec, (size_t)i - 1), i);
     }
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
 }
 
 NAOS_TEST(huge_elem_size_push_fails_without_change)
@@ -168,7 +168,7 @@ NAOS_TEST(huge_elem_size_push_fails_without_change)
         check_invariants(&vec);
     }
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
 }
 
 NAOS_TEST(free_resets_and_keeps_elem_size)
@@ -179,7 +179,7 @@ NAOS_TEST(free_resets_and_keeps_elem_size)
     clopts_vec_init(&vec, sizeof(int));
     NAOS_REQUIRE_INT_EQ(clopts_vec_push(&vec, &value), 0);
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
 
     NAOS_CHECK_NULL(vec.data);
     NAOS_CHECK_UINT_EQ(vec.len, 0);
@@ -193,7 +193,7 @@ NAOS_TEST(free_resets_and_keeps_elem_size)
     NAOS_CHECK_UINT_EQ(vec.cap, 8);
     NAOS_CHECK_INT_EQ(*(const int *)clopts_vec_at(&vec, 0), 9);
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
 }
 
 NAOS_TEST(double_free_is_safe)
@@ -204,8 +204,8 @@ NAOS_TEST(double_free_is_safe)
     clopts_vec_init(&vec, sizeof(int));
     NAOS_REQUIRE_INT_EQ(clopts_vec_push(&vec, &value), 0);
 
-    clopts_vec_free(&vec);
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
+    clopts_vec_release(&vec);
 
     NAOS_CHECK_NULL(vec.data);
     NAOS_CHECK_UINT_EQ(vec.len, 0);
@@ -217,7 +217,7 @@ NAOS_TEST(free_zero_initialized_is_safe)
 {
     clopts_vec_t vec = {0};
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
 
     NAOS_CHECK_NULL(vec.data);
     NAOS_CHECK_UINT_EQ(vec.len, 0);
@@ -233,7 +233,7 @@ NAOS_TEST(free_after_failed_push_releases_everything)
     clopts_vec_init(&vec, SIZE_MAX / 4);
     (void)clopts_vec_push(&vec, elem);
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
 
     NAOS_CHECK_NULL(vec.data);
     NAOS_CHECK_UINT_EQ(vec.len, 0);
@@ -241,7 +241,7 @@ NAOS_TEST(free_after_failed_push_releases_everything)
     NAOS_CHECK_UINT_EQ(vec.elem_size, SIZE_MAX / 4);
 
     /* A second free after the failure is still safe. */
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
     NAOS_CHECK_NULL(vec.data);
 }
 

@@ -2,14 +2,13 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite mem: the allocation gateway (clopts_malloc / malloc_array /
- * calloc / realloc / strdup / strndup / free), clopts_strrep()
- * and clopts_set_allocator().
+ * Suite memory: the allocation gateway (clopts_malloc / calloc / realloc /
+ * free) and clopts_set_allocator().
  *
  * Checked here: the gateway with the standard functions, that it calls the
  * functions set with clopts_set_allocator() and only them, that NULL
  * restores the standard functions, the rounding of a size of 0 to 1 byte,
- * the overflow checks of count * size and len + 1 (nothing is allocated),
+ * the overflow check of count * size (nothing is allocated),
  * that a failed realloc leaves the block valid, and the fault points of a
  * vec (only when its buffer grows).
  */
@@ -82,9 +81,6 @@ NAOS_TEST(standard_functions_allocate_and_free)
 {
     unsigned char *block;
     unsigned char *zeroed;
-    unsigned char *array;
-    char *copy;
-    char *part;
     size_t i;
 
     clopts_set_allocator(NULL);
@@ -100,27 +96,12 @@ NAOS_TEST(standard_functions_allocate_and_free)
         NAOS_CHECK_UINT_EQ(zeroed[i], 0);
     }
 
-    array = (unsigned char *)clopts_malloc_array(3, 5);
-    NAOS_REQUIRE_NOT_NULL(array);
-    memset(array, 0xcd, 15);
-
     block = (unsigned char *)clopts_realloc(block, 64);
     NAOS_REQUIRE_NOT_NULL(block);
     NAOS_CHECK_UINT_EQ(block[15], 0xab);
 
-    copy = clopts_strdup("build");
-    NAOS_REQUIRE_NOT_NULL(copy);
-    NAOS_CHECK_STR_EQ(copy, "build");
-
-    part = clopts_strndup("output=file", 6);
-    NAOS_REQUIRE_NOT_NULL(part);
-    NAOS_CHECK_STR_EQ(part, "output");
-
     clopts_free(block);
     clopts_free(zeroed);
-    clopts_free(array);
-    clopts_free(copy);
-    clopts_free(part);
     clopts_free(NULL);
 }
 
@@ -130,8 +111,6 @@ NAOS_TEST(set_allocator_routes_every_function)
 {
     void *a;
     void *b;
-    void *c;
-    char *s;
 
     rec_install();
 
@@ -151,26 +130,13 @@ NAOS_TEST(set_allocator_routes_every_function)
     NAOS_CHECK_UINT_EQ(rec_realloc_calls, 1);
     NAOS_CHECK_UINT_EQ(rec_last_size, 20);
 
-    c = clopts_malloc_array(2, 6);
-    NAOS_REQUIRE_NOT_NULL(c);
-    NAOS_CHECK_UINT_EQ(rec_malloc_calls, 2);
-    NAOS_CHECK_UINT_EQ(rec_last_size, 12);
-
-    /* strdup / strndup allocate len + 1 bytes with malloc_fn. */
-    s = clopts_strdup("abc");
-    NAOS_REQUIRE_NOT_NULL(s);
-    NAOS_CHECK_UINT_EQ(rec_malloc_calls, 3);
-    NAOS_CHECK_UINT_EQ(rec_last_size, 4);
-
     clopts_free(a);
     clopts_free(b);
-    clopts_free(c);
-    clopts_free(s);
-    NAOS_CHECK_UINT_EQ(rec_free_calls, 4);
+    NAOS_CHECK_UINT_EQ(rec_free_calls, 2);
 
     /* NULL is ignored without calling free_fn. */
     clopts_free(NULL);
-    NAOS_CHECK_UINT_EQ(rec_free_calls, 4);
+    NAOS_CHECK_UINT_EQ(rec_free_calls, 2);
 
     clopts_set_allocator(NULL);
 }
@@ -222,7 +188,6 @@ NAOS_TEST(size_zero_is_allocated_as_one_byte)
     void *a;
     void *b;
     void *c;
-    void *d;
 
     rec_install();
 
@@ -230,25 +195,20 @@ NAOS_TEST(size_zero_is_allocated_as_one_byte)
     NAOS_REQUIRE_NOT_NULL(a);
     NAOS_CHECK_UINT_EQ(rec_last_size, 1);
 
-    b = clopts_malloc_array(0, 4);
+    b = clopts_calloc(0, 4);
     NAOS_REQUIRE_NOT_NULL(b);
-    NAOS_CHECK_UINT_EQ(rec_last_size, 1);
-
-    c = clopts_calloc(0, 4);
-    NAOS_REQUIRE_NOT_NULL(c);
     NAOS_CHECK_UINT_EQ(rec_last_count, 1);
     NAOS_CHECK_UINT_EQ(rec_last_size, 1);
 
-    d = clopts_malloc(4);
-    NAOS_REQUIRE_NOT_NULL(d);
-    d = clopts_realloc(d, 0);
-    NAOS_REQUIRE_NOT_NULL(d);
+    c = clopts_malloc(4);
+    NAOS_REQUIRE_NOT_NULL(c);
+    c = clopts_realloc(c, 0);
+    NAOS_REQUIRE_NOT_NULL(c);
     NAOS_CHECK_UINT_EQ(rec_last_size, 1);
 
     clopts_free(a);
     clopts_free(b);
     clopts_free(c);
-    clopts_free(d);
     clopts_set_allocator(NULL);
 }
 
@@ -273,73 +233,10 @@ NAOS_TEST(overflow_allocates_nothing)
     rec_install();
 
     NAOS_CHECK_NULL(clopts_calloc(SIZE_MAX / 2, 3));
-    NAOS_CHECK_NULL(clopts_malloc_array(SIZE_MAX / 2, 3));
-
-    /* len + 1 overflows: strndup returns NULL before reading s. */
-    NAOS_CHECK_NULL(clopts_strndup("x", SIZE_MAX));
 
     NAOS_CHECK_UINT_EQ(rec_malloc_calls, 0);
     NAOS_CHECK_UINT_EQ(rec_calloc_calls, 0);
     clopts_set_allocator(NULL);
-}
-
-NAOS_TEST(strdup_of_null_allocates_nothing)
-{
-    rec_install();
-
-    NAOS_CHECK_NULL(clopts_strdup(NULL));
-    NAOS_CHECK_UINT_EQ(rec_malloc_calls, 0);
-    clopts_set_allocator(NULL);
-}
-
-NAOS_TEST(strndup_copies_len_bytes_and_terminates)
-{
-    char *copy;
-
-    test_alloc_begin(0);
-
-    copy = clopts_strndup("abcdef", 3);
-    NAOS_REQUIRE_NOT_NULL(copy);
-    NAOS_CHECK_STR_EQ(copy, "abc");
-    clopts_free(copy);
-
-    copy = clopts_strndup("abc", 0);
-    NAOS_REQUIRE_NOT_NULL(copy);
-    NAOS_CHECK_STR_EQ(copy, "");
-    clopts_free(copy);
-
-    NAOS_CHECK_TRUE(test_alloc_end());
-}
-
-NAOS_TEST(replace_string_replaces_resets_and_keeps_on_failure)
-{
-    char *field = NULL;
-
-    test_alloc_begin(0);
-
-    NAOS_CHECK_INT_EQ(clopts_strrep(&field, "first"), 0);
-    NAOS_REQUIRE_NOT_NULL(field);
-    NAOS_CHECK_STR_EQ(field, "first");
-    NAOS_CHECK_INT_EQ(clopts_strrep(&field, "second"), 0);
-    NAOS_CHECK_STR_EQ(field, "second");
-    NAOS_CHECK_INT_EQ(test_alloc.live, 1);
-
-    /* a failed copy keeps the old string */
-    test_alloc_set_fail_at(test_alloc.calls + 1);
-    NAOS_CHECK_INT_EQ(clopts_strrep(&field, "third"), -1);
-    NAOS_CHECK_STR_EQ(field, "second");
-    test_alloc_set_fail_at(0);
-
-    /* replacing with its own current copy works (the copy is made first) */
-    NAOS_CHECK_INT_EQ(clopts_strrep(&field, field), 0);
-    NAOS_CHECK_STR_EQ(field, "second");
-
-    /* NULL resets without allocating */
-    NAOS_CHECK_INT_EQ(clopts_strrep(&field, NULL), 0);
-    NAOS_CHECK_NULL(field);
-    NAOS_CHECK_INT_EQ(test_alloc.live, 0);
-
-    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 /* ---- failures ---------------------------------------------------------- */
@@ -351,12 +248,9 @@ NAOS_TEST(failures_return_null)
     test_alloc_begin(1);
 
     NAOS_CHECK_NULL(clopts_malloc(8));
-    NAOS_CHECK_NULL(clopts_malloc_array(2, 8));
     NAOS_CHECK_NULL(clopts_calloc(2, 8));
     NAOS_CHECK_NULL(clopts_realloc(NULL, 8));
-    NAOS_CHECK_NULL(clopts_strdup("abc"));
-    NAOS_CHECK_NULL(clopts_strndup("abc", 2));
-    NAOS_CHECK_UINT_EQ(test_alloc.calls, 6);
+    NAOS_CHECK_UINT_EQ(test_alloc.calls, 3);
 
     /* A failed realloc leaves the block valid and unchanged. */
     test_alloc_begin(2);
@@ -388,7 +282,7 @@ NAOS_TEST(vec_allocates_only_when_it_grows)
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 3);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -413,7 +307,7 @@ NAOS_TEST(vec_push_failure_keeps_the_elements)
         NAOS_CHECK_INT_EQ(*(int *)clopts_vec_at(&vec, (size_t)i), i);
     }
 
-    clopts_vec_free(&vec);
+    clopts_vec_release(&vec);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
@@ -425,9 +319,6 @@ NAOS_SUITE(memory,
     NAOS_ADD_TEST(size_zero_is_allocated_as_one_byte),
     NAOS_ADD_TEST(realloc_of_null_allocates_with_malloc_fn),
     NAOS_ADD_TEST(overflow_allocates_nothing),
-    NAOS_ADD_TEST(strdup_of_null_allocates_nothing),
-    NAOS_ADD_TEST(strndup_copies_len_bytes_and_terminates),
-    NAOS_ADD_TEST(replace_string_replaces_resets_and_keeps_on_failure),
     NAOS_ADD_TEST(failures_return_null),
     NAOS_ADD_TEST(vec_allocates_only_when_it_grows),
     NAOS_ADD_TEST(vec_push_failure_keeps_the_elements)

@@ -8,7 +8,7 @@
 
 | モジュール | ディレクトリ | 役割 |
 |------------|--------------|------|
-| base | `src/base/` | ドメインを知らない部品。メモリ（使うアロケーターと、その差し替え `clopts/base/memory.h`、確保の窓口。ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`）、エラーの種類とその説明（`error.c`、`clopts/base/error.h`。ビルダー関数が返す） |
+| base | `src/base/` | ドメインを知らない部品。メモリ（使うアロケーターと、その差し替え `clopts/base/memory.h`、確保の窓口。ライブラリの確保と解放はすべてここを通る）、所有する文字列の複製（`base/string.h`）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`）、エラーの種類とその説明（`error.c`、`clopts/base/error.h`。ビルダー関数が返す） |
 | decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則（`name.c`）と 1 つの範囲の中での比べ方（`scope.c`）、書かれた名前がどのオプションを指すか（`lookup.c`）。公開ヘッダは `clopts/decl/` |
 | parse | `src/parse/` | 解析の入口と手順（`parse.c`）、argv の要素の読み取り（`token.c`）、走査（`scan.c`）、環境変数と既定値の解決（`resolve.c`）、必須の検査（`require.c`）、途中の記録（`matches.c`、`slot.c`）、使い方エラー（`usage_error.c`）、結果（`result.c`）。公開ヘッダは `clopts/parse/` |
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）を書き込みのコールバックへ出す。公開の入口（`write.c`、`clopts/text/write.h`）、ヘルプと Usage 行（`help.c`）、1 行の文面（`message.c`）、書き込みと計測の 2 つのモードを持つ出力先（`out.c`） |

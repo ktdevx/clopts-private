@@ -46,6 +46,6 @@ void *clopts_vec_at(const clopts_vec_t *vec, size_t index);
  * elem_size so the vec can be reused. Safe on a zero-initialized or already
  * freed vec.
  */
-void clopts_vec_free(clopts_vec_t *vec);
+void clopts_vec_release(clopts_vec_t *vec);
 
 #endif /* CLOPTS_SRC_BASE_VEC_H */

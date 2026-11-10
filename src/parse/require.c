@@ -24,7 +24,7 @@ static const clopts_option_t *first_missing_option(const clopts_matches_t *match
     {
         const clopts_option_t *option = clopts_scope_get_option_at(scope, i);
 
-        if (clopts_option_is_required(option) && !given(clopts_matches_find(matches, option)))
+        if (clopts_option_is_required(option) && !given(clopts_matches_find_slot(matches, option)))
         {
             return option;
         }

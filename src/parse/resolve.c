@@ -16,6 +16,7 @@
 #include "parse/resolve.h"
 
 #include "base/memory.h"
+#include "base/string.h"
 
 #include <assert.h>
 

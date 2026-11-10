@@ -115,7 +115,7 @@ void clopts_matches_destroy(clopts_matches_t *matches)
     }
     free_slots(matches->global_slots, matches->global_count);
     free_slots(matches->command_slots, matches->command_count);
-    clopts_vec_free(&matches->positionals);
+    clopts_vec_release(&matches->positionals);
     clopts_free(matches);
 }
 
@@ -159,7 +159,7 @@ clopts_slot_t *clopts_matches_get_slots(clopts_matches_t *matches, bool global, 
     return matches->command_slots;
 }
 
-const clopts_slot_t *clopts_matches_find(const clopts_matches_t *matches, const clopts_option_t *option)
+const clopts_slot_t *clopts_matches_find_slot(const clopts_matches_t *matches, const clopts_option_t *option)
 {
     clopts_slot_t *slot;
 
@@ -176,7 +176,7 @@ const clopts_slot_t *clopts_matches_find(const clopts_matches_t *matches, const 
     return slot;
 }
 
-clopts_slot_t *clopts_matches_slot(clopts_matches_t *matches, const clopts_option_t *option)
+clopts_slot_t *clopts_matches_get_slot(clopts_matches_t *matches, const clopts_option_t *option)
 {
     clopts_slot_t *slot;
 

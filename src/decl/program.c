@@ -18,6 +18,7 @@
 #include "clopts/decl/program.h"
 
 #include "base/memory.h"
+#include "base/string.h"
 #include "base/vec.h"
 #include "decl/name.h"
 #include "decl/scope_impl.h"
@@ -90,7 +91,7 @@ void clopts_program_destroy(clopts_program_t *program)
     {
         clopts_command_destroy(program_command(program, i));
     }
-    clopts_vec_free(&program->commands);
+    clopts_vec_release(&program->commands);
     clopts_scope_release(&program->scope);
     clopts_free(program->name);
     clopts_free(program->description);

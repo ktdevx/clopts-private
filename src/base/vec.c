@@ -88,7 +88,7 @@ void *clopts_vec_at(const clopts_vec_t *vec, size_t index)
     return (unsigned char *)vec->data + (index * vec->elem_size);
 }
 
-void clopts_vec_free(clopts_vec_t *vec)
+void clopts_vec_release(clopts_vec_t *vec)
 {
     assert(vec != NULL);
 

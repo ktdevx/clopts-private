@@ -50,10 +50,10 @@ const clopts_command_t *clopts_matches_get_command(const clopts_matches_t *match
 clopts_slot_t *clopts_matches_get_slots(clopts_matches_t *matches, bool global, size_t *count);
 
 /* The slot of option (a global option or one of the selected command), or NULL. */
-const clopts_slot_t *clopts_matches_find(const clopts_matches_t *matches, const clopts_option_t *option);
+const clopts_slot_t *clopts_matches_find_slot(const clopts_matches_t *matches, const clopts_option_t *option);
 
 /* The slot of option to record into; option must have one. */
-clopts_slot_t *clopts_matches_slot(clopts_matches_t *matches, const clopts_option_t *option);
+clopts_slot_t *clopts_matches_get_slot(clopts_matches_t *matches, const clopts_option_t *option);
 
 /* Appends token (an argv element, borrowed) as a positional. Returns 0 or -1. */
 int clopts_matches_add_positional(clopts_matches_t *matches, const char *token);

@@ -17,7 +17,7 @@
  * of test_fixtures.c (ported from the first-version suite).
  */
 
-#include "base/memory.h"
+#include "base/string.h"
 #include "parse/matches.h"
 #include "parse/result.h"
 #include "parse/slot.h"
@@ -146,7 +146,7 @@ static size_t test_slot_count(bool global)
 /* The slot of option (a global option or one of the selected command) in the recording. */
 static clopts_slot_t *slot_of(const clopts_option_t *option)
 {
-    clopts_slot_t *slot = (clopts_slot_t *)clopts_matches_find(recording, option);
+    clopts_slot_t *slot = (clopts_slot_t *)clopts_matches_find_slot(recording, option);
 
     NAOS_REQUIRE_NOT_NULL(slot);
     return slot;

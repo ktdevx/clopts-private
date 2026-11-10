@@ -8,6 +8,7 @@
 #include "parse/slot.h"
 
 #include "base/memory.h"
+#include "base/string.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -34,7 +35,7 @@ void clopts_slot_release(clopts_slot_t *slot)
     {
         clopts_free(*(char **)clopts_vec_at(&slot->items, i));
     }
-    clopts_vec_free(&slot->items);
+    clopts_vec_release(&slot->items);
     clopts_free(slot->owned);
     slot->owned = NULL;
     slot->value = NULL;

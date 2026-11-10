@@ -128,7 +128,7 @@ static void scan_select(scan_state_t *state, const clopts_command_t *command)
  */
 static void scan_flag(scan_state_t *state, const clopts_lookup_t *found)
 {
-    clopts_slot_set_flag(clopts_matches_slot(state->matches, found->option), !found->negated,
+    clopts_slot_set_flag(clopts_matches_get_slot(state->matches, found->option), !found->negated,
                          CLOPTS_SOURCE_EXPLICIT);
     if (clopts_option_is_terminal(found->option) && !found->negated)
     {
@@ -139,7 +139,7 @@ static void scan_flag(scan_state_t *state, const clopts_lookup_t *found)
 /* Records one more COUNT option given by argv. */
 static void scan_count(scan_state_t *state, const clopts_option_t *option)
 {
-    clopts_slot_add_count(clopts_matches_slot(state->matches, option), clopts_option_get_count_max(option));
+    clopts_slot_add_count(clopts_matches_get_slot(state->matches, option), clopts_option_get_count_max(option));
 }
 
 /*
@@ -152,7 +152,7 @@ static void scan_count(scan_state_t *state, const clopts_option_t *option)
 static clopts_usage_error_t *scan_option_value(scan_state_t *state, const clopts_option_t *option, const char *value,
                                                int index)
 {
-    clopts_slot_t *slot = clopts_matches_slot(state->matches, option);
+    clopts_slot_t *slot = clopts_matches_get_slot(state->matches, option);
     clopts_usage_error_t *error;
 
     if (value == NULL)
