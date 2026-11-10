@@ -12,14 +12,20 @@
 #
 # Checks:
 #   - no internal header is named <something>_internal.h;
-#   - every function an internal header src/<module>/x.h declares is named
-#     clopts_x or clopts_x_<...>, and is defined in src/<module>/x.c or in
-#     an OS-specific src/<module>/x_<os>.c;
+#   - every function an internal header src/<module>/x.h or an implementation
+#     header src/<module>/x_impl.h declares is named clopts_x or
+#     clopts_x_<...>, and is defined in src/<module>/x.c or in an OS-specific
+#     src/<module>/x_<os>.c; an implementation header has such a file;
+#   - the first #include of an internal header src/<module>/x.h whose public
+#     header include/clopts/<module>/x.h exists is that public header, and
+#     the first #include of src/<module>/x_impl.h is <module>/x.h, or the
+#     public header when there is no internal x.h;
 #   - every CLOPTS_API function a public header include/clopts/<module>/x.h
 #     declares is defined in src/<module>/x.c or src/<module>/x_<os>.c;
 #   - every function src/<module>/x.c or src/<module>/x_<os>.c defines
-#     (static ones aside) is declared in src/<module>/x.h or in
-#     include/clopts/<module>/x.h. <os> is posix or win32.
+#     (static ones aside) is declared in src/<module>/x.h,
+#     src/<module>/x_impl.h or include/clopts/<module>/x.h. <os> is posix or
+#     win32.
 #
 # What counts as a declaration or a definition (after comments are removed;
 # every function of the library is written so):
@@ -149,7 +155,7 @@ endfunction()
 #
 # Sets <out_var> to the functions defined in <dir>/<x>.c and <dir>/<x>_*.c.
 function(_check_names_defined out_var dir x)
-    file(GLOB sources LIST_DIRECTORIES false "${dir}/${x}.c" "${dir}/${x}_*.c")
+    file(GLOB sources LIST_DIRECTORIES false "${dir}/${x}.c" "${dir}/${x}_posix.c" "${dir}/${x}_win32.c")
     set(found "")
     foreach(source IN LISTS sources)
         _check_names_code(lines "${source}")
@@ -168,6 +174,23 @@ function(_check_names_defined out_var dir x)
     set(${out_var} "${found}" PARENT_SCOPE)
 endfunction()
 
+# _check_names_first_include(<out_var> <file>)
+#
+# Sets <out_var> to the path in the first #include "..." of <file>, as
+# <path>@<line>, or to "" when it has none.
+function(_check_names_first_include out_var file)
+    _check_names_code(lines "${file}")
+    set(number 0)
+    foreach(line IN LISTS lines)
+        math(EXPR number "${number} + 1")
+        if(line MATCHES "^[ \t]*#[ \t]*include[ \t]*\"([^\"]*)\"")
+            set(${out_var} "${CMAKE_MATCH_1}@${number}" PARENT_SCOPE)
+            return()
+        endif()
+    endforeach()
+    set(${out_var} "" PARENT_SCOPE)
+endfunction()
+
 set(_offending "")
 
 # ---- internal headers ------------------------------------------------------
@@ -177,10 +200,38 @@ foreach(_rel IN LISTS _headers)
     set(_file "${SOURCE_DIR}/${_rel}")
     get_filename_component(_dir "${_file}" DIRECTORY)
     get_filename_component(_x "${_rel}" NAME_WE)
+    get_filename_component(_module "${_dir}" NAME)
     if(_x MATCHES "_internal$")
         list(APPEND _offending "${_file}:1: an internal header is named after a concept, not <module>_internal.h")
         continue()
     endif()
+
+    # The header the first #include must name: for x_impl.h the header of
+    # the concept x, for x.h its public header (when there is one).
+    set(_expected "")
+    if(_x MATCHES "^(.+)_impl$")
+        set(_x "${CMAKE_MATCH_1}")
+        if(EXISTS "${_dir}/${_x}.h")
+            set(_expected "${_module}/${_x}.h")
+        else()
+            set(_expected "clopts/${_module}/${_x}.h")
+        endif()
+        file(GLOB _impl_sources LIST_DIRECTORIES false
+            "${_dir}/${_x}.c" "${_dir}/${_x}_posix.c" "${_dir}/${_x}_win32.c")
+        if(NOT _impl_sources)
+            list(APPEND _offending "${_file}:1: an implementation header needs ${_x}.c or ${_x}_<os>.c")
+        endif()
+    elseif(NOT "${INCLUDE_DIR}" STREQUAL "" AND EXISTS "${INCLUDE_DIR}/clopts/${_module}/${_x}.h")
+        set(_expected "clopts/${_module}/${_x}.h")
+    endif()
+    if(NOT _expected STREQUAL "")
+        _check_names_first_include(_first "${_file}")
+        string(REGEX MATCH "^(.*)@(.*)$" _ignored "${_first}")
+        if(NOT CMAKE_MATCH_1 STREQUAL _expected)
+            list(APPEND _offending "${_file}:1: the first #include is not \"${_expected}\"")
+        endif()
+    endif()
+
     _check_names_declared(_declared "${_file}" FALSE)
     _check_names_defined(_defined "${_dir}" "${_x}")
     foreach(_item IN LISTS _declared)
@@ -193,7 +244,7 @@ foreach(_rel IN LISTS _headers)
         endif()
         list(FIND _defined "${_name}" _found)
         if(_found EQUAL -1)
-            list(APPEND _offending "${_file}:${_line}: '${_name}' is not defined in ${_x}.c or ${_x}_*.c")
+            list(APPEND _offending "${_file}:${_line}: '${_name}' is not defined in ${_x}.c or ${_x}_<os>.c")
         endif()
     endforeach()
 endforeach()
@@ -219,7 +270,7 @@ if(NOT "${INCLUDE_DIR}" STREQUAL "")
             list(FIND _defined "${_name}" _found)
             if(_found EQUAL -1)
                 list(APPEND _offending
-                    "${_file}:${_line}: '${_name}' is not defined in src/${_module}/${_x}.c or ${_x}_*.c")
+                    "${_file}:${_line}: '${_name}' is not defined in src/${_module}/${_x}.c or ${_x}_<os>.c")
             endif()
         endforeach()
     endforeach()
@@ -236,10 +287,12 @@ foreach(_rel IN LISTS _sources)
     set(_module "${CMAKE_MATCH_1}")
     string(REGEX REPLACE "_(posix|win32)$" "" _x "${CMAKE_MATCH_2}")
     set(_declared_names "")
-    if(EXISTS "${SOURCE_DIR}/${_module}/${_x}.h")
-        _check_names_declared(_items "${SOURCE_DIR}/${_module}/${_x}.h" FALSE)
-        list(APPEND _declared_names ${_items})
-    endif()
+    foreach(_header IN ITEMS "${_x}.h" "${_x}_impl.h")
+        if(EXISTS "${SOURCE_DIR}/${_module}/${_header}")
+            _check_names_declared(_items "${SOURCE_DIR}/${_module}/${_header}" FALSE)
+            list(APPEND _declared_names ${_items})
+        endif()
+    endforeach()
     if(NOT "${INCLUDE_DIR}" STREQUAL "" AND EXISTS "${INCLUDE_DIR}/clopts/${_module}/${_x}.h")
         _check_names_declared(_items "${INCLUDE_DIR}/clopts/${_module}/${_x}.h" TRUE)
         list(APPEND _declared_names ${_items})
@@ -251,7 +304,7 @@ foreach(_rel IN LISTS _sources)
         list(FIND _declared_names "${CMAKE_MATCH_1}" _found)
         if(_found EQUAL -1)
             list(APPEND _offending
-                "${_file}:${CMAKE_MATCH_2}: '${CMAKE_MATCH_1}' is not declared in ${_module}/${_x}.h")
+                "${_file}:${CMAKE_MATCH_2}: '${CMAKE_MATCH_1}' is not declared in ${_module}/${_x}.h or ${_x}_impl.h")
         endif()
     endforeach()
 endforeach()

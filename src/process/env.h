@@ -13,7 +13,8 @@
 /*
  * The process environment as a source of environment values: the lookup
  * clopts_parse() uses (env_posix.c, env_win32.c) and the buffers of the
- * values it lends (env.c).
+ * values it lends (env.c). How the lookup grows the buffers is in
+ * process/env_impl.h.
  */
 
 /*
@@ -34,10 +35,6 @@ typedef struct clopts_env
 void clopts_env_init(clopts_env_t *env);
 /* Releases the buffers of env, leaving it empty. Every value it lent becomes invalid. */
 void clopts_env_release(clopts_env_t *env);
-/* Grows env->value to at least bytes (never shrinks). 0 on success, -1 on overflow or allocation failure. */
-int clopts_env_reserve_value(clopts_env_t *env, size_t bytes);
-/* Grows env->wide to at least units code units. Same return values. */
-int clopts_env_reserve_wide(clopts_env_t *env, size_t units);
 
 /*
  * The lookup in the process environment, a clopts_getenv_fn whose ctx is a

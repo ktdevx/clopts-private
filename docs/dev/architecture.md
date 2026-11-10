@@ -34,7 +34,7 @@ flowchart LR
 - parse は、プロセスの環境変数を process の内部ヘッダ `process/env.h`（`clopts_env_lookup` と、その文脈 `clopts_env_t`）で読む。参照のコールバックが渡されなかったときに、解析の入口（`parse.c`）が文脈をスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`require.c`）は参照のコールバックを引数で受け取るだけで、OS を知らない。プロセスの環境を読むのは process だけである。
 - text は decl と parse の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。
 - 内部ヘッダの関数は、共有ライブラリから export しない。
-- 依存の向きはテスト `structure.modules`（ラベル `structure`、`tests/structure/check_structure.cmake`）で、`src/` と `include/clopts/` の両方について検査する。各モジュールが include してよいほかのモジュールは上の図のとおりで（text は decl と parse の公開ヘッダだけ）、ファイルごとの例外はない。`<windows.h>` の include は `process/*_win32.c` の外に、環境変数を読む関数（`getenv` など）の呼び出しは process の外に置けない。モジュールを足すときは、このスクリプトの規則にも足す。
+- 依存の向きはテスト `structure.modules`（ラベル `structure`、`tests/structure/check_structure.cmake`）で、`src/` と `include/clopts/` の両方について検査する。各モジュールが include してよいほかのモジュールは上の図のとおりで（text は decl と parse の公開ヘッダだけ）、ファイルごとの例外はない。ほかのモジュールに見せる内部ヘッダは `base/*`、`decl/lookup.h`、`process/env.h` だけで、実装ヘッダ（`x_impl.h`）は同じモジュールのファイルしか include できない。`<windows.h>` の include は `process/*_win32.c` の外に、環境変数を読む関数（`getenv` など）の呼び出しは process の外に置けない。モジュールを足すときは、このスクリプトの規則にも足す。
 
 ## 宣言モデル
 
@@ -84,16 +84,21 @@ classDiagram
 
 ### 構造体の置き場所
 
-各ハンドルの構造体は、そのビルダーのファイルだけが知っている。ほかのファイルは、parse の中であっても公開の読み取り関数（Scope は `clopts_scope_*`）で読む。
+構造体の中身をどこまで見せるかは、[設計の考え方](design.md) の 3 章「構造体の中身の見せ方」に従う。ハンドルの構造体は、それを作るファイルだけが知っている。ほかのファイルは、parse の中であっても公開の読み取り関数（Scope は `clopts_scope_*`）で読む。
 
-| 型 | 構造体の定義 |
-|----|--------------|
-| `clopts_program_t` | `src/decl/program.c` |
-| `clopts_command_t` | `src/decl/command.c` |
-| `clopts_option_t` | `src/decl/option.c` |
-| `clopts_positional_t` | `src/decl/positional.c` |
-| `clopts_scope_t` | `src/decl/scope.h`（Program と Command に埋め込むため。読み書きは `scope.c` の関数だけで行う） |
-| `clopts_result_t` | `src/parse/result.c`（解析のほかのファイルとテストは、`result.c` の関数で読み、記録する） |
+| 型 | 種類 | 構造体の定義 |
+|----|------|--------------|
+| `clopts_program_t` | ハンドル | `src/decl/program.c` |
+| `clopts_command_t` | ハンドル | `src/decl/command.c` |
+| `clopts_option_t` | ハンドル | `src/decl/option.c` |
+| `clopts_positional_t` | ハンドル | `src/decl/positional.c` |
+| `clopts_scope_t` | 継承される型 | `src/decl/scope_impl.h`（Program と Command が埋め込む。配列は `scope.c` の関数だけで書く） |
+| `clopts_matches_t` | ハンドル | `src/parse/matches.c`（解析の途中の記録） |
+| `clopts_slot_t` | 値の型 | `src/parse/slot.h`（1 つのオプションの記録） |
+| `clopts_usage_error_t` | 値の型（公開では不透明） | `src/parse/usage_error.h`（解析の各段が書き、結果が写しを持つ） |
+| `clopts_result_t` | ハンドル | `src/parse/result.c`（一度だけ作り、以後は読むだけ） |
+| `clopts_argv_t` | 継承される型（公開では不透明） | `src/process/argv_impl.h`（`argv.c` と OS ごとの `argv_posix.c`、`argv_win32.c` が使う） |
+| `clopts_env_t` | 値の型 | `src/process/env.h`（解析の入口がスタックに置く） |
 
 読み取り関数に NULL のハンドルを渡すのは契約違反で、`assert` で検出する。
 

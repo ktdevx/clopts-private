@@ -55,12 +55,16 @@ set(_clopts_structure_bad_windows_h_outside_win32
     "process/env\\.c:2: #include <windows\\.h> outside process/\\*_win32\\.c")
 set(_clopts_structure_bad_text_reads_process_api
     "text/out\\.c:2: text may not include 'clopts/process/'")
+set(_clopts_structure_bad_reads_impl_of_another
+    "parse/scan\\.c:2: 'decl/scope_impl\\.h' is the implementation of decl, for decl only")
+set(_clopts_structure_bad_reads_unshared_header
+    "parse/scan\\.c:2: 'decl/scope\\.h' is not shared with other modules")
 set(_clopts_structure_bad_unknown_module
     "extra/extra\\.c:1: module 'extra' has no dependency rule")
 foreach(_clopts_structure_case IN ITEMS
         text_reads_decl decl_reads_parse base_reads_decl
         getenv_outside_process windows_h_outside_process windows_h_outside_win32 text_reads_process_api
-        unknown_module)
+        reads_impl_of_another reads_unshared_header unknown_module)
     _clopts_structure_add_test("selftest.${_clopts_structure_case}"
         "${_clopts_structure_fixtures}/bad/${_clopts_structure_case}"
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_bad_${_clopts_structure_case}}")
@@ -97,12 +101,17 @@ set(_clopts_structure_names_internal_header
 set(_clopts_structure_names_wrong_prefix
     "base/size\\.h:2: 'clopts_mem_size' is not named after its header")
 set(_clopts_structure_names_defined_elsewhere
-    "base/size\\.h:2: 'clopts_size' is not defined in size\\.c or size_\\*\\.c")
+    "base/size\\.h:2: 'clopts_size' is not defined in size\\.c or size_<os>\\.c")
 set(_clopts_structure_names_public_defined_elsewhere
     "clopts/base/allocator\\.h:3: 'clopts_set_allocator' is not defined in src/base/allocator\\.c")
 set(_clopts_structure_names_undeclared
-    "base/size\\.c:6: 'clopts_size_left_over' is not declared in base/size\\.h")
-foreach(_clopts_structure_case IN ITEMS internal_header wrong_prefix undeclared)
+    "base/size\\.c:6: 'clopts_size_left_over' is not declared in base/size\\.h or size_impl\\.h")
+set(_clopts_structure_names_impl_without_source
+    "base/vec_impl\\.h:1: an implementation header needs vec\\.c or vec_<os>\\.c")
+set(_clopts_structure_names_impl_first_include
+    "base/size_impl\\.h:1: the first #include is not \"base/size\\.h\"")
+foreach(_clopts_structure_case IN ITEMS internal_header wrong_prefix undeclared impl_without_source
+        impl_first_include)
     _clopts_structure_add_test("names_selftest.${_clopts_structure_case}"
         "${_clopts_structure_names}/bad/${_clopts_structure_case}/src" SCRIPT "${_clopts_structure_names_script}"
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_names_${_clopts_structure_case}}")
@@ -118,3 +127,8 @@ _clopts_structure_add_test("names_selftest.public_defined_elsewhere"
     INCLUDE_DIR "${_clopts_structure_names}/bad/public_defined_elsewhere/include"
     SCRIPT "${_clopts_structure_names_script}"
     PASS_REGEX "2 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_names_public_defined_elsewhere}")
+_clopts_structure_add_test("names_selftest.internal_first_include"
+    "${_clopts_structure_names}/bad/internal_first_include/src"
+    INCLUDE_DIR "${_clopts_structure_names}/bad/internal_first_include/include"
+    SCRIPT "${_clopts_structure_names_script}"
+    PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/base/allocator\\.h:1: the first #include is not \"clopts/base/allocator\\.h\"")

@@ -20,7 +20,7 @@
 #include "base/mem.h"
 #include "base/vec.h"
 #include "decl/name.h"
-#include "decl/scope.h"
+#include "decl/scope_impl.h"
 
 #include <assert.h>
 #include <string.h>

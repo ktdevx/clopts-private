@@ -14,7 +14,7 @@
 
 #include "test_util.h"
 
-#include "process/argv.h"
+#include "process/argv_impl.h"
 #include "process/env.h"
 
 #include "test_alloc.h"

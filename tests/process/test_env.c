@@ -20,7 +20,7 @@
 
 #include "test_util.h"
 
-#include "process/env.h"
+#include "process/env_impl.h"
 #include "process/utf16.h"
 
 #include "test_alloc.h"

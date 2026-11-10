@@ -18,8 +18,10 @@
 #     module directory (an internal header) is allowed only when the module
 #     rules below list <other> for the module, and an #include
 #     "clopts/<other>/..." (a public header) only when the module rules or
-#     the public rules list it. Includes of the file's own module are always
-#     allowed. There are no per-file rules.
+#     the public rules list it. Of the internal headers of another module,
+#     only those the shared rules list may be included, and never an
+#     implementation header (<x>_impl.h). Includes of the file's own module
+#     are always allowed. There are no per-file rules.
 #   - the OS boundary: no #include <windows.h> outside process/*_win32.c,
 #     and outside the process module no call of getenv / _wgetenv /
 #     secure_getenv / GetEnvironmentVariable*.
@@ -44,6 +46,14 @@ set(_module_rules
 set(_public_rules
     "text:decl,parse"
 )
+# <module>:<its internal headers other modules may include, comma-separated>;
+# "*" for all of them. A module not listed shares none. An implementation
+# header (<x>_impl.h) is never shared.
+set(_shared_headers
+    "base:*"
+    "decl:lookup.h"
+    "process:env.h"
+)
 # The only module that may touch the OS.
 set(_os_module "process")
 
@@ -53,6 +63,11 @@ foreach(_rule IN LISTS _module_rules)
     set(_allowed_${CMAKE_MATCH_1} ${_deps})
     set(_public_allowed_${CMAKE_MATCH_1} ${_deps})
     set(_known_${CMAKE_MATCH_1} TRUE)
+endforeach()
+foreach(_rule IN LISTS _shared_headers)
+    string(REGEX MATCH "^([a-z0-9_]+):(.*)$" _ignored "${_rule}")
+    string(REPLACE "," ";" _headers "${CMAKE_MATCH_2}")
+    set(_shared_${CMAKE_MATCH_1} ${_headers})
 endforeach()
 foreach(_rule IN LISTS _public_rules)
     string(REGEX MATCH "^([a-z0-9_]+):(.*)$" _ignored "${_rule}")
@@ -174,14 +189,23 @@ foreach(_entry IN LISTS _entries)
                     list(APPEND _offending "${_file}:${_line_number}: ${_module} may not include 'clopts/${_target}/'")
                 endif()
             endif()
-        elseif(_code MATCHES "^[ \t]*#[ \t]*include[ \t]*\"([^\"/]+)/[^\"]*\"")
+        elseif(_code MATCHES "^[ \t]*#[ \t]*include[ \t]*\"([^\"/]+)/([^\"]*)\"")
             set(_target "${CMAKE_MATCH_1}")
+            set(_header "${CMAKE_MATCH_2}")
             if(_kind STREQUAL "public" AND NOT _target STREQUAL "clopts")
                 list(APPEND _offending "${_file}:${_line_number}: a public header may not include '${_target}/'")
             elseif(NOT _target STREQUAL "clopts" AND NOT _target STREQUAL _module)
                 list(FIND _allowed "${_target}" _found)
+                list(FIND _shared_${_target} "${_header}" _shared)
+                list(FIND _shared_${_target} "*" _shared_all)
                 if(_found EQUAL -1)
                     list(APPEND _offending "${_file}:${_line_number}: ${_module} may not include '${_target}/'")
+                elseif(_header MATCHES "_impl\\.h$")
+                    list(APPEND _offending
+                        "${_file}:${_line_number}: '${_target}/${_header}' is the implementation of ${_target}, for ${_target} only")
+                elseif(_shared EQUAL -1 AND _shared_all EQUAL -1)
+                    list(APPEND _offending
+                        "${_file}:${_line_number}: '${_target}/${_header}' is not shared with other modules")
                 endif()
             endif()
         endif()
