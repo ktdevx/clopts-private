@@ -3,15 +3,14 @@
  * SPDX-License-Identifier: MIT
  *
  * Process environment lookup contexts: their initialization, release and
- * value buffers. The lookup itself is in platform_win32.c or
- * platform_posix.c.
+ * value buffers. The lookup itself is in win32.c or posix.c.
  */
 
-#include "platform/platform_internal.h"
+#include "process/process_internal.h"
 
 #include <assert.h>
 
-void clopts_platform_env_init(clopts_platform_env_t *env)
+void clopts_process_env_init(clopts_process_env_ctx_t *env)
 {
     assert(env != NULL);
     env->value = NULL;
@@ -20,15 +19,15 @@ void clopts_platform_env_init(clopts_platform_env_t *env)
     env->wide_cap = 0;
 }
 
-void clopts_platform_env_release(clopts_platform_env_t *env)
+void clopts_process_env_release(clopts_process_env_ctx_t *env)
 {
     assert(env != NULL);
     clopts_core_free(env->value);
     clopts_core_free(env->wide);
-    clopts_platform_env_init(env);
+    clopts_process_env_init(env);
 }
 
-int clopts_platform_env_reserve_value(clopts_platform_env_t *env, size_t bytes)
+int clopts_process_env_reserve_value(clopts_process_env_ctx_t *env, size_t bytes)
 {
     char *grown;
 
@@ -49,7 +48,7 @@ int clopts_platform_env_reserve_value(clopts_platform_env_t *env, size_t bytes)
     return 0;
 }
 
-int clopts_platform_env_reserve_wide(clopts_platform_env_t *env, size_t units)
+int clopts_process_env_reserve_wide(clopts_process_env_ctx_t *env, size_t units)
 {
     void *grown;
 
@@ -58,8 +57,8 @@ int clopts_platform_env_reserve_wide(clopts_platform_env_t *env, size_t units)
     {
         return 0;
     }
-    /* NULL both when units * sizeof(clopts_platform_u16_t) overflows and when the allocation fails. */
-    grown = clopts_core_malloc_array(units, sizeof(clopts_platform_u16_t));
+    /* NULL both when units * sizeof(clopts_process_u16_t) overflows and when the allocation fails. */
+    grown = clopts_core_malloc_array(units, sizeof(clopts_process_u16_t));
     if (grown == NULL)
     {
         return -1;

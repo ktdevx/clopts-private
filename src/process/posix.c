@@ -7,7 +7,7 @@
  * library calls getenv only here.
  */
 
-#include "platform/platform_internal.h"
+#include "process/process_internal.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -18,10 +18,10 @@ clopts_argv_t *clopts_argv_create(int argc, char *const *argv)
     assert(argc >= 0);
     assert(argc == 0 || argv != NULL);
     /* Neither the array nor the strings are copied or converted. */
-    return clopts_platform_argv_passthrough(argc, argv);
+    return clopts_process_argv_passthrough(argc, argv);
 }
 
-clopts_env_status_t clopts_platform_env_lookup(void *ctx, const char *name, const char **value)
+clopts_env_status_t clopts_process_env_lookup(void *ctx, const char *name, const char **value)
 {
     const char *found;
 

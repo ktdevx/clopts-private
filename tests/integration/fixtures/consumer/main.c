@@ -12,7 +12,7 @@
  * public functions only. consumer_help_check() calls the five text writers
  * of clopts/text.h and clopts_decl_error_get_message() of clopts/decl_error.h
  * through the umbrella header (in a shared build, each call
- * must resolve against an exported symbol). consumer_platform_check() calls
+ * must resolve against an exported symbol). consumer_argv_check() calls
  * every function of clopts/argv.h (clopts_argv_create_from_wide only on Windows)
  * through the umbrella header and checks the results against the contract.
  */
@@ -133,7 +133,7 @@ static int consumer_help_check(void)
  * Windows only: clopts_argv_create_from_wide on {L"consumer", NULL} gives "consumer".
  * Returns 0 on success, non-zero on any mismatch.
  */
-static int consumer_platform_check(void)
+static int consumer_argv_check(void)
 {
     char arg0[] = "consumer";
     char *const args[] = { arg0, NULL };
@@ -199,7 +199,7 @@ int main(int argc, char **argv)
     {
         return 1;
     }
-    if (consumer_platform_check() != 0)
+    if (consumer_argv_check() != 0)
     {
         return 1;
     }

@@ -14,7 +14,7 @@
 
 #include "test_util.h"
 
-#include "platform/platform_internal.h"
+#include "process/process_internal.h"
 
 #include "test_alloc.h"
 
@@ -33,26 +33,26 @@
 
 NAOS_TEST(u16_helpers_fill_the_whole_capacity)
 {
-    static char text[PLATFORM_TEST_U16_CAP];
-    static uint16_t units[PLATFORM_TEST_U16_CAP - 1];
-    static platform_test_u16_t s;
+    static char text[PROCESS_TEST_U16_CAP];
+    static uint16_t units[PROCESS_TEST_U16_CAP - 1];
+    static process_test_u16_t s;
     size_t i;
 
     memset(text, 'x', sizeof(text) - 1);
     text[sizeof(text) - 1] = '\0';
-    platform_test_u16_from_ascii(&s, text);
-    NAOS_CHECK_UINT_EQ(s.len, PLATFORM_TEST_U16_CAP - 1);
+    process_test_u16_from_ascii(&s, text);
+    NAOS_CHECK_UINT_EQ(s.len, PROCESS_TEST_U16_CAP - 1);
     NAOS_CHECK_UINT_EQ(s.units[s.len - 1], 'x');
     NAOS_CHECK_UINT_EQ(s.units[s.len], 0);
-    NAOS_CHECK_TRUE(platform_test_u16_eq_ascii(s.units, text));
+    NAOS_CHECK_TRUE(process_test_u16_eq_ascii(s.units, text));
 
-    for (i = 0; i < PLATFORM_TEST_U16_CAP - 1; ++i)
+    for (i = 0; i < PROCESS_TEST_U16_CAP - 1; ++i)
     {
         units[i] = (uint16_t)(i + 1);
     }
-    platform_test_u16_from_units(&s, units, PLATFORM_TEST_U16_CAP - 1);
-    NAOS_CHECK_UINT_EQ(s.len, PLATFORM_TEST_U16_CAP - 1);
-    NAOS_CHECK_UINT_EQ(s.units[s.len - 1], PLATFORM_TEST_U16_CAP - 1);
+    process_test_u16_from_units(&s, units, PROCESS_TEST_U16_CAP - 1);
+    NAOS_CHECK_UINT_EQ(s.len, PROCESS_TEST_U16_CAP - 1);
+    NAOS_CHECK_UINT_EQ(s.units[s.len - 1], PROCESS_TEST_U16_CAP - 1);
     NAOS_CHECK_UINT_EQ(s.units[s.len], 0);
 }
 
@@ -127,7 +127,7 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
         args = make(input);
         stats->runs++;
         NAOS_CHECK_NOT_NULL(args);
-        if (args == clopts_platform_argv_sentinel())
+        if (args == clopts_process_argv_sentinel())
         {
             stats->oom_runs++;
             NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
@@ -142,7 +142,7 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
         if (test_alloc.calls < fail_at)
         {
             stats->succeeded = true;
-            NAOS_CHECK_TRUE(args != clopts_platform_argv_sentinel());
+            NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
         }
         clopts_argv_destroy(args);
         NAOS_CHECK_TRUE(test_alloc_end());
@@ -151,10 +151,10 @@ static void oom_sweep_argv(oom_argv_make_fn make, const void *input, const oom_a
 
 static clopts_argv_t *oom_make_passthrough(const void *input)
 {
-    return clopts_platform_argv_passthrough(3, (char *const *)input);
+    return clopts_process_argv_passthrough(3, (char *const *)input);
 }
 
-/* One fault point: the handle (platform_argv_new). */
+/* One fault point: the handle (process_argv_new). */
 NAOS_TEST(sweep_passthrough)
 {
     static char arg0[] = "tool";
@@ -174,12 +174,12 @@ NAOS_TEST(sweep_passthrough)
 #ifdef _WIN32
 static clopts_argv_t *oom_make_from_cmdline(const void *input)
 {
-    return clopts_platform_argv_from_cmdline((const wchar_t *)input);
+    return clopts_process_argv_from_cmdline((const wchar_t *)input);
 }
 
 static clopts_argv_t *oom_make_convert(const void *input)
 {
-    return clopts_platform_argv_convert(3, (const wchar_t *const *)input);
+    return clopts_process_argv_convert(3, (const wchar_t *const *)input);
 }
 
 /* The command line: two fault points, the work block and then the handle block. */
@@ -266,17 +266,17 @@ NAOS_TEST(sweep_env_lookup_long_value)
 
     for (offset = 1; (offset <= OOM_SWEEP_LIMIT) && (!succeeded); ++offset)
     {
-        clopts_platform_env_t env;
+        clopts_process_env_ctx_t env;
         const char *value = NULL;
         clopts_env_status_t status;
         size_t start;
 
         NAOS_NOTE("env lookup fault point %u", (unsigned)offset);
         test_alloc_begin(0);
-        clopts_platform_env_init(&env);
+        clopts_process_env_init(&env);
         start = test_alloc.calls;
         test_alloc_set_fail_at(start + offset);
-        status = clopts_platform_env_lookup(&env, "CLOPTS_TEST_OOM_LONG", &value);
+        status = clopts_process_env_lookup(&env, "CLOPTS_TEST_OOM_LONG", &value);
         if (status == CLOPTS_ENV_FAILED)
         {
             oom_runs++;
@@ -298,7 +298,7 @@ NAOS_TEST(sweep_env_lookup_long_value)
             NAOS_CHECK_INT_EQ(status, CLOPTS_ENV_FOUND);
         }
         test_alloc_set_fail_at(0);
-        clopts_platform_env_release(&env);
+        clopts_process_env_release(&env);
         NAOS_CHECK_TRUE(test_alloc_end());
     }
     test_alloc_set_fail_at(0);

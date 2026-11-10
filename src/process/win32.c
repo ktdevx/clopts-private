@@ -10,7 +10,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 
-#include "platform/platform_internal.h"
+#include "process/process_internal.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -23,15 +23,15 @@
  * Outcome of measuring one element: its UTF-8 size in bytes (without the
  * NUL) or why it cannot be converted.
  */
-typedef enum platform_win32_measure
+typedef enum process_win32_measure
 {
-    PLATFORM_WIN32_MEASURE_OK,
-    PLATFORM_WIN32_MEASURE_INVALID,   /* not valid UTF-16 */
-    PLATFORM_WIN32_MEASURE_FAILED     /* any other failure; treated as out of memory */
-} platform_win32_measure_t;
+    PROCESS_WIN32_MEASURE_OK,
+    PROCESS_WIN32_MEASURE_INVALID,   /* not valid UTF-16 */
+    PROCESS_WIN32_MEASURE_FAILED     /* any other failure; treated as out of memory */
+} process_win32_measure_t;
 
 /* The length of s in code units as an int; -1 when it does not fit. */
-static int platform_win32_length(const wchar_t *s)
+static int process_win32_length(const wchar_t *s)
 {
     size_t len = wcslen(s);
 
@@ -39,21 +39,21 @@ static int platform_win32_length(const wchar_t *s)
 }
 
 /* Measures the UTF-8 size of s (len code units, len > 0) without replacing invalid UTF-16. */
-static platform_win32_measure_t platform_win32_measure(const wchar_t *s, int len, size_t *bytes)
+static process_win32_measure_t process_win32_measure(const wchar_t *s, int len, size_t *bytes)
 {
     int n;
 
     n = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, s, len, NULL, 0, NULL, NULL);
     if (n <= 0)
     {
-        return (GetLastError() == ERROR_NO_UNICODE_TRANSLATION) ? PLATFORM_WIN32_MEASURE_INVALID
-                                                                : PLATFORM_WIN32_MEASURE_FAILED;
+        return (GetLastError() == ERROR_NO_UNICODE_TRANSLATION) ? PROCESS_WIN32_MEASURE_INVALID
+                                                                : PROCESS_WIN32_MEASURE_FAILED;
     }
     *bytes = (size_t)n;
-    return PLATFORM_WIN32_MEASURE_OK;
+    return PROCESS_WIN32_MEASURE_OK;
 }
 
-clopts_argv_t *clopts_platform_argv_convert(int argc, const wchar_t *const *wargs)
+clopts_argv_t *clopts_process_argv_convert(int argc, const wchar_t *const *wargs)
 {
     size_t total;
     size_t bytes;
@@ -79,28 +79,28 @@ clopts_argv_t *clopts_platform_argv_convert(int argc, const wchar_t *const *warg
     for (i = 0; i < argc; ++i)
     {
         assert(wargs[i] != NULL);
-        len = platform_win32_length(wargs[i]);
+        len = process_win32_length(wargs[i]);
         if (len < 0)
         {
-            return clopts_platform_argv_sentinel();
+            return clopts_process_argv_sentinel();
         }
         bytes = 0;
         if (len > 0)
         {
-            switch (platform_win32_measure(wargs[i], len, &bytes))
+            switch (process_win32_measure(wargs[i], len, &bytes))
             {
-            case PLATFORM_WIN32_MEASURE_OK:
+            case PROCESS_WIN32_MEASURE_OK:
                 break;
-            case PLATFORM_WIN32_MEASURE_INVALID:
-                return clopts_platform_argv_failure(CLOPTS_ARGV_INVALID_UTF16, i);
+            case PROCESS_WIN32_MEASURE_INVALID:
+                return clopts_process_argv_failure(CLOPTS_ARGV_INVALID_UTF16, i);
             default:
-                return clopts_platform_argv_sentinel();
+                return clopts_process_argv_sentinel();
             }
         }
         /* The element and its NUL. */
         if ((clopts_core_size_add(bytes, 1, &bytes) != 0) || (clopts_core_size_add(total, bytes, &total) != 0))
         {
-            return clopts_platform_argv_sentinel();
+            return clopts_process_argv_sentinel();
         }
     }
 
@@ -109,12 +109,12 @@ clopts_argv_t *clopts_platform_argv_convert(int argc, const wchar_t *const *warg
         (clopts_core_size_add(pointers, sizeof(*args), &pointers) != 0) ||
         (clopts_core_size_add(pointers, total, &total) != 0))
     {
-        return clopts_platform_argv_sentinel();
+        return clopts_process_argv_sentinel();
     }
     args = (clopts_argv_t *)clopts_core_malloc(total);
     if (args == NULL)
     {
-        return clopts_platform_argv_sentinel();
+        return clopts_process_argv_sentinel();
     }
     values = (char **)(void *)(args + 1);
     out = (char *)(values + argc + 1);
@@ -123,7 +123,7 @@ clopts_argv_t *clopts_platform_argv_convert(int argc, const wchar_t *const *warg
     /* Second pass: convert into the block. */
     for (i = 0; i < argc; ++i)
     {
-        len = platform_win32_length(wargs[i]);
+        len = process_win32_length(wargs[i]);
         n = 0;
         if (len > 0)
         {
@@ -132,7 +132,7 @@ clopts_argv_t *clopts_platform_argv_convert(int argc, const wchar_t *const *warg
             if (n <= 0)
             {
                 clopts_core_free(args);
-                return clopts_platform_argv_sentinel();
+                return clopts_process_argv_sentinel();
             }
         }
         assert((size_t)n < left);
@@ -150,7 +150,7 @@ clopts_argv_t *clopts_platform_argv_convert(int argc, const wchar_t *const *warg
     return args;
 }
 
-clopts_argv_t *clopts_platform_argv_from_cmdline(const wchar_t *cmdline)
+clopts_argv_t *clopts_process_argv_from_cmdline(const wchar_t *cmdline)
 {
     size_t argc;
     size_t units;
@@ -163,31 +163,31 @@ clopts_argv_t *clopts_platform_argv_from_cmdline(const wchar_t *cmdline)
 
     if (cmdline == NULL)
     {
-        return clopts_platform_argv_failure(CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1);
+        return clopts_process_argv_failure(CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1);
     }
 
     /* Count, then split into one work block: the pointer array followed by the code units. */
-    clopts_platform_split(cmdline, NULL, NULL, &argc, &units);
+    clopts_process_split(cmdline, NULL, NULL, &argc, &units);
     if (argc > (size_t)INT_MAX)
     {
-        return clopts_platform_argv_sentinel();
+        return clopts_process_argv_sentinel();
     }
     if ((clopts_core_size_mul(argc, sizeof(wchar_t *), &pointers) != 0) ||
         (clopts_core_size_mul(units, sizeof(wchar_t), &bytes) != 0) ||
         (clopts_core_size_add(pointers, bytes, &bytes) != 0))
     {
-        return clopts_platform_argv_sentinel();
+        return clopts_process_argv_sentinel();
     }
     work = clopts_core_malloc(bytes);
     if (work == NULL)
     {
-        return clopts_platform_argv_sentinel();
+        return clopts_process_argv_sentinel();
     }
     wargs = (wchar_t **)work;
     buf = (wchar_t *)(void *)(wargs + argc);
-    clopts_platform_split(cmdline, buf, wargs, &argc, &units);
+    clopts_process_split(cmdline, buf, wargs, &argc, &units);
 
-    args = clopts_platform_argv_convert((int)argc, (const wchar_t *const *)wargs);
+    args = clopts_process_argv_convert((int)argc, (const wchar_t *const *)wargs);
     clopts_core_free(work);
     return args;
 }
@@ -197,25 +197,25 @@ clopts_argv_t *clopts_argv_create(int argc, char *const *argv)
     /* argc and argv are not read: the process command line is the source on Windows. */
     (void)argc;
     (void)argv;
-    return clopts_platform_argv_from_cmdline(GetCommandLineW());
+    return clopts_process_argv_from_cmdline(GetCommandLineW());
 }
 
 clopts_argv_t *clopts_argv_create_from_wide(int argc, wchar_t *const *wargv)
 {
     assert(argc >= 0);
     assert(wargv != NULL);
-    return clopts_platform_argv_convert(argc, (const wchar_t *const *)wargv);
+    return clopts_process_argv_convert(argc, (const wchar_t *const *)wargv);
 }
 
 /* Code units for the value when the context has no larger work buffer yet. */
-#define PLATFORM_WIN32_ENV_INITIAL_UNITS 256u
+#define PROCESS_WIN32_ENV_INITIAL_UNITS 256u
 
 /*
  * Converts name (UTF-8, NUL-terminated) into the start of env->wide, which
  * must hold name_units code units (its NUL included). 0 on success, -1 when
  * the conversion fails.
  */
-static int platform_win32_env_put_name(clopts_platform_env_t *env, const char *name, int name_units)
+static int process_win32_env_put_name(clopts_process_env_ctx_t *env, const char *name, int name_units)
 {
     int n;
 
@@ -223,9 +223,9 @@ static int platform_win32_env_put_name(clopts_platform_env_t *env, const char *n
     return (n == name_units) ? 0 : -1;
 }
 
-clopts_env_status_t clopts_platform_env_lookup(void *ctx, const char *name, const char **value)
+clopts_env_status_t clopts_process_env_lookup(void *ctx, const char *name, const char **value)
 {
-    clopts_platform_env_t *env;
+    clopts_process_env_ctx_t *env;
     int name_units;
     size_t units;
     size_t room;
@@ -238,7 +238,7 @@ clopts_env_status_t clopts_platform_env_lookup(void *ctx, const char *name, cons
     assert(ctx != NULL);
     assert(name != NULL);
     assert(value != NULL);
-    env = (clopts_platform_env_t *)ctx;
+    env = (clopts_process_env_ctx_t *)ctx;
 
     /* The name in UTF-16, its NUL included; invalid UTF-8 is not replaced. */
     name_units = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, NULL, 0);
@@ -252,14 +252,14 @@ clopts_env_status_t clopts_platform_env_lookup(void *ctx, const char *name, cons
      * env->wide holds the name followed by the value. Growing it does not
      * keep its contents, so the name is converted again after every reserve.
      */
-    if (clopts_core_size_add((size_t)name_units, PLATFORM_WIN32_ENV_INITIAL_UNITS, &units) != 0)
+    if (clopts_core_size_add((size_t)name_units, PROCESS_WIN32_ENV_INITIAL_UNITS, &units) != 0)
     {
         return CLOPTS_ENV_FAILED;
     }
     for (;;)
     {
-        if ((clopts_platform_env_reserve_wide(env, units) != 0) ||
-            (platform_win32_env_put_name(env, name, name_units) != 0))
+        if ((clopts_process_env_reserve_wide(env, units) != 0) ||
+            (process_win32_env_put_name(env, name, name_units) != 0))
         {
             return CLOPTS_ENV_FAILED;
         }
@@ -307,18 +307,18 @@ clopts_env_status_t clopts_platform_env_lookup(void *ctx, const char *name, cons
     bytes = 0;
     if (got > 0)
     {
-        switch (platform_win32_measure(wvalue, (int)got, &bytes))
+        switch (process_win32_measure(wvalue, (int)got, &bytes))
         {
-        case PLATFORM_WIN32_MEASURE_OK:
+        case PROCESS_WIN32_MEASURE_OK:
             break;
-        case PLATFORM_WIN32_MEASURE_INVALID:
+        case PROCESS_WIN32_MEASURE_INVALID:
             return CLOPTS_ENV_INVALID;
         default:
             return CLOPTS_ENV_FAILED;
         }
     }
     if ((bytes > (size_t)INT_MAX) || (clopts_core_size_add(bytes, 1, &units) != 0) ||
-        (clopts_platform_env_reserve_value(env, units) != 0))
+        (clopts_process_env_reserve_value(env, units) != 0))
     {
         return CLOPTS_ENV_FAILED;
     }

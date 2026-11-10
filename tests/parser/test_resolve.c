@@ -293,7 +293,7 @@ NAOS_TEST(null_program_does_not_call_getenv)
     clopts_result_destroy(result);
 }
 
-/* ---- default lookup (clopts_platform_getenv_default: tests/platform/test_env.c) ---- */
+/* ---- default lookup (clopts_process_getenv_default: tests/process/test_env.c) ---- */
 
 NAOS_TEST(null_getenv_fn_uses_the_default_lookup)
 {

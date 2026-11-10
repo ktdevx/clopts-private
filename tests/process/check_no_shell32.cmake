@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 #
 # Checks that nothing under src/ uses shell32. Run with
-# `cmake -P`; registered as platform.no_shell32 (label: platform).
+# `cmake -P`; registered as process.no_shell32 (label: process).
 #
 # Required variables (-D):
 #   SOURCE_DIR  Directory to scan (the src/ directory of CLOpts).

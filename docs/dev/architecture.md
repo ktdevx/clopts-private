@@ -94,7 +94,7 @@ classDiagram
 
 読み取り関数に NULL のハンドルを渡すのは契約違反で、`assert` で検出する。
 
-text は公開 API だけを読むので、プログラム自身の範囲とサブコマンドを同じに扱うための小さな値型 `text_scope_t`（`src/text/text_layout.c`）を持つ。`command` が NULL ならプログラムを表す。
+text は公開 API だけを読むので、プログラム自身の範囲とサブコマンドを同じに扱うための小さな値型 `text_scope_t`（`src/text/layout.c`）を持つ。`command` が NULL ならプログラムを表す。
 
 ### 検査の置き場所
 

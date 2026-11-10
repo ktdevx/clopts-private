@@ -4,8 +4,8 @@
  *
  * Resolver: resolution from the environment and the defaults (step 4 of
  * parsing, parse.c). The required checks that follow are in parse.c. Without
- * a lookup callback, the process environment is read through the platform
- * module (clopts_platform_env_lookup), with a lookup context that lives on
+ * a lookup callback, the process environment is read through the process
+ * module (clopts_process_env_lookup), with a lookup context that lives on
  * the stack of clopts_parser_resolve() only.
  *
  * A lookup callback lends its string: it stays valid only until the next
@@ -15,7 +15,7 @@
  */
 
 #include "parser/parser_internal.h"
-#include "platform/platform_internal.h"
+#include "process/process_internal.h"
 
 #include <assert.h>
 
@@ -175,7 +175,7 @@ clopts_parser_resolve_status_t clopts_parser_resolve(clopts_result_t *result, co
                                                      bool include_command)
 {
     resolve_state_t state;
-    clopts_platform_env_t process_env;
+    clopts_process_env_ctx_t process_env;
     int rc;
 
     assert(result != NULL);
@@ -190,11 +190,11 @@ clopts_parser_resolve_status_t clopts_parser_resolve(clopts_result_t *result, co
 
     if (getenv_fn == NULL)
     {
-        clopts_platform_env_init(&process_env);
-        state.getenv_fn = clopts_platform_env_lookup;
+        clopts_process_env_init(&process_env);
+        state.getenv_fn = clopts_process_env_lookup;
         state.env_ctx = &process_env;
         rc = resolve_all(&state, program, include_command);
-        clopts_platform_env_release(&process_env);
+        clopts_process_env_release(&process_env);
     }
     else
     {
