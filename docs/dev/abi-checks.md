@@ -177,7 +177,7 @@ CI で見慣れない名前が `extra` に出たら、次の順に判断する�
  <repo>/tests/abi/fixtures/header_rules/bad/missing_api/missing_api.h:10: function 'bad_unmarked' lacks CLOPTS_API
 ```
 
-- `<file>:<line>: function '<name>' lacks CLOPTS_API`: その行から始まる関数の宣言に `CLOPTS_API` がない。公開関数なら付け、公開しないなら公開ヘッダから内部ヘッダ（`src/<module>/<module>_internal.h`）へ移す。
+- `<file>:<line>: function '<name>' lacks CLOPTS_API`: その行から始まる関数の宣言に `CLOPTS_API` がない。公開関数なら付け、公開しないなら公開ヘッダから内部ヘッダ（`include/clopts/<module>/x.h` に対する `src/<module>/x.h`。[設計の考え方](design.md) の 3 章）へ移す。
 - 行は文の開始行である。違反はすべてまとめて出る。
 
 ### `abi.headers_c` / `abi.headers_cxx`: コンパイルとリンクの失敗
@@ -310,7 +310,7 @@ abi-compare: compatible: no incompatible ABI change from v1.0.0 to 1.0.0 (abidif
 (b) 公開関数を 1 つ追加。手順どおり 3 つのファイルを同じ変更で更新した。
 
 - `include/clopts/decl/positional.h`: `clopts_positional_set_help` の宣言の後に `CLOPTS_API int clopts_positional_abi_probe(const clopts_positional_t *positional);` を追加
-- `src/parse/parser_positional.c`: 定義（`return positional != NULL;`）を追加
+- `src/decl/positional.c`: 定義（`return positional != NULL;`）を追加
 - `abi/clopts.symbols`: `# clopts/decl/positional.h` の組の `clopts_positional_set_help` の次の行に `clopts_positional_abi_probe` を追加
 
 ```text

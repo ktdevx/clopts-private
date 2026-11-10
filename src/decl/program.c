@@ -160,20 +160,6 @@ const char *clopts_program_get_description(const clopts_program_t *program)
     return program->description;
 }
 
-size_t clopts_program_get_option_count(const clopts_program_t *program)
-{
-    assert(program != NULL);
-    return clopts_scope_get_option_count(&program->scope);
-}
-
-
-size_t clopts_program_get_positional_count(const clopts_program_t *program)
-{
-    assert(program != NULL);
-    return clopts_scope_get_positional_count(&program->scope);
-}
-
-
 size_t clopts_program_get_command_count(const clopts_program_t *program)
 {
     assert(program != NULL);

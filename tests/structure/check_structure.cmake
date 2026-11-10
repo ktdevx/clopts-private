@@ -1,18 +1,25 @@
 # Copyright (c) 2026 The CLOpts Authors
 # SPDX-License-Identifier: MIT
 #
-# Checks the module boundaries of src/ (docs/dev/architecture.md). Run with
-# `cmake -P`; registered as structure.modules (label: structure).
+# Checks the module boundaries of src/ and include/clopts/
+# (docs/dev/architecture.md). Run with `cmake -P`; registered as
+# structure.modules (label: structure).
 #
-# Required variables (-D):
-#   SOURCE_DIR  Directory to scan (the src/ directory of CLOpts).
+# Variables (-D):
+#   SOURCE_DIR   Required. Directory to scan (the src/ directory of CLOpts).
+#   INCLUDE_DIR  Optional. The directory that holds clopts/ (the include/
+#                directory of CLOpts); its public headers are checked too.
 #
-# Every .c / .h file must be in a module directory (SOURCE_DIR/<module>/).
-# After comments are removed, each file is checked for:
+# Every .c / .h file must be in a module directory (SOURCE_DIR/<module>/),
+# and every public header in a module directory (INCLUDE_DIR/clopts/<module>/)
+# except INCLUDE_DIR/clopts/clopts.h. After comments are removed, each file
+# is checked for:
 #   - dependencies between modules: an #include "<other>/..." of another
-#     module directory is allowed only when the rules below list <other> for
-#     the module. #include "clopts/..." (the public headers) and includes of
-#     the file's own module are always allowed. There are no per-file rules.
+#     module directory (an internal header) is allowed only when the module
+#     rules below list <other> for the module, and an #include
+#     "clopts/<other>/..." (a public header) only when the module rules or
+#     the public rules list it. Includes of the file's own module are always
+#     allowed. There are no per-file rules.
 #   - the OS boundary: no #include <windows.h> outside process/*_win32.c,
 #     and outside the process module no call of getenv / _wgetenv /
 #     secure_getenv / GetEnvironmentVariable*.
@@ -33,6 +40,10 @@ set(_module_rules
     "process:base"
     "text:base"
 )
+# <module>:<further modules whose public headers it may include>
+set(_public_rules
+    "text:decl,parse"
+)
 # The only module that may touch the OS.
 set(_os_module "process")
 
@@ -40,7 +51,13 @@ foreach(_rule IN LISTS _module_rules)
     string(REGEX MATCH "^([a-z0-9_]+):(.*)$" _ignored "${_rule}")
     string(REPLACE "," ";" _deps "${CMAKE_MATCH_2}")
     set(_allowed_${CMAKE_MATCH_1} ${_deps})
+    set(_public_allowed_${CMAKE_MATCH_1} ${_deps})
     set(_known_${CMAKE_MATCH_1} TRUE)
+endforeach()
+foreach(_rule IN LISTS _public_rules)
+    string(REGEX MATCH "^([a-z0-9_]+):(.*)$" _ignored "${_rule}")
+    string(REPLACE "," ";" _deps "${CMAKE_MATCH_2}")
+    list(APPEND _public_allowed_${CMAKE_MATCH_1} ${_deps})
 endforeach()
 
 # Characters that cannot appear in the scanned text stand in for ";", "[" and
@@ -66,10 +83,38 @@ endfunction()
 
 set(_offending "")
 
-file(GLOB_RECURSE _files LIST_DIRECTORIES false RELATIVE "${SOURCE_DIR}" "${SOURCE_DIR}/*.c" "${SOURCE_DIR}/*.h")
-list(SORT _files)
-foreach(_rel IN LISTS _files)
-    set(_file "${SOURCE_DIR}/${_rel}")
+# The files to check, as <kind>|<path relative to the root>: kind "src" for
+# SOURCE_DIR, "public" for INCLUDE_DIR/clopts.
+file(GLOB_RECURSE _rels LIST_DIRECTORIES false RELATIVE "${SOURCE_DIR}" "${SOURCE_DIR}/*.c" "${SOURCE_DIR}/*.h")
+list(SORT _rels)
+set(_entries "")
+foreach(_rel IN LISTS _rels)
+    list(APPEND _entries "src|${_rel}")
+endforeach()
+if(NOT "${INCLUDE_DIR}" STREQUAL "")
+    if(NOT IS_DIRECTORY "${INCLUDE_DIR}/clopts")
+        message(FATAL_ERROR "check_structure: INCLUDE_DIR has no clopts/ directory ('${INCLUDE_DIR}')")
+    endif()
+    file(GLOB_RECURSE _rels LIST_DIRECTORIES false RELATIVE "${INCLUDE_DIR}/clopts" "${INCLUDE_DIR}/clopts/*.h")
+    list(SORT _rels)
+    foreach(_rel IN LISTS _rels)
+        list(APPEND _entries "public|${_rel}")
+    endforeach()
+endif()
+
+foreach(_entry IN LISTS _entries)
+    string(REGEX MATCH "^([a-z]+)\\|(.*)$" _ignored "${_entry}")
+    set(_kind "${CMAKE_MATCH_1}")
+    set(_rel "${CMAKE_MATCH_2}")
+    if(_kind STREQUAL "src")
+        set(_file "${SOURCE_DIR}/${_rel}")
+    else()
+        set(_file "${INCLUDE_DIR}/clopts/${_rel}")
+        if(_rel STREQUAL "clopts.h")
+            # The umbrella header includes every public header.
+            continue()
+        endif()
+    endif()
     if(NOT _rel MATCHES "^([^/]+)/")
         list(APPEND _offending "${_file}:1: not in a module directory")
         continue()
@@ -80,6 +125,7 @@ foreach(_rel IN LISTS _files)
         continue()
     endif()
     set(_allowed ${_allowed_${_module}})
+    set(_public_allowed ${_public_allowed_${_module}})
 
     _check_structure_lines(_lines "${_file}")
     set(_line_number 0)
@@ -120,9 +166,19 @@ foreach(_rel IN LISTS _files)
         endwhile()
 
         # Dependencies between modules.
-        if(_code MATCHES "^[ \t]*#[ \t]*include[ \t]*\"([^\"/]+)/[^\"]*\"")
+        if(_code MATCHES "^[ \t]*#[ \t]*include[ \t]*\"clopts/([^\"/]+)/[^\"]*\"")
             set(_target "${CMAKE_MATCH_1}")
-            if(NOT _target STREQUAL "clopts" AND NOT _target STREQUAL _module)
+            if(NOT _target STREQUAL _module)
+                list(FIND _public_allowed "${_target}" _found)
+                if(_found EQUAL -1)
+                    list(APPEND _offending "${_file}:${_line_number}: ${_module} may not include 'clopts/${_target}/'")
+                endif()
+            endif()
+        elseif(_code MATCHES "^[ \t]*#[ \t]*include[ \t]*\"([^\"/]+)/[^\"]*\"")
+            set(_target "${CMAKE_MATCH_1}")
+            if(_kind STREQUAL "public" AND NOT _target STREQUAL "clopts")
+                list(APPEND _offending "${_file}:${_line_number}: a public header may not include '${_target}/'")
+            elseif(NOT _target STREQUAL "clopts" AND NOT _target STREQUAL _module)
                 list(FIND _allowed "${_target}" _found)
                 if(_found EQUAL -1)
                     list(APPEND _offending "${_file}:${_line_number}: ${_module} may not include '${_target}/'")
@@ -133,7 +189,7 @@ foreach(_rel IN LISTS _files)
         # The OS boundary.
         string(TOLOWER "${_code}" _lower)
         if(_lower MATCHES "^[ \t]*#[ \t]*include[ \t]*<windows\\.h>")
-            if(NOT _rel MATCHES "^${_os_module}/[^/]*_win32\\.c$")
+            if(NOT (_kind STREQUAL "src" AND _rel MATCHES "^${_os_module}/[^/]*_win32\\.c$"))
                 list(APPEND _offending "${_file}:${_line_number}: #include <windows.h> outside ${_os_module}/*_win32.c")
             endif()
         endif()
@@ -154,4 +210,8 @@ if(_offending)
         "check_structure: ${_count} violation(s) of the module boundaries:\n  ${_report}\n"
         "The boundaries are described in docs/dev/architecture.md.")
 endif()
-message(STATUS "check_structure: the module boundaries hold under ${SOURCE_DIR}")
+if("${INCLUDE_DIR}" STREQUAL "")
+    message(STATUS "check_structure: the module boundaries hold under ${SOURCE_DIR}")
+else()
+    message(STATUS "check_structure: the module boundaries hold under ${SOURCE_DIR} and ${INCLUDE_DIR}/clopts")
+endif()

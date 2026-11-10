@@ -144,16 +144,3 @@ const char *clopts_command_get_description(const clopts_command_t *command)
     return command->description;
 }
 
-size_t clopts_command_get_option_count(const clopts_command_t *command)
-{
-    assert(command != NULL);
-    return clopts_scope_get_option_count(&command->scope);
-}
-
-
-size_t clopts_command_get_positional_count(const clopts_command_t *command)
-{
-    assert(command != NULL);
-    return clopts_scope_get_positional_count(&command->scope);
-}
-
