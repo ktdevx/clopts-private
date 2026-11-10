@@ -29,7 +29,7 @@ flowchart LR
 | parse | 解析（今の parser） | base、process、decl | なし |
 | text | 文面 | base | decl、parse |
 
-- どのモジュールも、自分の内部ヘッダと公開ヘッダ、`clopts/export.h` を include できる。
+- どのモジュールも、自分の内部ヘッダと公開ヘッダを include できる。
 - 公開ヘッダどうしの include も、同じ表に従う（`clopts/parse/*.h` は `clopts/decl/*.h` を include できるが、逆はできない）。
 - `<windows.h>` を include できるのは `src/process/*_win32.c` だけである。
 - 環境変数を読む関数（`getenv` など）を呼べるのは process だけである。
@@ -39,7 +39,7 @@ flowchart LR
 
 `src/<モジュール>/x.c` と `include/clopts/<モジュール>/x.h` を対応させる。公開ヘッダが宣言する関数は、同じ行の `.c` が定義する。`.c` は、ほかのファイルから使うものがあれば、内部ヘッダ `src/<モジュール>/x.h` を伴う。★は新しく作るファイルである。
 
-モジュールに属さない公開ヘッダは、`clopts/clopts.h`（全部入り）と `clopts/export.h`（`CLOPTS_API`）である。
+モジュールに属さない公開ヘッダは、全部入りの `clopts/clopts.h` だけである。
 
 **base**
 
@@ -50,6 +50,7 @@ flowchart LR
 | `size.c` | | 桁あふれを検査するサイズの計算 |
 | `vec.c` | | 可変長配列 |
 | `utf8.c` ★ | | UTF-8 の並びの読み取り（妥当性の検査、コードポイントの数） |
+| | `export.h` | `CLOPTS_API`。マクロだけで関数を宣言しないので、`.c` はない |
 
 **process**
 
@@ -107,7 +108,7 @@ flowchart LR
 | A. 隠す判定 | なし（text が公開 API で規則を書き直している） | `clopts_scope_shadows_option(scope, option)` |
 | B. 使い方エラーの型 | 列挙 `clopts_usage_error_t`、列挙子 `CLOPTS_USAGE_*` | 不透明な型 `clopts_usage_error_t`、列挙 `clopts_usage_error_kind_t`、列挙子 `CLOPTS_USAGE_ERROR_*` |
 | B. 使い方エラーの読み取り | `clopts_result_get_usage_error` が種類を返す。`clopts_result_get_error_command` など 7 つ | `clopts_result_get_usage_error` が `const clopts_usage_error_t *` を返す。`clopts_usage_error_get_kind`、`_get_command`、`_get_option`、`_get_positional`、`_get_token`、`_get_argv_index`、`_get_name_len`、`_get_short_name` |
-| C. ヘッダの場所と名前 | `include/clopts/` に平置き。`decl_types.h`、`decl.h`、`alloc.h`、`text.h`、`writer.h`、`parse.h`、`env.h`、`argv.h` | 1.2 の表のとおり。モジュールごとのディレクトリに置く |
+| C. ヘッダの場所と名前 | `include/clopts/` に平置き。`export.h`、`decl_types.h`、`decl.h`、`alloc.h`、`text.h`、`writer.h`、`parse.h`、`env.h`、`argv.h` | 1.2 の表のとおり。モジュールごとのディレクトリに置く |
 
 - A では、足す関数（`clopts_program_add_option`、`clopts_command_add_positional` など）は変えない。足すときの規則は持ち主ごとに違い（`MIXED_LAYOUT`、所有権の移動）、読むときはどちらも同じだからである。
 - B の `clopts_usage_error_get_*` は、NULL を「エラーなし」として読む（`NONE`、NULL、-1、0、`'\0'` を返す）。
@@ -150,6 +151,7 @@ flowchart LR
 - [ ] 関数と型を改名する。`clopts_core_vec_*` は `clopts_vec_*`、`clopts_core_size_*` は `clopts_size_*`、`clopts_core_malloc` などの確保と文字列の複製は `clopts_mem_*` にする。
 - [ ] `base/utf8.c` を作る。`decl/names.c` の `decl_valid_utf8` と `text/out.c` の `text_utf8_sequence` は同じ規則（最短形、サロゲート、U+10FFFF の上限）を 2 回書いているので、1 つの読み取りにまとめる。`clopts_text_width` は `clopts_utf8_*` の関数にする。`tests/base/test_utf8.c` を足す（`tests/text/test_out.c` の幅のテストを移す）。
 - [ ] （C）`include/clopts/alloc.h` を `include/clopts/base/allocator.h` に動かす。
+- [ ] （C）`include/clopts/export.h` を `include/clopts/base/export.h` に動かし、公開ヘッダの include を直す。
 - [ ] （C）公開ヘッダを列挙する検査を、下のディレクトリまで読むようにする（`tests/abi/check_header_rules.cmake` の `file(GLOB ... "${HEADER_DIR}/*.h")`、`abi.headers_c`、`abi.headers_cxx`）。
 - [ ] `tests/integration/fixtures/internal_symbol/main.c` と `tests/integration/CMakeLists.txt` の `clopts_core_size_mul` を新しい名前にする。
 
