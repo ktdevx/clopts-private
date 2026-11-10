@@ -8,7 +8,7 @@
 
 #include "clopts/decl/program.h"
 #include "clopts/base/export.h"
-#include "clopts/parse.h"
+#include "clopts/parse/parse.h"
 #include "clopts/writer.h"
 
 #ifdef __cplusplus
@@ -30,7 +30,7 @@ extern "C" {
  * Preconditions (caught by assert): program and write_fn are not NULL; a
  * command is NULL (the program itself) or a subcommand of program; a result was obtained from
  * program and program has not been released yet. A NULL result is read like
- * the out-of-memory sentinel, as in clopts/parse.h.
+ * the out-of-memory sentinel, as in clopts/parse/parse.h.
  *
  * Postconditions: with CLOPTS_WRITE_OK every byte of the text was passed to
  * the callback, in order. With CLOPTS_WRITE_FAILED the callback was not

@@ -8,7 +8,7 @@
  * description, and the attach of global options, positionals and subcommands
  * with their errors and their order) and the read functions. The contents
  * of the shared fixtures of the parser tests are checked in the fixtures
- * suite (tests/parser/test_fixture_checks.c).
+ * suite (tests/parse/test_fixture_checks.c).
  *
  * A program is created by name and filled: global options and positionals are
  * attached to it, and subcommands, made and filled on their own, are added to
@@ -21,7 +21,7 @@
  * are alive.
  */
 
-#include "clopts/parse.h"
+#include "clopts/parse/parse.h"
 #include "clopts/decl/program.h"
 #include "test_alloc.h"
 #include "test_decl.h"

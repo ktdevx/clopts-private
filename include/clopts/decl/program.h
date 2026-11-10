@@ -30,7 +30,7 @@ extern "C" {
  * make the checks against the other options, positionals and subcommands of
  * the program. The rules shared by every builder function follow.
  *
- * Once the program is first parsed (clopts/parse.h) or written
+ * Once the program is first parsed (clopts/parse/parse.h) or written
  * (clopts/text.h), it must not change any more: calling a builder function on
  * it or on anything attached to it is a contract violation (the behavior is
  * undefined; it is not detected). It can then be parsed and read from several
@@ -86,7 +86,7 @@ extern "C" {
  * checks between commands (command names, the layout of the program) are
  * made by clopts_program_add_command() and clopts_program_add_positional().
  * Option names are not checked between the program and its commands: a name
- * of a command shadows the same global option (clopts/parse.h).
+ * of a command shadows the same global option (clopts/parse/parse.h).
  *
  * Other rules:
  *   - A NULL handle or out pointer is a contract violation, caught by assert:

@@ -26,7 +26,7 @@
 #include "test_alloc.h"
 
 #include "clopts/decl/program.h"
-#include "clopts/parse.h"
+#include "clopts/parse/parse.h"
 
 #include <naos/naos.h>
 
@@ -760,10 +760,10 @@ NAOS_TEST(parse_reports_an_invalid_value_as_a_usage_error)
 
     result = process_env_tool_parse(&tool);
     NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
-    NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_INVALID_ENV_VALUE);
-    NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), tool.output);
-    NAOS_CHECK_NULL(clopts_result_get_error_token(result));
-    NAOS_CHECK_INT_EQ(clopts_result_get_error_argv_index(result), -1);
+    NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE);
+    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), tool.output);
+    NAOS_CHECK_NULL(clopts_usage_error_get_token(clopts_result_get_usage_error(result)));
+    NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), -1);
 
     clopts_result_destroy(result);
     clopts_program_destroy(tool.program);

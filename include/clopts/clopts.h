@@ -10,7 +10,7 @@
 #include "clopts/process/argv.h"
 #include "clopts/decl/program.h"
 #include "clopts/process/env.h"
-#include "clopts/parse.h"
+#include "clopts/parse/parse.h"
 #include "clopts/text.h"
 #include "clopts/writer.h"
 

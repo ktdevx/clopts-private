@@ -81,7 +81,7 @@ void clopts_text_write_list(clopts_text_out_t *out, const clopts_text_row_t *row
 /* True when command is a subcommand of program. */
 bool clopts_text_has_command(const clopts_program_t *program, const clopts_command_t *command);
 
-/* Body template of a usage error kind; NULL for CLOPTS_USAGE_NONE and values outside the enum. */
-const char *clopts_text_usage_text(clopts_usage_error_t kind);
+/* Body template of a usage error kind; NULL for CLOPTS_USAGE_ERROR_NONE and values outside the enum. */
+const char *clopts_text_usage_text(clopts_usage_error_kind_t kind);
 
 #endif /* CLOPTS_TEXT_INTERNAL_H */

@@ -11,8 +11,8 @@
 # After comments are removed, each file is checked for:
 #   - dependencies between modules: an #include "<other>/..." of another
 #     module directory is allowed only when the rules below list <other> for
-#     the module, or for the file itself. #include "clopts/..." (the public
-#     headers) and includes of the file's own module are always allowed.
+#     the module. #include "clopts/..." (the public headers) and includes of
+#     the file's own module are always allowed. There are no per-file rules.
 #   - the OS boundary: no #include <windows.h> outside process/*_win32.c,
 #     and outside the process module no call of getenv / _wgetenv /
 #     secure_getenv / GetEnvironmentVariable*.
@@ -29,14 +29,9 @@ endif()
 set(_module_rules
     "base:"
     "decl:base"
-    "parser:base,decl"
+    "parse:base,decl,process"
     "process:base"
     "text:base"
-)
-# <module>/<file>:<further modules that file may include>
-set(_file_rules
-    # The parse entry wires the process environment lookup (parse.c).
-    "parser/parse.c:process"
 )
 # The only module that may touch the OS.
 set(_os_module "process")
@@ -46,12 +41,6 @@ foreach(_rule IN LISTS _module_rules)
     string(REPLACE "," ";" _deps "${CMAKE_MATCH_2}")
     set(_allowed_${CMAKE_MATCH_1} ${_deps})
     set(_known_${CMAKE_MATCH_1} TRUE)
-endforeach()
-foreach(_rule IN LISTS _file_rules)
-    string(REGEX MATCH "^([^:]+):(.*)$" _ignored "${_rule}")
-    string(REPLACE "," ";" _deps "${CMAKE_MATCH_2}")
-    string(MAKE_C_IDENTIFIER "${CMAKE_MATCH_1}" _key)
-    set(_file_allowed_${_key} ${_deps})
 endforeach()
 
 # Characters that cannot appear in the scanned text stand in for ";", "[" and
@@ -90,8 +79,7 @@ foreach(_rel IN LISTS _files)
         list(APPEND _offending "${_file}:1: module '${_module}' has no dependency rule (see check_structure.cmake)")
         continue()
     endif()
-    string(MAKE_C_IDENTIFIER "${_rel}" _key)
-    set(_allowed ${_allowed_${_module}} ${_file_allowed_${_key}})
+    set(_allowed ${_allowed_${_module}})
 
     _check_structure_lines(_lines "${_file}")
     set(_line_number 0)

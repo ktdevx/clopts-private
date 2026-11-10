@@ -12,29 +12,22 @@
 
 #include <assert.h>
 
-static clopts_lookup_t not_found(void)
+static clopts_lookup_t long_in(const clopts_scope_t *scope, const char *name, size_t name_len)
 {
-    clopts_lookup_t found = { NULL, false, 0, false };
+    clopts_lookup_t found;
 
+    found.negated = false;
+    found.option = clopts_scope_find_long(scope, name, name_len, &found.negated);
     return found;
 }
 
-static clopts_lookup_t long_in(const clopts_scope_t *scope, bool global, const char *name, size_t name_len)
+static clopts_lookup_t short_in(const clopts_scope_t *scope, char c)
 {
-    clopts_lookup_t found = not_found();
+    clopts_lookup_t found;
 
-    found.option = clopts_scope_find_long(scope, name, name_len, &found.index, &found.negated);
-    found.global = global;
-    return (found.option != NULL) ? found : not_found();
-}
-
-static clopts_lookup_t short_in(const clopts_scope_t *scope, bool global, char c)
-{
-    clopts_lookup_t found = not_found();
-
-    found.option = clopts_scope_find_short(scope, c, &found.index);
-    found.global = global;
-    return (found.option != NULL) ? found : not_found();
+    found.negated = false;
+    found.option = clopts_scope_find_short(scope, c);
+    return found;
 }
 
 clopts_lookup_t clopts_lookup_long(const clopts_program_t *program, const clopts_command_t *command,
@@ -45,13 +38,13 @@ clopts_lookup_t clopts_lookup_long(const clopts_program_t *program, const clopts
     assert((program != NULL) && (name != NULL));
     if (command != NULL)
     {
-        found = long_in(clopts_command_get_scope(command), false, name, name_len);
+        found = long_in(clopts_command_get_scope(command), name, name_len);
         if (found.option != NULL)
         {
             return found;
         }
     }
-    return long_in(clopts_program_get_scope(program), true, name, name_len);
+    return long_in(clopts_program_get_scope(program), name, name_len);
 }
 
 clopts_lookup_t clopts_lookup_short(const clopts_program_t *program, const clopts_command_t *command, char c)
@@ -61,11 +54,11 @@ clopts_lookup_t clopts_lookup_short(const clopts_program_t *program, const clopt
     assert(program != NULL);
     if (command != NULL)
     {
-        found = short_in(clopts_command_get_scope(command), false, c);
+        found = short_in(clopts_command_get_scope(command), c);
         if (found.option != NULL)
         {
             return found;
         }
     }
-    return short_in(clopts_program_get_scope(program), true, c);
+    return short_in(clopts_program_get_scope(program), c);
 }

@@ -86,7 +86,7 @@ Windows で `clopts_argv_create` に 0 と NULL を渡すと、同じソース�
 
 ### 解放の順序
 
-`clopts_parse` の結果は、argv の文字列を借用している。`clopts_result_get_positional_at` と `clopts_result_get_error_token` は argv の要素そのものを返し、ほかの値も argv の文字列を指すことがある。そのため、argv のハンドルは、結果を使い終えてから解放する。
+`clopts_parse` の結果は、argv の文字列を借用している。`clopts_result_get_positional_at` と `clopts_usage_error_get_token` は argv の要素そのものを返し、ほかの値も argv の文字列を指すことがある。そのため、argv のハンドルは、結果を使い終えてから解放する。
 
 1. 結果から値を読み、文面を出す（`clopts_write_*`）。
 2. `clopts_result_destroy` で結果を解放する。
@@ -155,7 +155,7 @@ Windows では、CRT の `getenv` も、値を ANSI のコードページで返�
 
 ### 読めない値
 
-Windows で、変数の値が正しい UTF-16 でない（対になっていないサロゲートを含む）と、その値は UTF-8 にできない。このとき解析は `CLOPTS_PARSE_USAGE_ERROR` で終わり、`clopts_result_get_usage_error` は `CLOPTS_USAGE_INVALID_ENV_VALUE` を、`clopts_result_get_error_option` はそのオプションを返す。argv の誤りと同じく、`clopts_write_error` が 1 行の文面を出す（`invalid value in environment variable '<変数名>'`）。
+Windows で、変数の値が正しい UTF-16 でない（対になっていないサロゲートを含む）と、その値は UTF-8 にできない。このとき解析は `CLOPTS_PARSE_USAGE_ERROR` で終わり、`clopts_result_get_usage_error` は `CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE` を、`clopts_result_get_error_option` はそのオプションを返す。argv の誤りと同じく、`clopts_write_error` が 1 行の文面を出す（`invalid value in environment variable '<変数名>'`）。
 
 - そのオプションの既定値は使われない。値を直すのは利用者の側なので、黙って既定値にはしない。
 - argv に終端オプション（`--help` や `--version`）があれば、argv の誤りと同じく、そちらが優先される。

@@ -35,7 +35,7 @@
  * comparisons are internal and are read or called directly.
  */
 
-#include "clopts/parse.h"
+#include "clopts/parse/parse.h"
 #include "decl/lookup.h"
 #include "decl/name.h"
 #include "decl/scope.h"
@@ -1392,44 +1392,37 @@ NAOS_TEST(find_long_and_short_compare_exactly_in_one_scope)
     lookup_fixture_t f = make_lookup_fixture();
     const clopts_scope_t *global = clopts_program_get_scope(f.program);
     const clopts_scope_t *build = clopts_command_get_scope(f.build);
-    size_t index = 99;
     bool negated = true;
 
-    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(build, "output", 6, &index, &negated), f.build_output);
-    NAOS_CHECK_UINT_EQ(index, 0);
+    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(build, "output", 6, &negated), f.build_output);
     NAOS_CHECK_FALSE(negated);
     /* exactly name_len bytes */
-    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(build, "outputs", 6, &index, &negated), f.build_output);
+    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(build, "outputs", 6, &negated), f.build_output);
     /* an exact name comes before the negation of another option */
-    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(build, "no-color", 8, &index, &negated), f.build_no_color);
-    NAOS_CHECK_UINT_EQ(index, 3);
+    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(build, "no-color", 8, &negated), f.build_no_color);
     NAOS_CHECK_FALSE(negated);
     /* --no-<name> of a negatable FLAG */
-    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(build, "no-cache", 8, &index, &negated), f.build_cache);
-    NAOS_CHECK_UINT_EQ(index, 1);
+    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(build, "no-cache", 8, &negated), f.build_cache);
     NAOS_CHECK_TRUE(negated);
-    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(global, "no-color", 8, &index, &negated), f.color);
-    NAOS_CHECK_UINT_EQ(index, 1);
+    NAOS_CHECK_PTR_EQ(clopts_scope_find_long(global, "no-color", 8, &negated), f.color);
     NAOS_CHECK_TRUE(negated);
     /* no negation of an option that is not a negatable FLAG */
-    NAOS_CHECK_NULL(clopts_scope_find_long(global, "no-quiet", 8, &index, &negated));
-    NAOS_CHECK_NULL(clopts_scope_find_long(global, "no-verbose", 10, &index, &negated));
-    NAOS_CHECK_NULL(clopts_scope_find_long(build, "no-", 3, &index, &negated));
+    NAOS_CHECK_NULL(clopts_scope_find_long(global, "no-quiet", 8, &negated));
+    NAOS_CHECK_NULL(clopts_scope_find_long(global, "no-verbose", 10, &negated));
+    NAOS_CHECK_NULL(clopts_scope_find_long(build, "no-", 3, &negated));
     /* exact and case-sensitive, no prefix */
-    NAOS_CHECK_NULL(clopts_scope_find_long(build, "Output", 6, &index, &negated));
-    NAOS_CHECK_NULL(clopts_scope_find_long(build, "out", 3, &index, &negated));
-    NAOS_CHECK_NULL(clopts_scope_find_long(build, "", 0, &index, &negated));
+    NAOS_CHECK_NULL(clopts_scope_find_long(build, "Output", 6, &negated));
+    NAOS_CHECK_NULL(clopts_scope_find_long(build, "out", 3, &negated));
+    NAOS_CHECK_NULL(clopts_scope_find_long(build, "", 0, &negated));
     /* a name of the program is not found in a command, nor the other way round */
-    NAOS_CHECK_NULL(clopts_scope_find_long(build, "verbose", 7, &index, &negated));
-    NAOS_CHECK_NULL(clopts_scope_find_long(global, "output", 6, &index, &negated));
+    NAOS_CHECK_NULL(clopts_scope_find_long(build, "verbose", 7, &negated));
+    NAOS_CHECK_NULL(clopts_scope_find_long(global, "output", 6, &negated));
 
-    NAOS_CHECK_PTR_EQ(clopts_scope_find_short(build, 'r', &index), f.build_release);
-    NAOS_CHECK_UINT_EQ(index, 2);
-    NAOS_CHECK_PTR_EQ(clopts_scope_find_short(global, 'q', &index), f.quiet);
-    NAOS_CHECK_UINT_EQ(index, 2);
-    NAOS_CHECK_NULL(clopts_scope_find_short(build, 'O', &index));
-    NAOS_CHECK_NULL(clopts_scope_find_short(build, 'v', &index));
-    NAOS_CHECK_NULL(clopts_scope_find_short(build, '\0', &index));
+    NAOS_CHECK_PTR_EQ(clopts_scope_find_short(build, 'r'), f.build_release);
+    NAOS_CHECK_PTR_EQ(clopts_scope_find_short(global, 'q'), f.quiet);
+    NAOS_CHECK_NULL(clopts_scope_find_short(build, 'O'));
+    NAOS_CHECK_NULL(clopts_scope_find_short(build, 'v'));
+    NAOS_CHECK_NULL(clopts_scope_find_short(build, '\0'));
     clopts_program_destroy(f.program);
 }
 
@@ -1440,14 +1433,10 @@ NAOS_TEST(lookup_looks_in_the_command_first_then_the_program)
 
     found = clopts_lookup_long(f.program, f.build, "output", 6);
     NAOS_CHECK_PTR_EQ(found.option, f.build_output);
-    NAOS_CHECK_FALSE(found.global);
-    NAOS_CHECK_UINT_EQ(found.index, 0);
     NAOS_CHECK_NULL(clopts_lookup_long(f.program, NULL, "output", 6).option);
 
     found = clopts_lookup_long(f.program, f.build, "verbose", 7);
     NAOS_CHECK_PTR_EQ(found.option, f.verbose);
-    NAOS_CHECK_TRUE(found.global);
-    NAOS_CHECK_UINT_EQ(found.index, 0);
 
     /* the command's exact name before the program's negation */
     found = clopts_lookup_long(f.program, f.build, "no-color", 8);
@@ -1455,7 +1444,6 @@ NAOS_TEST(lookup_looks_in_the_command_first_then_the_program)
     NAOS_CHECK_FALSE(found.negated);
     found = clopts_lookup_long(f.program, f.copy, "no-color", 8);
     NAOS_CHECK_PTR_EQ(found.option, f.color);
-    NAOS_CHECK_TRUE(found.global);
     NAOS_CHECK_TRUE(found.negated);
     /* the command's negation before the program's exact name */
     found = clopts_lookup_long(f.program, f.build, "no-cache", 8);
@@ -1469,7 +1457,6 @@ NAOS_TEST(lookup_looks_in_the_command_first_then_the_program)
     NAOS_CHECK_NULL(clopts_lookup_short(f.program, NULL, 'o').option);
     found = clopts_lookup_short(f.program, f.build, 'v');
     NAOS_CHECK_PTR_EQ(found.option, f.verbose);
-    NAOS_CHECK_TRUE(found.global);
     NAOS_CHECK_NULL(clopts_lookup_short(f.program, f.build, '\0').option);
     clopts_program_destroy(f.program);
 }

@@ -113,7 +113,7 @@ static bool is_negatable_flag(const clopts_option_t *option)
  * without building its text.
  */
 static const clopts_option_t *find_written_long(const clopts_scope_t *scope, const char *prefix, const char *name,
-                                                size_t len, size_t *index, bool *negated)
+                                                size_t len, bool *negated)
 {
     const char *rest;
     size_t rest_len;
@@ -122,7 +122,6 @@ static const clopts_option_t *find_written_long(const clopts_scope_t *scope, con
     i = index_of_long(scope, prefix, name, len);
     if (i < scope->options.len)
     {
-        *index = i;
         *negated = false;
         return scope_option(scope, i);
     }
@@ -151,50 +150,42 @@ static const clopts_option_t *find_written_long(const clopts_scope_t *scope, con
     {
         return NULL;
     }
-    *index = i;
     *negated = true;
     return scope_option(scope, i);
 }
 
 const clopts_option_t *clopts_scope_find_long(const clopts_scope_t *scope, const char *name, size_t name_len,
-                                              size_t *index, bool *negated)
+                                              bool *negated)
 {
-    assert((scope != NULL) && (name != NULL));
-    assert((index != NULL) && (negated != NULL));
-    return find_written_long(scope, "", name, name_len, index, negated);
+    assert((scope != NULL) && (name != NULL) && (negated != NULL));
+    return find_written_long(scope, "", name, name_len, negated);
 }
 
-const clopts_option_t *clopts_scope_find_short(const clopts_scope_t *scope, char c, size_t *index)
+const clopts_option_t *clopts_scope_find_short(const clopts_scope_t *scope, char c)
 {
     size_t i;
 
-    assert((scope != NULL) && (index != NULL));
+    assert(scope != NULL);
     i = index_of_short(scope, c);
-    if (i == scope->options.len)
-    {
-        return NULL;
-    }
-    *index = i;
-    return scope_option(scope, i);
+    return (i < scope->options.len) ? scope_option(scope, i) : NULL;
 }
 
 bool clopts_scope_shadows_option(const clopts_scope_t *scope, const clopts_option_t *option)
 {
     const char *l;
     char s;
-    size_t index;
     bool negated;
 
     assert((scope != NULL) && (option != NULL));
     l = clopts_option_get_long_name(option);
     s = clopts_option_get_short_name(option);
 
-    if ((l != NULL) && (find_written_long(scope, "", l, strlen(l), &index, &negated) == NULL))
+    if ((l != NULL) && (find_written_long(scope, "", l, strlen(l), &negated) == NULL))
     {
         return false;
     }
     if ((l != NULL) && is_negatable_flag(option) &&
-        (find_written_long(scope, "no-", l, strlen(l), &index, &negated) == NULL))
+        (find_written_long(scope, "no-", l, strlen(l), &negated) == NULL))
     {
         return false;
     }

@@ -10,31 +10,31 @@
 |------------|--------------|------|
 | base | `src/base/` | ドメインを知らない部品。使うアロケーター（`clopts/base/allocator.h`）と確保の窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`） |
 | decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則（`name.c`）と 1 つの範囲の中での比べ方（`scope.c`）、書かれた名前がどのオプションを指すか（`lookup.c`）、宣言エラーの説明。公開ヘッダは `clopts/decl/` |
-| parser | `src/parser/` | 解析の入口と手順、argv の走査、環境変数と既定値の解決、必須の検査、結果のハンドル |
-| text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）の書き込みのコールバックへの出力と、help サブコマンドの宣言と結果の読み取りの補助 |
+| parse | `src/parse/` | 解析の入口と手順（`parse.c`）、argv の要素の読み取り（`token.c`）、走査（`scan.c`）、環境変数と既定値の解決（`resolve.c`）、必須の検査（`require.c`）、途中の記録（`matches.c`、`slot.c`）、使い方エラー（`usage_error.c`）、結果（`result.c`）。公開ヘッダは `clopts/parse/` |
+| text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）の書き込みのコールバックへの出力 |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
 
-ソースファイルの名前にはモジュール名を付けない（`src/process/cmdline.c`）。ディレクトリが名前空間を兼ねる。内部ヘッダだけは、ほかのモジュールからも include されるので `<module>/<module>_internal.h` とする。
+名前とファイルの付け方は [設計の考え方](design.md) に従う。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h`、定義 `x.c`、接頭辞 `clopts_x_` を 1 組持たせる（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
 
 依存の向きは次のとおりである。
 
 ```mermaid
 flowchart LR
-    text --> parser_api["clopts/*.h（公開 API）"]
-    parser --> decl
-    parser --> process
-    decl --> base
-    parser --> base
+    text --> public["decl と parse の公開ヘッダ"]
     text --> base
+    parse --> decl
+    parse --> process
+    parse --> base
+    decl --> base
     process --> base
 ```
 
-- decl、parser、text、process は base の内部ヘッダ（`base/mem.h`、`base/vec.h` など）を使う。base はほかのモジュールに依存しない。
-- decl は解析を知らない。parser は宣言を公開の読み取り関数で読み、書かれた名前を decl の内部ヘッダ `decl/lookup.h`（選ばれたコマンド、プログラムの順に引く）で引く。宣言には書き込まない。
-- parser は、プロセスの環境変数を process の内部ヘッダ（`clopts_env_lookup` と、その文脈 `clopts_env_t`）で読む。process に依存するのは解析の入口（`parse.c`）だけで、参照のコールバックが渡されなかったときに、文脈を入口のスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`result.c`）は参照のコールバックだけを見て、OS を知らない。プロセスの環境を読むのは process だけである。
-- text は decl と parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。
-- 各モジュールの内部ヘッダ（`<module>/<module>_internal.h`）の関数は、共有ライブラリから export しない。
-- 依存の向きはテスト `structure.modules`（ラベル `structure`、`tests/structure/check_structure.cmake`）で検査する。各モジュールが include してよいほかのモジュールは上の図のとおりで（parser から process へは `parse.c` だけ）、`<windows.h>` の include と環境変数を読む関数（`getenv` など）の呼び出しは process の外に置けない。モジュールを足すときは、このスクリプトの規則にも足す。
+- decl、parse、text、process は base の内部ヘッダ（`base/mem.h`、`base/vec.h` など）を使う。base はほかのモジュールに依存しない。
+- decl は解析を知らない。parse は宣言を公開の読み取り関数で読み、書かれた名前を decl の内部ヘッダ `decl/lookup.h`（選ばれたコマンド、プログラムの順に引く）で引く。宣言には書き込まない。
+- parse は、プロセスの環境変数を process の内部ヘッダ `process/env.h`（`clopts_env_lookup` と、その文脈 `clopts_env_t`）で読む。参照のコールバックが渡されなかったときに、解析の入口（`parse.c`）が文脈をスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`require.c`）は参照のコールバックを引数で受け取るだけで、OS を知らない。プロセスの環境を読むのは process だけである。
+- text は decl と parse の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。
+- 内部ヘッダの関数は、共有ライブラリから export しない。
+- 依存の向きはテスト `structure.modules`（ラベル `structure`、`tests/structure/check_structure.cmake`）で検査する。各モジュールが include してよいほかのモジュールは上の図のとおりで、ファイルごとの例外はない。`<windows.h>` の include は `process/*_win32.c` の外に、環境変数を読む関数（`getenv` など）の呼び出しは process の外に置けない。モジュールを足すときは、このスクリプトの規則にも足す。
 
 ## 宣言モデル
 
@@ -84,7 +84,7 @@ classDiagram
 
 ### 構造体の置き場所
 
-各ハンドルの構造体は、そのビルダーのファイルだけが知っている。ほかのファイルは、parser の中であっても公開の読み取り関数（Scope は `clopts_scope_*`）で読む。
+各ハンドルの構造体は、そのビルダーのファイルだけが知っている。ほかのファイルは、parse の中であっても公開の読み取り関数（Scope は `clopts_scope_*`）で読む。
 
 | 型 | 構造体の定義 |
 |----|--------------|
@@ -93,7 +93,7 @@ classDiagram
 | `clopts_option_t` | `src/decl/option.c` |
 | `clopts_positional_t` | `src/decl/positional.c` |
 | `clopts_scope_t` | `src/decl/scope.h`（Program と Command に埋め込むため。読み書きは `scope.c` の関数だけで行う） |
-| `clopts_result_t` | `src/parser/result.c`（解析のほかのファイルとテストは、`result.c` の関数で読み、記録する） |
+| `clopts_result_t` | `src/parse/result.c`（解析のほかのファイルとテストは、`result.c` の関数で読み、記録する） |
 
 読み取り関数に NULL のハンドルを渡すのは契約違反で、`assert` で検出する。
 
@@ -120,20 +120,21 @@ text は公開 API だけを読む。プログラム自身の範囲とサブコ�
 
 ## 解析の流れ
 
-`clopts_parse`（`parse.c`）は次の順に進む。
+`clopts_parse`（`parse.c`）は次の順に進む。解析が書き込むのは途中の記録（matches）だけで、結果は最後に一度だけ作る。
 
-1. 入口：NULL のプログラムを番兵として扱い、結果を確保する（失敗したらメモリ不足の番兵を返す）。
-2. 走査（`scan.c`）：サブコマンドがあれば、サブコマンドの前の走査をしてから本体の走査をする。なければ本体の走査だけをする。
+1. 入口：NULL のプログラムを番兵として扱い、途中の記録（`matches.c`）を確保する（失敗したらメモリ不足の番兵を返す）。
+2. 走査（`scan.c`）：サブコマンドがあれば、サブコマンドの前の走査をしてから本体の走査をする。なければ本体の走査だけをする。argv の要素の形（`--`、`--name=value`、`-abc`、ただの語）は `token.c` が読み、書かれた名前がどのオプションを指すかは decl の `lookup.c` が決める。
 3. 使い方の誤りがあればそこで終わる。ただし、回復の走査（`scan.c`）がその位置から後ろに終端オプションを見つけたときは除く。
 4. 環境変数と既定値から値を解決する（`resolve.c`）。環境変数は参照のコールバックで読む。`clopts_parse` と、コールバックに NULL を渡した `clopts_parse_with_env` では、入口がプロセスの環境変数の参照（process）をつなぐ。UTF-8 で読めない環境変数の値は、そのオプションを値なしのまま残し、最初の 1 つを誤りとして記録する。
 5. 終端オプションがあれば `CLOPTS_PARSE_TERMINATED` で終わる。なければ、4 で記録した誤りがあれば `CLOPTS_PARSE_USAGE_ERROR` で終わる。
-6. 必須のオプションと位置引数を検査する（`parse.c`）。
+6. 必須のオプションと位置引数を検査する（`require.c`）。
 7. `CLOPTS_PARSE_OK`。サブコマンドがあるのに選ばれていなければ `CLOPTS_PARSE_NO_COMMAND`。
+8. 状態、終端オプション、使い方エラー（`usage_error.c`）、途中の記録から、結果（`result.c`）を作る。結果は途中の記録を引き取り、以後は書かれない。
 
-- オプションの検索は、選ばれたコマンドの Scope を先に、プログラムの Scope を後に探す（`scan.c` の `lookup_long` / `lookup_short`）。そのため、コマンドの名前が同じ名前のグローバルオプションを隠す。位置引数は、選ばれたコマンドの Scope か、サブコマンドのないプログラムの Scope から取る。
-- 結果は、グローバルオプションと選ばれたコマンドのオプションそれぞれに、オプションと同じ添字のスロットを 1 つずつ持つ（`result.c`）。
+- オプションの検索は、選ばれたコマンドの Scope を先に、プログラムの Scope を後に探す（`decl/lookup.c`）。そのため、コマンドの名前が同じ名前のグローバルオプションを隠す。位置引数は、選ばれたコマンドの Scope か、サブコマンドのないプログラムの Scope から取る。
+- 途中の記録は、グローバルオプションと選ばれたコマンドのオプションそれぞれに、オプションと同じ添字のスロット（`slot.c`）を 1 つずつ持つ。スロットはオプションのアドレスで探す。
 - 結果はプログラムを指さない。`clopts_result_destroy` は宣言を読まないので、結果はプログラムより後に解放してよい。
-- 結果ができた後の確保や環境変数の参照の失敗は、その結果を `CLOPTS_PARSE_OUT_OF_MEMORY` にして終わる。
+- 解析の途中の確保や環境変数の参照の失敗は、それまでの記録を解放し、メモリ不足の番兵を返して終わる。`CLOPTS_PARSE_OUT_OF_MEMORY` の結果は、つねに番兵である。
 
 ## 設計の判断
 

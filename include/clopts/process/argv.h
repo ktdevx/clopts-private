@@ -17,7 +17,7 @@ extern "C" {
 /*
  * argv API: the process arguments (argv) in UTF-8, ready to be passed
  * to clopts_parse() / clopts_parse_with_env(). The environment variables
- * need nothing here: the parse reads them in UTF-8 itself (clopts/parse.h).
+ * need nothing here: the parse reads them in UTF-8 itself (clopts/parse/parse.h).
  *
  * On Windows the arguments are taken from the process command line and
  * converted to UTF-8; the strings belong to the handle. Elsewhere the

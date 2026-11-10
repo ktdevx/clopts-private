@@ -81,10 +81,10 @@ static void message_write_option_name(clopts_text_out_t *out, const clopts_optio
  * Writes the option as the user wrote it: "-<c>" for an ASCII short_name,
  * else "--<long>" or "-<c>" of the option, else the token before "=".
  */
-static void message_write_written_option(clopts_text_out_t *out, const clopts_result_t *result)
+static void message_write_written_option(clopts_text_out_t *out, const clopts_usage_error_t *error)
 {
-    const char short_name = clopts_result_get_error_short_name(result);
-    const clopts_option_t *option = clopts_result_get_error_option(result);
+    const char short_name = clopts_usage_error_get_short_name(error);
+    const clopts_option_t *option = clopts_usage_error_get_option(error);
 
     if (message_is_ascii(short_name))
     {
@@ -96,16 +96,16 @@ static void message_write_written_option(clopts_text_out_t *out, const clopts_re
     }
     else
     {
-        message_write_token_name(out, clopts_result_get_error_token(result));
+        message_write_token_name(out, clopts_usage_error_get_token(error));
     }
 }
 
 /* Writes the argument of an UNKNOWN_OPTION error. */
-static void message_write_unknown_option(clopts_text_out_t *out, const clopts_result_t *result)
+static void message_write_unknown_option(clopts_text_out_t *out, const clopts_usage_error_t *error)
 {
-    const char short_name = clopts_result_get_error_short_name(result);
-    const size_t name_len = clopts_result_get_error_name_len(result);
-    const char *token = clopts_result_get_error_token(result);
+    const char short_name = clopts_usage_error_get_short_name(error);
+    const size_t name_len = clopts_usage_error_get_name_len(error);
+    const char *token = clopts_usage_error_get_token(error);
 
     if (message_is_ascii(short_name))
     {
@@ -123,14 +123,14 @@ static void message_write_unknown_option(clopts_text_out_t *out, const clopts_re
 }
 
 /* Writes the argument of an UNEXPECTED_VALUE error. */
-static void message_write_unexpected_value(clopts_text_out_t *out, const clopts_result_t *result)
+static void message_write_unexpected_value(clopts_text_out_t *out, const clopts_usage_error_t *error)
 {
-    const clopts_option_t *option = clopts_result_get_error_option(result);
+    const clopts_option_t *option = clopts_usage_error_get_option(error);
 
     if (option == NULL)
     {
         /* No option recorded: the token before "=". */
-        message_write_token_name(out, clopts_result_get_error_token(result));
+        message_write_token_name(out, clopts_usage_error_get_token(error));
     }
     else if (message_has_text(clopts_option_get_long_name(option)))
     {
@@ -138,52 +138,52 @@ static void message_write_unexpected_value(clopts_text_out_t *out, const clopts_
     }
     else
     {
-        message_write_written_option(out, result);
+        message_write_written_option(out, error);
     }
 }
 
-/* Writes the argument of the usage error kind of result: '<argument>', or <NAME> for a missing argument. */
-static void message_write_usage_argument(clopts_text_out_t *out, const clopts_result_t *result,
-                                         clopts_usage_error_t kind)
+/* Writes the argument of error, of kind: '<argument>', or <NAME> for a missing argument. */
+static void message_write_usage_argument(clopts_text_out_t *out, const clopts_usage_error_t *error,
+                                         clopts_usage_error_kind_t kind)
 {
     const clopts_option_t *option;
     const clopts_positional_t *positional;
-    const bool positional_name = (kind == CLOPTS_USAGE_MISSING_ARGUMENT);
+    const bool positional_name = (kind == CLOPTS_USAGE_ERROR_MISSING_ARGUMENT);
 
     clopts_text_out_char(out, positional_name ? '<' : '\'');
     switch (kind)
     {
-    case CLOPTS_USAGE_NONE:
+    case CLOPTS_USAGE_ERROR_NONE:
         break;
-    case CLOPTS_USAGE_UNKNOWN_COMMAND:
-    case CLOPTS_USAGE_UNEXPECTED_ARGUMENT:
-        message_write_str(out, clopts_result_get_error_token(result));
+    case CLOPTS_USAGE_ERROR_UNKNOWN_COMMAND:
+    case CLOPTS_USAGE_ERROR_UNEXPECTED_ARGUMENT:
+        message_write_str(out, clopts_usage_error_get_token(error));
         break;
-    case CLOPTS_USAGE_UNKNOWN_OPTION:
-        message_write_unknown_option(out, result);
+    case CLOPTS_USAGE_ERROR_UNKNOWN_OPTION:
+        message_write_unknown_option(out, error);
         break;
-    case CLOPTS_USAGE_MISSING_VALUE:
-        message_write_written_option(out, result);
+    case CLOPTS_USAGE_ERROR_MISSING_VALUE:
+        message_write_written_option(out, error);
         break;
-    case CLOPTS_USAGE_UNEXPECTED_VALUE:
-        message_write_unexpected_value(out, result);
+    case CLOPTS_USAGE_ERROR_UNEXPECTED_VALUE:
+        message_write_unexpected_value(out, error);
         break;
-    case CLOPTS_USAGE_MISSING_OPTION:
-        option = clopts_result_get_error_option(result);
+    case CLOPTS_USAGE_ERROR_MISSING_OPTION:
+        option = clopts_usage_error_get_option(error);
         if (option != NULL)
         {
             message_write_option_name(out, option);
         }
         break;
-    case CLOPTS_USAGE_MISSING_ARGUMENT:
-        positional = clopts_result_get_error_positional(result);
+    case CLOPTS_USAGE_ERROR_MISSING_ARGUMENT:
+        positional = clopts_usage_error_get_positional(error);
         if (positional != NULL)
         {
             message_write_str(out, clopts_positional_get_name(positional));
         }
         break;
-    case CLOPTS_USAGE_INVALID_ENV_VALUE:
-        option = clopts_result_get_error_option(result);
+    case CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE:
+        option = clopts_usage_error_get_option(error);
         if (option != NULL)
         {
             message_write_str(out, clopts_option_get_env(option));
@@ -198,13 +198,13 @@ static void message_write_usage_argument(clopts_text_out_t *out, const clopts_re
  *   - MISSING_VALUE / UNEXPECTED_VALUE: "option '<opt>' <text>"
  *   - any other kind: "<text> <argument>"
  */
-static void message_write_usage_body(clopts_text_out_t *out, const clopts_result_t *result,
-                                     clopts_usage_error_t kind, const char *text)
+static void message_write_usage_body(clopts_text_out_t *out, const clopts_usage_error_t *error,
+                                     clopts_usage_error_kind_t kind, const char *text)
 {
-    if ((kind == CLOPTS_USAGE_MISSING_VALUE) || (kind == CLOPTS_USAGE_UNEXPECTED_VALUE))
+    if ((kind == CLOPTS_USAGE_ERROR_MISSING_VALUE) || (kind == CLOPTS_USAGE_ERROR_UNEXPECTED_VALUE))
     {
         clopts_text_out_str(out, "option ");
-        message_write_usage_argument(out, result, kind);
+        message_write_usage_argument(out, error, kind);
         clopts_text_out_char(out, ' ');
         clopts_text_out_str(out, text);
     }
@@ -212,7 +212,7 @@ static void message_write_usage_body(clopts_text_out_t *out, const clopts_result
     {
         clopts_text_out_str(out, text);
         clopts_text_out_char(out, ' ');
-        message_write_usage_argument(out, result, kind);
+        message_write_usage_argument(out, error, kind);
     }
 }
 
@@ -246,21 +246,23 @@ static void message_write_prefix(clopts_text_out_t *out, const clopts_program_t 
 clopts_write_status_t clopts_write_error(const clopts_program_t *program, const clopts_result_t *result,
                                          unsigned flags, clopts_write_fn write_fn, void *ctx)
 {
+    const clopts_usage_error_t *error;
     const clopts_command_t *command;
-    clopts_usage_error_t kind;
+    clopts_usage_error_kind_t kind;
     const char *text;
     clopts_text_out_t out;
 
     assert(program != NULL);
     assert(write_fn != NULL);
 
-    command = clopts_result_get_error_command(result);
+    error = clopts_result_get_usage_error(result);
+    command = clopts_usage_error_get_command(error);
     assert((command == NULL) || clopts_text_has_command(program, command));
 
     switch (clopts_result_get_status(result))
     {
     case CLOPTS_PARSE_USAGE_ERROR:
-        kind = clopts_result_get_usage_error(result);
+        kind = clopts_usage_error_get_kind(error);
         text = clopts_text_usage_text(kind);
         if (text == NULL)
         {
@@ -268,7 +270,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
         }
         clopts_text_out_init(&out, write_fn, ctx);
         message_write_prefix(&out, program, command, flags);
-        message_write_usage_body(&out, result, kind, text);
+        message_write_usage_body(&out, error, kind, text);
         break;
     case CLOPTS_PARSE_OUT_OF_MEMORY:
         clopts_text_out_init(&out, write_fn, ctx);
@@ -325,27 +327,27 @@ clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, c
     return clopts_text_out_status(&out);
 }
 
-const char *clopts_text_usage_text(clopts_usage_error_t kind)
+const char *clopts_text_usage_text(clopts_usage_error_kind_t kind)
 {
     switch (kind)
     {
-    case CLOPTS_USAGE_NONE:
+    case CLOPTS_USAGE_ERROR_NONE:
         return NULL;
-    case CLOPTS_USAGE_UNKNOWN_COMMAND:
+    case CLOPTS_USAGE_ERROR_UNKNOWN_COMMAND:
         return "unknown command";
-    case CLOPTS_USAGE_UNKNOWN_OPTION:
+    case CLOPTS_USAGE_ERROR_UNKNOWN_OPTION:
         return "unknown option";
-    case CLOPTS_USAGE_MISSING_VALUE:
+    case CLOPTS_USAGE_ERROR_MISSING_VALUE:
         return "requires a value";
-    case CLOPTS_USAGE_UNEXPECTED_VALUE:
+    case CLOPTS_USAGE_ERROR_UNEXPECTED_VALUE:
         return "does not take a value";
-    case CLOPTS_USAGE_MISSING_OPTION:
+    case CLOPTS_USAGE_ERROR_MISSING_OPTION:
         return "missing required option";
-    case CLOPTS_USAGE_MISSING_ARGUMENT:
+    case CLOPTS_USAGE_ERROR_MISSING_ARGUMENT:
         return "missing argument";
-    case CLOPTS_USAGE_UNEXPECTED_ARGUMENT:
+    case CLOPTS_USAGE_ERROR_UNEXPECTED_ARGUMENT:
         return "unexpected argument";
-    case CLOPTS_USAGE_INVALID_ENV_VALUE:
+    case CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE:
         return "invalid value in environment variable";
     }
     return NULL;

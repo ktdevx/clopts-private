@@ -3,6 +3,6 @@
 
 add_subdirectory(base)
 add_subdirectory(decl)
-add_subdirectory(parser)
+add_subdirectory(parse)
 add_subdirectory(text)
 add_subdirectory(process)

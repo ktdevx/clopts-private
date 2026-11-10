@@ -83,7 +83,7 @@ CLOPTS_API clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *opti
  * FLAG: a terminal option. When argv gives it (not as --no-<name>), the
  * parse stops right there with CLOPTS_PARSE_TERMINATED: the remaining tokens are
  * not read and the required options and positionals are not checked
- * (clopts/parse.h). Meant for options such as --help and --version
+ * (clopts/parse/parse.h). Meant for options such as --help and --version
  * (clopts/text.h). ATTRIBUTE_KIND.
  */
 CLOPTS_API clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal);

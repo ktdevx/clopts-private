@@ -77,20 +77,15 @@ clopts_option_is_required
 clopts_option_is_negatable
 clopts_option_is_terminal
 
-# clopts/parse.h
+# clopts/parse/parse.h
 clopts_parse
 clopts_parse_with_env
+
+# clopts/parse/result.h
 clopts_result_get_status
 clopts_result_get_command
 clopts_result_get_terminal_option
 clopts_result_get_usage_error
-clopts_result_get_error_command
-clopts_result_get_error_option
-clopts_result_get_error_positional
-clopts_result_get_error_token
-clopts_result_get_error_argv_index
-clopts_result_get_error_name_len
-clopts_result_get_error_short_name
 clopts_result_get_flag
 clopts_result_get_count
 clopts_result_get_value
@@ -100,6 +95,16 @@ clopts_result_get_source
 clopts_result_get_positional_count
 clopts_result_get_positional_at
 clopts_result_destroy
+
+# clopts/parse/usage_error.h
+clopts_usage_error_get_kind
+clopts_usage_error_get_command
+clopts_usage_error_get_option
+clopts_usage_error_get_positional
+clopts_usage_error_get_token
+clopts_usage_error_get_argv_index
+clopts_usage_error_get_name_len
+clopts_usage_error_get_short_name
 
 # clopts/decl/positional.h
 clopts_positional_create

@@ -214,7 +214,7 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
         return 0;
     case CLOPTS_PARSE_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
-        clopts_write_usage_hint(program, clopts_result_get_error_command(result), clopts_file_write, stderr);
+        clopts_write_usage_hint(program, clopts_result_get_command(result), clopts_file_write, stderr);
         return 2;
     case CLOPTS_PARSE_NO_COMMAND:
         /* Only programs with subcommands get this; kept for the common pattern. */

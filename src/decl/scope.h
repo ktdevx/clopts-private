@@ -53,17 +53,13 @@ clopts_decl_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_po
  * Looks up the long name written as "--<name>", given as the name_len bytes
  * at name: the option whose long name is exactly name, and otherwise, when
  * name is "no-" followed by at least one byte, the negatable FLAG named by
- * the rest (*negated is then true). Returns the option and stores its index
- * in *index, or returns NULL. index and negated must not be NULL.
+ * the rest (*negated is then true). Returns the option, or NULL. negated
+ * must not be NULL.
  */
 const clopts_option_t *clopts_scope_find_long(const clopts_scope_t *scope, const char *name, size_t name_len,
-                                              size_t *index, bool *negated);
+                                              bool *negated);
 
-/*
- * Looks up the short name written as "-<c>". Returns the option and stores
- * its index in *index, or returns NULL (always for c '\0'). index must not
- * be NULL.
- */
-const clopts_option_t *clopts_scope_find_short(const clopts_scope_t *scope, char c, size_t *index);
+/* Looks up the short name written as "-<c>". Returns the option, or NULL (always for c '\0'). */
+const clopts_option_t *clopts_scope_find_short(const clopts_scope_t *scope, char c);
 
 #endif /* CLOPTS_SRC_DECL_SCOPE_H */

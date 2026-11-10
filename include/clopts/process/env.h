@@ -12,7 +12,7 @@ extern "C" {
 
 /*
  * Environment lookup callback type of clopts_parse_with_env()
- * (clopts/parse.h): a source of environment values other than the process
+ * (clopts/parse/parse.h): a source of environment values other than the process
  * environment, for tests or for values read from elsewhere.
  */
 
@@ -27,7 +27,7 @@ typedef enum clopts_env_status
     CLOPTS_ENV_FAILED = 2,
     /*
      * Set, but its value cannot be given in UTF-8. *value is not read. The
-     * parse ends with CLOPTS_PARSE_USAGE_ERROR (CLOPTS_USAGE_INVALID_ENV_VALUE).
+     * parse ends with CLOPTS_PARSE_USAGE_ERROR (CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE).
      */
     CLOPTS_ENV_INVALID = 3
 } clopts_env_status_t;

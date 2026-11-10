@@ -12,8 +12,10 @@
 | `clopts/decl/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（作成、解放、属性、読み取り） |
 | `clopts/decl/positional.h` | 位置引数の関数（作成、解放、属性、読み取り） |
 | `clopts/decl/scope.h` | プログラム自身とサブコマンドが持つオプションと位置引数の並び（Scope）の読み取り |
-| `clopts/parse.h` | 解析の関数、状態とエラー種別の列挙、結果とエラーのアクセサ |
-| `clopts/process/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse.h` が取り込む |
+| `clopts/parse/parse.h` | 解析の関数。結果と使い方エラーのヘッダを取り込む |
+| `clopts/parse/result.h` | 結果の状態と値の出所の列挙、結果のアクセサ |
+| `clopts/parse/usage_error.h` | 使い方エラーの種別の列挙と、使い方エラーのアクセサ |
+| `clopts/process/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse/parse.h` が取り込む |
 | `clopts/text.h` | ヘルプ・使い方・版・エラーの文面を出す関数 |
 | `clopts/writer.h` | 書き込みコールバックの型と、`FILE*` へ書く便宜関数 |
 | `clopts/process/argv.h` | UTF-8 の argv を得る関数 |
@@ -111,7 +113,7 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
         return 0;
     case CLOPTS_PARSE_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
-        clopts_write_usage_hint(program, clopts_result_get_error_command(result), clopts_file_write, stderr);
+        clopts_write_usage_hint(program, clopts_result_get_command(result), clopts_file_write, stderr);
         return 2;
     case CLOPTS_PARSE_NO_COMMAND:
         clopts_write_usage(program, NULL, clopts_file_write, stderr);
@@ -408,7 +410,7 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 
 ## 解析と状態
 
-解析の関数は `clopts/parse.h` にある。
+解析の関数は `clopts/parse/parse.h` に、結果のアクセサは `clopts/parse/result.h` にある。
 
 | 関数 | 引数と戻り値 |
 |------|--------------|
@@ -423,8 +425,8 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 | `CLOPTS_PARSE_OK` | 解析に成功した | `clopts_result_get_command` で選ばれたコマンドを見て処理を選び、値を読んで処理する。結果を標準出力へ出し、0 を返す。`help` コマンドなら、位置引数の名前を `clopts_program_find_command` で引いて、そのヘルプを出す |
 | `CLOPTS_PARSE_TERMINATED` | 終端オプション（`clopts_option_set_terminal`）が argv に現れ、そこで解析を止めた。`clopts_result_get_terminal_option` がそのオプションを返す。必須のオプションと位置引数は検査されていない | `--help` なら `clopts_write_help` に `clopts_result_get_command` の値を渡してヘルプを、`--version` なら `clopts_write_version` で版を標準出力へ出し、0 を返す |
 | `CLOPTS_PARSE_NO_COMMAND` | サブコマンドのあるプログラムで、サブコマンドが現れなかった。読めるのはグローバルオプションの値だけ | `clopts_write_usage` と `clopts_write_usage_hint` を標準エラーへ出し、2 を返す |
-| `CLOPTS_PARSE_USAGE_ERROR` | argv に使い方の誤りがある（または、環境変数の値を UTF-8 で読めない） | `clopts_write_error`（`CLOPTS_PREFIX_PROGRAM` と `CLOPTS_PREFIX_ERROR`）と、`clopts_result_get_error_command` の値を渡した `clopts_write_usage_hint` を標準エラーへ出し、2 を返す |
-| `CLOPTS_PARSE_OUT_OF_MEMORY` | メモリの確保に失敗した（`getenv_fn` が `CLOPTS_ENV_FAILED` を返したときも） | `clopts_write_error` を標準エラーへ出し、1 を返す |
+| `CLOPTS_PARSE_USAGE_ERROR` | argv に使い方の誤りがある（または、環境変数の値を UTF-8 で読めない） | `clopts_write_error`（`CLOPTS_PREFIX_PROGRAM` と `CLOPTS_PREFIX_ERROR`）と、`clopts_result_get_command` の値を渡した `clopts_write_usage_hint` を標準エラーへ出し、2 を返す |
+| `CLOPTS_PARSE_OUT_OF_MEMORY` | メモリの確保に失敗した（`getenv_fn` が `CLOPTS_ENV_FAILED` を返したときも）。結果はつねにメモリ不足の番兵で、それまでに記録した値は解放されている | `clopts_write_error` を標準エラーへ出し、1 を返す |
 
 解析は、ヘルプ・版・エラーを含めて何も出力せず、`exit()` も呼ばない。文面を出すかどうか、どの終了コードで終わるかは、利用側が状態を見て決める。解析器には組み込みのオプションもコマンドもない。`--help`、`--version`、`help` コマンドは、ふつうの宣言として足す。
 
@@ -460,7 +462,7 @@ typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, con
 | `CLOPTS_ENV_FOUND` | 見つかった。`*value` に、コールバックが所有する文字列を入れる |
 | `CLOPTS_ENV_UNSET` | 設定されていない。`*value` は読まれない |
 | `CLOPTS_ENV_FAILED` | メモリ不足で引けなかった。解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる |
-| `CLOPTS_ENV_INVALID` | 設定されているが、値を UTF-8 で表せない。`*value` は読まれない。解析は `CLOPTS_PARSE_USAGE_ERROR`（`CLOPTS_USAGE_INVALID_ENV_VALUE`）で終わる |
+| `CLOPTS_ENV_INVALID` | 設定されているが、値を UTF-8 で表せない。`*value` は読まれない。解析は `CLOPTS_PARSE_USAGE_ERROR`（`CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE`）で終わる |
 
 `*value` に入れた文字列は、次にコールバックが呼ばれるまでか、解析の関数が戻るまでだけ有効であればよい。ライブラリはコールバックが戻った直後にそれを複製し、その後は読まず、解放もしない。
 
@@ -504,39 +506,41 @@ color: false
 
 優先順位は argv、環境変数、既定値の順である（詳しくは [解析規則](parsing.md) の章）。
 
-オプションの値は、そのオプションのコマンドの中での位置から一定の時間で探され、アドレスで確かめられる。そのため、別のプログラムのオプションや、選ばれなかったコマンドのオプション、コマンドに渡していないオプションを渡したときは「値なし」を返す。
+オプションの値は、オプションのアドレスで探される。そのため、別のプログラムのオプションや、選ばれなかったコマンドのオプション、コマンドに渡していないオプションを渡したときは「値なし」を返す。
 
 次のものは契約違反で、`assert` で検出される: 範囲外の `index`。NULL の結果はメモリ不足の番兵と同じに読まれ（状態は `CLOPTS_PARSE_OUT_OF_MEMORY`）、契約違反ではない。
 
-## エラーのアクセサ
+## 使い方エラー
 
-エラーのアクセサは、状態が `CLOPTS_PARSE_USAGE_ERROR` のときに意味を持つ。それ以外の状態のときと、そのエラーがセットしない項目では、NONE、NULL、-1、0、`'\0'` を返す。
+状態が `CLOPTS_PARSE_USAGE_ERROR` の結果は、何が誤っていたかを使い方エラー（`clopts_usage_error_t`、`clopts/parse/usage_error.h`）として持つ。`clopts_result_get_usage_error`（`result`）がそれを返す。ほかの状態では NULL を返す。使い方エラーは結果の一部で、結果を解放するまで有効である。
+
+使い方エラーのアクセサは、NULL の使い方エラーを「エラーなし」として読み、そのエラーがセットしない項目と同じく NONE、NULL、-1、0、`'\0'` を返す。
 
 | 関数 | 戻り値 |
 |------|--------|
-| `clopts_result_get_usage_error`（`result`） | 使い方エラーの種別（`clopts_usage_error_t`） |
-| `clopts_result_get_error_command`（`result`） | エラーの起きたコマンド。サブコマンドが選ばれる前なら NULL |
-| `clopts_result_get_error_option`（`result`） | エラーに関わるオプション |
-| `clopts_result_get_error_positional`（`result`） | エラーに関わる位置引数 |
-| `clopts_result_get_error_token`（`result`） | エラーの原因になった argv の要素 |
-| `clopts_result_get_error_argv_index`（`result`） | そのトークンの argv の添字（`argv[0]` が 0）。なければ -1 |
-| `clopts_result_get_error_name_len`（`result`） | 長い形の未知のオプションで、トークンのうち `--name` の長さ（`=` の手前まで） |
-| `clopts_result_get_error_short_name`（`result`） | 短いオプションのまとめ書きの中で、原因になった文字 |
+| `clopts_usage_error_get_kind`（`error`） | 使い方エラーの種別（`clopts_usage_error_kind_t`） |
+| `clopts_usage_error_get_command`（`error`） | エラーの起きたコマンド。サブコマンドが選ばれる前なら NULL（`clopts_result_get_command` と同じ） |
+| `clopts_usage_error_get_option`（`error`） | エラーに関わるオプション |
+| `clopts_usage_error_get_positional`（`error`） | エラーに関わる位置引数 |
+| `clopts_usage_error_get_token`（`error`） | エラーの原因になった argv の要素 |
+| `clopts_usage_error_get_argv_index`（`error`） | そのトークンの argv の添字（`argv[0]` が 0）。なければ -1 |
+| `clopts_usage_error_get_name_len`（`error`） | 長い形の未知のオプションで、トークンのうち `--name` の長さ（`=` の手前まで） |
+| `clopts_usage_error_get_short_name`（`error`） | 短いオプションのまとめ書きの中で、原因になった文字 |
 
 ## 使い方エラーの種類
 
-`clopts_usage_error_t` は、argv の誤りの種類を示す（`CLOPTS_USAGE_NONE` はエラーなし）。表の「文面」は `clopts_write_error` が出す本文で、`<...>` の部分にトークンやオプションの名前が入る。「セットされるアクセサ」は `clopts_result_get_error_argv_index` のほかにセットされるもので、`clopts_result_get_error_command` はどの種別でもエラーの起きたコマンド（サブコマンドが選ばれる前なら NULL）になる。
+`clopts_usage_error_kind_t` は、argv の誤りの種類を示す（`CLOPTS_USAGE_ERROR_NONE` はエラーなし）。表の「文面」は `clopts_write_error` が出す本文で、`<...>` の部分にトークンやオプションの名前が入る。「セットされるアクセサ」は `clopts_usage_error_get_argv_index` のほかにセットされるもので、`clopts_usage_error_get_command` はどの種別でもエラーの起きたコマンド（サブコマンドが選ばれる前なら NULL）になる。
 
 | 種別 | 起きる入力の例（taskbook） | 文面 | セットされるアクセサ |
 |------|----------------------------|------|----------------------|
-| `CLOPTS_USAGE_UNKNOWN_COMMAND` | 宣言にないサブコマンド名（`taskbook remove`） | `unknown command '<名前>'` | token（そのコマンド名） |
-| `CLOPTS_USAGE_UNKNOWN_OPTION` | 宣言にないオプション（`taskbook --bogus`、`taskbook add -vz x`） | `unknown option '<オプション>'` | token と、長い形なら name_len、短い形なら short_name |
-| `CLOPTS_USAGE_MISSING_VALUE` | 値をとるオプションに値がない（`taskbook add --tag`） | `option '<オプション>' requires a value` | option、token |
-| `CLOPTS_USAGE_UNEXPECTED_VALUE` | 値をとらないオプションに値を与えた（`taskbook --color=yes list`、`taskbook --help=x`） | `option '<オプション>' does not take a value` | option、token |
-| `CLOPTS_USAGE_MISSING_OPTION` | 必須のオプションが argv からも環境変数からも値を得なかった（taskbook には必須のオプションがない） | `missing required option '<オプション>'` | option（argv_index は -1） |
-| `CLOPTS_USAGE_MISSING_ARGUMENT` | 必須の位置引数がない（`taskbook add`） | `missing argument <名前>` | positional（argv_index は -1） |
-| `CLOPTS_USAGE_UNEXPECTED_ARGUMENT` | 宣言した位置引数より多いトークン（`taskbook add a b`） | `unexpected argument '<トークン>'` | token（余った最初のトークン） |
-| `CLOPTS_USAGE_INVALID_ENV_VALUE` | オプションの環境変数が設定されているが、値を UTF-8 で読めない（Windows で正しい UTF-16 でない値。`getenv_fn` が `CLOPTS_ENV_INVALID` を返したときも）。そのオプションの既定値は使われない | `invalid value in environment variable '<変数名>'` | option（argv_index は -1） |
+| `CLOPTS_USAGE_ERROR_UNKNOWN_COMMAND` | 宣言にないサブコマンド名（`taskbook remove`） | `unknown command '<名前>'` | token（そのコマンド名） |
+| `CLOPTS_USAGE_ERROR_UNKNOWN_OPTION` | 宣言にないオプション（`taskbook --bogus`、`taskbook add -vz x`） | `unknown option '<オプション>'` | token と、長い形なら name_len、短い形なら short_name |
+| `CLOPTS_USAGE_ERROR_MISSING_VALUE` | 値をとるオプションに値がない（`taskbook add --tag`） | `option '<オプション>' requires a value` | option、token |
+| `CLOPTS_USAGE_ERROR_UNEXPECTED_VALUE` | 値をとらないオプションに値を与えた（`taskbook --color=yes list`、`taskbook --help=x`） | `option '<オプション>' does not take a value` | option、token |
+| `CLOPTS_USAGE_ERROR_MISSING_OPTION` | 必須のオプションが argv からも環境変数からも値を得なかった（taskbook には必須のオプションがない） | `missing required option '<オプション>'` | option（argv_index は -1） |
+| `CLOPTS_USAGE_ERROR_MISSING_ARGUMENT` | 必須の位置引数がない（`taskbook add`） | `missing argument <名前>` | positional（argv_index は -1） |
+| `CLOPTS_USAGE_ERROR_UNEXPECTED_ARGUMENT` | 宣言した位置引数より多いトークン（`taskbook add a b`） | `unexpected argument '<トークン>'` | token（余った最初のトークン） |
+| `CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE` | オプションの環境変数が設定されているが、値を UTF-8 で読めない（Windows で正しい UTF-16 でない値。`getenv_fn` が `CLOPTS_ENV_INVALID` を返したときも）。そのオプションの既定値は使われない | `invalid value in environment variable '<変数名>'` | option（argv_index は -1） |
 
 argv に誤りが複数あっても、報告されるのは最初の 1 つだけである。ただし、誤りの後ろに終端オプション（`--help` や `--version`）がそのまま書かれていれば、そちらが優先される（[解析規則](parsing.md) の章を参照）。
 
@@ -724,10 +728,10 @@ Run 'taskbook --help' for usage.
 - ライブラリが確保したものは、ライブラリの関数で解放する: プログラムとそれが持つハンドルは `clopts_program_destroy`、プログラムに渡していないコマンドは `clopts_command_destroy`、どこにも渡していないオプションと位置引数は `clopts_option_destroy` と `clopts_positional_destroy`、結果は `clopts_result_destroy`、argv のハンドルは `clopts_argv_destroy`。ライブラリから得た文字列を `free()` してはならない。
 - ライブラリの確保と解放は、すべて設定されたアロケーター（既定は標準の `malloc` / `calloc` / `realloc` / `free`）を通る。差し替え方は「[アロケーター](#アロケーター)」で示す。
 - ライブラリは argv を書き換えない。宣言も、解析によって書き換えられない。
-- 結果から得た文字列（値、LIST の各値、位置引数、エラーのトークン）は、結果を解放するまで有効で、しかも呼び出し側がプログラムと argv の両方を生かしている間だけ有効である。`clopts_result_get_positional_at` と `clopts_result_get_error_token` は argv の要素そのものを返す。argv を `clopts_argv_create` で得たときは、結果を使い終えてから `clopts_argv_destroy` を呼ぶ。
+- 結果から得た文字列（値、LIST の各値、位置引数、エラーのトークン）は、結果を解放するまで有効で、しかも呼び出し側がプログラムと argv の両方を生かしている間だけ有効である。`clopts_result_get_positional_at` と `clopts_usage_error_get_token` は argv の要素そのものを返す。argv を `clopts_argv_create` で得たときは、結果を使い終えてから `clopts_argv_destroy` を呼ぶ。
 - 環境変数の値は、解析中にライブラリが複製する。結果の値は、環境変数が後で変わっても変わらない。`getenv_fn` が返す文字列は、次の呼び出しか解析の終わりまで有効であればよい。
 - 解放の順序: 結果のアクセサは、プログラムを解放する前に呼ぶ。`clopts_result_destroy` そのものは、`clopts_program_destroy` の前でも後でも呼べる。
-- メモリ不足の番兵（`clopts_parse` などが確保に失敗したときに返す共有の結果）は、`clopts_result_destroy` に渡しても何もしない。そのため、状態にかかわらず、得た結果は必ず `clopts_result_destroy` に渡してよい。
+- メモリ不足の番兵（`clopts_parse` などがメモリ不足で終わったときに返す共有の結果）は、`clopts_result_destroy` に渡しても何もしない。そのため、状態にかかわらず、得た結果は必ず `clopts_result_destroy` に渡してよい。
 - 文面の関数（`clopts_write_*`）はメモリを確保しない。
 - 渡す前のオプションと位置引数は、呼び出し側が持つ。`clopts_program_add_option`・`clopts_program_add_positional`・`clopts_command_add_option`・`clopts_command_add_positional` が成功すると、プログラムかコマンドが持つ。失敗したときは呼び出し側が持ったままなので、`clopts_option_destroy` か `clopts_positional_destroy` で解放する。
 - プログラムに渡す前のコマンドは、呼び出し側が持つ。`clopts_program_add_command` が成功すると、プログラムが持つ。失敗したときは呼び出し側が持ったままなので、`clopts_command_destroy` で解放する（コマンドに渡したオプションと位置引数も一緒に解放される）。

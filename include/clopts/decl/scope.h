@@ -44,7 +44,7 @@ CLOPTS_API const clopts_positional_t *clopts_scope_get_positional_at(const clopt
  * long name, --no-<long name> when it is negatable, its short name) names an
  * option of scope, so a parse that looks names up in scope first never
  * reaches option. A global option shadowed by the scope of a subcommand
- * cannot be given after that subcommand (clopts/parse.h). The names are
+ * cannot be given after that subcommand (clopts/parse/parse.h). The names are
  * compared as a parse compares them (docs/parsing.md).
  */
 CLOPTS_API bool clopts_scope_shadows_option(const clopts_scope_t *scope, const clopts_option_t *option);

@@ -25,8 +25,6 @@
 typedef struct clopts_lookup
 {
     const clopts_option_t *option;  /* NULL when not found */
-    bool global;                    /* true: the program, false: the selected command */
-    size_t index;                   /* index in that scope */
     bool negated;                   /* found through --no-<name> */
 } clopts_lookup_t;
 
