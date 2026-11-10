@@ -4,7 +4,7 @@
 # Module boundaries of src/ and include/clopts/ (check_structure.cmake): the
 # dependencies between modules of docs/dev/architecture.md and the OS
 # boundary (only process touches the OS). Names of src/ and include/clopts/
-# (check_names.cmake): an operation of a type is declared with its type
+# (check_names.cmake): an operation of a struct is declared with its struct
 # (docs/dev/design.md).
 set(_clopts_structure_script "${CMAKE_CURRENT_SOURCE_DIR}/check_structure.cmake")
 set(_clopts_structure_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/fixtures")

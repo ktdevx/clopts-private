@@ -14,7 +14,7 @@
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）を書き込みのコールバックへ出す。公開の入口（`write.c`、`clopts/text/write.h`）、ヘルプと Usage 行（`help.c`）、1 行の文面（`message.c`）、書き込みと計測の 2 つのモードを持つ出力先（`out.c`） |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
 
-名前とファイルの付け方は [設計の考え方](design.md) に従う。型の操作が型と同じヘッダにあることはテスト `structure.names`（`tests/structure/check_names.cmake`）で、宣言のない定義はコンパイラ（`-Wmissing-prototypes`）で検査する。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h` と定義 `x.c` を 1 組持たせ、型 `clopts_x_t` の操作は `clopts_x_*` と名付けて同じヘッダに置く（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。型に属さない関数は、何をするかで名付ける（`src/base/memory.h` の `clopts_malloc`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
+名前とファイルの付け方は [設計の考え方](design.md) に従う。構造体の操作が構造体と同じヘッダにあることはテスト `structure.names`（`tests/structure/check_names.cmake`）で、宣言のない定義はコンパイラ（`-Wmissing-prototypes`）で検査する。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h` と定義 `x.c` を 1 組持たせ、構造体 `clopts_x_t` の操作は `clopts_x_*` と名付けて同じヘッダに置く（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。それ以外の名前は、何をするか、何を表すかで付ける（`src/base/memory.h` の `clopts_malloc`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
 
 依存の向きは次のとおりである。
 

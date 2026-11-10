@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 #
 # Checks the names of the headers of src/ and include/clopts/
-# (docs/dev/design.md): a type and its operations form one pair, so that the
-# name of an operation leads to its file. Run with `cmake -P`; registered as
+# (docs/dev/design.md): a struct and its operations form one pair, so that
+# the name of an operation leads to its file. Run with `cmake -P`; registered as
 # structure.names (label: structure).
 #
 # Variables (-D):
@@ -13,22 +13,25 @@
 #
 # Checks:
 #   - no internal header is named <something>_internal.h;
-#   - an operation of a type, a function named clopts_x or clopts_x_<...>
-#     where clopts_x_t is a type, is declared in a header that declares
-#     clopts_x_t. The header of a type is <module>/x.h, public or internal; an
-#     implementation header <module>/x_impl.h counts as <module>/x.h. When
-#     several types match, the longest name wins (clopts_usage_error_kind_t
-#     over clopts_usage_error_t).
+#   - an operation of a struct, a function named clopts_x or clopts_x_<...>
+#     where clopts_x_t is a struct, is declared in a header that declares
+#     clopts_x_t. The header of a struct is <module>/x.h, public or internal;
+#     an implementation header <module>/x_impl.h counts as <module>/x.h. When
+#     several structs match, the longest name wins (clopts_usage_error_t over
+#     a clopts_usage_t).
 #
-# A function outside a type is named by what it does and is not checked. A
-# definition that no header declares is reported by the compiler
-# (-Wmissing-prototypes).
+# Any other name is given by what it means and is not checked: a function
+# outside a struct, and a function named after an enumeration or another
+# typedef (clopts_error_get_message). A definition that no header declares is
+# reported by the compiler (-Wmissing-prototypes).
 #
 # A declaration is a line that, after comments are removed, starts at column 0
 # with neither "#", "typedef", "static", "struct", "{" nor "}", and holds
-# clopts_<name>(; the first such name on the line is the function. A type is
-# declared by a line that starts with "typedef" or "}" and ends with
-# clopts_<name>_t;. Every function and type of the library is written so.
+# clopts_<name>(; the first such name on the line is the function. A struct is
+# declared by a line "typedef struct ... clopts_<name>_t;", or by a line
+# "} clopts_<name>_t;" that closes a definition opened by a line that starts
+# with "typedef struct". Every function and struct of the library is written
+# so.
 # Exits with an error that lists every offending <file>:<line>.
 
 cmake_minimum_required(VERSION 3.21)
@@ -102,13 +105,13 @@ function(_check_names_code out_var file)
 endfunction()
 
 set(_offending "")
-set(_types "")      # x of every type clopts_x_t
+set(_types "")      # x of every struct clopts_x_t
 set(_functions "")  # <name>|<line>|<file>|<key> of every function
 
 # _check_names_scan(<root> <rel>)
 #
 # Reads the header <root>/<rel>, whose key is <rel> without ".h" and "_impl"
-# (decl/scope for decl/scope_impl.h). Adds the types it declares to _types and
+# (decl/scope for decl/scope_impl.h). Adds the structs it declares to _types and
 # _type_homes_<x> (the keys of the headers that declare clopts_x_t), and the
 # functions it declares to _functions.
 macro(_check_names_scan root rel)
@@ -116,10 +119,21 @@ macro(_check_names_scan root rel)
     string(REGEX REPLACE "(_impl)?\\.h$" "" _key "${rel}")
     _check_names_code(_lines "${_file}")
     set(_number 0)
+    set(_open "")  # what the typedef being defined is: struct, enum or union
     foreach(_line IN LISTS _lines)
         math(EXPR _number "${_number} + 1")
-        if(_line MATCHES "^(typedef([^A-Za-z0-9_][^${_semicolon}]*)?|\\}[^${_semicolon}]*)[^A-Za-z0-9_]clopts_([a-z0-9_]+)_t[ \t]*${_semicolon}")
-            set(_x "${CMAKE_MATCH_3}")
+        set(_x "")
+        if(_line MATCHES "^typedef[ \t]+struct[^A-Za-z0-9_][^${_semicolon}]*[^A-Za-z0-9_]clopts_([a-z0-9_]+)_t[ \t]*${_semicolon}")
+            set(_x "${CMAKE_MATCH_1}")
+        elseif(_line MATCHES "^typedef[ \t]+(struct|enum|union)([^A-Za-z0-9_][^${_semicolon}]*)?$")
+            set(_open "${CMAKE_MATCH_1}")
+        elseif(_line MATCHES "^\\}[^${_semicolon}]*[^A-Za-z0-9_]clopts_([a-z0-9_]+)_t[ \t]*${_semicolon}")
+            if(_open STREQUAL "struct")
+                set(_x "${CMAKE_MATCH_1}")
+            endif()
+            set(_open "")
+        endif()
+        if(NOT _x STREQUAL "")
             list(APPEND _types "${_x}")
             list(APPEND "_type_homes_${_x}" "${_key}")
             continue()
@@ -160,7 +174,7 @@ foreach(_item IN LISTS _functions)
     list(GET _fields 2 _file)
     list(GET _fields 3 _key)
 
-    # The type the function is an operation of: the longest x with
+    # The struct the function is an operation of: the longest x with
     # _name == x or _name == x_<...>.
     set(_owner "")
     string(LENGTH "${_owner}" _owner_length)
@@ -194,4 +208,4 @@ if(_offending)
         "check_names: ${_count} violation(s) of the naming rules:\n  ${_report}\n"
         "The rules are described in docs/dev/design.md.")
 endif()
-message(STATUS "check_names: every operation of a type is declared with its type")
+message(STATUS "check_names: every operation of a struct is declared with its struct")

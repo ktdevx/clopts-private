@@ -4,10 +4,13 @@
 
 ## 1. 名前は概念に付ける
 
-関数と型の名前には、それが表す概念の名前を入れる。モジュール（`src/` のディレクトリ）の名前は入れない。
+概念をオブジェクト（構造体と、その値を主語にとる操作）として捉えられるときは、名前にその概念の名前を入れる（`clopts_x_t`、`clopts_x_<動詞>`）。捉えられないとき（働き、しくみ、語彙）は、何をするか、何を表すかで付ける（`clopts_parse`、`clopts_malloc`、`clopts_error_t`）。どちらの場合も、モジュール（`src/` のディレクトリ）の名前は入れない。付け方の詳しい規則は、2 章「名前の付け方」にある。
 
-- モジュールの名前は「どこにあるか」を表す。それはパスが示している。名前が示すのは「何であるか」である。
-- 概念の名前だけで成り立つ名前は、概念が整理できている証拠になる。`clopts_option_t` にモジュールの名前が要らないのは、オプションという概念が 1 つで、ほかの何ともぶつからないからである。
+モジュールの名前を入れない理由は 3 つある。
+
+- モジュールは依存の向きの単位で、名前空間ではない（4 章）。依存の向きを決め直すと、概念の置き場所が変わる。名前にモジュールの名前があると、そのたびに改名が要る。
+- 公開か内部かを名前で区別しない（2 章）ので、モジュールの名前を付けると、利用者の見る名前に内部の構成が出る。
+- 概念の分け方の問題を、接頭辞が隠す。次の節のとおりである。
 
 ### 名前がぶつかるのは、分け方を見直す合図である
 
@@ -34,39 +37,35 @@
 
 ### 公開か内部かは、名前では区別しない
 
-公開か内部かは、宣言するヘッダの場所（`include/clopts/` か `src/`）と `abi/clopts.symbols` で決まる。同じ型なら、公開の操作と内部の操作が同じ接頭辞を持つ（公開の `clopts_argv_create` と、内部の `clopts_argv_sentinel`）。
+公開か内部かは、宣言するヘッダの場所（`include/clopts/` か `src/`）と `abi/clopts.symbols` で決まる。同じ構造体なら、公開の操作と内部の操作が同じ接頭辞を持つ（公開の `clopts_argv_create` と、内部の `clopts_argv_sentinel`）。
 
 内部用の接頭辞を足すと、同じ概念に名前が 2 つできる。関数を公開にするとき、内部に戻すときに、改名も要る。
 
 ### 名前の付け方
 
-名前は、公開でも内部でも、どれも `clopts_` / `CLOPTS_` で始めて、ライブラリの名前空間に入れる。その中で、ヘッダの名前で縛るのは、型とその操作の組だけである。この規則は公開と内部で同じである。
+名前は、公開でも内部でも、どれも `clopts_` / `CLOPTS_` で始めて、ライブラリの名前空間に入れる。その中で、ヘッダの名前で縛るのは、構造体とその操作の組だけである。
 
 | 種類 | 例 | 名前の付け方 |
 |------|----|--------------|
-| 型とその操作 | `clopts_result_t`、`clopts_result_get_status`、`clopts_option_create`、内部の `clopts_vec_t`、`clopts_vec_push` | 型 `clopts_x_t` は `x.h` が宣言し、操作は `clopts_x_<動詞>` として、型と同じヘッダ（実装ヘッダ `x_impl.h` を含む）で宣言する |
-| 型に属さない関数 | `clopts_parse`、`clopts_write_help`、`clopts_set_allocator`、`clopts_file_write`、内部の `clopts_malloc`、`clopts_strdup`、`clopts_utf8_valid` | 何をするかで付ける |
-| ライブラリ全体の印 | `CLOPTS_API` | 役割で付ける |
-| 引数のフラグ | `CLOPTS_PREFIX_PROGRAM` | 引数の意味で付ける |
-| 語彙としての列挙 | `clopts_parse_status_t`、`clopts_source_t` | 表す意味で付ける |
-| 利用者が埋めて渡すデータの型 | `clopts_allocator_t` | 中身で付ける |
-| コールバックの型 | `clopts_write_fn`、`clopts_env_fn` | コールバックの役割（何をするか）の名前に `_fn` を付ける |
+| オブジェクト（構造体とその操作） | `clopts_result_t` と `clopts_result_get_status`、内部の `clopts_vec_t` と `clopts_vec_push` | 操作を持つ構造体 `clopts_x_t` は `x.h` が宣言し、操作は `clopts_x_<動詞>` として、構造体と同じヘッダ（実装ヘッダ `x_impl.h` を含む）で宣言する |
+| それ以外 | 関数の `clopts_parse`、`clopts_malloc`、マクロの `CLOPTS_API`、フラグの `CLOPTS_PREFIX_PROGRAM`、列挙の `clopts_parse_status_t`、`clopts_error_t` と、その説明を返す `clopts_error_get_message`、利用者が埋めて渡す `clopts_allocator_t` | 何をするか、何を表すかで付ける |
 
-- 型とその操作をヘッダの名前で縛るのは、オブジェクトとその操作を 1 組にして、名前から置き場所が引けるようにするためである。`clopts_result_get_status` を見れば、`result.h` の型の操作だと分かる。
-- それ以外を縛らないのは、名前は語彙であり、置き場所の手がかりではないからである。利用者はふつう `clopts/clopts.h` だけを include する。`CLOPTS_API` はどのヘッダで定義されてもよく、`clopts_parse_status_t` を「`result.h` にあるから」と `clopts_result_status_t` に変えても、意味の説明にはならない。`clopts_parse` と `clopts_write_help` がヘッダの名前（`parse.h`、`write.h`）と一致しているのは、意味で付けた結果である。
-- 内部でも同じである。`clopts_malloc` と `clopts_strdup` は、標準の `malloc` と `strdup` の代わりだと名前から分かる。`memory.h` にあるからと `clopts_memory_alloc` と付けると、置き場所は分かるが、何の代わりかが名前から薄れる。置き場所は、呼ぶ側の include が示す。何でも入れるヘッダを置かないので、include は概念を 1 つ名指す。`clopts_utf8_valid` と `clopts_size_mul` がヘッダの名前と一致しているのは、`clopts_parse` と同じく、意味で付けた結果である。
-- 公開ヘッダの置き場所は、名前ではなく、定義の置き場所で決める（3 章の 1）。
-- 同じ値を 2 つの型から読めるようにしない。使い方エラーの起きたコマンドは、結果の選ばれたコマンドと同じなので、`clopts_result_get_command` だけで読む。
+コールバックの型は、その役割の名前に `_fn` を付ける（`clopts_write_fn`、`clopts_env_fn`）。
 
-型の操作が型と同じヘッダにあることは、公開と内部の両方について、テスト `structure.names` で検査する。`clopts_x` か `clopts_x_*` という名前の関数は、型 `clopts_x_t` があれば、その型を宣言するヘッダ（`x_impl.h` は `x.h` とみなす）で宣言する。当てはまる型が 2 つあるときは、長いほうの型の操作とみなす（`clopts_usage_error_kind_t` と `clopts_usage_error_t`）。型に属さない関数の名前は検査しない。
+- 構造体とその操作をヘッダの名前で縛るのは、オブジェクトとその操作を 1 組にして、名前から置き場所が引けるようにするためである。`clopts_result_get_status` を見れば、`result.h` の構造体の操作だと分かる。
+- それ以外を縛らないのは、名前は語彙であり、置き場所の手がかりではないからである。`CLOPTS_API` はどのヘッダで定義されてもよく、`clopts_parse_status_t` を「`result.h` にあるから」と `clopts_result_status_t` に変えても、意味の説明にはならない。
+- 内部でも同じである。`clopts_malloc` と `clopts_strdup` は、標準の `malloc` と `strdup` の代わりだと名前から分かる。`memory.h` にあるからと `clopts_memory_alloc` と付けると、置き場所は分かるが、何の代わりかが名前から薄れる。置き場所は、呼ぶ側の include が示す。何でも入れるヘッダを置かないので、include は概念を 1 つ名指す。
+- 縛らない名前がヘッダの名前と一致することはある（`parse.h` の `clopts_parse`、`error.h` の `clopts_error_get_message`、`utf8.h` の `clopts_utf8_valid`）。意味で付けた結果であり、規則ではない。
 
-## 3. src、include、tests を同じ形にする
+構造体の操作が構造体と同じヘッダにあることは、公開と内部の両方について、テスト `structure.names` で検査する。それ以外の名前は検査しない。
+
+## 3. src と include を同じ形にする
 
 ```
 src/<モジュール>/x.c               定義
 src/<モジュール>/x.h               内部の宣言（構造体の中身と、内部の関数）
 include/clopts/<モジュール>/x.h    公開の宣言
-tests/<モジュール>/test_x.c        テスト
+tests/<モジュール>/                そのモジュールのテスト。ファイルは振る舞いごとに分けてよい
 ```
 
 1. 公開ヘッダ `clopts/<モジュール>/x.h` が宣言する関数は、`src/<モジュール>/x.c`（OS ごとなら `x_win32.c` と `x_posix.c`）が定義する。
@@ -97,7 +96,7 @@ tests/<モジュール>/test_x.c        テスト
 
 1. 既定は `.c` に閉じる。構造体は `.c` で定義して不透明な型にし、補助関数は `static` にする。
 2. 実装ヘッダ `x_impl.h` は、継承に当たる場面でだけ置く。ほかの型が x を値として埋め込む（program と command が Scope を埋め込む）ときと、x の実装が OS ごとのファイルに分かれる（`argv_posix.c` と `argv_win32.c`）ときである。どちらも、使う側が x の中身を知らなければ書けない。
-3. `x_impl.h` は概念 x のものである。型 x の操作は `clopts_x_*` と名付け、`x.c` か `x_<os>.c` で定義する。`x.h` と `x_impl.h` の間で関数を動かしても、改名は要らない。
+3. `x_impl.h` は概念 x のものである。構造体 x の操作は `clopts_x_*` と名付け、`x.c` か `x_<os>.c` で定義する。`x.h` と `x_impl.h` の間で関数を動かしても、改名は要らない。
 4. `x_impl.h` は、最初に概念 x のヘッダ（内部の `x.h`、なければ公開の `x.h`）を include する。同じモジュールのファイルしか include できない。
 5. テストは、どの種類の内部ヘッダも include してよい。
 
@@ -109,11 +108,11 @@ tests/<モジュール>/test_x.c        テスト
 
 | 種類 | 基準 | 置き場所 | 例 |
 |------|------|----------|----|
-| 値の型 | `x.h` を使う側が、値として持つ（スタックに置く、配列にする、埋め込む）か、フィールドを読む | `x.h` | `clopts_vec_t`、`clopts_slot_t`、`clopts_token_t`、`clopts_lookup_t`、`clopts_out_t`、`clopts_env_t`、内部の `clopts_usage_error_t` |
-| ハンドル | 中身を知る必要があるのは、x を作るファイルだけである | `x.c` | program、command、option、positional、matches、result |
-| 継承される型 | 中身を知る必要があるのは、x を埋め込む側と x を OS ごとに実装する側だけで、`x.h` を使うほかの側は知らなくてよい | `x_impl.h` | `clopts_scope_t`（program と command が埋め込む。`lookup.c` は名前を引くだけ）、`struct clopts_argv` |
+| 値の型 | `x.h` を使う側が、値として持つ（スタックに置く、配列にする、埋め込む）か、フィールドを読む | `x.h` | `clopts_vec_t` |
+| ハンドル | 中身を知る必要があるのは、x を作るファイルだけである | `x.c` | `clopts_program_t` |
+| 継承される型 | 中身を知る必要があるのは、x を埋め込む側と x を OS ごとに実装する側だけで、`x.h` を使うほかの側は知らなくてよい | `x_impl.h` | `clopts_scope_t`（program と command が埋め込む） |
 
-中身を見せた型にも、不変条件があってよい（`clopts_vec_t` の `len <= cap`、`clopts_slot_t` の `value == owned`）。そのときは、フィールドを読むのは自由で、書くのは `clopts_x_*` の関数を通すだけ、と型の説明に書く。`clopts_lookup_t`、`clopts_token_t`、内部の `clopts_usage_error_t` のように、不変条件がなく、使う側が直接書いてよい型もある。
+中身を見せた型にも、不変条件があってよい（`clopts_vec_t` の `len <= cap`）。そのときは、フィールドを読むのは自由で、書くのは `clopts_x_*` の関数を通すだけ、と型の説明に書く。`clopts_token_t` のように、不変条件がなく、使う側が直接書いてよい型もある。
 
 公開の構造体は、この基準に加えて「その形で ABI を凍結してよいか」で決める（[ABI の互換性](../abi.md)）。公開で中身を出すのは、利用者が埋めて渡す `clopts_allocator_t` だけである。同じ型でも見せる相手で扱いが変わり、`clopts_usage_error_t` は内部では値の型、公開では不透明な型である。
 
@@ -127,7 +126,7 @@ tests/<モジュール>/test_x.c        テスト
 
 代償は、エディタの検索などで同じ名前の候補が 2 つ出ることである。
 
-実装ヘッダの操作が型と組になっていることは `structure.names` で、実装ヘッダをほかのモジュールから include しないことは `structure.modules` で検査する。最初の include は、レビューで確かめる。
+実装ヘッダの操作が構造体と組になっていることは `structure.names` で、実装ヘッダをほかのモジュールから include しないことは `structure.modules` で検査する。最初の include は、レビューで確かめる。
 
 ## 4. ディレクトリは依存の向きを表す
 
@@ -159,7 +158,7 @@ tests/<モジュール>/test_x.c        テスト
 
 - 持ち主は、その規則を使うモジュールすべてが依存できる、いちばん上のモジュールに置く。
 - 外側のモジュールが使うなら、公開の関数にする。
-- 同じデータを読む経路も 1 本にする。公開の読み取り関数と、同じことをする内部の関数を、並べて持たない。
+- 同じデータを読む経路も 1 本にする。公開の読み取り関数と、同じことをする内部の関数を、並べて持たない。同じ値を 2 つの型から読めるようにもしない。使い方エラーの起きたコマンドは、結果の選ばれたコマンドと同じなので、`clopts_result_get_command` だけで読む。
 
 ## 6. 作る途中のものと、できあがったものを分ける
 
@@ -211,13 +210,8 @@ tests/<モジュール>/test_x.c        テスト
 
 | 案 | 採らなかった理由 |
 |----|------------------|
-| 内部の関数にモジュールの名前を付ける（`clopts_core_*`、`clopts_parser_*`） | 1 章のとおり。概念の分け方の問題を、接頭辞が隠す |
-| 公開ヘッダの内部版を `x_internal.h` と名付ける | 見え方の段階が名前になる。同じ概念に名前が 2 つでき、関数を公開と内部の間で動かすときに include も直すことになる |
-| 名前をすべてヘッダの名前で始める（`export.h` を `api.h` に、`clopts_parse_status_t` を `clopts_result_status_t` に、`clopts_set_allocator` を `clopts_memory_set_allocator` に、内部の `clopts_malloc` を `clopts_memory_alloc` に） | 2 章「名前の付け方」のとおり。型に属さない名前は、置き場所を名前から引く必要がない。置き場所は include が示す。例外をなくすことが目的になり、意味で付けた名前を崩す |
 | ほかのモジュールに見せる内部ヘッダを列挙する | モジュールの依存の向きの規則と二重になる。実装を見せる面だけは、実装ヘッダとして同じモジュールに閉じる |
-| 内部の全部入りヘッダ（SQLite の `sqliteInt.h`） | 2 章のとおり。include から依存が読めない |
 | 公開ヘッダを平置きにする（`include/clopts/*.h`） | 公開ヘッダと `.c` の対応が、パスから読めない。公開ヘッダどうしの依存の向きを検査できない |
-| 型の前方宣言を集めたヘッダ（`types.h`） | 型の宣言が、その型のヘッダにない。公開ヘッダの include に循環はないので、要らない |
 | モジュールごとの全部入りヘッダ（`decl.h`） | `clopts/decl/program.h` が宣言のヘッダをすべて include する。全部入りは `clopts.h` の 1 つで足りる |
 | `src/` を平置きにする | この規模なら可能だが、依存の向きを機械的に検査するために、ディレクトリを使う |
 | 層をまたぐ関数を置く `src/clopts.c` | どのモジュールにも属さないファイルは、依存の規則の外になる |
@@ -226,14 +220,12 @@ tests/<モジュール>/test_x.c        テスト
 | Scope に足す操作も公開する（`clopts_scope_add_option`） | 6 章のとおり。組み立て用（非 `const`）と読み取り用（`const`）で、Scope を得る関数も 2 つ要る |
 | 名前からオプションを引く、汎用の公開関数 | `--no-<name>` の形の名前を、確保なしでは渡せない。外側のモジュールに要るのは、隠す判定だけである |
 | プログラム自身の範囲を Command で表す、コマンドを入れ子にする | [アーキテクチャ](architecture.md)の「設計の判断」のとおり |
-| 宣言の規則ごとのエラーの列挙子（`DUPLICATE_OPTION`、`NEGATION_CONFLICT`、`MIXED_LAYOUT` など）を、`clopts/decl/decl_error.h` に置く | 7 章のとおり。説明は細かくなるが、規則を足すたびに公開の列挙が増える。名前にモジュールの名前（`decl_`）が入り、1 章にも反する |
-| エラーに細かい理由（どの属性とぶつかったか）を添える | 7 章の 3。宣言エラーは開発中に一度直せば済み、失敗した呼び出しと種類で原因にたどり着ける。要るようになってから考える |
 
 ## 11. 参考にした設計
 
 | ライブラリ | 取り入れた点 |
 |------------|--------------|
-| Lua | 概念ごとに `.c`、`.h`、接頭辞を 1 組にする（`ltable.c`、`ltable.h`、`luaH_`）。CLOpts は、接頭辞で縛るのを型とその操作の組に絞る。補助ライブラリ `lauxlib` は、公開 API だけで書く（文面のモジュール） |
+| Lua | 概念ごとに `.c`、`.h`、接頭辞を 1 組にする（`ltable.c`、`ltable.h`、`luaH_`）。CLOpts は、接頭辞で縛るのを構造体とその操作の組に絞る。補助ライブラリ `lauxlib` は、公開 API だけで書く（文面のモジュール） |
 | LLVM | 公開ヘッダとソースを、同じ形のディレクトリに置く（`include/llvm/Support/` と `lib/Support/`）。表現を見せるヘッダを別にする（`LLVMContextImpl.h`、`AttributeImpl.h`）。これは公開ヘッダの内部版ではなく、オブジェクトの表現を見せる面で、実装ヘッダ `x_impl.h` の名前と役割はこれに倣う |
 | libgit2 | 公開ヘッダと同じ名前の内部ヘッダが、公開ヘッダを include して構造体の中身と内部の関数を足す（`include/git2/repository.h` と `src/libgit2/repository.h`）。ただし libgit2 は内部の関数を `git_repository__*` と名前で区別し、CLOpts は区別しない |
 | CPython | ヘッダを見せる相手で段に分ける（公開 API、CPython 固有の API、内部 API） |

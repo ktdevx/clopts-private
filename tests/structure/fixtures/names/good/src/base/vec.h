@@ -1,4 +1,4 @@
-/* Good: a type and its operations in one header. */
+/* Good: a struct and its operations in one header. */
 typedef struct clopts_vec
 {
     int len;
