@@ -268,8 +268,9 @@ set(CLOPTS_NAOS_COMMIT "09fde7172c4b63d416c32e98499cb0c0306d3dea")
    ctest --test-dir build-naos -L core --output-on-failure
    ctest --test-dir build-naos -L decl --output-on-failure
    ctest --test-dir build-naos -L parser --output-on-failure
-   ctest --test-dir build-naos -L help --output-on-failure
-   ctest --test-dir build-naos -L platform --output-on-failure
+   ctest --test-dir build-naos -L text --output-on-failure
+   ctest --test-dir build-naos -L process --output-on-failure
+   ctest --test-dir build-naos -L structure --output-on-failure
    ctest --test-dir build-naos -L toolchain --output-on-failure
    ctest --test-dir build-naos -L integration --output-on-failure
    ctest --test-dir build-naos -L abi --output-on-failure

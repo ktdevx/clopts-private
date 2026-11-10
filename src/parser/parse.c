@@ -18,6 +18,12 @@
  *   7. OK, or NO_COMMAND when the program has subcommands and none was
  *      selected.
  *
+ * Without a lookup callback, the process environment is read through the
+ * process module (clopts_process_env_lookup), with a lookup context that
+ * lives on the stack of parse() for this parse only. This is the only place
+ * in the parser that knows the process; the steps themselves see a lookup
+ * callback only.
+ *
  * Allocation failures and lookups that report FAILED after the result exists
  * end with CLOPTS_PARSE_OUT_OF_MEMORY on that result, which stays releasable with
  * clopts_result_destroy(). This file writes the final status of the result;
@@ -25,6 +31,7 @@
  */
 
 #include "parser/parser_internal.h"
+#include "process/process_internal.h"
 
 #include <assert.h>
 
@@ -220,11 +227,15 @@ static void parse_run(const clopts_program_t *program, int argc, char *const *ar
     clopts_parser_result_finish(result, selected_scope ? CLOPTS_PARSE_OK : CLOPTS_PARSE_NO_COMMAND);
 }
 
-/* Shared body of clopts_parse() and clopts_parse_with_env(). */
+/*
+ * Shared body of clopts_parse() and clopts_parse_with_env(). Without getenv_fn
+ * (NULL), the process environment is the source of the environment values.
+ */
 static clopts_result_t *parse(const clopts_program_t *program, int argc, char *const *argv, clopts_getenv_fn getenv_fn,
                               void *env_ctx)
 {
     clopts_result_t *result;
+    clopts_process_env_ctx_t process_env;
 
     assert(argc >= 0);
     assert((argc == 0) || (argv != NULL));
@@ -236,7 +247,15 @@ static clopts_result_t *parse(const clopts_program_t *program, int argc, char *c
         return result;
     }
 
-    parse_run(program, argc, argv, getenv_fn, env_ctx, result);
+    if (getenv_fn != NULL)
+    {
+        parse_run(program, argc, argv, getenv_fn, env_ctx, result);
+        return result;
+    }
+
+    clopts_process_env_init(&process_env);
+    parse_run(program, argc, argv, clopts_process_env_lookup, &process_env, result);
+    clopts_process_env_release(&process_env);
     return result;
 }
 

@@ -189,8 +189,8 @@ typedef enum clopts_parser_resolve_status
 /*
  * Fills the VALUE / LIST slots that got nothing from argv, from the
  * environment and then from the default value, in declaration order. A found
- * environment value is copied before the callback is called again. Without
- * getenv_fn (NULL) the process environment is read. Only the global options
+ * environment value is copied before the callback is called again. getenv_fn
+ * must not be NULL: parse.c chooses the source. Only the global options
  * are resolved when include_command is false. A value the lookup reports as
  * INVALID leaves its slot unset; the first one is recorded as the error of
  * result (its command: the selected one when include_command, else NULL),

@@ -19,7 +19,7 @@
  */
 
 /*
- * Output sink of the text writers (text_out.c). The same call sequence runs
+ * Output sink of the text writers (out.c). The same call sequence runs
  * in one of two modes:
  *   - write mode (fn != NULL): the bytes are passed to fn(ctx, ...) in one
  *     call, without retry. The first failure sets failed; after that fn is not
@@ -59,7 +59,7 @@ clopts_write_status_t clopts_text_out_status(const clopts_text_out_t *out);
 size_t clopts_text_width(const char *data, size_t len);
 
 /*
- * One row of a help list (text_layout.c): an option of the declaration, or a
+ * One row of a help list (layout.c): an option of the declaration, or a
  * fixed row whose left column and description are given as strings (the
  * reserved rows, for example).
  *   - option != NULL: the left column and the notes follow the rules of the

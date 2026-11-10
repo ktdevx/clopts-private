@@ -293,24 +293,28 @@ NAOS_TEST(null_program_does_not_call_getenv)
     clopts_result_destroy(result);
 }
 
-/* ---- default lookup (clopts_platform_getenv_default: tests/platform/test_env.c) ---- */
+/* ---- process environment (the lookup itself: tests/process/test_env.c) ---- */
 
-NAOS_TEST(null_getenv_fn_uses_the_default_lookup)
+/*
+ * Without a lookup callback, the parse reads the process environment: the
+ * variable of --config is unset there, so its default applies.
+ */
+NAOS_TEST(null_getenv_fn_reads_the_process_environment)
 {
     sample_t s;
     clopts_result_t *result;
+    static char *const argv[] = { "tool", "--token", "t", NULL };
 
     test_alloc_begin(0);
     sample_build(&s, true);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
-    result = clopts_parser_result_new(s.program);
-    NAOS_REQUIRE_NOT_NULL(result);
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, NULL, NULL, true), CLOPTS_PARSER_RESOLVE_DONE);
-    NAOS_CHECK_INT_EQ(slot_of(result, s.config)->source, CLOPTS_SOURCE_DEFAULT);
-    NAOS_CHECK_STR_EQ(slot_of(result, s.config)->value, "def.conf");
-    NAOS_CHECK_INT_EQ(slot_of(result, s.token)->source, CLOPTS_SOURCE_NONE);
+    result = clopts_parse_with_env(s.program, 3, argv, NULL, NULL);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
+    NAOS_CHECK_INT_EQ(clopts_result_get_source(result, s.config), CLOPTS_SOURCE_DEFAULT);
+    NAOS_CHECK_STR_EQ(clopts_result_get_value(result, s.config), "def.conf");
+    NAOS_CHECK_INT_EQ(clopts_result_get_source(result, s.token), CLOPTS_SOURCE_EXPLICIT);
 
     SAMPLE_END(s, result);
 }
@@ -1670,7 +1674,7 @@ NAOS_TEST(parse_env_value_is_copied_before_the_next_lookup)
 
 NAOS_SUITE(resolve,
     NAOS_ADD_TEST(null_program_does_not_call_getenv),
-    NAOS_ADD_TEST(null_getenv_fn_uses_the_default_lookup),
+    NAOS_ADD_TEST(null_getenv_fn_reads_the_process_environment),
     NAOS_ADD_TEST(explicit_wins_over_env_and_default),
     NAOS_ADD_TEST(env_wins_over_default),
     NAOS_ADD_TEST(default_when_env_is_unset),

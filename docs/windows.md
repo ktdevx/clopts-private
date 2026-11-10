@@ -2,9 +2,9 @@
 
 この章は、Windows で CLOpts を使うときの注意を示す。非 ASCII の引数と環境変数を UTF-8 で受け取る方法、`wmain` を使うときの変換、実行ファイルのマニフェストの `activeCodePage` との関係、共有版の DLL の置き場所、コンソールへ UTF-8 の文面を出すときのコードページを扱う。
 
-argv のための関数は `clopts/platform.h` にある。関数ごとの引数と戻り値の一覧は [API リファレンス](api.md#プラットフォームの関数) の章にある。解析の関数と結果の読み方は同じ章の残りの節で、引数の解釈の規則は [解析規則](parsing.md) の章で示す。
+argv のための関数は `clopts/argv.h` にある。関数ごとの引数と戻り値の一覧は [API リファレンス](api.md#argv-の取得) の章にある。解析の関数と結果の読み方は同じ章の残りの節で、引数の解釈の規則は [解析規則](parsing.md) の章で示す。
 
-CLOpts は、引数と環境変数の値を UTF-8 の文字列として扱う。Windows 以外の OS では、`clopts/platform.h` の関数は何も変換しない（後で述べるパススルー）。そのため、この章の手順どおりに書いたプログラムは、同じソースのまま Linux や macOS でもビルドでき、動く。サンプルの `examples/taskbook/taskbook.c` と `examples/textcount/textcount.c` は、この章の手順で書かれている。
+CLOpts は、引数と環境変数の値を UTF-8 の文字列として扱う。Windows 以外の OS では、`clopts/argv.h` の関数は何も変換しない（後で述べるパススルー）。そのため、この章の手順どおりに書いたプログラムは、同じソースのまま Linux や macOS でもビルドでき、動く。サンプルの `examples/taskbook/taskbook.c` と `examples/textcount/textcount.c` は、この章の手順で書かれている。
 
 ## UTF-8 の argv を得る
 

@@ -20,7 +20,7 @@ int clopts_core_size_mul(size_t a, size_t b, size_t *out);
 int clopts_core_size_add(size_t a, size_t b, size_t *out);
 
 /*
- * Allocation gateway (core_alloc.c).
+ * Allocation gateway (alloc.c).
  *
  * Every allocation and release of the library goes through these functions,
  * which call the allocator set with clopts_set_allocator(). A size of 0 is

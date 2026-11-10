@@ -15,7 +15,7 @@ clopts_result_get_status
 clopts_result_take
 clopts_result_destroy
 
-# clopts/platform.h
+# clopts/argv.h
 clopts_argv_create
 clopts_argv_create_from_wide windows
 clopts_argv_destroy
