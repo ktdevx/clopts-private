@@ -40,11 +40,13 @@ set(_clopts_structure_bad_getenv_outside_process
     "decl/names\\.c:6: call of getenv outside process")
 set(_clopts_structure_bad_windows_h_outside_process
     "text/out\\.c:2: #include <windows\\.h> outside process")
+set(_clopts_structure_bad_windows_h_outside_win32
+    "process/env\\.c:2: #include <windows\\.h> outside process/\\*_win32\\.c")
 set(_clopts_structure_bad_unknown_module
     "extra/extra\\.c:1: module 'extra' has no dependency rule")
 foreach(_clopts_structure_case IN ITEMS
         text_reads_decl scan_reads_process base_reads_decl
-        getenv_outside_process windows_h_outside_process unknown_module)
+        getenv_outside_process windows_h_outside_process windows_h_outside_win32 unknown_module)
     _clopts_structure_add_test("selftest.${_clopts_structure_case}"
         "${_clopts_structure_fixtures}/bad/${_clopts_structure_case}"
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_bad_${_clopts_structure_case}}")

@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_ENV_H
-#define CLOPTS_ENV_H
+#ifndef CLOPTS_PROCESS_ENV_H
+#define CLOPTS_PROCESS_ENV_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,4 +44,4 @@ typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, con
 }
 #endif
 
-#endif /* CLOPTS_ENV_H */
+#endif /* CLOPTS_PROCESS_ENV_H */

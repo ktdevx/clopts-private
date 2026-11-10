@@ -45,10 +45,10 @@
 - 名前は `^clopts_[a-z0-9_]+$` に合うこと。重複してはいけない。
 - 名前は OS によらず同じに書く（macOS の先頭の `_` は付けない）。
 - 載せるのは `CLOPTS_API` の付いた関数だけ。公開ヘッダの `static inline` の関数（`clopts_file_write`）は export されないので載せない。
-- 特定の OS でだけ宣言・export される関数は、名前の後に空白で区切って OS の注記を 1 つ書く。受け付ける注記は `windows` だけである。現在は `include/clopts/argv.h` の `#ifdef _WIN32` の中で宣言される `clopts_argv_create_from_wide` が該当する。
+- 特定の OS でだけ宣言・export される関数は、名前の後に空白で区切って OS の注記を 1 つ書く。受け付ける注記は `windows` だけである。現在は `include/clopts/process/argv.h` の `#ifdef _WIN32` の中で宣言される `clopts_argv_create_from_wide` が該当する。
 
   ```text
-  # clopts/argv.h
+  # clopts/process/argv.h
   clopts_argv_create_from_wide windows
   ```
 
@@ -61,7 +61,7 @@ clopts_program_create
 clopts_program_destroy
 ...
 
-# clopts/argv.h
+# clopts/process/argv.h
 clopts_argv_create_from_wide windows
 ```
 

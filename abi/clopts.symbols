@@ -28,7 +28,7 @@
 # clopts/base/allocator.h
 clopts_set_allocator
 
-# clopts/argv.h
+# clopts/process/argv.h
 clopts_argv_create
 clopts_argv_create_from_wide windows
 clopts_argv_get_status

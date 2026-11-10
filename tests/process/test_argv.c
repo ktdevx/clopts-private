@@ -12,7 +12,8 @@
 
 #include "test_util.h"
 
-#include "process/process_internal.h"
+#include "process/argv.h"
+#include "process/utf16.h"
 
 #include "test_alloc.h"
 
@@ -26,7 +27,7 @@ NAOS_TEST(u16_from_ascii_copies_each_byte_and_terminates)
 {
     process_test_u16_t s;
     const char *text = "a \"b\\c\td";
-    clopts_process_u16_t *units;
+    clopts_utf16_t *units;
     size_t i;
 
     units = process_test_u16_from_ascii(&s, text);
@@ -87,16 +88,16 @@ NAOS_TEST(null_handle_reads_like_the_sentinel)
 
 NAOS_TEST(sentinel_accessors)
 {
-    clopts_argv_t *sentinel = clopts_process_argv_sentinel();
+    clopts_argv_t *sentinel = clopts_argv_sentinel();
 
     NAOS_CHECK_NOT_NULL(sentinel);
-    NAOS_CHECK_PTR_EQ(clopts_process_argv_sentinel(), sentinel);
+    NAOS_CHECK_PTR_EQ(clopts_argv_sentinel(), sentinel);
     process_argv_check_oom(sentinel);
 }
 
 NAOS_TEST(free_ignores_null_and_the_sentinel)
 {
-    clopts_argv_t *sentinel = clopts_process_argv_sentinel();
+    clopts_argv_t *sentinel = clopts_argv_sentinel();
 
     test_alloc_begin(0);
     clopts_argv_destroy(NULL);
@@ -115,9 +116,9 @@ static void process_argv_check_failure(clopts_argv_status_t status, int error_in
     char *const *values;
 
     test_alloc_begin(0);
-    args = clopts_process_argv_failure(status, error_index);
+    args = clopts_argv_failure(status, error_index);
     NAOS_CHECK_NOT_NULL(args);
-    NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
+    NAOS_CHECK_TRUE(args != clopts_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), status);
     NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
     values = clopts_argv_get_values(args);
@@ -151,10 +152,10 @@ NAOS_TEST(failure_handles_share_the_empty_array)
     clopts_argv_t *b;
 
     test_alloc_begin(0);
-    a = clopts_process_argv_failure(CLOPTS_ARGV_INVALID_UTF16, 1);
-    b = clopts_process_argv_failure(CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1);
-    NAOS_CHECK_TRUE(a != clopts_process_argv_sentinel());
-    NAOS_CHECK_TRUE(b != clopts_process_argv_sentinel());
+    a = clopts_argv_failure(CLOPTS_ARGV_INVALID_UTF16, 1);
+    b = clopts_argv_failure(CLOPTS_ARGV_CMDLINE_UNAVAILABLE, -1);
+    NAOS_CHECK_TRUE(a != clopts_argv_sentinel());
+    NAOS_CHECK_TRUE(b != clopts_argv_sentinel());
     NAOS_CHECK_PTR_EQ(clopts_argv_get_values(a), clopts_argv_get_values(b));
     NAOS_CHECK_PTR_EQ(clopts_argv_get_values(a), clopts_argv_get_values(NULL));
     clopts_argv_destroy(a);
@@ -167,8 +168,8 @@ NAOS_TEST(failure_allocation_failure_returns_the_sentinel)
     clopts_argv_t *args;
 
     test_alloc_begin(1);
-    args = clopts_process_argv_failure(CLOPTS_ARGV_INVALID_UTF16, 2);
-    NAOS_CHECK_PTR_EQ(args, clopts_process_argv_sentinel());
+    args = clopts_argv_failure(CLOPTS_ARGV_INVALID_UTF16, 2);
+    NAOS_CHECK_PTR_EQ(args, clopts_argv_sentinel());
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     process_argv_check_oom(args);
     clopts_argv_destroy(args);
@@ -179,8 +180,8 @@ NAOS_TEST(failure_allocation_failure_returns_the_sentinel)
 NAOS_TEST(failure_out_of_memory_is_the_sentinel)
 {
     test_alloc_begin(0);
-    NAOS_CHECK_PTR_EQ(clopts_process_argv_failure(CLOPTS_ARGV_OUT_OF_MEMORY, -1),
-                      clopts_process_argv_sentinel());
+    NAOS_CHECK_PTR_EQ(clopts_argv_failure(CLOPTS_ARGV_OUT_OF_MEMORY, -1),
+                      clopts_argv_sentinel());
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 0);
     NAOS_CHECK_TRUE(test_alloc_end());
 }
@@ -202,8 +203,8 @@ NAOS_TEST(passthrough_borrows_every_pointer)
     argv[3] = a3;
     argv[4] = NULL;
     test_alloc_begin(0);
-    args = clopts_process_argv_passthrough(4, argv);
-    NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
+    args = clopts_argv_passthrough(4, argv);
+    NAOS_CHECK_TRUE(args != clopts_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
     NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
     NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 4);
@@ -236,8 +237,8 @@ NAOS_TEST(passthrough_with_argc_zero)
     char *const *values;
 
     test_alloc_begin(0);
-    args = clopts_process_argv_passthrough(0, empty);
-    NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
+    args = clopts_argv_passthrough(0, empty);
+    NAOS_CHECK_TRUE(args != clopts_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
     NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
     NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
@@ -245,8 +246,8 @@ NAOS_TEST(passthrough_with_argc_zero)
     clopts_argv_destroy(args);
     NAOS_CHECK_INT_EQ(test_alloc.live, 0);
 
-    args = clopts_process_argv_passthrough(0, NULL);
-    NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
+    args = clopts_argv_passthrough(0, NULL);
+    NAOS_CHECK_TRUE(args != clopts_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
     NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
     NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
@@ -272,8 +273,8 @@ NAOS_TEST(passthrough_allocation_failure_returns_the_sentinel)
     argv[0] = a0;
     argv[1] = NULL;
     test_alloc_begin(1);
-    args = clopts_process_argv_passthrough(1, argv);
-    NAOS_CHECK_PTR_EQ(args, clopts_process_argv_sentinel());
+    args = clopts_argv_passthrough(1, argv);
+    NAOS_CHECK_PTR_EQ(args, clopts_argv_sentinel());
     NAOS_CHECK_UINT_EQ(test_alloc.calls, 1);
     process_argv_check_oom(args);
     clopts_argv_destroy(args);
@@ -292,7 +293,7 @@ NAOS_TEST(public_free_releases_a_passthrough_handle)
     argv[0] = a0;
     argv[1] = NULL;
     test_alloc_begin(0);
-    args = clopts_process_argv_passthrough(1, argv);
+    args = clopts_argv_passthrough(1, argv);
     NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 1);
     NAOS_CHECK_INT_EQ(test_alloc.live, 1);
     clopts_argv_destroy(args);
@@ -323,7 +324,7 @@ NAOS_TEST(argv_get_returns_the_callers_argv_unchanged)
     test_alloc_begin(0);
     args = clopts_argv_create(4, argv);
     NAOS_CHECK_NOT_NULL(args);
-    NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
+    NAOS_CHECK_TRUE(args != clopts_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
     NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
     NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 4);
@@ -355,7 +356,7 @@ NAOS_TEST(argv_get_with_argc_zero)
 
     test_alloc_begin(0);
     args = clopts_argv_create(0, empty);
-    NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
+    NAOS_CHECK_TRUE(args != clopts_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
     NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
     NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
@@ -364,7 +365,7 @@ NAOS_TEST(argv_get_with_argc_zero)
 
     /* argv may be NULL when argc is 0; values is still a NULL-terminated array */
     args = clopts_argv_create(0, NULL);
-    NAOS_CHECK_TRUE(args != clopts_process_argv_sentinel());
+    NAOS_CHECK_TRUE(args != clopts_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
     NAOS_CHECK_INT_EQ(clopts_argv_get_count(args), 0);
     NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
@@ -413,7 +414,7 @@ static void process_argv_check_matches_crt(const clopts_argv_t *args)
     char *const *values;
     int i;
 
-    NAOS_REQUIRE_TRUE(args != clopts_process_argv_sentinel());
+    NAOS_REQUIRE_TRUE(args != clopts_argv_sentinel());
     NAOS_CHECK_INT_EQ(clopts_argv_get_status(args), CLOPTS_ARGV_OK);
     NAOS_CHECK_INT_EQ(clopts_argv_get_error_index(args), -1);
     NAOS_REQUIRE_INT_EQ(clopts_argv_get_count(args), __argc);

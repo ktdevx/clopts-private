@@ -14,10 +14,10 @@
 | `clopts/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（作成、解放、属性、読み取り） |
 | `clopts/positional.h` | 位置引数の関数（作成、解放、属性、読み取り） |
 | `clopts/parse.h` | 解析の関数、状態とエラー種別の列挙、結果とエラーのアクセサ |
-| `clopts/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse.h` が取り込む |
+| `clopts/process/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse.h` が取り込む |
 | `clopts/text.h` | ヘルプ・使い方・版・エラーの文面を出す関数 |
 | `clopts/writer.h` | 書き込みコールバックの型と、`FILE*` へ書く便宜関数 |
-| `clopts/argv.h` | UTF-8 の argv を得る関数 |
+| `clopts/process/argv.h` | UTF-8 の argv を得る関数 |
 | `clopts/base/allocator.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
 
 引数がどの規則で解釈されるか（`--`、`-` 単体、並べ替え、`--no-<name>`、カウント、環境変数の優先順位など）は [解析規則](parsing.md) の章で、Windows での argv と環境変数の扱いは [Windows での注意](windows.md) の章で示す。共有ライブラリとしての互換性の方針は [ABI の互換性](abi.md) の章にある。
@@ -438,7 +438,7 @@ taskbook 1.2.3
 
 `clopts_parse` は、`clopts_option_set_env` で宣言した環境変数を、プロセスの環境から UTF-8 で読む。Windows でも、利用側が何かを用意する必要はない（[Windows での注意](windows.md) の章）。taskbook はこの方法で `TASKBOOK_FORMAT` を読む（`TASKBOOK_FORMAT=json taskbook list`）。
 
-値をプロセスの環境以外から渡すときは、`clopts_parse_with_env` に、`clopts/env.h` にある次の型のコールバックを渡す。
+値をプロセスの環境以外から渡すときは、`clopts_parse_with_env` に、`clopts/process/env.h` にある次の型のコールバックを渡す。
 
 ```c
 typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, const char **value);
@@ -757,7 +757,7 @@ typedef struct clopts_allocator
 
 ## argv の取得
 
-`clopts/argv.h` は、プロセスの argv を UTF-8 で得て、`clopts_parse` / `clopts_parse_with_env` に渡すための関数を持つ。環境変数は解析が自分で UTF-8 で読むので、ここには関数がない。Windows でのふるまい（コマンドラインからの取得、`wmain`、`activeCodePage`）と使い分けは [Windows での注意](windows.md) の章で示す。ここでは関数の一覧だけを示す。
+`clopts/process/argv.h` は、プロセスの argv を UTF-8 で得て、`clopts_parse` / `clopts_parse_with_env` に渡すための関数を持つ。環境変数は解析が自分で UTF-8 で読むので、ここには関数がない。Windows でのふるまい（コマンドラインからの取得、`wmain`、`activeCodePage`）と使い分けは [Windows での注意](windows.md) の章で示す。ここでは関数の一覧だけを示す。
 
 | 関数 | 引数と戻り値 |
 |------|--------------|

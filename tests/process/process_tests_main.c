@@ -5,7 +5,7 @@
 
 #include <naos/naos.h>
 
-NAOS_DECLARE_SUITE(split);
+NAOS_DECLARE_SUITE(cmdline);
 NAOS_DECLARE_SUITE(argv);
 NAOS_DECLARE_SUITE(env);
 NAOS_DECLARE_SUITE(oom);
@@ -16,7 +16,7 @@ NAOS_DECLARE_SUITE(convert);
 NAOS_DECLARE_SUITE(crt);
 
 NAOS_MAIN(
-    NAOS_ADD_SUITE(split),
+    NAOS_ADD_SUITE(cmdline),
     NAOS_ADD_SUITE(argv),
     NAOS_ADD_SUITE(env),
     NAOS_ADD_SUITE(oom),
@@ -25,7 +25,7 @@ NAOS_MAIN(
 )
 #else
 NAOS_MAIN(
-    NAOS_ADD_SUITE(split),
+    NAOS_ADD_SUITE(cmdline),
     NAOS_ADD_SUITE(argv),
     NAOS_ADD_SUITE(env),
     NAOS_ADD_SUITE(oom)

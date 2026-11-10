@@ -13,9 +13,9 @@
 #     module directory is allowed only when the rules below list <other> for
 #     the module, or for the file itself. #include "clopts/..." (the public
 #     headers) and includes of the file's own module are always allowed.
-#   - the OS boundary: outside the process module, no #include <windows.h>
-#     and no call of getenv / _wgetenv / secure_getenv /
-#     GetEnvironmentVariable*.
+#   - the OS boundary: no #include <windows.h> outside process/*_win32.c,
+#     and outside the process module no call of getenv / _wgetenv /
+#     secure_getenv / GetEnvironmentVariable*.
 # A module directory that the rules do not list is an error, so a new module
 # has to be given its rule. Exits with an error that lists every offending
 # <file>:<line> when something is found.
@@ -143,11 +143,14 @@ foreach(_rel IN LISTS _files)
         endif()
 
         # The OS boundary.
+        string(TOLOWER "${_code}" _lower)
+        if(_lower MATCHES "^[ \t]*#[ \t]*include[ \t]*<windows\\.h>")
+            if(NOT _rel MATCHES "^${_os_module}/[^/]*_win32\\.c$")
+                list(APPEND _offending "${_file}:${_line_number}: #include <windows.h> outside ${_os_module}/*_win32.c")
+            endif()
+        endif()
         if(NOT _module STREQUAL _os_module)
-            string(TOLOWER "${_code}" _lower)
-            if(_lower MATCHES "^[ \t]*#[ \t]*include[ \t]*<windows\\.h>")
-                list(APPEND _offending "${_file}:${_line_number}: #include <windows.h> outside ${_os_module}")
-            elseif(_lower MATCHES "(^|[^a-z0-9_])(_w|secure_)?getenv[ \t]*\\(")
+            if(_lower MATCHES "(^|[^a-z0-9_])(_w|secure_)?getenv[ \t]*\\(")
                 list(APPEND _offending "${_file}:${_line_number}: call of getenv outside ${_os_module}")
             elseif(_lower MATCHES "(^|[^a-z0-9_])getenvironmentvariable[a-z]*[ \t]*\\(")
                 list(APPEND _offending "${_file}:${_line_number}: call of GetEnvironmentVariable outside ${_os_module}")

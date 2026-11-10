@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_ARGV_H
-#define CLOPTS_ARGV_H
+#ifndef CLOPTS_PROCESS_ARGV_H
+#define CLOPTS_PROCESS_ARGV_H
 
 #include <stddef.h>
 
@@ -75,4 +75,4 @@ CLOPTS_API void clopts_argv_destroy(clopts_argv_t *args);
 }
 #endif
 
-#endif /* CLOPTS_ARGV_H */
+#endif /* CLOPTS_PROCESS_ARGV_H */

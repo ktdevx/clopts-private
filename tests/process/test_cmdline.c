@@ -2,8 +2,8 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite split: command line splitting with the rules of the current MSVC
- * CRT (clopts_process_split), on every OS.
+ * Suite cmdline: command line splitting with the rules of the current MSVC
+ * CRT (clopts_cmdline_split), on every OS.
  *
  * It also checks the comparison helper of test_util, which the table of
  * this suite relies on.
@@ -11,7 +11,7 @@
 
 #include "test_util.h"
 
-#include "process/process_internal.h"
+#include "process/cmdline.h"
 
 #include <naos/naos.h>
 
@@ -24,7 +24,7 @@ NAOS_TEST(split_mismatch_accepts_equal_lists)
     process_test_u16_t a;
     process_test_u16_t b;
     process_test_u16_t empty;
-    clopts_process_u16_t *args[3];
+    clopts_utf16_t *args[3];
     static const char *const expected[] = {"prog", "b c", "", NULL};
     static const char *const none[] = {NULL};
 
@@ -40,7 +40,7 @@ NAOS_TEST(split_mismatch_reports_the_first_difference)
 {
     process_test_u16_t a;
     process_test_u16_t b;
-    clopts_process_u16_t *args[2];
+    clopts_utf16_t *args[2];
     static const char *const second_differs[] = {"prog", "bx", NULL};
     static const char *const both_differ[] = {"pro", "c", NULL};
     static const char *const longer[] = {"prog", "b", "c", NULL};
@@ -59,7 +59,7 @@ NAOS_TEST(split_mismatch_compares_non_ascii_units_as_different)
 {
     static const uint16_t units[] = {0x30C6, 0x0061};
     process_test_u16_t a;
-    clopts_process_u16_t *args[1];
+    clopts_utf16_t *args[1];
     static const char *const expected[] = {"\x30" "a", NULL};
 
     args[0] = process_test_u16_from_units(&a, units, 2);
@@ -72,15 +72,15 @@ NAOS_TEST(split_mismatch_compares_non_ascii_units_as_different)
 #define SPLIT_TEST_CANARY 0xBEEFu
 
 /*
- * Runs both passes of clopts_process_split on cmdline and checks the
+ * Runs both passes of clopts_cmdline_split on cmdline and checks the
  * contract that does not depend on the expected elements: argc >= 1, the
  * fill pass reports the same argc and units as the counting pass, the
  * elements are laid out one after the other in buf with one NUL each and
  * use exactly *units code units, and nothing past them is written.
  * Returns the element count; args[0..argc-1] point into buf.
  */
-static size_t split_run(const clopts_process_u16_t *cmdline, clopts_process_u16_t *buf,
-                        clopts_process_u16_t **args)
+static size_t split_run(const clopts_utf16_t *cmdline, clopts_utf16_t *buf,
+                        clopts_utf16_t **args)
 {
     size_t count_argc = 0;
     size_t count_units = 0;
@@ -89,7 +89,7 @@ static size_t split_run(const clopts_process_u16_t *cmdline, clopts_process_u16_
     size_t used = 0;
     size_t i;
 
-    clopts_process_split(cmdline, NULL, NULL, &count_argc, &count_units);
+    clopts_cmdline_split(cmdline, NULL, NULL, &count_argc, &count_units);
     NAOS_REQUIRE_UINT_GE(count_argc, 1);
     NAOS_REQUIRE_UINT_LE(count_argc, SPLIT_TEST_ARGS);
     NAOS_REQUIRE_UINT_GE(count_units, count_argc);
@@ -97,14 +97,14 @@ static size_t split_run(const clopts_process_u16_t *cmdline, clopts_process_u16_
 
     for (i = 0; i <= SPLIT_TEST_UNITS; i++)
     {
-        buf[i] = (clopts_process_u16_t)SPLIT_TEST_CANARY;
+        buf[i] = (clopts_utf16_t)SPLIT_TEST_CANARY;
     }
     for (i = 0; i <= SPLIT_TEST_ARGS; i++)
     {
         args[i] = NULL;
     }
 
-    clopts_process_split(cmdline, buf, args, &fill_argc, &fill_units);
+    clopts_cmdline_split(cmdline, buf, args, &fill_argc, &fill_units);
     NAOS_REQUIRE_UINT_EQ(fill_argc, count_argc);
     NAOS_REQUIRE_UINT_EQ(fill_units, count_units);
 
@@ -255,8 +255,8 @@ NAOS_TEST(split_table)
     for (row = 0; row < sizeof split_rows / sizeof split_rows[0]; row++)
     {
         process_test_u16_t cmdline;
-        clopts_process_u16_t buf[SPLIT_TEST_UNITS + 1];
-        clopts_process_u16_t *args[SPLIT_TEST_ARGS + 1];
+        clopts_utf16_t buf[SPLIT_TEST_UNITS + 1];
+        clopts_utf16_t *args[SPLIT_TEST_ARGS + 1];
         size_t argc;
 
         NAOS_TRACE_PUSH("row %u: cmdline \"%s\"", (unsigned)row, split_rows[row].cmdline);
@@ -267,7 +267,7 @@ NAOS_TEST(split_table)
 }
 
 /* True when the NUL-terminated s has exactly units[0..count-1]. */
-static bool split_units_eq(const clopts_process_u16_t *s, const uint16_t *units, size_t count)
+static bool split_units_eq(const clopts_utf16_t *s, const uint16_t *units, size_t count)
 {
     size_t i;
 
@@ -293,8 +293,8 @@ NAOS_TEST(split_passes_non_ascii_and_surrogates_through)
     static const uint16_t arg2[] = {0xDC00, 0x0020, 0xD800};
     static const uint16_t arg3[] = {0x00A0, 0x0061, 0x3000, 0x0062};
     process_test_u16_t cmdline;
-    clopts_process_u16_t buf[SPLIT_TEST_UNITS + 1];
-    clopts_process_u16_t *args[SPLIT_TEST_ARGS + 1];
+    clopts_utf16_t buf[SPLIT_TEST_UNITS + 1];
+    clopts_utf16_t *args[SPLIT_TEST_ARGS + 1];
     size_t argc;
 
     argc = split_run(process_test_u16_from_units(&cmdline, cmdline_units,
@@ -316,8 +316,8 @@ NAOS_TEST(split_non_ascii_in_argv0_with_quotes)
     static const uint16_t arg0[] = {0x30C6, 0x0020, 0xD800, 0x005C, 0x0078};
     static const uint16_t arg1[] = {0x0079};
     process_test_u16_t cmdline;
-    clopts_process_u16_t buf[SPLIT_TEST_UNITS + 1];
-    clopts_process_u16_t *args[SPLIT_TEST_ARGS + 1];
+    clopts_utf16_t buf[SPLIT_TEST_UNITS + 1];
+    clopts_utf16_t *args[SPLIT_TEST_ARGS + 1];
     size_t argc;
 
     argc = split_run(process_test_u16_from_units(&cmdline, cmdline_units,
@@ -328,7 +328,7 @@ NAOS_TEST(split_non_ascii_in_argv0_with_quotes)
     NAOS_CHECK_TRUE(split_units_eq(args[1], arg1, 1));
 }
 
-NAOS_SUITE(split,
+NAOS_SUITE(cmdline,
     NAOS_ADD_TEST(split_mismatch_accepts_equal_lists),
     NAOS_ADD_TEST(split_mismatch_reports_the_first_difference),
     NAOS_ADD_TEST(split_mismatch_compares_non_ascii_units_as_different),

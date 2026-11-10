@@ -19,7 +19,7 @@
  *      selected.
  *
  * Without a lookup callback, the process environment is read through the
- * process module (clopts_process_env_lookup), with a lookup context that
+ * process module (clopts_env_lookup), with a lookup context that
  * lives on the stack of parse() for this parse only. This is the only place
  * in the parser that knows the process; the steps themselves see a lookup
  * callback only.
@@ -31,7 +31,7 @@
  */
 
 #include "parser/parser_internal.h"
-#include "process/process_internal.h"
+#include "process/env.h"
 
 #include <assert.h>
 
@@ -235,7 +235,7 @@ static clopts_result_t *parse(const clopts_program_t *program, int argc, char *c
                               void *env_ctx)
 {
     clopts_result_t *result;
-    clopts_process_env_ctx_t process_env;
+    clopts_env_t process_env;
 
     assert(argc >= 0);
     assert((argc == 0) || (argv != NULL));
@@ -253,9 +253,9 @@ static clopts_result_t *parse(const clopts_program_t *program, int argc, char *c
         return result;
     }
 
-    clopts_process_env_init(&process_env);
-    parse_run(program, argc, argv, clopts_process_env_lookup, &process_env, result);
-    clopts_process_env_release(&process_env);
+    clopts_env_init(&process_env);
+    parse_run(program, argc, argv, clopts_env_lookup, &process_env, result);
+    clopts_env_release(&process_env);
     return result;
 }
 
