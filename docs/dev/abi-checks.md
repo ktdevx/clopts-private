@@ -328,7 +328,7 @@ Variables changes summary: 0 Removed, 0 Changed, 0 Added variable
 
 abidiff は追加を ABI の変更（ビット 4）として報告するが、互換のない変更（ビット 8）ではないので `compatible` と判定され、報告もジョブの出力に残る。
 
-(c) 公開関数を 1 つ削除。(b) を戻してから、`include/clopts/decl/positional.h` の `clopts_positional_set_help` の宣言、`src/parse/parser_positional.c` の定義、`abi/clopts.symbols` の行を消した（比較のビルドは `CLOPTS_BUILD_TESTING=OFF` なので、この関数を呼ぶテストはビルドされない）。
+(c) 公開関数を 1 つ削除。(b) を戻してから、`include/clopts/decl/positional.h` の `clopts_positional_set_help` の宣言、`src/decl/positional.c` の定義、`abi/clopts.symbols` の行を消した（比較のビルドは `CLOPTS_BUILD_TESTING=OFF` なので、この関数を呼ぶテストはビルドされない）。
 
 ```text
 abi-compare: incompatible: incompatible ABI change from v1.0.0 to 1.0.0 (abidiff exit status 12)

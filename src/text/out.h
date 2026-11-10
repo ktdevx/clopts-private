@@ -21,7 +21,8 @@
  *     bytes (clopts_utf8_count, base/utf8.h) are added to width, so the same
  *     procedure first measures a column and then writes it.
  *
- * State: failed changes from false to true at most once.
+ * State: failed changes from false to true at most once. The fields may be
+ * read freely; they are written only through the clopts_out_* functions.
  */
 typedef struct clopts_out
 {

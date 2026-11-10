@@ -16,8 +16,9 @@
  * Slot (slot.c): what a parse has recorded for one option, and the rules of
  * recording it again (the last one wins, a count is clamped, list values are
  * split). The value and its source are always updated together, and
- * value == owned whenever owned is not NULL. Every allocation goes through
- * the allocation gateway (base/mem.h).
+ * value == owned whenever owned is not NULL. The fields may be read freely;
+ * they are written only through the clopts_slot_* functions. Every
+ * allocation goes through the allocation gateway (base/mem.h).
  */
 typedef struct clopts_slot
 {

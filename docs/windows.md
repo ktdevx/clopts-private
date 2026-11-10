@@ -155,7 +155,7 @@ Windows では、CRT の `getenv` も、値を ANSI のコードページで返�
 
 ### 読めない値
 
-Windows で、変数の値が正しい UTF-16 でない（対になっていないサロゲートを含む）と、その値は UTF-8 にできない。このとき解析は `CLOPTS_PARSE_USAGE_ERROR` で終わり、`clopts_result_get_usage_error` は `CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE` を、`clopts_result_get_error_option` はそのオプションを返す。argv の誤りと同じく、`clopts_write_error` が 1 行の文面を出す（`invalid value in environment variable '<変数名>'`）。
+Windows で、変数の値が正しい UTF-16 でない（対になっていないサロゲートを含む）と、その値は UTF-8 にできない。このとき解析は `CLOPTS_PARSE_USAGE_ERROR` で終わり、`clopts_result_get_usage_error` が返す使い方エラーの種別（`clopts_usage_error_get_kind`）は `CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE` で、`clopts_usage_error_get_option` はそのオプションを返す。argv の誤りと同じく、`clopts_write_error` が 1 行の文面を出す（`invalid value in environment variable '<変数名>'`）。
 
 - そのオプションの既定値は使われない。値を直すのは利用者の側なので、黙って既定値にはしない。
 - argv に終端オプション（`--help` や `--version`）があれば、argv の誤りと同じく、そちらが優先される。

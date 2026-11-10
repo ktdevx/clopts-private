@@ -16,6 +16,8 @@
  * be pushed to (elem_size is 0).
  *
  * Invariants: len <= cap, and (cap == 0) if and only if (data == NULL).
+ * The fields may be read freely; they are written only through the
+ * clopts_vec_* functions.
  */
 typedef struct clopts_vec
 {

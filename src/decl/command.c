@@ -15,8 +15,8 @@
  * Every builder function checks its arguments and the declaration rules that
  * belong to it, in a fixed order, and returns the first rule that fails.
  * Nothing is changed before every check has passed and every allocation has
- * succeeded, so a failing call leaves every handle as it was. Name rules and
- * comparisons live in names.c.
+ * succeeded, so a failing call leaves every handle as it was. Name rules
+ * live in name.c, the comparisons of names in scope.c.
  */
 
 #include "clopts/decl/command.h"

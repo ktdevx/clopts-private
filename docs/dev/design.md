@@ -53,7 +53,7 @@ tests/<モジュール>/test_x.c        テスト
 ```
 
 1. 公開ヘッダ `clopts/<モジュール>/x.h` が宣言する関数は、`src/<モジュール>/x.c`（OS ごとなら `x_win32.c` と `x_posix.c`）が定義する。
-2. 内部ヘッダ `src/<モジュール>/x.h` は、同じ名前の公開ヘッダを include し、構造体の中身と内部の関数を足す。
+2. 内部ヘッダ `src/<モジュール>/x.h` は、同じ名前の公開ヘッダを最初に include し、`x.h` を使う側が要る構造体の中身と内部の関数を足す。埋め込む側や実装する側だけが要るものは、実装ヘッダ `x_impl.h` に置く（「内部ヘッダの種類」）。
 3. 不透明な型 `clopts_x_t` は、`x.h` が前方宣言する。型の前方宣言だけを集めたヘッダは置かない。
 4. 公開ヘッダは、単独で include できる。使う型のヘッダは、自分で include する。
 5. マクロや型だけで、関数を宣言しない公開ヘッダは、`.c` を持たなくてよい。それでも、モジュールのディレクトリに置く。`CLOPTS_API` を決める `export.h` は、どのモジュールも使うので、いちばん下のモジュールに置く。
@@ -90,11 +90,15 @@ tests/<モジュール>/test_x.c        テスト
 
 ### 構造体の中身の見せ方
 
+分ける基準は、不変条件の有無ではなく、x を使う側のうち誰が中身を知る必要があるかである。
+
 | 種類 | 基準 | 置き場所 | 例 |
 |------|------|----------|----|
-| 値の型 | フィールドがそのまま使い方で、直接書き換えても壊れるものがない | `x.h` | `clopts_vec_t`、`clopts_slot_t`、`clopts_token_t`、`clopts_lookup_t`、`clopts_out_t`、`clopts_env_t`、内部の `clopts_usage_error_t` |
-| ハンドル | 不変条件があり、ほかのファイルは中身を知らなくてよい | `x.c` | program、command、option、positional、matches、result |
-| 継承される型 | 不変条件があるが、埋め込む・実装する側は中身を知る必要がある | `x_impl.h` | `clopts_scope_t`（`add_*` を通さずに足すと重複の検査が破れる）、`struct clopts_argv` |
+| 値の型 | `x.h` を使う側が、値として持つ（スタックに置く、配列にする、埋め込む）か、フィールドを読む | `x.h` | `clopts_vec_t`、`clopts_slot_t`、`clopts_token_t`、`clopts_lookup_t`、`clopts_out_t`、`clopts_env_t`、内部の `clopts_usage_error_t` |
+| ハンドル | 中身を知る必要があるのは、x を作るファイルだけである | `x.c` | program、command、option、positional、matches、result |
+| 継承される型 | 中身を知る必要があるのは、x を埋め込む側と x を OS ごとに実装する側だけで、`x.h` を使うほかの側は知らなくてよい | `x_impl.h` | `clopts_scope_t`（program と command が埋め込む。`lookup.c` は名前を引くだけ）、`struct clopts_argv` |
+
+中身を見せた型にも、不変条件があってよい（`clopts_vec_t` の `len <= cap`、`clopts_slot_t` の `value == owned`）。そのときは、フィールドを読むのは自由で、書くのは `clopts_x_*` の関数を通すだけ、と型の説明に書く。`clopts_lookup_t`、`clopts_token_t`、内部の `clopts_usage_error_t` のように、不変条件がなく、使う側が直接書いてよい型もある。
 
 公開の構造体は、この基準に加えて「その形で ABI を凍結してよいか」で決める（[ABI の互換性](../abi.md)）。公開で中身を出すのは、利用者が埋めて渡す `clopts_allocator_t` だけである。同じ型でも見せる相手で扱いが変わり、`clopts_usage_error_t` は内部では値の型、公開では不透明な型である。
 

@@ -21,7 +21,8 @@
  * Buffers of the values one lookup context lends. One parse owns one (on its
  * stack) for the duration of the resolution, so parses never share one.
  * Nothing is allocated until a lookup needs it, and nothing at all elsewhere
- * than Windows.
+ * than Windows. The fields may be read freely; they are written only through
+ * the clopts_env_* functions.
  */
 typedef struct clopts_env
 {
