@@ -31,7 +31,7 @@ extern "C" {
  * the program. The rules shared by every builder function follow.
  *
  * Once the program is first parsed (clopts/parse/parse.h) or written
- * (clopts/text.h), it must not change any more: calling a builder function on
+ * (clopts/text/write.h), it must not change any more: calling a builder function on
  * it or on anything attached to it is a contract violation (the behavior is
  * undefined; it is not detected). It can then be parsed and read from several
  * threads at the same time.

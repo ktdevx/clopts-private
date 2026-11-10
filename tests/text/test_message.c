@@ -17,7 +17,7 @@
 #include "test_fixtures.h"
 #include "test_decl.h"
 
-#include "text/text_internal.h"
+#include "text/message.h"
 
 #include <naos/naos.h>
 
@@ -812,11 +812,11 @@ NAOS_TEST(usage_text_covers_every_kind)
     int i;
     int j;
 
-    NAOS_CHECK_NULL(clopts_text_usage_text(CLOPTS_USAGE_ERROR_NONE));
-    NAOS_CHECK_NULL(clopts_text_usage_text((clopts_usage_error_kind_t)(MESSAGE_USAGE_KIND_MAX + 1)));
+    NAOS_CHECK_NULL(clopts_message_usage_text(CLOPTS_USAGE_ERROR_NONE));
+    NAOS_CHECK_NULL(clopts_message_usage_text((clopts_usage_error_kind_t)(MESSAGE_USAGE_KIND_MAX + 1)));
     for (i = 1; i <= MESSAGE_USAGE_KIND_MAX; i++)
     {
-        texts[i] = clopts_text_usage_text((clopts_usage_error_kind_t)i);
+        texts[i] = clopts_message_usage_text((clopts_usage_error_kind_t)i);
         NAOS_REQUIRE_NOT_NULL(texts[i]);
         NAOS_CHECK_TRUE(texts[i][0] != '\0');
         for (j = 1; j < i; j++)

@@ -27,7 +27,7 @@ extern "C" {
  * name comes first and --no-<name> of a negatable FLAG second, so a name of
  * a command shadows the same global option (clopts_scope_shadows_option()).
  * The parser knows no built-in option or command: --help, --version and a
- * help command are ordinary declarations (clopts/text.h).
+ * help command are ordinary declarations (clopts/text/write.h).
  *
  * Terminal options (clopts_option_set_terminal()): when argv gives one, the
  * scan stops right after it, the parse ends with CLOPTS_PARSE_TERMINATED and

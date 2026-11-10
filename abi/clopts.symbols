@@ -138,7 +138,7 @@ clopts_program_get_command_count
 clopts_program_get_command_at
 clopts_program_find_command
 
-# clopts/text.h
+# clopts/text/write.h
 clopts_write_help
 clopts_write_usage
 clopts_write_version

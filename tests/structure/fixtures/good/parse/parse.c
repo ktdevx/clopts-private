@@ -1,6 +1,6 @@
 /*
  * Good: parse may include process.
- * #include "text/text_internal.h" and getenv("X") in a comment are ignored.
+ * #include "text/out.h" and getenv("X") in a comment are ignored.
  */
 #include "base/mem.h"
 #include "decl/scope.h"

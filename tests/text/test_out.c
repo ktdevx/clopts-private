@@ -11,7 +11,7 @@
 
 #include "test_fixtures.h"
 
-#include "text/text_internal.h"
+#include "text/out.h"
 
 #include <naos/naos.h>
 
@@ -82,18 +82,18 @@ NAOS_TEST(recorder_works_as_a_write_fn)
 NAOS_TEST(write_mode_passes_every_output_to_the_callback_in_order)
 {
     text_recorder_t rec;
-    clopts_text_out_t out;
+    clopts_out_t out;
 
     text_recorder_init(&rec);
-    clopts_text_out_init(&out, text_recorder_write, &rec);
+    clopts_out_init(&out, text_recorder_write, &rec);
 
-    clopts_text_out_bytes(&out, "ab\0", 3);
-    clopts_text_out_str(&out, TEXT_FIXTURE_NIHONGO);
-    clopts_text_out_char(&out, '=');
-    clopts_text_out_spaces(&out, 3);
-    clopts_text_out_bytes(&out, TEXT_FIXTURE_RAW_VALUE_NAME, RAW_LEN);
+    clopts_out_bytes(&out, "ab\0", 3);
+    clopts_out_str(&out, TEXT_FIXTURE_NIHONGO);
+    clopts_out_char(&out, '=');
+    clopts_out_spaces(&out, 3);
+    clopts_out_bytes(&out, TEXT_FIXTURE_RAW_VALUE_NAME, RAW_LEN);
 
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(rec.calls, 5);
     NAOS_CHECK_FALSE(rec.overflow);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, WRITTEN_IN_ORDER, sizeof(WRITTEN_IN_ORDER) - 1);
@@ -102,17 +102,17 @@ NAOS_TEST(write_mode_passes_every_output_to_the_callback_in_order)
 NAOS_TEST(write_mode_does_not_call_the_callback_for_zero_bytes)
 {
     text_recorder_t rec;
-    clopts_text_out_t out;
+    clopts_out_t out;
 
     text_recorder_init(&rec);
-    clopts_text_out_init(&out, text_recorder_write, &rec);
+    clopts_out_init(&out, text_recorder_write, &rec);
 
-    clopts_text_out_bytes(&out, "abc", 0);
-    clopts_text_out_bytes(&out, NULL, 0);
-    clopts_text_out_str(&out, "");
-    clopts_text_out_spaces(&out, 0);
+    clopts_out_bytes(&out, "abc", 0);
+    clopts_out_bytes(&out, NULL, 0);
+    clopts_out_str(&out, "");
+    clopts_out_spaces(&out, 0);
 
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(rec.calls, 0);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
 }
@@ -121,37 +121,37 @@ NAOS_TEST(write_mode_writes_many_spaces)
 {
     static char expected[200];
     text_recorder_t rec;
-    clopts_text_out_t out;
+    clopts_out_t out;
 
     memset(expected, ' ', sizeof(expected));
     text_recorder_init(&rec);
-    clopts_text_out_init(&out, text_recorder_write, &rec);
+    clopts_out_init(&out, text_recorder_write, &rec);
 
-    clopts_text_out_spaces(&out, sizeof(expected));
+    clopts_out_spaces(&out, sizeof(expected));
 
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, expected, sizeof(expected));
 }
 
 NAOS_TEST(write_mode_stops_calling_after_the_first_failure)
 {
     text_failer_t failer;
-    clopts_text_out_t out;
+    clopts_out_t out;
 
     text_failer_init(&failer, 3);
-    clopts_text_out_init(&out, text_failer_write, &failer);
+    clopts_out_init(&out, text_failer_write, &failer);
 
-    clopts_text_out_str(&out, "Usage:");
-    clopts_text_out_char(&out, ' ');
-    NAOS_CHECK_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    clopts_out_str(&out, "Usage:");
+    clopts_out_char(&out, ' ');
+    NAOS_CHECK_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
 
-    clopts_text_out_str(&out, "tool"); /* the 3rd call fails */
-    clopts_text_out_spaces(&out, 2);
-    clopts_text_out_bytes(&out, "[OPTIONS]", 9);
-    clopts_text_out_char(&out, '\n');
-    clopts_text_out_str(&out, "more");
+    clopts_out_str(&out, "tool"); /* the 3rd call fails */
+    clopts_out_spaces(&out, 2);
+    clopts_out_bytes(&out, "[OPTIONS]", 9);
+    clopts_out_char(&out, '\n');
+    clopts_out_str(&out, "more");
 
-    NAOS_CHECK_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_FAILED);
+    NAOS_CHECK_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_FAILED);
     NAOS_CHECK_TRUE(failer.failed);
     NAOS_CHECK_UINT_EQ(failer.calls, 3);
     NAOS_CHECK_UINT_EQ(failer.calls_after_failure, 0);
@@ -161,16 +161,16 @@ NAOS_TEST(write_mode_stops_calling_after_the_first_failure)
 NAOS_TEST(write_mode_keeps_a_failure_on_the_first_call)
 {
     text_failer_t failer;
-    clopts_text_out_t out;
+    clopts_out_t out;
 
     text_failer_init(&failer, 1);
-    clopts_text_out_init(&out, text_failer_write, &failer);
+    clopts_out_init(&out, text_failer_write, &failer);
 
-    clopts_text_out_str(&out, "a");
-    clopts_text_out_str(&out, "b");
-    clopts_text_out_spaces(&out, 100);
+    clopts_out_str(&out, "a");
+    clopts_out_str(&out, "b");
+    clopts_out_spaces(&out, 100);
 
-    NAOS_CHECK_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_FAILED);
+    NAOS_CHECK_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_FAILED);
     NAOS_CHECK_UINT_EQ(failer.calls, 1);
     NAOS_CHECK_UINT_EQ(failer.calls_after_failure, 0);
     NAOS_CHECK_UINT_EQ(failer.written.len, 0);
@@ -179,16 +179,16 @@ NAOS_TEST(write_mode_keeps_a_failure_on_the_first_call)
 NAOS_TEST(write_mode_with_a_callback_that_never_fails_is_ok)
 {
     text_failer_t failer;
-    clopts_text_out_t out;
+    clopts_out_t out;
 
     text_failer_init(&failer, 0);
-    clopts_text_out_init(&out, text_failer_write, &failer);
+    clopts_out_init(&out, text_failer_write, &failer);
 
-    clopts_text_out_str(&out, "a");
-    clopts_text_out_str(&out, "b");
-    clopts_text_out_char(&out, 'c');
+    clopts_out_str(&out, "a");
+    clopts_out_str(&out, "b");
+    clopts_out_char(&out, 'c');
 
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(failer.calls, 3);
     NAOS_CHECK_MEM_EQ(failer.written.buf, failer.written.len, "abc", (size_t)3);
 }
@@ -197,38 +197,38 @@ NAOS_TEST(write_mode_with_a_callback_that_never_fails_is_ok)
 
 NAOS_TEST(measure_mode_adds_widths_without_writing)
 {
-    clopts_text_out_t out;
+    clopts_out_t out;
 
-    clopts_text_out_init(&out, NULL, NULL);
+    clopts_out_init(&out, NULL, NULL);
     NAOS_CHECK_UINT_EQ(out.width, 0);
 
-    clopts_text_out_str(&out, "--");                                /* 2 */
-    clopts_text_out_str(&out, TEXT_FIXTURE_NIHONGO);                /* 3 */
-    clopts_text_out_char(&out, ' ');                                /* 1 */
-    clopts_text_out_spaces(&out, 40);                               /* 40 */
-    clopts_text_out_bytes(&out, TEXT_FIXTURE_RAW_VALUE_NAME, RAW_LEN); /* 7 */
-    clopts_text_out_bytes(&out, TEXT_FIXTURE_NAIVE, 3);             /* "na" and a lone C3: 3 */
-    clopts_text_out_str(&out, "");                                  /* 0 */
-    clopts_text_out_spaces(&out, 0);                                /* 0 */
+    clopts_out_str(&out, "--");                                /* 2 */
+    clopts_out_str(&out, TEXT_FIXTURE_NIHONGO);                /* 3 */
+    clopts_out_char(&out, ' ');                                /* 1 */
+    clopts_out_spaces(&out, 40);                               /* 40 */
+    clopts_out_bytes(&out, TEXT_FIXTURE_RAW_VALUE_NAME, RAW_LEN); /* 7 */
+    clopts_out_bytes(&out, TEXT_FIXTURE_NAIVE, 3);             /* "na" and a lone C3: 3 */
+    clopts_out_str(&out, "");                                  /* 0 */
+    clopts_out_spaces(&out, 0);                                /* 0 */
 
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(out.width, 56);
 }
 
 NAOS_TEST(measure_mode_does_not_call_the_callback)
 {
     text_recorder_t rec;
-    clopts_text_out_t out;
+    clopts_out_t out;
 
     text_recorder_init(&rec);
     /* ctx is given, but without fn nothing is written to it */
-    clopts_text_out_init(&out, NULL, &rec);
+    clopts_out_init(&out, NULL, &rec);
 
-    clopts_text_out_str(&out, "abc");
-    clopts_text_out_char(&out, 'd');
-    clopts_text_out_spaces(&out, 5);
+    clopts_out_str(&out, "abc");
+    clopts_out_char(&out, 'd');
+    clopts_out_spaces(&out, 5);
 
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(out.width, 9);
     NAOS_CHECK_UINT_EQ(rec.calls, 0);
     NAOS_CHECK_UINT_EQ(rec.len, 0);
@@ -238,23 +238,23 @@ NAOS_TEST(init_starts_over)
 {
     text_failer_t failer;
     text_recorder_t rec;
-    clopts_text_out_t out;
+    clopts_out_t out;
 
     text_failer_init(&failer, 1);
-    clopts_text_out_init(&out, text_failer_write, &failer);
-    clopts_text_out_str(&out, "x");
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_FAILED);
+    clopts_out_init(&out, text_failer_write, &failer);
+    clopts_out_str(&out, "x");
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_FAILED);
 
-    clopts_text_out_init(&out, NULL, NULL);
-    clopts_text_out_str(&out, "xy");
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    clopts_out_init(&out, NULL, NULL);
+    clopts_out_str(&out, "xy");
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_UINT_EQ(out.width, 2);
 
     text_recorder_init(&rec);
-    clopts_text_out_init(&out, text_recorder_write, &rec);
+    clopts_out_init(&out, text_recorder_write, &rec);
     NAOS_CHECK_UINT_EQ(out.width, 0);
-    clopts_text_out_str(&out, "z");
-    NAOS_REQUIRE_INT_EQ(clopts_text_out_status(&out), CLOPTS_WRITE_OK);
+    clopts_out_str(&out, "z");
+    NAOS_REQUIRE_INT_EQ(clopts_out_status(&out), CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(rec.buf, rec.len, "z", (size_t)1);
 }
 

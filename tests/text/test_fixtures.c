@@ -8,7 +8,7 @@
  * (TextLayout), so that the layout tests can compare against it. Each
  * program is created first (test_decl_begin()), then filled
  * (test_decl_command(), then test_decl_finish()); -h/--help and --version
- * come from test_decl.h and the help command from clopts/text.h, declared
+ * come from test_decl.h and the help command from clopts/text/write.h, declared
  * last.
  */
 

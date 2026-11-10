@@ -186,7 +186,7 @@ CI で見慣れない名前が `extra` に出たら、次の順に判断する�
 
 - コンパイルの失敗は、ビルドの出力の `check_<header>.c`（C99）か `check_<header>.cpp`（C++11）の名前で、どのヘッダがどちらの言語で通らないかが分かる。ヘッダは単独で include されるので、そのヘッダが必要な別の公開ヘッダを自分で include していないことも、ここで分かる。
 - 警告もエラーになる（C は CLOpts と同じ設定で `CLOPTS_WERROR=ON`、C++ は GCC / Clang で `-Wall -Wextra -Wpedantic -Werror`、MSVC で `/W4 /WX`）。
-- `extern "C"` の欠落は、コンパイルではなく `abi_link_check` のリンクで、C++ の修飾された名前（引数の型付きの名前）の未定義参照として出る。たとえば `include/clopts/text.h` の `extern "C" {` と `}` を外すと、Linux の GCC では次のようになる。
+- `extern "C"` の欠落は、コンパイルではなく `abi_link_check` のリンクで、C++ の修飾された名前（引数の型付きの名前）の未定義参照として出る。たとえば `include/clopts/text/write.h` の `extern "C" {` と `}` を外すと、Linux の GCC では次のようになる。
 
   ```text
   [100%] Linking CXX executable abi_link_check

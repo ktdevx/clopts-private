@@ -22,5 +22,5 @@ clopts_argv_destroy
 clopts_env_create
 clopts_env_destroy
 
-# clopts/text.h
+# clopts/text/write.h
 clopts_write_help

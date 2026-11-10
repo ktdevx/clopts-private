@@ -2,24 +2,25 @@
 
 この章は、CLOpts の公開 API の型、関数、ハンドルの寿命、メモリの所有、エラーの扱いを示す。宣言の書き方、解析の呼び出し方、結果とエラーの読み方、ヘルプやエラーの文面の出し方を、公開ヘッダを読まずに確かめるための章である。
 
-公開ヘッダは `include/clopts/` にあり、`#include "clopts/clopts.h"` ですべてを取り込める。ヘッダごとの内容は次のとおり。
+公開ヘッダは `include/clopts/` にあり、`#include "clopts/clopts.h"` ですべてを取り込める。ヘッダは、ライブラリの中のモジュールと同じ名前のディレクトリに分かれている。どのヘッダも単独で取り込め、使う型のヘッダを自分で取り込む。ヘッダごとの内容は次のとおり。
 
 | ヘッダ | 内容 |
 |--------|------|
-| `clopts/decl/decl_error.h` | エラーの型（`clopts_decl_error_t`）とその説明（`clopts_decl_error_get_message`） |
+| `clopts/clopts.h` | すべての公開ヘッダを取り込む |
+| `clopts/base/allocator.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
+| `clopts/base/export.h` | 公開関数の印 `CLOPTS_API` |
 | `clopts/decl/program.h` | プログラムの関数（作成、解放、説明、グローバルオプション・位置引数・サブコマンドを渡す関数、読み取り）と、ビルダー関数に共通の規則。宣言のほかのヘッダをすべて取り込む |
 | `clopts/decl/command.h` | サブコマンドの関数（作成、解放、説明、オプションと位置引数を渡す関数、読み取り） |
+| `clopts/decl/scope.h` | プログラム自身とサブコマンドが持つオプションと位置引数の並び（Scope）の読み取り |
 | `clopts/decl/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（作成、解放、属性、読み取り） |
 | `clopts/decl/positional.h` | 位置引数の関数（作成、解放、属性、読み取り） |
-| `clopts/decl/scope.h` | プログラム自身とサブコマンドが持つオプションと位置引数の並び（Scope）の読み取り |
+| `clopts/decl/decl_error.h` | 宣言エラーの型（`clopts_decl_error_t`）とその説明（`clopts_decl_error_get_message`） |
 | `clopts/parse/parse.h` | 解析の関数。結果と使い方エラーのヘッダを取り込む |
 | `clopts/parse/result.h` | 結果の状態と値の出所の列挙、結果のアクセサ |
 | `clopts/parse/usage_error.h` | 使い方エラーの種別の列挙と、使い方エラーのアクセサ |
-| `clopts/process/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse/parse.h` が取り込む |
-| `clopts/text.h` | ヘルプ・使い方・版・エラーの文面を出す関数 |
-| `clopts/writer.h` | 書き込みコールバックの型と、`FILE*` へ書く便宜関数 |
 | `clopts/process/argv.h` | UTF-8 の argv を得る関数 |
-| `clopts/base/allocator.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
+| `clopts/process/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse/parse.h` が取り込む |
+| `clopts/text/write.h` | ヘルプ・使い方・版・エラーの文面を出す関数、書き込みコールバックの型、`FILE*` へ書く便宜関数 |
 
 引数がどの規則で解釈されるか（`--`、`-` 単体、並べ替え、`--no-<name>`、カウント、環境変数の優先順位など）は [解析規則](parsing.md) の章で、Windows での argv と環境変数の扱いは [Windows での注意](windows.md) の章で示す。共有ライブラリとしての互換性の方針は [ABI の互換性](abi.md) の章にある。
 
@@ -321,7 +322,7 @@ NULL の Scope とオプションは契約違反で、`assert` で検出され�
 
 サブコマンドに渡したオプションは、そのコマンドのオプションになる。コマンドに渡す関数が検査するのは、そのコマンドの中の関係だけである。グローバルオプションとサブコマンドのオプションの名前が重なってもよく、そのときはサブコマンドの名前がグローバルオプションを隠す（「[名前の規則](#名前の規則)」）。
 
-読み取りの関数（`clopts_command_get_name` などの、`clopts_command_`・`clopts_program_`・`clopts_scope_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のプログラム・コマンド・オプション・位置引数は契約違反で、`assert` で検出される（「[プログラム](#プログラム)」「[コマンド](#コマンド)」「[オプションの属性](#オプションの属性)」「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/text.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
+読み取りの関数（`clopts_command_get_name` などの、`clopts_command_`・`clopts_program_`・`clopts_scope_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のプログラム・コマンド・オプション・位置引数は契約違反で、`assert` で検出される（「[プログラム](#プログラム)」「[コマンド](#コマンド)」「[オプションの属性](#オプションの属性)」「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/text/write.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
 
 ### オプション
 
@@ -622,7 +623,7 @@ taskbook と textcount は、宣言エラーがあれば `<program>: error: inva
 
 ## 文面の出力
 
-ヘルプ・使い方・版・エラーの文面を出す関数は `clopts/text.h` にある。どの関数も、文面を書き込みコールバック `write_fn(ctx, data, len)` にだけ渡し、ストリームへ直接は書かない。文面の関数は、宣言を公開の読み取りの関数だけで読む（ライブラリの内部の構造には頼らない）ので、同じ読み取りの関数を使えば、利用側が独自のヘルプを書くこともできる。
+ヘルプ・使い方・版・エラーの文面を出す関数は `clopts/text/write.h` にある。どの関数も、文面を書き込みコールバック `write_fn(ctx, data, len)` にだけ渡し、ストリームへ直接は書かない。文面の関数は、宣言を公開の読み取りの関数だけで読む（ライブラリの内部の構造には頼らない）ので、同じ読み取りの関数を使えば、利用側が独自のヘルプを書くこともできる。
 
 | 関数 | 出す文面 |
 |------|----------|
@@ -646,7 +647,7 @@ taskbook と textcount は、宣言エラーがあれば `<program>: error: inva
 
 文面をコールバックの何回の呼び出しに分けるかは決まっていない。決まっているのは、つなげたバイト列だけである。
 
-書き込みコールバックの型は `clopts/writer.h` の `clopts_write_fn` である。
+書き込みコールバックの型は `clopts/text/write.h` の `clopts_write_fn` である。
 
 ```c
 typedef int (*clopts_write_fn)(void *ctx, const char *data, size_t len);
@@ -654,7 +655,7 @@ typedef int (*clopts_write_fn)(void *ctx, const char *data, size_t len);
 
 `ctx` が示す出力先へ `data` の `len` バイトを書き、すべて書けたら 0 を、そうでなければ 0 以外を返す。`ctx` は呼び出し側が所有し、関数にはコールバックと別の引数として渡す。
 
-`FILE*` へ書くときは、`clopts/writer.h` の便宜関数 `clopts_file_write` をコールバックに、`FILE*` を `ctx` に渡す。
+`FILE*` へ書くときは、`clopts/text/write.h` の便宜関数 `clopts_file_write` をコールバックに、`FILE*` を `ctx` に渡す。
 
 ```c
 clopts_write_help(program, NULL, clopts_file_write, stdout);

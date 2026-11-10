@@ -9,13 +9,13 @@
  * limit and positionals) with the builder functions: the program and its
  * global options first, then the commands, which test_decl_finish() adds.
  * The terminal options -h/--help and --version come from test_decl.h, the
- * help command from clopts/text.h.
+ * help command from clopts/text/write.h.
  */
 
 #include "test_fixtures.h"
 #include "test_decl.h"
 
-#include "clopts/text.h"
+#include "clopts/text/write.h"
 
 #include <assert.h>
 #include <string.h>

@@ -5,7 +5,7 @@ clopts_add_module_tests(text SOURCES
     text_tests_main.c
     test_fixtures.c
     test_out.c
-    test_layout.c
+    test_help.c
     test_option_row.c
     test_message.c
     test_file_write.c

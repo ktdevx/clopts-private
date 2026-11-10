@@ -11,7 +11,7 @@
 | base | `src/base/` | ドメインを知らない部品。使うアロケーター（`clopts/base/allocator.h`）と確保の窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`） |
 | decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則（`name.c`）と 1 つの範囲の中での比べ方（`scope.c`）、書かれた名前がどのオプションを指すか（`lookup.c`）、宣言エラーの説明。公開ヘッダは `clopts/decl/` |
 | parse | `src/parse/` | 解析の入口と手順（`parse.c`）、argv の要素の読み取り（`token.c`）、走査（`scan.c`）、環境変数と既定値の解決（`resolve.c`）、必須の検査（`require.c`）、途中の記録（`matches.c`、`slot.c`）、使い方エラー（`usage_error.c`）、結果（`result.c`）。公開ヘッダは `clopts/parse/` |
-| text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）の書き込みのコールバックへの出力 |
+| text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）を書き込みのコールバックへ出す。公開の入口（`write.c`、`clopts/text/write.h`）、ヘルプと Usage 行（`help.c`）、1 行の文面（`message.c`）、書き込みと計測の 2 つのモードを持つ出力先（`out.c`） |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
 
 名前とファイルの付け方は [設計の考え方](design.md) に従う。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h`、定義 `x.c`、接頭辞 `clopts_x_` を 1 組持たせる（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。

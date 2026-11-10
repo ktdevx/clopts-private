@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite layout: the whole help texts and the Usage line, compared byte for
+ * Suite help: the whole help texts and the Usage line, compared byte for
  * byte; the filter of the shadowed global options; and the shape of every
  * text the fixtures give.
  *
@@ -968,7 +968,7 @@ NAOS_TEST(every_text_of_the_fixtures_is_well_formed)
     text_fixture_tool_free(&tool);
 }
 
-NAOS_SUITE(layout,
+NAOS_SUITE(help,
     NAOS_ADD_TEST(fixture_tool_builds_ok),
     NAOS_ADD_TEST(fixture_filt_builds_ok),
     NAOS_ADD_TEST(fixture_bare_builds_ok),

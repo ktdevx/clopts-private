@@ -7,11 +7,11 @@
 #define CLOPTS_CLOPTS_H
 
 #include "clopts/base/allocator.h"
-#include "clopts/process/argv.h"
+#include "clopts/base/export.h"
 #include "clopts/decl/program.h"
-#include "clopts/process/env.h"
 #include "clopts/parse/parse.h"
-#include "clopts/text.h"
-#include "clopts/writer.h"
+#include "clopts/process/argv.h"
+#include "clopts/process/env.h"
+#include "clopts/text/write.h"
 
 #endif /* CLOPTS_CLOPTS_H */
