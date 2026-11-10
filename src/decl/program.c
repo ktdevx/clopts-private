@@ -17,7 +17,7 @@
 
 #include "clopts/decl/program.h"
 
-#include "base/mem.h"
+#include "base/memory.h"
 #include "base/vec.h"
 #include "decl/name.h"
 #include "decl/scope_impl.h"

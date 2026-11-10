@@ -14,7 +14,7 @@
  * vec (only when its buffer grows).
  */
 
-#include "base/mem.h"
+#include "base/memory.h"
 #include "base/vec.h"
 #include "test_alloc.h"
 
@@ -417,7 +417,7 @@ NAOS_TEST(vec_push_failure_keeps_the_elements)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-NAOS_SUITE(mem,
+NAOS_SUITE(memory,
     NAOS_ADD_TEST(standard_functions_allocate_and_free),
     NAOS_ADD_TEST(set_allocator_routes_every_function),
     NAOS_ADD_TEST(set_allocator_copies_the_struct),

@@ -16,7 +16,7 @@
 
 #include "clopts/decl/option.h"
 
-#include "base/mem.h"
+#include "base/memory.h"
 #include "decl/name.h"
 
 #include <assert.h>

@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: MIT
  *
  * Memory of the library: the allocator in use (clopts_set_allocator,
- * include/clopts/base/mem.h) and the allocation gateway, the only place of
+ * include/clopts/base/memory.h) and the allocation gateway, the only place of
  * the library that calls its functions.
  */
 
-#include "base/mem.h"
+#include "base/memory.h"
 
 #include "base/size.h"
 

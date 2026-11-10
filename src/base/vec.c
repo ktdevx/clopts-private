@@ -5,7 +5,7 @@
 
 #include "base/vec.h"
 
-#include "base/mem.h"
+#include "base/memory.h"
 #include "base/size.h"
 
 #include <assert.h>

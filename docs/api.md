@@ -7,7 +7,7 @@
 | ヘッダ | 内容 |
 |--------|------|
 | `clopts/clopts.h` | すべての公開ヘッダを取り込む |
-| `clopts/base/mem.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
+| `clopts/base/memory.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
 | `clopts/base/export.h` | 公開関数の印 `CLOPTS_API` |
 | `clopts/base/error.h` | ビルダー関数が返すエラーの型（`clopts_error_t`）とその説明（`clopts_error_get_message`） |
 | `clopts/decl/program.h` | プログラムの関数（作成、解放、説明、グローバルオプション・位置引数・サブコマンドを渡す関数、読み取り）と、ビルダー関数に共通の規則。宣言のほかのヘッダをすべて取り込む |
@@ -737,7 +737,7 @@ Run 'taskbook --help' for usage.
 
 ## アロケーター
 
-`clopts/base/mem.h` は、ライブラリがメモリの確保と解放に使う関数を差し替える。アロケーターはライブラリ全体で 1 つで、ハンドルごとには持たない。
+`clopts/base/memory.h` は、ライブラリがメモリの確保と解放に使う関数を差し替える。アロケーターはライブラリ全体で 1 つで、ハンドルごとには持たない。
 
 ```c
 typedef struct clopts_allocator

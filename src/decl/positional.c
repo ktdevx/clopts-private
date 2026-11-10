@@ -9,7 +9,7 @@
 
 #include "clopts/decl/positional.h"
 
-#include "base/mem.h"
+#include "base/memory.h"
 
 #include <assert.h>
 #include <stdbool.h>

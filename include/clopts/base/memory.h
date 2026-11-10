@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_BASE_MEM_H
-#define CLOPTS_BASE_MEM_H
+#ifndef CLOPTS_BASE_MEMORY_H
+#define CLOPTS_BASE_MEMORY_H
 
 #include <stddef.h>
 
@@ -50,4 +50,4 @@ CLOPTS_API void clopts_set_allocator(const clopts_allocator_t *allocator);
 }
 #endif
 
-#endif /* CLOPTS_BASE_MEM_H */
+#endif /* CLOPTS_BASE_MEMORY_H */

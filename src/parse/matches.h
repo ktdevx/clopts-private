@@ -23,7 +23,7 @@
  * A slot has the same index as its option in its scope and is found from
  * the option by its address. Matches never point to the program and are
  * released without reading the declaration, so they may outlive it. Every
- * allocation goes through the allocation gateway (base/mem.h), and whatever
+ * allocation goes through the allocation gateway (base/memory.h), and whatever
  * was allocated is linked to the matches at once, so
  * clopts_matches_destroy() releases it even after a failure.
  */
