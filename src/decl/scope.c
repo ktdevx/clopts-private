@@ -244,26 +244,32 @@ static clopts_error_t check_option(const clopts_scope_t *scope, const clopts_opt
     return CLOPTS_ERROR_NONE;
 }
 
-clopts_option_t *clopts_scope_add_option(clopts_scope_t *scope, clopts_option_kind_t kind, const char *long_name,
-                                         char short_name)
+/*
+ * Creates an option of kind for scope and checks it against scope. When
+ * terminal is true, it is made terminal and given help before the check. On
+ * failure reports the error and returns NULL; nothing is added.
+ */
+static clopts_option_t *make_option(clopts_scope_t *scope, clopts_option_kind_t kind, const char *long_name,
+                                    char short_name, bool terminal, const char *help)
 {
     clopts_option_t *option;
     clopts_error_t error;
-
-    assert(scope != NULL);
-    if (clopts_scope_failed(scope))
-    {
-        return NULL;
-    }
 
     error = clopts_option_create(kind, long_name, short_name, scope, &option);
     if (error == CLOPTS_ERROR_NONE)
     {
         error = check_option(scope, option);
     }
-    if ((error == CLOPTS_ERROR_NONE) && (clopts_vec_push(&scope->options, &option) != 0))
+    if ((error == CLOPTS_ERROR_NONE) && terminal)
     {
-        error = CLOPTS_ERROR_OUT_OF_MEMORY;
+        clopts_option_set_terminal(option, true);
+        clopts_option_set_help(option, help);
+        if (clopts_scope_failed(scope))
+        {
+            /* The setter has reported its error already. */
+            clopts_option_destroy(option);
+            return NULL;
+        }
     }
     if (error != CLOPTS_ERROR_NONE)
     {
@@ -272,6 +278,40 @@ clopts_option_t *clopts_scope_add_option(clopts_scope_t *scope, clopts_option_ki
         return NULL;
     }
     return option;
+}
+
+/* Adds option, made by make_option(), to scope; reports OUT_OF_MEMORY and returns NULL on failure. */
+static clopts_option_t *push_option(clopts_scope_t *scope, clopts_option_t *option)
+{
+    if ((option != NULL) && (clopts_vec_push(&scope->options, &option) != 0))
+    {
+        clopts_option_destroy(option);
+        clopts_scope_fail(scope, CLOPTS_ERROR_OUT_OF_MEMORY);
+        return NULL;
+    }
+    return option;
+}
+
+clopts_option_t *clopts_scope_add_option(clopts_scope_t *scope, clopts_option_kind_t kind, const char *long_name,
+                                         char short_name)
+{
+    assert(scope != NULL);
+    if (clopts_scope_failed(scope))
+    {
+        return NULL;
+    }
+    return push_option(scope, make_option(scope, kind, long_name, short_name, false, NULL));
+}
+
+clopts_option_t *clopts_scope_add_terminal(clopts_scope_t *scope, const char *long_name, char short_name,
+                                           const char *help)
+{
+    assert(scope != NULL);
+    if (clopts_scope_failed(scope))
+    {
+        return NULL;
+    }
+    return push_option(scope, make_option(scope, CLOPTS_OPTION_FLAG, long_name, short_name, true, help));
 }
 
 clopts_positional_t *clopts_scope_add_positional(clopts_scope_t *scope, const char *name)

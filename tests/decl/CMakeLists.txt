@@ -5,6 +5,7 @@ clopts_add_module_tests(decl SOURCES
     decl_tests_main.c
     test_build.c
     test_decl_check.c
+    test_decl_error.c
     test_decl_option.c
     test_decl_positional.c
     ../support/test_alloc.c

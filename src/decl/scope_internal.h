@@ -63,6 +63,14 @@ clopts_option_t *clopts_scope_add_option(clopts_scope_t *scope, clopts_option_ki
                                          char short_name);
 
 /*
+ * As clopts_scope_add_option() for a FLAG, made terminal and given help
+ * before it is added, so a failure (OUT_OF_MEMORY when help is copied) adds
+ * nothing.
+ */
+clopts_option_t *clopts_scope_add_terminal(clopts_scope_t *scope, const char *long_name, char short_name,
+                                           const char *help);
+
+/*
  * Creates a positional and adds it to scope after the others. Returns it, or
  * NULL after clopts_scope_fail(): INVALID_NAME (positional.c), ORDER or
  * OUT_OF_MEMORY. NULL when scope has failed.

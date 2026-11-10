@@ -189,25 +189,15 @@ clopts_command_t *clopts_program_add_command(clopts_program_t *program, const ch
     return command;
 }
 
-/* Adds the terminal FLAG l / s with help to program. */
-static clopts_option_t *program_add_terminal(clopts_program_t *program, const char *l, char s, const char *help)
-{
-    clopts_option_t *option = clopts_program_add_option(program, CLOPTS_OPTION_FLAG, l, s);
-
-    clopts_option_set_terminal(option, true);
-    clopts_option_set_help(option, help);
-    /* A failed setter leaves the option in place, with the error in the program. */
-    return (clopts_program_get_error(program) == CLOPTS_ERROR_NONE) ? option : NULL;
-}
-
 clopts_option_t *clopts_program_add_help_option(clopts_program_t *program)
 {
-    return program_add_terminal(program, "help", 'h', "Show this help");
+    return (program != NULL) ? clopts_scope_add_terminal(&program->scope, "help", 'h', "Show this help") : NULL;
 }
 
 clopts_option_t *clopts_program_add_version_option(clopts_program_t *program)
 {
-    return program_add_terminal(program, "version", '\0', "Show version information");
+    return (program != NULL) ? clopts_scope_add_terminal(&program->scope, "version", '\0', "Show version information")
+                             : NULL;
 }
 
 /* ---- read functions: a NULL program is a contract violation ---- */

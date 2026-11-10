@@ -19,22 +19,22 @@ extern "C" {
 
 /*
  * Scope: the options and positionals of the program itself or of a
- * subcommand, in the order of attachment, read through one set of functions
+ * subcommand, in the order they were added, read through one set of functions
  * whichever owns them. The program and every command have one
  * (clopts_program_get_scope(), clopts_command_get_scope()); it stays valid
  * as long as its owner does. A scope is read-only: options and positionals
- * are attached through its owner, whose rules differ (clopts/decl/program.h,
+ * are added through its owner, whose rules differ (clopts/decl/program.h,
  * clopts/decl/command.h). A NULL scope or option is a contract violation
  * (assert).
  */
 
 typedef struct clopts_scope clopts_scope_t;
 
-/* Number of options, in the order of attachment. */
+/* Number of options, in the order they were added. */
 CLOPTS_API size_t clopts_scope_get_option_count(const clopts_scope_t *scope);
 /* index must be less than clopts_scope_get_option_count() (caught by assert). */
 CLOPTS_API const clopts_option_t *clopts_scope_get_option_at(const clopts_scope_t *scope, size_t index);
-/* Number of positionals, in the order of attachment. */
+/* Number of positionals, in the order they were added. */
 CLOPTS_API size_t clopts_scope_get_positional_count(const clopts_scope_t *scope);
 /* index must be less than clopts_scope_get_positional_count() (caught by assert). */
 CLOPTS_API const clopts_positional_t *clopts_scope_get_positional_at(const clopts_scope_t *scope, size_t index);
