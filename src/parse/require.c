@@ -33,12 +33,10 @@ static const clopts_option_t *first_missing_option(const clopts_matches_t *match
 }
 
 /* Writes the missing option (positional NULL) or positional (option NULL) to *error. */
-static int missing(clopts_usage_error_t *error, const clopts_command_t *command, const clopts_option_t *option,
-                   const clopts_positional_t *positional)
+static int missing(clopts_usage_error_t *error, const clopts_option_t *option, const clopts_positional_t *positional)
 {
     clopts_usage_error_init(error,
-                            (option != NULL) ? CLOPTS_USAGE_ERROR_MISSING_OPTION : CLOPTS_USAGE_ERROR_MISSING_ARGUMENT,
-                            command);
+                            (option != NULL) ? CLOPTS_USAGE_ERROR_MISSING_OPTION : CLOPTS_USAGE_ERROR_MISSING_ARGUMENT);
     error->option = option;
     error->positional = positional;
     return -1;
@@ -62,7 +60,7 @@ int clopts_require(const clopts_matches_t *matches, const clopts_program_t *prog
     option = first_missing_option(matches, clopts_program_get_scope(program));
     if (option != NULL)
     {
-        return missing(error, command, option, NULL);
+        return missing(error, option, NULL);
     }
     if (!include_command)
     {
@@ -74,7 +72,7 @@ int clopts_require(const clopts_matches_t *matches, const clopts_program_t *prog
         option = first_missing_option(matches, clopts_command_get_scope(command));
         if (option != NULL)
         {
-            return missing(error, command, option, NULL);
+            return missing(error, option, NULL);
         }
         positional_scope = clopts_command_get_scope(command);
     }
@@ -100,7 +98,7 @@ int clopts_require(const clopts_matches_t *matches, const clopts_program_t *prog
 
         if (clopts_positional_is_required(positional) && (i >= recorded))
         {
-            return missing(error, command, NULL, positional);
+            return missing(error, NULL, positional);
         }
     }
     return 0;

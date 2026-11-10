@@ -24,9 +24,8 @@ typedef struct resolve_state
 {
     clopts_matches_t *matches;
     clopts_usage_error_t *error;            /* where an INVALID_ENV_VALUE error goes */
-    clopts_getenv_fn getenv_fn;
+    clopts_env_fn env_fn;
     void *env_ctx;
-    const clopts_command_t *error_command;  /* the command an error names: the selected one, or NULL */
     bool invalid;                           /* an INVALID_ENV_VALUE error was recorded */
 } resolve_state_t;
 
@@ -37,7 +36,7 @@ static void resolve_invalid(resolve_state_t *state, const clopts_option_t *optio
     {
         return;
     }
-    clopts_usage_error_init(state->error, CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE, state->error_command);
+    clopts_usage_error_init(state->error, CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE);
     state->error->option = option;
     state->invalid = true;
 }
@@ -92,7 +91,7 @@ static int resolve_slot(resolve_state_t *state, clopts_slot_t *slot, const clopt
     {
         const char *borrowed = NULL;
 
-        switch (state->getenv_fn(state->env_ctx, env, &borrowed))
+        switch (state->env_fn(state->env_ctx, env, &borrowed))
         {
         case CLOPTS_ENV_FOUND:
             assert((borrowed != NULL) && "a lookup that reports FOUND must set *value");
@@ -163,7 +162,7 @@ static int resolve_all(resolve_state_t *state, const clopts_program_t *program, 
 }
 
 clopts_resolve_status_t clopts_resolve(clopts_matches_t *matches, const clopts_program_t *program,
-                                       clopts_getenv_fn getenv_fn, void *env_ctx, bool include_command,
+                                       clopts_env_fn env_fn, void *env_ctx, bool include_command,
                                        clopts_usage_error_t *error)
 {
     resolve_state_t state;
@@ -171,14 +170,13 @@ clopts_resolve_status_t clopts_resolve(clopts_matches_t *matches, const clopts_p
 
     assert(matches != NULL);
     assert(program != NULL);
-    assert(getenv_fn != NULL);
+    assert(env_fn != NULL);
     assert(error != NULL);
 
     state.matches = matches;
     state.error = error;
-    state.getenv_fn = getenv_fn;
+    state.env_fn = env_fn;
     state.env_ctx = env_ctx;
-    state.error_command = include_command ? clopts_matches_get_command(matches) : NULL;
     state.invalid = false;
 
     rc = resolve_all(&state, program, include_command);

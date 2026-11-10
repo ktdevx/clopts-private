@@ -101,8 +101,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
 
     assert(program != NULL);
     assert(write_fn != NULL);
-    assert((clopts_usage_error_get_command(clopts_result_get_usage_error(result)) == NULL) ||
-           has_command(program, clopts_usage_error_get_command(clopts_result_get_usage_error(result))));
+    assert((clopts_result_get_command(result) == NULL) || has_command(program, clopts_result_get_command(result)));
 
     switch (clopts_result_get_status(result))
     {

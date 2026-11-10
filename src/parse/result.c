@@ -31,7 +31,7 @@ struct clopts_result
 static const struct clopts_result sentinel = {
     CLOPTS_PARSE_OUT_OF_MEMORY,
     NULL,
-    { CLOPTS_USAGE_ERROR_NONE, NULL, NULL, NULL, NULL, -1, 0, '\0' },
+    { CLOPTS_USAGE_ERROR_NONE, NULL, NULL, NULL, -1, 0, '\0' },
     NULL
 };
 
@@ -68,7 +68,7 @@ clopts_result_t *clopts_result_create(clopts_parse_status_t status, const clopts
     }
     else
     {
-        clopts_usage_error_init(&result->error, CLOPTS_USAGE_ERROR_NONE, NULL);
+        clopts_usage_error_init(&result->error, CLOPTS_USAGE_ERROR_NONE);
     }
     result->matches = matches;
     return result;

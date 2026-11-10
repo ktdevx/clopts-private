@@ -16,7 +16,7 @@ extern "C" {
  * environment, for tests or for values read from elsewhere.
  */
 
-/* Return value of a clopts_getenv_fn. */
+/* Return value of a clopts_env_fn. */
 typedef enum clopts_env_status
 {
     /* Found: *value holds a string borrowed from the callback. */
@@ -38,7 +38,7 @@ typedef enum clopts_env_status
  * or until the parse function returns. The library copies it right after the
  * callback returns and never reads or releases it afterwards.
  */
-typedef clopts_env_status_t (*clopts_getenv_fn)(void *ctx, const char *name, const char **value);
+typedef clopts_env_status_t (*clopts_env_fn)(void *ctx, const char *name, const char **value);
 
 #ifdef __cplusplus
 }

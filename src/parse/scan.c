@@ -59,7 +59,7 @@ static void scan_init(scan_state_t *state, clopts_matches_t *matches, const clop
     state->pos = 1;
     state->command = NULL;
     state->has_pending = false;
-    clopts_usage_error_init(&state->pending_error, CLOPTS_USAGE_ERROR_NONE, NULL);
+    clopts_usage_error_init(&state->pending_error, CLOPTS_USAGE_ERROR_NONE);
     state->dashdash = false;
     state->terminal = NULL;
     state->out_of_memory = false;
@@ -87,8 +87,7 @@ static const char *scan_text(const scan_state_t *state)
 /*
  * Records the usage error kind on the token argv[index] (its option,
  * positional, name_len and short_name are left empty) unless one is already
- * pending: only the first usage error is reported. The error command is the
- * selected command, or NULL before the selection. Returns the pending error
+ * pending: only the first usage error is reported. Returns the pending error
  * so that the caller can complete it, or NULL when none was recorded.
  */
 static clopts_usage_error_t *scan_fail(scan_state_t *state, clopts_usage_error_kind_t kind, int index)
@@ -100,7 +99,7 @@ static clopts_usage_error_t *scan_fail(scan_state_t *state, clopts_usage_error_k
     {
         return NULL;
     }
-    clopts_usage_error_init(error, kind, state->command);
+    clopts_usage_error_init(error, kind);
     error->token = state->argv[index];
     error->argv_index = index;
     state->has_pending = true;

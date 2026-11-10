@@ -811,7 +811,7 @@ static clopts_usage_error_t make_error(const sample_t *s)
 {
     clopts_usage_error_t error;
 
-    clopts_usage_error_init(&error, CLOPTS_USAGE_ERROR_UNKNOWN_OPTION, s->build);
+    clopts_usage_error_init(&error, CLOPTS_USAGE_ERROR_UNKNOWN_OPTION);
     error.option = s->release;
     error.token = error_token;
     error.argv_index = 3;
@@ -951,11 +951,10 @@ NAOS_TEST(error_accessors_report_only_errors)
     error = make_error(&s);
     result = clopts_result_create(CLOPTS_PARSE_USAGE_ERROR, NULL, &error, recording);
     /* The result keeps a copy: the error passed in may go away. */
-    clopts_usage_error_init(&error, CLOPTS_USAGE_ERROR_NONE, NULL);
+    clopts_usage_error_init(&error, CLOPTS_USAGE_ERROR_NONE);
     got = clopts_result_get_usage_error(result);
     NAOS_REQUIRE_NOT_NULL(got);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(got), CLOPTS_USAGE_ERROR_UNKNOWN_OPTION);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(got), s.build);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(got), s.release);
     NAOS_CHECK_NULL(clopts_usage_error_get_positional(got));
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_token(got), error_token);
@@ -972,7 +971,6 @@ NAOS_TEST(error_accessors_report_only_errors)
 NAOS_TEST(null_usage_error_reads_as_no_error)
 {
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(NULL), CLOPTS_USAGE_ERROR_NONE);
-    NAOS_CHECK_NULL(clopts_usage_error_get_command(NULL));
     NAOS_CHECK_NULL(clopts_usage_error_get_option(NULL));
     NAOS_CHECK_NULL(clopts_usage_error_get_positional(NULL));
     NAOS_CHECK_NULL(clopts_usage_error_get_token(NULL));
@@ -1624,7 +1622,7 @@ NAOS_TEST(parse_usage_error_result_has_unset_values)
     result = parse_env(t.program, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_UNKNOWN_OPTION);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), t.build);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), t.build);
     NAOS_CHECK_NULL(clopts_usage_error_get_option(clopts_result_get_usage_error(result)));
     NAOS_CHECK_NULL(clopts_usage_error_get_positional(clopts_result_get_usage_error(result)));
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_token(clopts_result_get_usage_error(result)), argv[8]);

@@ -17,7 +17,6 @@
 struct clopts_usage_error
 {
     clopts_usage_error_kind_t kind;
-    const clopts_command_t *command;        /* the selected command, or NULL */
     const clopts_option_t *option;
     const clopts_positional_t *positional;
     const char *token;                      /* an argv element, or NULL */
@@ -27,10 +26,10 @@ struct clopts_usage_error
 };
 
 /*
- * Makes error a usage error of kind on command (NULL: none selected), with
- * every other field empty (argv_index -1). Kind NONE makes "no error".
+ * Makes error a usage error of kind with every other field empty
+ * (argv_index -1). Kind NONE makes "no error". The command the error belongs
+ * to is the selected command of the result (clopts_result_get_command()).
  */
-void clopts_usage_error_init(clopts_usage_error_t *error, clopts_usage_error_kind_t kind,
-                             const clopts_command_t *command);
+void clopts_usage_error_init(clopts_usage_error_t *error, clopts_usage_error_kind_t kind);
 
 #endif /* CLOPTS_SRC_PARSE_USAGE_ERROR_H */

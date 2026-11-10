@@ -38,7 +38,7 @@ void clopts_env_init(clopts_env_t *env);
 void clopts_env_release(clopts_env_t *env);
 
 /*
- * The lookup in the process environment, a clopts_getenv_fn whose ctx is a
+ * The lookup in the process environment, a clopts_env_fn whose ctx is a
  * clopts_env_t *. Stores the UTF-8 value of name in *value: on Windows read
  * with GetEnvironmentVariableW() and converted into env->value (valid until
  * the next lookup with env or its release); elsewhere getenv()'s pointer as

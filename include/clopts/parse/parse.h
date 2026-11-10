@@ -55,12 +55,12 @@ extern "C" {
 CLOPTS_API clopts_result_t *clopts_parse(const clopts_program_t *program, int argc, char *const *argv);
 
 /*
- * Same as clopts_parse(), with getenv_fn(env_ctx, ...) as the source of the
+ * Same as clopts_parse(), with env_fn(env_ctx, ...) as the source of the
  * environment values instead of the process environment. NULL selects the
  * process environment, as clopts_parse() does.
  */
 CLOPTS_API clopts_result_t *clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
-                                                  clopts_getenv_fn getenv_fn, void *env_ctx);
+                                                  clopts_env_fn env_fn, void *env_ctx);
 
 #ifdef __cplusplus
 }

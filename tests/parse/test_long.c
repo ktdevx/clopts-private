@@ -174,7 +174,7 @@ static void check_error(const clopts_result_t *result, clopts_usage_error_kind_t
 {
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), usage);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), command);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), command);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), option);
     NAOS_CHECK_NULL(clopts_usage_error_get_positional(clopts_result_get_usage_error(result)));
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_token(clopts_result_get_usage_error(result)), argv[index]);

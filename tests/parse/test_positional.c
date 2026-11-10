@@ -177,7 +177,7 @@ NAOS_TEST(copy_without_dst_is_missing_argument)
     result = parse_tool(&f, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), f.copy);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), f.copy);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_positional(clopts_result_get_usage_error(result)), f.copy_dst);
     NAOS_REQUIRE_NOT_NULL(clopts_usage_error_get_positional(clopts_result_get_usage_error(result)));
     NAOS_CHECK_STR_EQ(clopts_positional_get_name(clopts_usage_error_get_positional(clopts_result_get_usage_error(result))), "DST");
@@ -195,7 +195,7 @@ NAOS_TEST(copy_with_a_third_token_is_unexpected_argument)
     result = parse_tool(&f, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_UNEXPECTED_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), f.copy);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), f.copy);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_token(clopts_result_get_usage_error(result)), argv[4]);
     NAOS_CHECK_STR_EQ(clopts_usage_error_get_token(clopts_result_get_usage_error(result)), "c");
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), 4);
@@ -291,7 +291,7 @@ NAOS_TEST(strict_without_tokens_checks_the_global_required_option)
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), s.token);
-    NAOS_CHECK_NULL(clopts_usage_error_get_command(clopts_result_get_usage_error(result)));
+    NAOS_CHECK_NULL(clopts_result_get_command(result));
     NAOS_CHECK_NULL(clopts_result_get_command(result));
     clopts_result_destroy(result);
     fixture_strict_free(&s);

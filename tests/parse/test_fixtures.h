@@ -155,7 +155,7 @@ typedef struct fixture_env
 void fixture_env_init(fixture_env_t *env, const fixture_env_var_t *vars, size_t var_count);
 
 /*
- * clopts_getenv_fn over a fixture_env_t (ctx). Overwrites the buffers when
+ * clopts_env_fn over a fixture_env_t (ctx). Overwrites the buffers when
  * clobber is set, records name, then returns CLOPTS_ENV_FAILED if fail_next
  * was set (clearing it), CLOPTS_ENV_FOUND with *value borrowed from the
  * variable's buffer if name is in the table, and CLOPTS_ENV_UNSET otherwise.

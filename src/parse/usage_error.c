@@ -10,12 +10,10 @@
 
 #include <assert.h>
 
-void clopts_usage_error_init(clopts_usage_error_t *error, clopts_usage_error_kind_t kind,
-                             const clopts_command_t *command)
+void clopts_usage_error_init(clopts_usage_error_t *error, clopts_usage_error_kind_t kind)
 {
     assert(error != NULL);
     error->kind = kind;
-    error->command = command;
     error->option = NULL;
     error->positional = NULL;
     error->token = NULL;
@@ -27,11 +25,6 @@ void clopts_usage_error_init(clopts_usage_error_t *error, clopts_usage_error_kin
 clopts_usage_error_kind_t clopts_usage_error_get_kind(const clopts_usage_error_t *error)
 {
     return (error != NULL) ? error->kind : CLOPTS_USAGE_ERROR_NONE;
-}
-
-const clopts_command_t *clopts_usage_error_get_command(const clopts_usage_error_t *error)
-{
-    return (error != NULL) ? error->command : NULL;
 }
 
 const clopts_option_t *clopts_usage_error_get_option(const clopts_usage_error_t *error)

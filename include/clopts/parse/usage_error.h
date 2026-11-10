@@ -17,7 +17,9 @@ extern "C" {
 
 /*
  * Usage error: what was wrong in argv (or in an environment value) when a
- * parse ends with CLOPTS_PARSE_USAGE_ERROR. It is obtained with
+ * parse ends with CLOPTS_PARSE_USAGE_ERROR. The command it belongs to is the
+ * selected command of the result (clopts_result_get_command(); NULL when the
+ * error came before a command was selected). It is obtained with
  * clopts_result_get_usage_error() (clopts/parse/result.h) and belongs to its
  * result: it is valid until the result is released, and its strings only
  * while the caller keeps argv alive.
@@ -55,8 +57,6 @@ typedef enum clopts_usage_error_kind
 } clopts_usage_error_kind_t;
 
 CLOPTS_API clopts_usage_error_kind_t clopts_usage_error_get_kind(const clopts_usage_error_t *error);
-/* The selected command, or NULL when none was selected. */
-CLOPTS_API const clopts_command_t *clopts_usage_error_get_command(const clopts_usage_error_t *error);
 CLOPTS_API const clopts_option_t *clopts_usage_error_get_option(const clopts_usage_error_t *error);
 CLOPTS_API const clopts_positional_t *clopts_usage_error_get_positional(const clopts_usage_error_t *error);
 /* The offending argv element. */

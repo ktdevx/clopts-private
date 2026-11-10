@@ -275,7 +275,7 @@ static clopts_usage_error_t recorded_error;
         sample_init(&(s));                                                          \
         NAOS_REQUIRE_NOT_NULL((s).program);                                         \
         NAOS_REQUIRE_TRUE((s).ok);                                                  \
-        clopts_usage_error_init(&recorded_error, CLOPTS_USAGE_ERROR_NONE, NULL);    \
+        clopts_usage_error_init(&recorded_error, CLOPTS_USAGE_ERROR_NONE);    \
         (matches) = clopts_matches_create((s).program);                             \
         NAOS_REQUIRE_NOT_NULL(matches);                                             \
     } while (0)
@@ -316,7 +316,7 @@ NAOS_TEST(null_program_does_not_call_getenv)
  * Without a lookup callback, the parse reads the process environment: the
  * variable of --config is unset there, so its default applies.
  */
-NAOS_TEST(null_getenv_fn_reads_the_process_environment)
+NAOS_TEST(null_env_fn_reads_the_process_environment)
 {
     sample_t s;
     clopts_result_t *result;
@@ -647,7 +647,6 @@ NAOS_TEST(invalid_value_leaves_the_slot_unset_and_records_the_first_error)
     error = (&recorded_error);
     NAOS_CHECK_INT_EQ(error->kind, CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE);
     NAOS_CHECK_PTR_EQ(error->option, s.config);
-    NAOS_CHECK_PTR_EQ(error->command, s.build);
     NAOS_CHECK_NULL(error->positional);
     NAOS_CHECK_NULL(error->token);
     NAOS_CHECK_INT_EQ(error->argv_index, -1);
@@ -672,7 +671,6 @@ NAOS_TEST(invalid_value_without_the_command_names_no_command)
     NAOS_CHECK_INT_EQ(clopts_resolve(matches, s.program, mock_getenv, &env, false, &recorded_error),
                       CLOPTS_RESOLVE_INVALID);
     NAOS_CHECK_PTR_EQ(recorded_error.option, s.tag);
-    NAOS_CHECK_NULL(recorded_error.command);
     NAOS_CHECK_UINT_EQ(slot_of(matches, s.tag)->items.len, 0);
 
     SAMPLE_END(s, matches);
@@ -735,7 +733,7 @@ NAOS_TEST(parse_reports_an_invalid_value_as_a_usage_error)
     NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_INVALID_ENV_VALUE);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), format);
-    NAOS_CHECK_NULL(clopts_usage_error_get_command(clopts_result_get_usage_error(result)));
+    NAOS_CHECK_NULL(clopts_result_get_command(result));
     NAOS_CHECK_NULL(clopts_usage_error_get_token(clopts_result_get_usage_error(result)));
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), -1);
 
@@ -896,7 +894,6 @@ NAOS_TEST(missing_option_reports_global_before_command)
     NAOS_CHECK_INT_EQ(clopts_require(matches, s.program, true, &recorded_error), -1);
     NAOS_CHECK_INT_EQ(recorded_error.kind, CLOPTS_USAGE_ERROR_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(recorded_error.option, s.token);
-    NAOS_CHECK_PTR_EQ(recorded_error.command, s.build);
     NAOS_CHECK_NULL(recorded_error.positional);
     NAOS_CHECK_NULL(recorded_error.token);
     NAOS_CHECK_INT_EQ(recorded_error.argv_index, -1);
@@ -918,7 +915,6 @@ NAOS_TEST(missing_option_in_the_selected_command)
     NAOS_CHECK_INT_EQ(clopts_require(matches, s.program, true, &recorded_error), -1);
     NAOS_CHECK_INT_EQ(recorded_error.kind, CLOPTS_USAGE_ERROR_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(recorded_error.option, s.mode);
-    NAOS_CHECK_PTR_EQ(recorded_error.command, s.build);
     NAOS_CHECK_INT_EQ(recorded_error.argv_index, -1);
 
     SAMPLE_END(s, matches);
@@ -954,7 +950,6 @@ NAOS_TEST(missing_required_positional)
     NAOS_CHECK_INT_EQ(recorded_error.kind, CLOPTS_USAGE_ERROR_MISSING_ARGUMENT);
     NAOS_CHECK_PTR_EQ(recorded_error.positional, s.src);
     NAOS_CHECK_NULL(recorded_error.option);
-    NAOS_CHECK_PTR_EQ(recorded_error.command, s.build);
     NAOS_CHECK_INT_EQ(recorded_error.argv_index, -1);
 
     SAMPLE_END(s, matches);
@@ -973,7 +968,6 @@ NAOS_TEST(required_variadic_needs_one_token)
     NAOS_CHECK_INT_EQ(clopts_require(matches, s.program, true, &recorded_error), -1);
     NAOS_CHECK_INT_EQ(recorded_error.kind, CLOPTS_USAGE_ERROR_MISSING_ARGUMENT);
     NAOS_CHECK_PTR_EQ(recorded_error.positional, s.files);
-    NAOS_CHECK_PTR_EQ(recorded_error.command, s.copy);
 
     NAOS_REQUIRE_INT_EQ(clopts_matches_add_positional(matches, first), 0);
     NAOS_CHECK_INT_EQ(clopts_require(matches, s.program, true, &recorded_error), 0);
@@ -993,7 +987,6 @@ NAOS_TEST(include_command_false_checks_only_the_global_options)
     NAOS_CHECK_INT_EQ(clopts_require(matches, s.program, false, &recorded_error), -1);
     NAOS_CHECK_INT_EQ(recorded_error.kind, CLOPTS_USAGE_ERROR_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(recorded_error.option, s.token);
-    NAOS_CHECK_NULL(recorded_error.command);
 
     /* Global option satisfied: the command's missing option and positional are ignored. */
     clopts_slot_set_value(slot_of(matches, s.token), "t", CLOPTS_SOURCE_EXPLICIT);
@@ -1053,7 +1046,6 @@ NAOS_TEST(program_without_subcommands_checks_program_positionals)
     NAOS_CHECK_INT_EQ(clopts_require(matches, program, true, &recorded_error), -1);
     NAOS_CHECK_INT_EQ(recorded_error.kind, CLOPTS_USAGE_ERROR_MISSING_ARGUMENT);
     NAOS_CHECK_PTR_EQ(recorded_error.positional, input);
-    NAOS_CHECK_NULL(recorded_error.command);
 
     NAOS_REQUIRE_INT_EQ(clopts_matches_add_positional(matches, token), 0);
     NAOS_CHECK_INT_EQ(clopts_require(matches, program, true, &recorded_error), 0);
@@ -1117,7 +1109,7 @@ static clopts_result_t *parse_env_oom(clopts_program_t *program, char **argv, fi
 /* Checks the error accessors of a missing-required error besides kind and target. */
 static void check_missing_common(const clopts_result_t *result, const clopts_command_t *command)
 {
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), command);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), command);
     NAOS_CHECK_NULL(clopts_usage_error_get_token(clopts_result_get_usage_error(result)));
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), -1);
     NAOS_CHECK_UINT_EQ(clopts_usage_error_get_name_len(clopts_result_get_usage_error(result)), 0);
@@ -1708,7 +1700,7 @@ NAOS_TEST(parse_env_value_is_copied_before_the_next_lookup)
 
 NAOS_SUITE(resolve,
     NAOS_ADD_TEST(null_program_does_not_call_getenv),
-    NAOS_ADD_TEST(null_getenv_fn_reads_the_process_environment),
+    NAOS_ADD_TEST(null_env_fn_reads_the_process_environment),
     NAOS_ADD_TEST(explicit_wins_over_env_and_default),
     NAOS_ADD_TEST(env_wins_over_default),
     NAOS_ADD_TEST(default_when_env_is_unset),

@@ -123,7 +123,6 @@ clopts_result_destroy
 
 # clopts/parse/usage_error.h
 clopts_usage_error_get_kind
-clopts_usage_error_get_command
 clopts_usage_error_get_option
 clopts_usage_error_get_positional
 clopts_usage_error_get_token

@@ -96,7 +96,7 @@ static void check_token_error(const clopts_result_t *result, clopts_usage_error_
 {
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), usage);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), command);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), command);
     NAOS_CHECK_NULL(clopts_usage_error_get_option(clopts_result_get_usage_error(result)));
     NAOS_CHECK_NULL(clopts_usage_error_get_positional(clopts_result_get_usage_error(result)));
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_token(clopts_result_get_usage_error(result)), argv[index]);
@@ -356,7 +356,7 @@ NAOS_TEST(no_command_checks_required_global_options)
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), s.token);
-    NAOS_CHECK_NULL(clopts_usage_error_get_command(clopts_result_get_usage_error(result)));
+    NAOS_CHECK_NULL(clopts_result_get_command(result));
     NAOS_CHECK_NULL(clopts_usage_error_get_positional(clopts_result_get_usage_error(result)));
     NAOS_CHECK_NULL(clopts_usage_error_get_token(clopts_result_get_usage_error(result)));
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), -1);
@@ -556,7 +556,7 @@ NAOS_TEST(tool_build_selects_build_and_checks_its_required_options)
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), t.build);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), t.output);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), t.build);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), t.build);
     NAOS_CHECK_NULL(clopts_usage_error_get_token(clopts_result_get_usage_error(result)));
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), -1);
     /* The selected scope (global and build) was resolved. */
@@ -907,7 +907,7 @@ NAOS_TEST(tool_long_help_with_value_is_unexpected_value)
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_UNEXPECTED_VALUE);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), t.help);
-    NAOS_CHECK_NULL(clopts_usage_error_get_command(clopts_result_get_usage_error(result)));
+    NAOS_CHECK_NULL(clopts_result_get_command(result));
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_token(clopts_result_get_usage_error(result)), argv[1]);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), 1);
     NAOS_CHECK_NULL(clopts_result_get_terminal_option(result));
@@ -1188,7 +1188,7 @@ NAOS_TEST(tool_recovery_ignores_inexact_forms)
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_token(clopts_result_get_usage_error(result)), argv[2]);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), 2);
     NAOS_CHECK_UINT_EQ(clopts_usage_error_get_name_len(clopts_result_get_usage_error(result)), 7);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), t.build);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), t.build);
     NAOS_CHECK_NULL(clopts_result_get_terminal_option(result));
     clopts_result_destroy(result);
     fixture_tool_free(&t);
@@ -1252,7 +1252,7 @@ NAOS_TEST(tool_build_dashdash_help_is_a_positional)
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), t.output);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), t.build);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), t.build);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_argv_index(clopts_result_get_usage_error(result)), -1);
     NAOS_CHECK_NULL(clopts_result_get_terminal_option(result));
     clopts_result_destroy(result);

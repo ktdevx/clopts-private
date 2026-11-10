@@ -42,7 +42,7 @@
 
 /* Steps 2 to 7 on matches. Returns the status; *terminal and *error as the result reads them. */
 static clopts_parse_status_t run(clopts_matches_t *matches, const clopts_program_t *program, int argc,
-                                 char *const *argv, clopts_getenv_fn getenv_fn, void *env_ctx,
+                                 char *const *argv, clopts_env_fn env_fn, void *env_ctx,
                                  const clopts_option_t **terminal, clopts_usage_error_t *error)
 {
     clopts_resolve_status_t resolved;
@@ -62,7 +62,7 @@ static clopts_parse_status_t run(clopts_matches_t *matches, const clopts_program
 
     /* 4. */
     selected_scope = ((clopts_program_get_command_count(program) == 0) || (clopts_matches_get_command(matches) != NULL));
-    resolved = clopts_resolve(matches, program, getenv_fn, env_ctx, selected_scope, error);
+    resolved = clopts_resolve(matches, program, env_fn, env_ctx, selected_scope, error);
     if (resolved == CLOPTS_RESOLVE_OUT_OF_MEMORY)
     {
         return CLOPTS_PARSE_OUT_OF_MEMORY;
@@ -89,11 +89,11 @@ static clopts_parse_status_t run(clopts_matches_t *matches, const clopts_program
 }
 
 /*
- * Shared body of clopts_parse() and clopts_parse_with_env(). Without getenv_fn
+ * Shared body of clopts_parse() and clopts_parse_with_env(). Without env_fn
  * (NULL), the process environment is the source of the environment values.
  */
 static clopts_result_t *parse(const clopts_program_t *program, int argc, char *const *argv,
-                              clopts_getenv_fn getenv_fn, void *env_ctx)
+                              clopts_env_fn env_fn, void *env_ctx)
 {
     clopts_matches_t *matches;
     const clopts_option_t *terminal = NULL;
@@ -114,11 +114,11 @@ static clopts_result_t *parse(const clopts_program_t *program, int argc, char *c
     {
         return clopts_result_sentinel();
     }
-    clopts_usage_error_init(&error, CLOPTS_USAGE_ERROR_NONE, NULL);
+    clopts_usage_error_init(&error, CLOPTS_USAGE_ERROR_NONE);
 
-    if (getenv_fn != NULL)
+    if (env_fn != NULL)
     {
-        status = run(matches, program, argc, argv, getenv_fn, env_ctx, &terminal, &error);
+        status = run(matches, program, argc, argv, env_fn, env_ctx, &terminal, &error);
     }
     else
     {
@@ -135,7 +135,7 @@ clopts_result_t *clopts_parse(const clopts_program_t *program, int argc, char *c
 }
 
 clopts_result_t *clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
-                                       clopts_getenv_fn getenv_fn, void *env_ctx)
+                                       clopts_env_fn env_fn, void *env_ctx)
 {
-    return parse(program, argc, argv, getenv_fn, env_ctx);
+    return parse(program, argc, argv, env_fn, env_ctx);
 }

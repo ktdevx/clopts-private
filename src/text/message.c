@@ -254,7 +254,7 @@ void clopts_message_write_error(clopts_out_t *out, const clopts_program_t *progr
     {
         kind = clopts_usage_error_get_kind(error);
         assert(clopts_message_usage_text(kind) != NULL);
-        write_prefix(out, program, clopts_usage_error_get_command(error), flags);
+        write_prefix(out, program, clopts_result_get_command(result), flags);
         write_usage_body(out, error, kind, clopts_message_usage_text(kind));
     }
     else

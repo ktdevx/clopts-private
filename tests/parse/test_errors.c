@@ -82,7 +82,7 @@ static void check_error(const clopts_result_t *result, char **argv, const expect
 {
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), expected->usage);
-    NAOS_CHECK_PTR_EQ(clopts_usage_error_get_command(clopts_result_get_usage_error(result)), expected->command);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), expected->command);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_option(clopts_result_get_usage_error(result)), expected->option);
     NAOS_CHECK_PTR_EQ(clopts_usage_error_get_positional(clopts_result_get_usage_error(result)), expected->positional);
     if (expected->index < 0)
@@ -102,7 +102,6 @@ static void check_error(const clopts_result_t *result, char **argv, const expect
 static void check_no_error(const clopts_result_t *result)
 {
     NAOS_CHECK_INT_EQ(clopts_usage_error_get_kind(clopts_result_get_usage_error(result)), CLOPTS_USAGE_ERROR_NONE);
-    NAOS_CHECK_NULL(clopts_usage_error_get_command(clopts_result_get_usage_error(result)));
     NAOS_CHECK_NULL(clopts_usage_error_get_option(clopts_result_get_usage_error(result)));
     NAOS_CHECK_NULL(clopts_usage_error_get_positional(clopts_result_get_usage_error(result)));
     NAOS_CHECK_NULL(clopts_usage_error_get_token(clopts_result_get_usage_error(result)));
