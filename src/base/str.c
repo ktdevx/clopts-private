@@ -6,7 +6,7 @@
  * (base/alloc.h).
  */
 
-#include "base/string.h"
+#include "base/str.h"
 
 #include "base/alloc.h"
 #include "base/size.h"

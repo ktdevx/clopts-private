@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_SRC_BASE_STRING_H
-#define CLOPTS_SRC_BASE_STRING_H
+#ifndef CLOPTS_SRC_BASE_STR_H
+#define CLOPTS_SRC_BASE_STR_H
 
 #include <stddef.h>
 
@@ -31,4 +31,4 @@ char *clopts_strndup(const char *s, size_t len);
  */
 int clopts_strrep(char **field, const char *value);
 
-#endif /* CLOPTS_SRC_BASE_STRING_H */
+#endif /* CLOPTS_SRC_BASE_STR_H */

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite string: the owned strings (clopts_strdup / strndup / strrep).
+ * Suite str: the owned strings (clopts_strdup / strndup / strrep).
  *
  * Checked here: the copies and their termination, that each copy is one
  * allocation of the gateway, that NULL and the overflow of len + 1 allocate
@@ -11,7 +11,7 @@
  */
 
 #include "base/alloc.h"
-#include "base/string.h"
+#include "base/str.h"
 #include "test_alloc.h"
 
 #include <naos/naos.h>
@@ -115,7 +115,7 @@ NAOS_TEST(strrep_replaces_resets_and_keeps_on_failure)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-NAOS_SUITE(string,
+NAOS_SUITE(str,
     NAOS_ADD_TEST(strdup_copies_with_one_allocation),
     NAOS_ADD_TEST(strdup_of_null_allocates_nothing),
     NAOS_ADD_TEST(strndup_copies_len_bytes_and_terminates),

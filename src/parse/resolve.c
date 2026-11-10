@@ -16,7 +16,7 @@
 #include "parse/resolve.h"
 
 #include "base/alloc.h"
-#include "base/string.h"
+#include "base/str.h"
 
 #include <assert.h>
 

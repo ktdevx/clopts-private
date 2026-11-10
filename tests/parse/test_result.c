@@ -17,7 +17,7 @@
  * of test_fixtures.c (ported from the first-version suite).
  */
 
-#include "base/string.h"
+#include "base/str.h"
 #include "parse/matches.h"
 #include "parse/result.h"
 #include "parse/slot.h"
