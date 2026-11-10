@@ -8,6 +8,7 @@
 
 #include "clopts/decl.h"
 #include "clopts/help.h"
+#include "clopts/writer.h"
 #include "core/core_internal.h"
 
 /*
@@ -20,8 +21,8 @@
 /*
  * Output sink of the text writers (help_out.c). The same call sequence runs
  * in one of two modes:
- *   - write mode (fn != NULL): the bytes are passed to fn(ctx, ...) through
- *     clopts_core_write. The first failure sets failed; after that fn is not
+ *   - write mode (fn != NULL): the bytes are passed to fn(ctx, ...) in one
+ *     call, without retry. The first failure sets failed; after that fn is not
  *     called again. A write of 0 bytes never calls fn.
  *   - measure mode (fn == NULL): nothing is written; the display width
  *     (clopts_help_width) of the bytes is added to width.

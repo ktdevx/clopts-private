@@ -4,8 +4,8 @@
  *
  * HelpOut: output sink in write or measure mode, and the UTF-8 display width.
  *
- * Write mode passes the bytes to the callback through clopts_core_write and
- * stops calling it after the first failure. Measure mode writes nothing and
+ * Write mode passes the bytes to the callback and stops calling it after the
+ * first failure. Measure mode writes nothing and
  * adds the display width of the bytes instead, so the same sequence of calls
  * can first measure a row and then write it.
  */
@@ -49,7 +49,7 @@ void clopts_help_out_bytes(clopts_help_out_t *out, const char *data, size_t len)
     {
         return;
     }
-    if (clopts_core_write(out->fn, out->ctx, data, len) != 0)
+    if (out->fn(out->ctx, data, len) != 0)
     {
         out->failed = true;
     }
