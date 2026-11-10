@@ -1,4 +1,4 @@
-/* Good: defined in the file named after the header. */
+/* Good: a source file is not checked. */
 #include "base/size.h"
 int clopts_size_add(int a, int b)
 {

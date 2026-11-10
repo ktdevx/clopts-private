@@ -84,7 +84,7 @@ function(clopts_create_library)
             "${PROJECT_SOURCE_DIR}/src"
     )
 
-    clopts_apply_compiler_options(clopts)
+    clopts_apply_library_options(clopts)
 
     if(CLOPTS_BUILD_SHARED)
         # CLOPTS_BUILDING is set only while compiling the library itself.
@@ -116,7 +116,7 @@ function(clopts_create_library)
             PRIVATE
                 "${PROJECT_SOURCE_DIR}/src"
         )
-        clopts_apply_compiler_options(clopts_testing)
+        clopts_apply_library_options(clopts_testing)
         target_compile_definitions(clopts_testing PUBLIC CLOPTS_STATIC)
         set_property(GLOBAL PROPERTY CLOPTS_TEST_LINK_TARGET clopts_testing)
     else()

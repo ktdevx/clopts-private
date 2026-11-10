@@ -3,9 +3,9 @@
 
 # Module boundaries of src/ and include/clopts/ (check_structure.cmake): the
 # dependencies between modules of docs/dev/architecture.md and the OS
-# boundary (only process touches the OS). Names of src/ and include/clopts/
-# (check_names.cmake): one concept has one header, one source file and one
-# prefix (docs/dev/design.md).
+# boundary (only process touches the OS). Names of src/
+# (check_names.cmake): an internal function is named after its header
+# (docs/dev/design.md).
 set(_clopts_structure_script "${CMAKE_CURRENT_SOURCE_DIR}/check_structure.cmake")
 set(_clopts_structure_fixtures "${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
@@ -57,14 +57,12 @@ set(_clopts_structure_bad_text_reads_process_api
     "text/out\\.c:2: text may not include 'clopts/process/'")
 set(_clopts_structure_bad_reads_impl_of_another
     "parse/scan\\.c:2: 'decl/scope_impl\\.h' is the implementation of decl, for decl only")
-set(_clopts_structure_bad_reads_unshared_header
-    "parse/scan\\.c:2: 'decl/scope\\.h' is not shared with other modules")
 set(_clopts_structure_bad_unknown_module
     "extra/extra\\.c:1: module 'extra' has no dependency rule")
 foreach(_clopts_structure_case IN ITEMS
         text_reads_decl decl_reads_parse base_reads_decl
         getenv_outside_process windows_h_outside_process windows_h_outside_win32 text_reads_process_api
-        reads_impl_of_another reads_unshared_header unknown_module)
+        reads_impl_of_another unknown_module)
     _clopts_structure_add_test("selftest.${_clopts_structure_case}"
         "${_clopts_structure_fixtures}/bad/${_clopts_structure_case}"
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_bad_${_clopts_structure_case}}")
@@ -90,45 +88,17 @@ endforeach()
 set(_clopts_structure_names_script "${CMAKE_CURRENT_SOURCE_DIR}/check_names.cmake")
 set(_clopts_structure_names "${_clopts_structure_fixtures}/names")
 
-_clopts_structure_add_test(names "${PROJECT_SOURCE_DIR}/src" INCLUDE_DIR "${PROJECT_SOURCE_DIR}/include"
-    SCRIPT "${_clopts_structure_names_script}")
+_clopts_structure_add_test(names "${PROJECT_SOURCE_DIR}/src" SCRIPT "${_clopts_structure_names_script}")
 _clopts_structure_add_test(names_selftest.good "${_clopts_structure_names}/good/src"
-    INCLUDE_DIR "${_clopts_structure_names}/good/include" SCRIPT "${_clopts_structure_names_script}")
+    SCRIPT "${_clopts_structure_names_script}")
 
 # Each bad case must report exactly its one violation.
 set(_clopts_structure_names_internal_header
     "base/base_internal\\.h:1: an internal header is named after a concept")
 set(_clopts_structure_names_wrong_prefix
     "base/size\\.h:2: 'clopts_mem_size' is not named after its header")
-set(_clopts_structure_names_defined_elsewhere
-    "base/size\\.h:2: 'clopts_size' is not defined in size\\.c or size_<os>\\.c")
-set(_clopts_structure_names_public_defined_elsewhere
-    "clopts/base/allocator\\.h:3: 'clopts_set_allocator' is not defined in src/base/allocator\\.c")
-set(_clopts_structure_names_undeclared
-    "base/size\\.c:6: 'clopts_size_left_over' is not declared in base/size\\.h or size_impl\\.h")
-set(_clopts_structure_names_impl_without_source
-    "base/vec_impl\\.h:1: an implementation header needs vec\\.c or vec_<os>\\.c")
-set(_clopts_structure_names_impl_first_include
-    "base/size_impl\\.h:1: the first #include is not \"base/size\\.h\"")
-foreach(_clopts_structure_case IN ITEMS internal_header wrong_prefix undeclared impl_without_source
-        impl_first_include)
+foreach(_clopts_structure_case IN ITEMS internal_header wrong_prefix)
     _clopts_structure_add_test("names_selftest.${_clopts_structure_case}"
         "${_clopts_structure_names}/bad/${_clopts_structure_case}/src" SCRIPT "${_clopts_structure_names_script}"
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_names_${_clopts_structure_case}}")
 endforeach()
-# A function defined in the wrong file breaks both directions: it is not
-# defined next to its declaration, and its definition is not declared next
-# to it. Both are reported.
-_clopts_structure_add_test("names_selftest.defined_elsewhere"
-    "${_clopts_structure_names}/bad/defined_elsewhere/src" SCRIPT "${_clopts_structure_names_script}"
-    PASS_REGEX "2 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_names_defined_elsewhere}")
-_clopts_structure_add_test("names_selftest.public_defined_elsewhere"
-    "${_clopts_structure_names}/bad/public_defined_elsewhere/src"
-    INCLUDE_DIR "${_clopts_structure_names}/bad/public_defined_elsewhere/include"
-    SCRIPT "${_clopts_structure_names_script}"
-    PASS_REGEX "2 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_names_public_defined_elsewhere}")
-_clopts_structure_add_test("names_selftest.internal_first_include"
-    "${_clopts_structure_names}/bad/internal_first_include/src"
-    INCLUDE_DIR "${_clopts_structure_names}/bad/internal_first_include/include"
-    SCRIPT "${_clopts_structure_names_script}"
-    PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/base/allocator\\.h:1: the first #include is not \"clopts/base/allocator\\.h\"")

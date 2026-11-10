@@ -44,3 +44,18 @@ function(clopts_apply_compiler_options target)
         endif()
     endif()
 endfunction()
+
+# clopts_apply_library_options(<target>)
+#
+# Options for targets that compile the library sources (clopts and
+# clopts_testing), on top of clopts_apply_compiler_options(). With GCC and
+# Clang, -Wmissing-prototypes reports a non-static function definition that no
+# header declares: a library function is either declared in a header or static.
+# Tests and examples do not get it (Naos test functions have no prototypes).
+# MSVC has no equivalent warning.
+function(clopts_apply_library_options target)
+    clopts_apply_compiler_options("${target}")
+    if(NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
+        target_compile_options("${target}" PRIVATE -Wmissing-prototypes)
+    endif()
+endfunction()

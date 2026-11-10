@@ -1,4 +1,4 @@
-/* Good: an implementation header first includes the header of its concept. */
+/* Good: every function is named after its header, also in an implementation header. */
 #include "base/size.h"
 
 int clopts_size_grow(int a);
