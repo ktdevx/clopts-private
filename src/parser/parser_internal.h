@@ -12,46 +12,14 @@
 
 /*
  * Internal contracts of the parser module, shared by the entry of parsing
- * (parse.c), the lookups (lookup.c), the scanner (scan.c), the resolver
- * (resolve.c), the required checks (check.c) and the result handle
- * (result.c). The parser reads a declaration through the public read
+ * and its required checks (parse.c), the scanner and its lookups (scan.c),
+ * the resolver (resolve.c) and the result handle (result.c). The parser reads a declaration through the public read
  * functions and the scope functions of the decl module
  * (decl/decl_internal.h), and never writes to it. None of these symbols is
  * exported from the shared library. Every allocation goes through the
  * allocation gateway of core (clopts_core_malloc and the others,
  * core/core_internal.h).
  */
-
-/*
- * Lookups (lookup.c).
- *
- * The scanner searches the selected command and then the program, so a name
- * of the command shadows the same global option; in each scope an exact long
- * name comes before --no-<name>. Names are compared by the decl module
- * (clopts_decl_index_of_long / _short).
- */
-
-/* Where a looked-up option was found. */
-typedef struct clopts_parser_ref
-{
-    const clopts_option_t *option;  /* NULL when not found */
-    bool global;                    /* true: the program, false: the selected command */
-    size_t index;                   /* index in that scope */
-    bool negated;                   /* found through --no-<name> */
-} clopts_parser_ref_t;
-
-/*
- * Looks up the long name given by the name_len bytes at name in selected
- * (the scope of the selected command; NULL when none) and then in global (the
- * scope of the program). In each scope the exact long name is looked up first
- * and then, when name starts with "no-", the rest as a negatable FLAG
- * (negated is set).
- */
-clopts_parser_ref_t clopts_parser_find_long(const clopts_scope_t *global, const clopts_scope_t *selected,
-                                            const char *name, size_t name_len);
-
-/* Looks up the short name c in selected (NULL when none) and then in global. */
-clopts_parser_ref_t clopts_parser_find_short(const clopts_scope_t *global, const clopts_scope_t *selected, char c);
 
 /*
  * Result handle (result.c).
@@ -61,6 +29,18 @@ clopts_parser_ref_t clopts_parser_find_short(const clopts_scope_t *global, const
  * and its source are always updated together, and value == owned whenever
  * owned is not NULL.
  */
+
+/*
+ * Where a looked-up option was found: the scanner (scan.c) looks an option
+ * up by name and finds its slot through this.
+ */
+typedef struct clopts_parser_ref
+{
+    const clopts_option_t *option;  /* NULL when not found */
+    bool global;                    /* true: the program, false: the selected command */
+    size_t index;                   /* index in that scope */
+    bool negated;                   /* found through --no-<name> */
+} clopts_parser_ref_t;
 
 /* Recorded state of one option. */
 typedef struct clopts_parser_slot
@@ -222,7 +202,7 @@ clopts_parser_resolve_status_t clopts_parser_resolve(clopts_result_t *result, co
                                                      bool include_command);
 
 /*
- * Required checks (check.c).
+ * Required checks (parse.c): step 6 of parsing.
  */
 
 /*

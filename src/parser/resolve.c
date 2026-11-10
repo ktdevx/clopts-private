@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Resolver: resolution from the environment and the defaults (step 4 of
- * parsing, parse.c). The required checks that follow are in check.c. Without
+ * parsing, parse.c). The required checks that follow are in parse.c. Without
  * a lookup callback, the process environment is read through the platform
  * module (clopts_platform_env_lookup), with a lookup context that lives on
  * the stack of clopts_parser_resolve() only.
