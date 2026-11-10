@@ -12,7 +12,7 @@
 | decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則と比べ方、宣言エラーの説明 |
 | parser | `src/parser/` | 解析の入口と手順、名前での検索、argv の走査、環境変数と既定値の解決、必須の検査、結果のハンドル |
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）の書き込みのコールバックへの出力と、help サブコマンドの宣言と結果の読み取りの補助 |
-| process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。Windows のコマンドラインの分割と UTF-8 への変換、argv のハンドル（`clopts/process/argv.h`）、プロセスの環境変数の UTF-8 での参照（解析の入口が使う）。OS に触るのはこのモジュールだけである |
+| process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
 
 ソースファイルの名前にはモジュール名を付けない（`src/process/cmdline.c`）。ディレクトリが名前空間を兼ねる。内部ヘッダだけは、ほかのモジュールからも include されるので `<module>/<module>_internal.h` とする。
 
