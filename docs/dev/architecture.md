@@ -14,6 +14,8 @@
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）の書き込みのコールバックへの出力と、help サブコマンドの宣言と結果の読み取りの補助 |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。Windows のコマンドラインの分割と UTF-8 への変換、argv のハンドル（`clopts/argv.h`）、プロセスの環境変数の UTF-8 での参照（解析の入口が使う）。OS に触るのはこのモジュールだけである |
 
+ソースファイルの名前にはモジュール名を付けない（`src/process/split.c`）。ディレクトリが名前空間を兼ねる。内部ヘッダだけは、ほかのモジュールからも include されるので `<module>/<module>_internal.h` とする。
+
 依存の向きは次のとおりである。
 
 ```mermaid
@@ -32,6 +34,7 @@ flowchart LR
 - parser は、プロセスの環境変数を process の内部ヘッダ（`clopts_process_env_lookup` と、その文脈 `clopts_process_env_ctx_t`）で読む。process に依存するのは解析の入口（`parse.c`）だけで、参照のコールバックが渡されなかったときに、文脈を入口のスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`result.c`）は参照のコールバックだけを見て、OS を知らない。プロセスの環境を読むのは process だけである。
 - text は decl と parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。
 - 各モジュールの内部ヘッダ（`<module>/<module>_internal.h`）の関数は、共有ライブラリから export しない。
+- 依存の向きはテスト `structure.modules`（ラベル `structure`、`tests/structure/check_structure.cmake`）で検査する。各モジュールが include してよいほかのモジュールは上の図のとおりで（parser から process へは `parse.c` だけ）、`<windows.h>` の include と環境変数を読む関数（`getenv` など）の呼び出しは process の外に置けない。モジュールを足すときは、このスクリプトの規則にも足す。
 
 ## 宣言モデル
 
