@@ -6,7 +6,7 @@
  * value buffers. The lookup itself is in env_posix.c or env_win32.c.
  */
 
-#include "process/env_impl.h"
+#include "process/env.h"
 
 #include "base/mem.h"
 #include "process/utf16.h"
