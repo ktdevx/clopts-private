@@ -89,7 +89,8 @@ static clopts_result_t *parse_checked(clopts_program_t *program, int argc, char 
 
 /*
  * Checks a usage error of kind usage on token argv[index] that names no
- * option, positional or short name; command is the expected error command.
+ * option, positional or short name; command is the expected selected command
+ * of the result.
  */
 static void check_token_error(const clopts_result_t *result, clopts_usage_error_kind_t usage,
                               const clopts_command_t *command, char **argv, int index)

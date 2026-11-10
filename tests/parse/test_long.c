@@ -166,7 +166,8 @@ static clopts_result_t *parse_custom(custom_t *c, char **argv)
 
 /*
  * Checks a usage error of kind usage on argv[index] naming option (may be
- * NULL), with command as the error command and name_len as the name length.
+ * NULL), with command as the selected command of the result and name_len as
+ * the name length.
  */
 static void check_error(const clopts_result_t *result, clopts_usage_error_kind_t usage,
                         const clopts_command_t *command, const clopts_option_t *option,

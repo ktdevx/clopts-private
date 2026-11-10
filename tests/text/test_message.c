@@ -493,7 +493,7 @@ NAOS_TEST(statuses_without_an_error_are_unavailable)
 
 /* ---- prefixes (9.1 to 9.6) --------------------------------------------- */
 
-NAOS_TEST(prefixes_without_an_error_command)
+NAOS_TEST(prefixes_without_a_selected_command)
 {
     /* The unknown command is reported for the program: no command in the prefix. */
     char *argv[] = { "tool", "bulid", NULL };
@@ -518,7 +518,7 @@ NAOS_TEST(prefixes_without_an_error_command)
     text_fixture_tool_free(&f);
 }
 
-NAOS_TEST(prefixes_with_an_error_command)
+NAOS_TEST(prefixes_with_a_selected_command)
 {
     char *argv[] = { "tool", "build", "-o", NULL };
     const char *expected[4] = {
@@ -929,8 +929,8 @@ NAOS_SUITE(message,
     NAOS_ADD_TEST(null_result_is_out_of_memory),
     NAOS_ADD_TEST(out_of_memory_takes_the_program_prefix),
     NAOS_ADD_TEST(statuses_without_an_error_are_unavailable),
-    NAOS_ADD_TEST(prefixes_without_an_error_command),
-    NAOS_ADD_TEST(prefixes_with_an_error_command),
+    NAOS_ADD_TEST(prefixes_without_a_selected_command),
+    NAOS_ADD_TEST(prefixes_with_a_selected_command),
     NAOS_ADD_TEST(prefixes_of_a_program_without_subcommands),
     NAOS_ADD_TEST(undefined_prefix_bits_are_ignored),
     NAOS_ADD_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory),

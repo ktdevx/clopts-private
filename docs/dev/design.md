@@ -42,6 +42,8 @@
 
 - 型 `clopts_x_t` の関数は `clopts_x_<動詞>` とする（`clopts_option_create`、`clopts_result_get_value`）。
 - 型に属さない操作は、動詞で始める（`clopts_parse`、`clopts_write_help`、`clopts_set_allocator`）。ヘッダは動詞か対象の名前にする（`parse.h`、`write.h`、`allocator.h`）。
+- コールバックの型は、宣言するヘッダの名前に `_fn` を付ける（`write.h` の `clopts_write_fn`、`env.h` の `clopts_env_fn`）。
+- 同じ値を 2 つの型から読めるようにしない。使い方エラーの起きたコマンドは、結果の選ばれたコマンドと同じなので、`clopts_result_get_command` だけで読む。
 
 ## 3. src、include、tests を同じ形にする
 
