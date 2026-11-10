@@ -36,10 +36,13 @@ clopts_error_get_message
 # clopts/decl/program.h
 clopts_program_create
 clopts_program_destroy
+clopts_program_get_error
 clopts_program_set_description
 clopts_program_add_option
 clopts_program_add_positional
 clopts_program_add_command
+clopts_program_add_help_option
+clopts_program_add_version_option
 clopts_program_get_name
 clopts_program_get_description
 clopts_program_get_scope
@@ -48,8 +51,6 @@ clopts_program_get_command_at
 clopts_program_find_command
 
 # clopts/decl/command.h
-clopts_command_create
-clopts_command_destroy
 clopts_command_set_summary
 clopts_command_set_description
 clopts_command_add_option
@@ -67,8 +68,6 @@ clopts_scope_get_positional_at
 clopts_scope_shadows_option
 
 # clopts/decl/option.h
-clopts_option_create
-clopts_option_destroy
 clopts_option_set_help
 clopts_option_set_value_name
 clopts_option_set_env
@@ -92,8 +91,6 @@ clopts_option_is_negatable
 clopts_option_is_terminal
 
 # clopts/decl/positional.h
-clopts_positional_create
-clopts_positional_destroy
 clopts_positional_set_help
 clopts_positional_set_required
 clopts_positional_set_variadic

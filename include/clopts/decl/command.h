@@ -19,53 +19,37 @@ extern "C" {
 #endif
 
 /*
- * Subcommand: creation, release, texts, the attach of options and
- * positionals, and the read functions. A command is created on its own,
- * filled, and then added to a program with clopts_program_add_command()
- * (clopts/decl/program.h); it does not know its program. The attach functions make
- * the checks against the other options and positionals of the same command.
- * The rules shared by every builder function are in clopts/decl/program.h.
+ * Subcommand: texts, the options and positionals added to it, and the read
+ * functions. A command is created by clopts_program_add_command()
+ * (clopts/decl/program.h) and belongs to that program. The add functions
+ * check the new option or positional against the other options and
+ * positionals of the same command. The rules shared by every builder
+ * function (errors, NULL handles, ownership) are in clopts/decl/program.h.
  */
 
 typedef struct clopts_command clopts_command_t;
 
-/*
- * Creates an unattached command named name (copied) into *out. The name must
- * not be NULL or empty, start with '-' or contain white space
- * (INVALID_NAME).
- */
-CLOPTS_API clopts_error_t clopts_command_create(const char *name, clopts_command_t **out);
-
-/*
- * Releases an unattached command with the options and positionals attached
- * to it. NULL does nothing. A command handed to a program is owned by it and
- * must not be passed (the behavior is undefined).
- */
-CLOPTS_API void clopts_command_destroy(clopts_command_t *command);
-
 /* One-line description in the program help. */
-CLOPTS_API clopts_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary);
+CLOPTS_API void clopts_command_set_summary(clopts_command_t *command, const char *summary);
 
 /* Description in the command help. */
-CLOPTS_API clopts_error_t clopts_command_set_description(clopts_command_t *command, const char *description);
+CLOPTS_API void clopts_command_set_description(clopts_command_t *command, const char *description);
 
 /*
- * Attaches option to command. On success command owns option, and option
- * stays valid (read-only) as long as command does. On failure nothing
- * changes and the caller still owns option: DUPLICATE (a name already used
- * within command) or CONFLICT (the negated form of a flag within command).
- * Neither command nor option
- * may be attached already (the behavior is undefined, clopts/decl/program.h).
+ * Adds an option of kind to command and returns it, or NULL on failure, as
+ * clopts_program_add_option() does for a global option: INVALID_ARGUMENT,
+ * INVALID_NAME, DUPLICATE (a name already used within command) or CONFLICT
+ * (the negated form of a flag within command), in that order.
  */
-CLOPTS_API clopts_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option);
+CLOPTS_API clopts_option_t *clopts_command_add_option(clopts_command_t *command, clopts_option_kind_t kind,
+                                                      const char *long_name, char short_name);
 
 /*
- * Attaches positional to command, after the positionals already attached.
- * Ownership and preconditions as with clopts_command_add_option().
- * ORDER (the last attached one is variadic, or positional is required and
- * the last attached one is optional).
+ * Adds a positional named name (not empty) to command after the positionals
+ * already added, and returns it, or NULL on failure. INVALID_NAME, then
+ * ORDER (the last one is variadic).
  */
-CLOPTS_API clopts_error_t clopts_command_add_positional(clopts_command_t *command, clopts_positional_t *positional);
+CLOPTS_API clopts_positional_t *clopts_command_add_positional(clopts_command_t *command, const char *name);
 
 /* ---- read functions: a NULL command is a contract violation (assert) ---- */
 

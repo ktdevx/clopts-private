@@ -30,7 +30,8 @@ extern "C" {
  * This module reads the declaration through the read functions of
  * clopts/decl/program.h only, like any other user of the library.
  *
- * Preconditions (caught by assert): program and write_fn are not NULL; a
+ * Preconditions (caught by assert): program and write_fn are not NULL;
+ * program has no declaration error (clopts_program_get_error()); a
  * command is NULL (the program itself) or a subcommand of program; a result
  * was obtained from program and program has not been released yet. A NULL result is read like
  * the out-of-memory sentinel, as in clopts/parse/result.h.

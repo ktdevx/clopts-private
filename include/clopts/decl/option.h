@@ -8,7 +8,6 @@
 
 #include <stdbool.h>
 
-#include "clopts/base/error.h"
 #include "clopts/base/export.h"
 
 #ifdef __cplusplus
@@ -16,11 +15,12 @@ extern "C" {
 #endif
 
 /*
- * Option: its kinds, creation, release and attributes. An option is created
- * unattached, configured, and then attached with clopts_command_add_option()
- * (clopts/decl/command.h); it does not know its command. The checks made here
- * depend on the option alone. Strings are copied; NULL resets. A NULL option
- * passed to a setter is a contract violation (assert).
+ * Option: its kinds and attributes. An option is created by adding it to the
+ * program (clopts_program_add_option(), clopts/decl/program.h) or to a
+ * command (clopts_command_add_option(), clopts/decl/command.h), and is then
+ * configured with the setters below. A setter that fails changes nothing and
+ * leaves its error in the program; a NULL option does nothing (the rules are
+ * in clopts/decl/program.h). Strings are copied; NULL resets.
  */
 
 typedef struct clopts_option clopts_option_t;
@@ -38,55 +38,44 @@ typedef enum clopts_option_kind
     CLOPTS_OPTION_LIST = 3
 } clopts_option_kind_t;
 
-/*
- * Creates an unattached option of kind into *out. long_name excludes the
- * leading "--" (NULL for none); short_name is '\0' for none. At least one of
- * them is required (INVALID_NAME). INVALID_ARGUMENT (kind), INVALID_NAME.
- */
-CLOPTS_API clopts_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_name,
-                                               char short_name, clopts_option_t **out);
-
-/*
- * Releases an unattached option. NULL does nothing. An attached option is
- * owned by its command and must not be passed (the behavior is undefined).
- */
-CLOPTS_API void clopts_option_destroy(clopts_option_t *option);
-
 /* One-line description in help. */
-CLOPTS_API clopts_error_t clopts_option_set_help(clopts_option_t *option, const char *help);
+CLOPTS_API void clopts_option_set_help(clopts_option_t *option, const char *help);
 
 /* VALUE / LIST: value name shown in help. */
-CLOPTS_API clopts_error_t clopts_option_set_value_name(clopts_option_t *option, const char *value_name);
+CLOPTS_API void clopts_option_set_value_name(clopts_option_t *option, const char *value_name);
 
 /*
  * VALUE / LIST: environment variable used when argv gives no value. NOT_APPLICABLE, INVALID_NAME (empty,
  * containing '=', or not valid UTF-8).
  */
-CLOPTS_API clopts_error_t clopts_option_set_env(clopts_option_t *option, const char *env);
+CLOPTS_API void clopts_option_set_env(clopts_option_t *option, const char *env);
 
 /* VALUE / LIST: default value. For LIST it is split by the delimiter. NOT_APPLICABLE, CONFLICT (required). */
-CLOPTS_API clopts_error_t clopts_option_set_default(clopts_option_t *option, const char *default_value);
+CLOPTS_API void clopts_option_set_default(clopts_option_t *option, const char *default_value);
 
 /* VALUE / LIST: the option must get a value from argv or the environment. NOT_APPLICABLE, CONFLICT (default). */
-CLOPTS_API clopts_error_t clopts_option_set_required(clopts_option_t *option, bool required);
+CLOPTS_API void clopts_option_set_required(clopts_option_t *option, bool required);
 
-/* FLAG: --no-<long_name> is accepted and sets the flag to false. NOT_APPLICABLE. */
-CLOPTS_API clopts_error_t clopts_option_set_negatable(clopts_option_t *option, bool negatable);
+/*
+ * FLAG: --no-<long_name> is accepted and sets the flag to false. NOT_APPLICABLE, CONFLICT (an option named
+ * no-<long_name> in the same program or command).
+ */
+CLOPTS_API void clopts_option_set_negatable(clopts_option_t *option, bool negatable);
 
 /* LIST: item delimiter. '\0' resets it: each occurrence is a single item. NOT_APPLICABLE. */
-CLOPTS_API clopts_error_t clopts_option_set_delimiter(clopts_option_t *option, char delimiter);
+CLOPTS_API void clopts_option_set_delimiter(clopts_option_t *option, char delimiter);
 
 /* COUNT: upper limit of the count. 0 resets it to the default (UINT_MAX). NOT_APPLICABLE. */
-CLOPTS_API clopts_error_t clopts_option_set_count_max(clopts_option_t *option, unsigned count_max);
+CLOPTS_API void clopts_option_set_count_max(clopts_option_t *option, unsigned count_max);
 
 /*
  * FLAG: a terminal option. When argv gives it (not as --no-<name>), the
  * parse stops right there with CLOPTS_PARSE_TERMINATED: the remaining tokens are
  * not read and the required options and positionals are not checked
  * (clopts/parse/parse.h). Meant for options such as --help and --version
- * (clopts/text/write.h). NOT_APPLICABLE.
+ * (clopts_program_add_help_option(), clopts/text/write.h). NOT_APPLICABLE.
  */
-CLOPTS_API clopts_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal);
+CLOPTS_API void clopts_option_set_terminal(clopts_option_t *option, bool terminal);
 
 /* ---- read functions: a NULL option is a contract violation (assert) ---- */
 

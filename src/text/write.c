@@ -41,6 +41,7 @@ clopts_write_status_t clopts_write_help(const clopts_program_t *program, const c
     clopts_out_t out;
 
     assert(program != NULL);
+    assert(clopts_program_get_error(program) == CLOPTS_ERROR_NONE);
     assert(write_fn != NULL);
     assert((command == NULL) || has_command(program, command));
 
@@ -55,6 +56,7 @@ clopts_write_status_t clopts_write_usage(const clopts_program_t *program, const 
     clopts_out_t out;
 
     assert(program != NULL);
+    assert(clopts_program_get_error(program) == CLOPTS_ERROR_NONE);
     assert(write_fn != NULL);
     assert((command == NULL) || has_command(program, command));
 
@@ -69,6 +71,7 @@ clopts_write_status_t clopts_write_version(const clopts_program_t *program, cons
     clopts_out_t out;
 
     assert(program != NULL);
+    assert(clopts_program_get_error(program) == CLOPTS_ERROR_NONE);
     assert(write_fn != NULL);
 
     if (version == NULL)
@@ -86,6 +89,7 @@ clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, c
     clopts_out_t out;
 
     assert(program != NULL);
+    assert(clopts_program_get_error(program) == CLOPTS_ERROR_NONE);
     assert(write_fn != NULL);
     assert((command == NULL) || has_command(program, command));
 
@@ -100,6 +104,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
     clopts_out_t out;
 
     assert(program != NULL);
+    assert(clopts_program_get_error(program) == CLOPTS_ERROR_NONE);
     assert(write_fn != NULL);
     assert((clopts_result_get_command(result) == NULL) || has_command(program, clopts_result_get_command(result)));
 

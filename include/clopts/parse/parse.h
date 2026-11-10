@@ -50,7 +50,9 @@ extern "C" {
  * are read from the process environment in UTF-8: on Windows with
  * GetEnvironmentVariableW() and converted, elsewhere with getenv() and
  * passed through as is. Never returns NULL: when an allocation fails (or
- * program is NULL) the shared out-of-memory sentinel is returned.
+ * program is NULL) the shared out-of-memory sentinel is returned. A program
+ * with a declaration error (clopts_program_get_error()) is a contract
+ * violation (caught by assert).
  */
 CLOPTS_API clopts_result_t *clopts_parse(const clopts_program_t *program, int argc, char *const *argv);
 

@@ -8,7 +8,6 @@
 
 #include <stdbool.h>
 
-#include "clopts/base/error.h"
 #include "clopts/base/export.h"
 
 #ifdef __cplusplus
@@ -16,26 +15,25 @@ extern "C" {
 #endif
 
 /*
- * Positional: creation, release and attributes. A positional is created
- * unattached, configured, and then attached with
- * clopts_command_add_positional() (clopts/decl/command.h), which checks the order.
+ * Positional: attributes. A positional is created by adding it to the
+ * program (clopts_program_add_positional(), clopts/decl/program.h) or to a
+ * command (clopts_command_add_positional(), clopts/decl/command.h), and is
+ * then configured with the setters below. The positionals of one program or
+ * command must keep their order: the required ones first, and a variadic one
+ * last. A setter that fails changes nothing and leaves its error in the
+ * program; a NULL positional does nothing (the rules are in
+ * clopts/decl/program.h).
  */
 
 typedef struct clopts_positional clopts_positional_t;
 
-/* Creates an unattached positional named name (copied, not empty), used in help and messages. */
-CLOPTS_API clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **out);
-
-/* Releases an unattached positional, as clopts_option_destroy() does for an option. */
-CLOPTS_API void clopts_positional_destroy(clopts_positional_t *positional);
-
 /* One-line description in help. NULL resets it. */
-CLOPTS_API clopts_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help);
+CLOPTS_API void clopts_positional_set_help(clopts_positional_t *positional, const char *help);
 
-/* Required positionals must precede optional ones (checked when attached). */
+/* The positional must be given. ORDER (an optional positional precedes it). */
 CLOPTS_API void clopts_positional_set_required(clopts_positional_t *positional, bool required);
 
-/* Takes all remaining tokens. Must be the last positional (checked when the next one is attached). */
+/* Takes all remaining tokens. ORDER (another positional follows it). */
 CLOPTS_API void clopts_positional_set_variadic(clopts_positional_t *positional, bool variadic);
 
 /* ---- read functions ---- */

@@ -103,6 +103,7 @@ static clopts_result_t *parse(const clopts_program_t *program, int argc, char *c
 
     assert(argc >= 0);
     assert((argc == 0) || (argv != NULL));
+    assert((program == NULL) || (clopts_program_get_error(program) == CLOPTS_ERROR_NONE));
 
     /* 1. */
     if (program == NULL)
