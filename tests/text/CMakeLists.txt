@@ -8,6 +8,7 @@ clopts_add_module_tests(text SOURCES
     test_layout.c
     test_option_row.c
     test_message.c
+    test_command.c
     test_file_write.c
     ../support/test_decl.c
 )

@@ -2,10 +2,9 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite layout: the whole help texts, the Usage line, the version line and
- * the usage hint, compared byte for byte; the filter of the shadowed global
- * options; and the help command (clopts_help_command_create() and
- * clopts_help_find_target()).
+ * Suite layout: the whole help texts and the Usage line, compared byte for
+ * byte; the filter of the shadowed global options; and the shape of every
+ * text the fixtures give.
  *
  * It also checks that the fixtures it uses (tool, filt, bare) are built
  * without a declaration error. Nothing is reserved: -h/--help, --version
@@ -441,114 +440,6 @@ NAOS_TEST(usage_is_the_first_line_of_the_help)
     text_fixture_tool_free(&f);
 }
 
-/* ---- version line and usage hint --------------------------------------- */
-
-/* The version line of program with version is exactly expected. */
-#define CHECK_VERSION(program, version, expected)                                                 \
-    do                                                                                            \
-    {                                                                                             \
-        static text_recorder_t rec_;                                                              \
-        text_recorder_init(&rec_);                                                                \
-        NAOS_CHECK_INT_EQ(clopts_write_version((program), (version), text_recorder_write, &rec_), \
-                          CLOPTS_WRITE_OK);                                                       \
-        NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));                      \
-    } while (0)
-
-NAOS_TEST(version_line)
-{
-    text_fixture_tool_t f;
-    text_fixture_bare_t b;
-
-    text_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    CHECK_VERSION(f.program, "1.2.3", "tool 1.2.3\n");
-    text_fixture_tool_free(&f);
-
-    text_fixture_bare_init(&b);
-    NAOS_REQUIRE_NOT_NULL(b.program);
-    CHECK_VERSION(b.program, "0.1", "bare 0.1\n");
-    text_fixture_bare_free(&b);
-}
-
-NAOS_TEST(version_line_does_not_need_a_version_option)
-{
-    /* The version string is the caller's: a program without --version has a version line too. */
-    text_fixture_filt_t f;
-    layout_nover_t g;
-
-    text_fixture_filt_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    CHECK_VERSION(f.program, "2.0", "filt 2.0\n");
-    text_fixture_filt_free(&f);
-
-    /* An empty version is written as is. */
-    layout_nover_init(&g);
-    NAOS_REQUIRE_NOT_NULL(g.program);
-    CHECK_VERSION(g.program, "", "nover \n");
-    clopts_program_destroy(g.program);
-}
-
-NAOS_TEST(version_line_unavailable_without_version)
-{
-    static text_recorder_t rec;
-    text_fixture_tool_t f;
-    text_fixture_filt_t g;
-
-    /* A NULL version gives UNAVAILABLE, even when the program declares --version. */
-    text_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    text_recorder_init(&rec);
-    NAOS_CHECK_INT_EQ(clopts_write_version(f.program, NULL, text_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
-    NAOS_CHECK_UINT_EQ(rec.calls, 0);
-    NAOS_CHECK_UINT_EQ(rec.len, 0);
-    text_fixture_tool_free(&f);
-
-    text_fixture_filt_init(&g);
-    NAOS_REQUIRE_NOT_NULL(g.program);
-    text_recorder_init(&rec);
-    NAOS_CHECK_INT_EQ(clopts_write_version(g.program, NULL, text_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
-    NAOS_CHECK_UINT_EQ(rec.calls, 0);
-    text_fixture_filt_free(&g);
-}
-
-/* The usage hint of command (NULL: the program) of program is exactly expected. */
-#define CHECK_HINT(program, command, expected)                                                       \
-    do                                                                                               \
-    {                                                                                                \
-        static text_recorder_t rec_;                                                                 \
-        text_recorder_init(&rec_);                                                                   \
-        NAOS_CHECK_INT_EQ(clopts_write_usage_hint((program), (command), text_recorder_write, &rec_), \
-                          CLOPTS_WRITE_OK);                                                          \
-        NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));                         \
-    } while (0)
-
-NAOS_TEST(usage_hint_without_command)
-{
-    text_fixture_tool_t f;
-    text_fixture_filt_t g;
-
-    text_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    CHECK_HINT(f.program, NULL, "Run 'tool --help' for usage.\n");
-    text_fixture_tool_free(&f);
-
-    text_fixture_filt_init(&g);
-    NAOS_REQUIRE_NOT_NULL(g.program);
-    CHECK_HINT(g.program, NULL, "Run 'filt --help' for usage.\n");
-    text_fixture_filt_free(&g);
-}
-
-NAOS_TEST(usage_hint_with_command)
-{
-    text_fixture_tool_t f;
-
-    text_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    CHECK_HINT(f.program, f.build, "Run 'tool build --help' for usage.\n");
-    CHECK_HINT(f.program, f.copy, "Run 'tool copy --help' for usage.\n");
-    text_fixture_tool_free(&f);
-}
-
 /* ---- shadowed global options ------------------------------------------- */
 
 /*
@@ -866,143 +757,6 @@ NAOS_TEST(run_line_is_not_in_the_help_of_a_program_without_subcommands)
     text_fixture_filt_free(&f);
 }
 
-/* ---- the help command ------------------------------------------------- */
-
-/* A value no clopts function returns, to see that an out pointer is written. */
-static const clopts_option_t *const layout_stale_option = (const clopts_option_t *)&layout_stale_option;
-
-NAOS_TEST(help_command_new_declaration)
-{
-    clopts_command_t *command = NULL;
-    const clopts_positional_t *positional;
-
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&command), CLOPTS_DECL_ERROR_NONE);
-    NAOS_REQUIRE_NOT_NULL(command);
-    NAOS_CHECK_STR_EQ(clopts_command_get_name(command), "help");
-    NAOS_CHECK_STR_EQ(clopts_command_get_summary(command), "Show help for a command");
-    NAOS_CHECK_NULL(clopts_command_get_description(command));
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(command), 0);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_get_positional_count(command), 1);
-    positional = clopts_command_get_positional_at(command, 0);
-    NAOS_CHECK_STR_EQ(clopts_positional_get_name(positional), "COMMAND");
-    NAOS_CHECK_STR_EQ(clopts_positional_get_help(positional), "Command to show help for");
-    NAOS_CHECK_FALSE(clopts_positional_is_required(positional));
-    NAOS_CHECK_FALSE(clopts_positional_is_variadic(positional));
-    /* It is unattached: the caller owns it. */
-    clopts_command_destroy(command);
-}
-
-NAOS_TEST(help_command_new_gives_a_new_command_each_time)
-{
-    /*
-     * Two of them cannot be in one program (the second is a DUPLICATE_COMMAND
-     * and stays with the caller), but each is a separate command.
-     */
-    clopts_command_t *first = NULL;
-    clopts_command_t *second = NULL;
-    clopts_program_t *program = test_decl_begin("t");
-
-    NAOS_REQUIRE_NOT_NULL(program);
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&first), CLOPTS_DECL_ERROR_NONE);
-    NAOS_REQUIRE_INT_EQ(clopts_help_command_create(&second), CLOPTS_DECL_ERROR_NONE);
-    NAOS_CHECK_TRUE(first != second);
-    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, first), CLOPTS_DECL_ERROR_NONE);
-    NAOS_CHECK_INT_EQ(clopts_program_add_command(program, second), CLOPTS_DECL_ERROR_DUPLICATE_COMMAND);
-    NAOS_REQUIRE_UINT_EQ(clopts_program_get_command_count(program), 1);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_command_at(program, 0), first);
-    clopts_command_destroy(second);
-    test_decl_discard(program);
-}
-
-/* Environment lookup that finds no variable, so the parses do not depend on the environment. */
-static clopts_env_status_t layout_env_unset(void *ctx, const char *name, const char **value)
-{
-    (void)ctx;
-    (void)name;
-    (void)value;
-    return CLOPTS_ENV_UNSET;
-}
-
-/* Number of elements of argv before its terminating NULL. */
-#define LAYOUT_ARGC(argv) ((int)(sizeof(argv) / sizeof((argv)[0])) - 1)
-
-/*
- * Parses argv against program, requires the status, and checks that
- * clopts_help_find_target() returns expected and sets the target to
- * expected_target (from a stale value).
- */
-static void layout_check_target(const clopts_program_t *program, int argc, char *const *argv,
-                                clopts_parse_status_t status, bool expected, const clopts_command_t *expected_target)
-{
-    clopts_result_t *result = clopts_parse_with_env(program, argc, argv, layout_env_unset, NULL);
-    const clopts_command_t *target = (const clopts_command_t *)&layout_stale_option;
-
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), status);
-    NAOS_CHECK_INT_EQ(clopts_help_find_target(program, result, &target), expected);
-    NAOS_CHECK_PTR_EQ(target, expected_target);
-    clopts_result_destroy(result);
-}
-
-NAOS_TEST(help_target_without_a_positional_is_the_program)
-{
-    char *argv[] = { "tool", "help", NULL };
-    text_fixture_tool_t f;
-
-    text_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    layout_check_target(f.program, LAYOUT_ARGC(argv), argv, CLOPTS_PARSE_OK, true, NULL);
-    text_fixture_tool_free(&f);
-}
-
-NAOS_TEST(help_target_names_a_known_command)
-{
-    char *argv_build[] = { "tool", "help", "build", NULL };
-    char *argv_help[] = { "tool", "help", "help", NULL };
-    char *argv_global[] = { "tool", "-v", "help", "copy", NULL };
-    text_fixture_tool_t f;
-
-    text_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    layout_check_target(f.program, LAYOUT_ARGC(argv_build), argv_build, CLOPTS_PARSE_OK, true, f.build);
-    layout_check_target(f.program, LAYOUT_ARGC(argv_help), argv_help, CLOPTS_PARSE_OK, true, f.help_command);
-    layout_check_target(f.program, LAYOUT_ARGC(argv_global), argv_global, CLOPTS_PARSE_OK, true, f.copy);
-    text_fixture_tool_free(&f);
-}
-
-NAOS_TEST(help_target_of_an_unknown_command_is_false)
-{
-    char *argv[] = { "tool", "help", "bulid", NULL };
-    /* The program name is not a subcommand. */
-    char *argv_program[] = { "tool", "help", "tool", NULL };
-    text_fixture_tool_t f;
-
-    text_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    layout_check_target(f.program, LAYOUT_ARGC(argv), argv, CLOPTS_PARSE_OK, false, NULL);
-    layout_check_target(f.program, LAYOUT_ARGC(argv_program), argv_program, CLOPTS_PARSE_OK, false, NULL);
-    text_fixture_tool_free(&f);
-}
-
-NAOS_TEST(help_target_of_a_status_other_than_ok_is_false)
-{
-    char *argv_terminated[] = { "tool", "help", "build", "--help", NULL };
-    char *argv_no_command[] = { "tool", NULL };
-    char *argv_usage[] = { "tool", "help", "build", "copy", NULL };
-    const clopts_command_t *target = (const clopts_command_t *)&layout_stale_option;
-    text_fixture_tool_t f;
-
-    text_fixture_tool_init(&f);
-    NAOS_REQUIRE_NOT_NULL(f.program);
-    layout_check_target(f.program, LAYOUT_ARGC(argv_terminated), argv_terminated, CLOPTS_PARSE_TERMINATED, false, NULL);
-    layout_check_target(f.program, LAYOUT_ARGC(argv_no_command), argv_no_command, CLOPTS_PARSE_NO_COMMAND, false, NULL);
-    layout_check_target(f.program, LAYOUT_ARGC(argv_usage), argv_usage, CLOPTS_PARSE_USAGE_ERROR, false, NULL);
-
-    /* A NULL result reads as out of memory. */
-    NAOS_CHECK_FALSE(clopts_help_find_target(f.program, NULL, &target));
-    NAOS_CHECK_NULL(target);
-    text_fixture_tool_free(&f);
-}
-
 /* ---- determinism ------------------------------------------------------- */
 
 /* Every text of command (NULL: the program) of program, concatenated into rec. */
@@ -1232,11 +986,6 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(usage_subcommand),
     NAOS_ADD_TEST(usage_without_subcommands),
     NAOS_ADD_TEST(usage_is_the_first_line_of_the_help),
-    NAOS_ADD_TEST(version_line),
-    NAOS_ADD_TEST(version_line_does_not_need_a_version_option),
-    NAOS_ADD_TEST(version_line_unavailable_without_version),
-    NAOS_ADD_TEST(usage_hint_without_command),
-    NAOS_ADD_TEST(usage_hint_with_command),
     NAOS_ADD_TEST(help_global_options_leave_out_the_shadowed_ones),
     NAOS_ADD_TEST(help_negatable_global_option_stays_while_its_negation_is_free),
     NAOS_ADD_TEST(help_global_options_are_filtered_per_command),
@@ -1244,12 +993,6 @@ NAOS_SUITE(layout,
     NAOS_ADD_TEST(help_shadowed_help_option_is_left_out_of_the_global_options),
     NAOS_ADD_TEST(run_line_needs_a_global_long_option_named_help),
     NAOS_ADD_TEST(run_line_is_not_in_the_help_of_a_program_without_subcommands),
-    NAOS_ADD_TEST(help_command_new_declaration),
-    NAOS_ADD_TEST(help_command_new_gives_a_new_command_each_time),
-    NAOS_ADD_TEST(help_target_without_a_positional_is_the_program),
-    NAOS_ADD_TEST(help_target_names_a_known_command),
-    NAOS_ADD_TEST(help_target_of_an_unknown_command_is_false),
-    NAOS_ADD_TEST(help_target_of_a_status_other_than_ok_is_false),
     NAOS_ADD_TEST(generation_is_repeatable_and_keeps_the_declaration),
     NAOS_ADD_TEST(shape_check_rejects_each_malformed_text),
     NAOS_ADD_TEST(every_text_of_the_fixtures_is_well_formed)

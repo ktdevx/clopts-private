@@ -2,9 +2,11 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * TextMessage: error line of a result, its prefix, and the message tables.
+ * TextMessage: the one-line texts: version line, usage hint, and the error
+ * line of a result with its prefix and message tables.
  *
- * The line is [prefix] + body + "\n". The status of the result selects the
+ * The version line is "<program> <version>\n" and the usage hint is
+ * "Run '<program> [<command>] --help' for usage.\n". The error line is [prefix] + body + "\n". The status of the result selects the
  * body (usage error text, out of memory); for any other status nothing is
  * written. The prefix is written only once the body
  * is known, so an unavailable line never calls write_fn. No usage hint is
@@ -278,6 +280,48 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
         return CLOPTS_WRITE_UNAVAILABLE;
     }
     clopts_text_out_char(&out, '\n');
+    return clopts_text_out_status(&out);
+}
+
+clopts_write_status_t clopts_write_version(const clopts_program_t *program, const char *version,
+                                           clopts_write_fn write_fn, void *ctx)
+{
+    clopts_text_out_t out;
+
+    assert(program != NULL);
+    assert(write_fn != NULL);
+
+    if (version == NULL)
+    {
+        return CLOPTS_WRITE_UNAVAILABLE;
+    }
+
+    clopts_text_out_init(&out, write_fn, ctx);
+    clopts_text_out_str(&out, clopts_program_get_name(program));
+    clopts_text_out_char(&out, ' ');
+    clopts_text_out_str(&out, version);
+    clopts_text_out_char(&out, '\n');
+    return clopts_text_out_status(&out);
+}
+
+clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, const clopts_command_t *command,
+                                              clopts_write_fn write_fn, void *ctx)
+{
+    clopts_text_out_t out;
+
+    assert(program != NULL);
+    assert(write_fn != NULL);
+    assert((command == NULL) || clopts_text_has_command(program, command));
+
+    clopts_text_out_init(&out, write_fn, ctx);
+    clopts_text_out_str(&out, "Run '");
+    clopts_text_out_str(&out, clopts_program_get_name(program));
+    if (command != NULL)
+    {
+        clopts_text_out_char(&out, ' ');
+        clopts_text_out_str(&out, clopts_command_get_name(command));
+    }
+    clopts_text_out_str(&out, " --help' for usage.\n");
     return clopts_text_out_status(&out);
 }
 

@@ -2,8 +2,8 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite message: the texts of every usage error kind, the out-of-memory
- * line, the prefixes, the texts of clopts_decl_error_get_message() and the
+ * Suite message: the version line and the usage hint, the texts of every
+ * usage error kind, the out-of-memory line, the prefixes, the texts of clopts_decl_error_get_message() and the
  * coverage of the text tables.
  *
  * The usage errors are caused by parsing real argv against the fictional
@@ -617,6 +617,114 @@ NAOS_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory)
     text_fixture_tool_free(&f);
 }
 
+/* ---- version line and usage hint --------------------------------------- */
+
+/* The version line of program with version is exactly expected. */
+#define CHECK_VERSION(program, version, expected)                                                 \
+    do                                                                                            \
+    {                                                                                             \
+        static text_recorder_t rec_;                                                              \
+        text_recorder_init(&rec_);                                                                \
+        NAOS_CHECK_INT_EQ(clopts_write_version((program), (version), text_recorder_write, &rec_), \
+                          CLOPTS_WRITE_OK);                                                       \
+        NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));                      \
+    } while (0)
+
+NAOS_TEST(version_line)
+{
+    text_fixture_tool_t f;
+    text_fixture_bare_t b;
+
+    text_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    CHECK_VERSION(f.program, "1.2.3", "tool 1.2.3\n");
+    text_fixture_tool_free(&f);
+
+    text_fixture_bare_init(&b);
+    NAOS_REQUIRE_NOT_NULL(b.program);
+    CHECK_VERSION(b.program, "0.1", "bare 0.1\n");
+    text_fixture_bare_free(&b);
+}
+
+NAOS_TEST(version_line_does_not_need_a_version_option)
+{
+    /* The version string is the caller's: a program without --version has a version line too. */
+    text_fixture_filt_t f;
+    clopts_program_t *program;
+
+    text_fixture_filt_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    CHECK_VERSION(f.program, "2.0", "filt 2.0\n");
+    text_fixture_filt_free(&f);
+
+    /* An empty version is written as is. */
+    program = test_decl_program("empty");
+    NAOS_REQUIRE_NOT_NULL(program);
+    CHECK_VERSION(program, "", "empty \n");
+    clopts_program_destroy(program);
+}
+
+NAOS_TEST(version_line_unavailable_without_version)
+{
+    static text_recorder_t rec;
+    text_fixture_tool_t f;
+    text_fixture_filt_t g;
+
+    /* A NULL version gives UNAVAILABLE, even when the program declares --version. */
+    text_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    text_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_version(f.program, NULL, text_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
+    NAOS_CHECK_UINT_EQ(rec.calls, 0);
+    NAOS_CHECK_UINT_EQ(rec.len, 0);
+    text_fixture_tool_free(&f);
+
+    text_fixture_filt_init(&g);
+    NAOS_REQUIRE_NOT_NULL(g.program);
+    text_recorder_init(&rec);
+    NAOS_CHECK_INT_EQ(clopts_write_version(g.program, NULL, text_recorder_write, &rec), CLOPTS_WRITE_UNAVAILABLE);
+    NAOS_CHECK_UINT_EQ(rec.calls, 0);
+    text_fixture_filt_free(&g);
+}
+
+/* The usage hint of command (NULL: the program) of program is exactly expected. */
+#define CHECK_HINT(program, command, expected)                                                       \
+    do                                                                                               \
+    {                                                                                                \
+        static text_recorder_t rec_;                                                                 \
+        text_recorder_init(&rec_);                                                                   \
+        NAOS_CHECK_INT_EQ(clopts_write_usage_hint((program), (command), text_recorder_write, &rec_), \
+                          CLOPTS_WRITE_OK);                                                          \
+        NAOS_CHECK_MEM_EQ(rec_.buf, rec_.len, (expected), strlen(expected));                         \
+    } while (0)
+
+NAOS_TEST(usage_hint_without_command)
+{
+    text_fixture_tool_t f;
+    text_fixture_filt_t g;
+
+    text_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    CHECK_HINT(f.program, NULL, "Run 'tool --help' for usage.\n");
+    text_fixture_tool_free(&f);
+
+    text_fixture_filt_init(&g);
+    NAOS_REQUIRE_NOT_NULL(g.program);
+    CHECK_HINT(g.program, NULL, "Run 'filt --help' for usage.\n");
+    text_fixture_filt_free(&g);
+}
+
+NAOS_TEST(usage_hint_with_command)
+{
+    text_fixture_tool_t f;
+
+    text_fixture_tool_init(&f);
+    NAOS_REQUIRE_NOT_NULL(f.program);
+    CHECK_HINT(f.program, f.build, "Run 'tool build --help' for usage.\n");
+    CHECK_HINT(f.program, f.copy, "Run 'tool copy --help' for usage.\n");
+    text_fixture_tool_free(&f);
+}
+
 /* ---- declaration error texts ------------------------------------------ */
 
 /* Largest value of each kind enum; a new kind must raise them (12.2). */
@@ -826,6 +934,11 @@ NAOS_SUITE(message,
     NAOS_ADD_TEST(prefixes_of_a_program_without_subcommands),
     NAOS_ADD_TEST(undefined_prefix_bits_are_ignored),
     NAOS_ADD_TEST(undefined_prefix_bits_are_ignored_for_out_of_memory),
+    NAOS_ADD_TEST(version_line),
+    NAOS_ADD_TEST(version_line_does_not_need_a_version_option),
+    NAOS_ADD_TEST(version_line_unavailable_without_version),
+    NAOS_ADD_TEST(usage_hint_without_command),
+    NAOS_ADD_TEST(usage_hint_with_command),
     NAOS_ADD_TEST(decl_error_message_of_every_kind),
     NAOS_ADD_TEST(decl_error_message_of_a_builder_error),
     NAOS_ADD_TEST(decl_error_message_of_a_mixed_layout),

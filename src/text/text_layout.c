@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * TextLayout: help, Usage line, version line and usage hint.
+ * TextLayout: help and Usage line.
  *
  * Lists are written in two passes over the same row procedure: the left
  * columns are measured on a measure-mode output to find the widest one, then
@@ -12,7 +12,7 @@
  *
  * Nothing here is reserved: --help, --version and the help command are
  * ordinary options and commands, listed like any other one. The help command
- * is created by the helper at the end of this file.
+ * is created by the helper of text_command.c.
  */
 
 #include "text/text_internal.h"
@@ -807,109 +807,4 @@ clopts_write_status_t clopts_write_usage(const clopts_program_t *program, const 
     clopts_text_out_init(&out, write_fn, ctx);
     text_write_usage_line(&out, program, command);
     return clopts_text_out_status(&out);
-}
-
-clopts_write_status_t clopts_write_version(const clopts_program_t *program, const char *version,
-                                           clopts_write_fn write_fn, void *ctx)
-{
-    clopts_text_out_t out;
-
-    assert(program != NULL);
-    assert(write_fn != NULL);
-
-    if (version == NULL)
-    {
-        return CLOPTS_WRITE_UNAVAILABLE;
-    }
-
-    clopts_text_out_init(&out, write_fn, ctx);
-    clopts_text_out_str(&out, clopts_program_get_name(program));
-    clopts_text_out_char(&out, ' ');
-    clopts_text_out_str(&out, version);
-    clopts_text_out_char(&out, '\n');
-    return clopts_text_out_status(&out);
-}
-
-clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, const clopts_command_t *command,
-                                              clopts_write_fn write_fn, void *ctx)
-{
-    clopts_text_out_t out;
-
-    assert(program != NULL);
-    assert(write_fn != NULL);
-    assert((command == NULL) || clopts_text_has_command(program, command));
-
-    clopts_text_out_init(&out, write_fn, ctx);
-    clopts_text_out_str(&out, "Run '");
-    clopts_text_out_str(&out, clopts_program_get_name(program));
-    if (command != NULL)
-    {
-        clopts_text_out_char(&out, ' ');
-        clopts_text_out_str(&out, clopts_command_get_name(command));
-    }
-    clopts_text_out_str(&out, " --help' for usage.\n");
-    return clopts_text_out_status(&out);
-}
-
-/* ---- declarations for the help texts ----------------------------------- */
-
-clopts_decl_error_t clopts_help_command_create(clopts_command_t **out)
-{
-    clopts_command_t *command = NULL;
-    clopts_positional_t *positional = NULL;
-    clopts_decl_error_t error;
-
-    assert(out != NULL);
-    *out = NULL;
-    error = clopts_command_create("help", &command);
-    if (error == CLOPTS_DECL_ERROR_NONE)
-    {
-        error = clopts_command_set_summary(command, "Show help for a command");
-    }
-    if (error == CLOPTS_DECL_ERROR_NONE)
-    {
-        error = clopts_positional_create("COMMAND", &positional);
-    }
-    if (error == CLOPTS_DECL_ERROR_NONE)
-    {
-        error = clopts_positional_set_help(positional, "Command to show help for");
-    }
-    if (error == CLOPTS_DECL_ERROR_NONE)
-    {
-        error = clopts_command_add_positional(command, positional);
-        if (error == CLOPTS_DECL_ERROR_NONE)
-        {
-            positional = NULL;
-        }
-    }
-    if (error != CLOPTS_DECL_ERROR_NONE)
-    {
-        clopts_positional_destroy(positional);
-        clopts_command_destroy(command);
-        return error;
-    }
-    *out = command;
-    return CLOPTS_DECL_ERROR_NONE;
-}
-
-bool clopts_help_find_target(const clopts_program_t *program, const clopts_result_t *result,
-                        const clopts_command_t **target)
-{
-    const char *name;
-
-    assert(program != NULL);
-    assert(target != NULL);
-
-    *target = NULL;
-    if (clopts_result_get_status(result) != CLOPTS_PARSE_OK)
-    {
-        return false;
-    }
-    if (clopts_result_get_positional_count(result) == 0)
-    {
-        return true;
-    }
-    name = clopts_result_get_positional_at(result, 0);
-    *target = clopts_program_find_command(program, name);
-    return *target != NULL;
 }
