@@ -7,7 +7,7 @@
 #define CLOPTS_TEXT_H
 
 #include "clopts/decl_types.h"
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 #include "clopts/parse.h"
 #include "clopts/writer.h"
 

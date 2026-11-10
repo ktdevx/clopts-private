@@ -18,7 +18,7 @@
 | `clopts/text.h` | ヘルプ・使い方・版・エラーの文面を出す関数 |
 | `clopts/writer.h` | 書き込みコールバックの型と、`FILE*` へ書く便宜関数 |
 | `clopts/argv.h` | UTF-8 の argv を得る関数 |
-| `clopts/alloc.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
+| `clopts/base/allocator.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
 
 引数がどの規則で解釈されるか（`--`、`-` 単体、並べ替え、`--no-<name>`、カウント、環境変数の優先順位など）は [解析規則](parsing.md) の章で、Windows での argv と環境変数の扱いは [Windows での注意](windows.md) の章で示す。共有ライブラリとしての互換性の方針は [ABI の互換性](abi.md) の章にある。
 
@@ -732,7 +732,7 @@ Run 'taskbook --help' for usage.
 
 ## アロケーター
 
-`clopts/alloc.h` は、ライブラリがメモリの確保と解放に使う関数を差し替える。アロケーターはライブラリ全体で 1 つで、ハンドルごとには持たない。
+`clopts/base/allocator.h` は、ライブラリがメモリの確保と解放に使う関数を差し替える。アロケーターはライブラリ全体で 1 つで、ハンドルごとには持たない。
 
 ```c
 typedef struct clopts_allocator

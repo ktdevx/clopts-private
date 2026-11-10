@@ -7,7 +7,9 @@
 #define CLOPTS_DECL_INTERNAL_H
 
 #include "clopts/decl.h"
-#include "core/core_internal.h"
+#include "base/mem.h"
+#include "base/size.h"
+#include "base/vec.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -42,8 +44,8 @@
  * (tests/decl/) and the parser, which reads a declaration through the scope
  * functions and looks names up with the index functions below. None of these
  * symbols is exported from the shared library. Every allocation goes through
- * the allocation gateway of core (clopts_core_malloc and the others,
- * core/core_internal.h).
+ * the allocation gateway of core (clopts_mem_alloc and the others,
+ * base/mem.h).
  */
 
 /*
@@ -55,8 +57,8 @@
  */
 typedef struct clopts_scope
 {
-    clopts_core_vec_t options;      /* clopts_option_t * elements, in order of attachment */
-    clopts_core_vec_t positionals;  /* clopts_positional_t * elements, in order of attachment */
+    clopts_vec_t options;      /* clopts_option_t * elements, in order of attachment */
+    clopts_vec_t positionals;  /* clopts_positional_t * elements, in order of attachment */
 } clopts_scope_t;
 
 /* Makes scope empty. */

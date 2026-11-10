@@ -7,7 +7,9 @@
 #define CLOPTS_PARSER_INTERNAL_H
 
 #include "clopts/parse.h"
-#include "core/core_internal.h"
+#include "base/mem.h"
+#include "base/size.h"
+#include "base/vec.h"
 #include "decl/decl_internal.h"
 
 /*
@@ -17,8 +19,8 @@
  * functions and the scope functions of the decl module
  * (decl/decl_internal.h), and never writes to it. None of these symbols is
  * exported from the shared library. Every allocation goes through the
- * allocation gateway of core (clopts_core_malloc and the others,
- * core/core_internal.h).
+ * allocation gateway of core (clopts_mem_alloc and the others,
+ * base/mem.h).
  */
 
 /*
@@ -51,7 +53,7 @@ typedef struct clopts_parser_slot
     unsigned count;
     const char *value;        /* VALUE: points into argv / the model's default / owned; NULL if none */
     char *owned;              /* copy of an environment value owned by the slot, or NULL */
-    clopts_core_vec_t items;  /* LIST: char * elements, each owned by the slot */
+    clopts_vec_t items;  /* LIST: char * elements, each owned by the slot */
 } clopts_parser_slot_t;
 
 /* The fields of a usage error (the error of a result). */

@@ -257,7 +257,7 @@ static clopts_parser_slot_t *slot_of(clopts_result_t *result, const clopts_optio
 /* Returns item index of the LIST slot. */
 static const char *item_of(const clopts_parser_slot_t *slot, size_t index)
 {
-    return *(char *const *)clopts_core_vec_at(&slot->items, index);
+    return *(char *const *)clopts_vec_at(&slot->items, index);
 }
 
 #define SAMPLE_BEGIN(s, result)                                                     \

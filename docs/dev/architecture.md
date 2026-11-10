@@ -8,7 +8,7 @@
 
 | モジュール | ディレクトリ | 役割 |
 |------------|--------------|------|
-| core | `src/core/` | アロケーターの窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列 |
+| base | `src/base/` | ドメインを知らない部品。使うアロケーター（`clopts/base/allocator.h`）と確保の窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`） |
 | decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則と比べ方、宣言エラーの説明 |
 | parser | `src/parser/` | 解析の入口と手順、名前での検索、argv の走査、環境変数と既定値の解決、必須の検査、結果のハンドル |
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）の書き込みのコールバックへの出力と、help サブコマンドの宣言と結果の読み取りの補助 |
@@ -23,13 +23,13 @@ flowchart LR
     text --> parser_api["clopts/*.h（公開 API）"]
     parser --> decl
     parser --> process
-    decl --> core
-    parser --> core
-    text --> core
-    process --> core
+    decl --> base
+    parser --> base
+    text --> base
+    process --> base
 ```
 
-- decl、parser、text、process は core の内部ヘッダ `core/core_internal.h` を使う。core はほかのモジュールに依存しない。
+- decl、parser、text、process は base の内部ヘッダ（`base/mem.h`、`base/vec.h` など）を使う。base はほかのモジュールに依存しない。
 - decl は解析を知らない。parser は decl の内部ヘッダ `decl/decl_internal.h`（Scope の読み取りと名前の比べ方）で宣言を読み、書き込まない。
 - parser は、プロセスの環境変数を process の内部ヘッダ（`clopts_process_env_lookup` と、その文脈 `clopts_process_env_ctx_t`）で読む。process に依存するのは解析の入口（`parse.c`）だけで、参照のコールバックが渡されなかったときに、文脈を入口のスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`result.c`）は参照のコールバックだけを見て、OS を知らない。プロセスの環境を読むのは process だけである。
 - text は decl と parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。

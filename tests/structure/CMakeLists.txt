@@ -34,8 +34,8 @@ set(_clopts_structure_bad_text_reads_decl
     "text/layout\\.c:3: text may not include 'decl/'")
 set(_clopts_structure_bad_scan_reads_process
     "parser/scan\\.c:3: parser may not include 'process/'")
-set(_clopts_structure_bad_core_reads_decl
-    "core/vec\\.c:2: core may not include 'decl/'")
+set(_clopts_structure_bad_base_reads_decl
+    "base/vec\\.c:2: base may not include 'decl/'")
 set(_clopts_structure_bad_getenv_outside_process
     "decl/names\\.c:6: call of getenv outside process")
 set(_clopts_structure_bad_windows_h_outside_process
@@ -43,7 +43,7 @@ set(_clopts_structure_bad_windows_h_outside_process
 set(_clopts_structure_bad_unknown_module
     "extra/extra\\.c:1: module 'extra' has no dependency rule")
 foreach(_clopts_structure_case IN ITEMS
-        text_reads_decl scan_reads_process core_reads_decl
+        text_reads_decl scan_reads_process base_reads_decl
         getenv_outside_process windows_h_outside_process unknown_module)
     _clopts_structure_add_test("selftest.${_clopts_structure_case}"
         "${_clopts_structure_fixtures}/bad/${_clopts_structure_case}"

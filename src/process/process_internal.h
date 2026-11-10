@@ -8,7 +8,9 @@
 
 #include "clopts/env.h"
 #include "clopts/argv.h"
-#include "core/core_internal.h"
+#include "base/mem.h"
+#include "base/size.h"
+#include "base/vec.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -19,7 +21,7 @@
  * (tests/process/) and the entry of the parser (parse.c, the process
  * environment lookup). None of these symbols is exported from the shared
  * library. Every allocation goes through the allocation gateway of core
- * (clopts_core_malloc and the others).
+ * (clopts_mem_alloc and the others).
  */
 
 /* One UTF-16 code unit. */

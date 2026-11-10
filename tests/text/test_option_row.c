@@ -18,6 +18,8 @@
 
 #include "text/text_internal.h"
 
+#include "base/utf8.h"
+
 #include <naos/naos.h>
 
 #include <string.h>
@@ -526,7 +528,7 @@ NAOS_TEST(list_aligns_descriptions_in_code_points_with_non_ascii_names)
         NAOS_REQUIRE_NOT_NULL(end);
         NAOS_REQUIRE_NOT_NULL(start);
         NAOS_CHECK_TRUE(start < end);
-        NAOS_CHECK_UINT_EQ(clopts_text_width(line, (size_t)(start - line)), 23);
+        NAOS_CHECK_UINT_EQ(clopts_utf8_count(line, (size_t)(start - line)), 23);
         byte_starts[i] = (size_t)(start - line);
         line = end + 1;
     }

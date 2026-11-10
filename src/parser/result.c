@@ -35,7 +35,7 @@ struct clopts_result
     size_t global_count;
     clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */
     size_t command_count;
-    clopts_core_vec_t positionals;    /* const char * elements pointing into argv */
+    clopts_vec_t positionals;    /* const char * elements pointing into argv */
 };
 
 /*
@@ -81,7 +81,7 @@ static int alloc_slots(const clopts_scope_t *scope, clopts_parser_slot_t **out)
         *out = NULL;
         return 0;
     }
-    slots = (clopts_parser_slot_t *)clopts_core_calloc(count, sizeof(*slots));
+    slots = (clopts_parser_slot_t *)clopts_mem_calloc(count, sizeof(*slots));
     if (slots == NULL)
     {
         return -1;
@@ -94,7 +94,7 @@ static int alloc_slots(const clopts_scope_t *scope, clopts_parser_slot_t **out)
         slots[i].count = 0;
         slots[i].value = NULL;
         slots[i].owned = NULL;
-        clopts_core_vec_init(&slots[i].items, sizeof(char *));
+        clopts_vec_init(&slots[i].items, sizeof(char *));
     }
     *out = slots;
     return 0;
@@ -117,12 +117,12 @@ static void free_slots(clopts_parser_slot_t *slots, size_t count)
     {
         for (j = 0; j < slots[i].items.len; j++)
         {
-            clopts_core_free(*(char **)clopts_core_vec_at(&slots[i].items, j));
+            clopts_mem_free(*(char **)clopts_vec_at(&slots[i].items, j));
         }
-        clopts_core_vec_free(&slots[i].items);
-        clopts_core_free(slots[i].owned);
+        clopts_vec_free(&slots[i].items);
+        clopts_mem_free(slots[i].owned);
     }
-    clopts_core_free(slots);
+    clopts_mem_free(slots);
 }
 
 clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
@@ -132,14 +132,14 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
 
     assert(program != NULL);
 
-    result = (clopts_result_t *)clopts_core_calloc(1, sizeof(*result));
+    result = (clopts_result_t *)clopts_mem_calloc(1, sizeof(*result));
     if (result == NULL)
     {
         return NULL;
     }
     if (alloc_slots(clopts_program_scope(program), &global_slots) != 0)
     {
-        clopts_core_free(result);
+        clopts_mem_free(result);
         return NULL;
     }
     result->status = CLOPTS_PARSE_OK;
@@ -157,7 +157,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
     result->global_count = clopts_scope_option_count(clopts_program_scope(program));
     result->command_slots = NULL;
     result->command_count = 0;
-    clopts_core_vec_init(&result->positionals, sizeof(const char *));
+    clopts_vec_init(&result->positionals, sizeof(const char *));
     return result;
 }
 
@@ -232,7 +232,7 @@ void clopts_parser_slot_set_value(clopts_parser_slot_t *slot, const char *value,
     /* Keep value == owned: an owned copy that is no longer the value is released. */
     if ((slot->owned != NULL) && (slot->owned != value))
     {
-        clopts_core_free(slot->owned);
+        clopts_mem_free(slot->owned);
         slot->owned = NULL;
     }
     slot->value = value;
@@ -244,14 +244,14 @@ static int append_item(clopts_parser_slot_t *slot, const char *item, size_t len)
 {
     char *copy;
 
-    copy = clopts_core_strndup(item, len);
+    copy = clopts_mem_strndup(item, len);
     if (copy == NULL)
     {
         return -1;
     }
-    if (clopts_core_vec_push(&slot->items, &copy) != 0)
+    if (clopts_vec_push(&slot->items, &copy) != 0)
     {
-        clopts_core_free(copy);
+        clopts_mem_free(copy);
         return -1;
     }
     return 0;
@@ -304,7 +304,7 @@ void clopts_parser_slot_set_owned_value(clopts_parser_slot_t *slot, char *owned,
 
     if (slot->owned != owned)
     {
-        clopts_core_free(slot->owned);
+        clopts_mem_free(slot->owned);
     }
     slot->owned = owned;
     slot->value = owned;
@@ -317,7 +317,7 @@ int clopts_parser_result_add_positional(clopts_result_t *result, const char *tok
     assert(result != &parser_result_sentinel);
     assert(token != NULL);
 
-    return clopts_core_vec_push(&result->positionals, &token);
+    return clopts_vec_push(&result->positionals, &token);
 }
 
 void clopts_parser_result_set_error(clopts_result_t *result, const clopts_parser_error_t *error)
@@ -581,7 +581,7 @@ const char *clopts_result_get_list_at(const clopts_result_t *result, const clopt
     {
         return NULL;
     }
-    return *(char *const *)clopts_core_vec_at(&slot->items, index);
+    return *(char *const *)clopts_vec_at(&slot->items, index);
 }
 
 clopts_source_t clopts_result_get_source(const clopts_result_t *result, const clopts_option_t *option)
@@ -610,7 +610,7 @@ const char *clopts_result_get_positional_at(const clopts_result_t *result, size_
     {
         return NULL;
     }
-    return *(const char *const *)clopts_core_vec_at(&result->positionals, index);
+    return *(const char *const *)clopts_vec_at(&result->positionals, index);
 }
 
 void clopts_result_destroy(clopts_result_t *result)
@@ -621,6 +621,6 @@ void clopts_result_destroy(clopts_result_t *result)
     }
     free_slots(result->global_slots, result->global_count);
     free_slots(result->command_slots, result->command_count);
-    clopts_core_vec_free(&result->positionals);
-    clopts_core_free(result);
+    clopts_vec_free(&result->positionals);
+    clopts_mem_free(result);
 }

@@ -4,7 +4,7 @@
 
 #include <stddef.h>
 
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 
 typedef enum good_status
 {

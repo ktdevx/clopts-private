@@ -98,20 +98,20 @@ clopts_argv_t *clopts_process_argv_convert(int argc, const wchar_t *const *wargs
             }
         }
         /* The element and its NUL. */
-        if ((clopts_core_size_add(bytes, 1, &bytes) != 0) || (clopts_core_size_add(total, bytes, &total) != 0))
+        if ((clopts_size_add(bytes, 1, &bytes) != 0) || (clopts_size_add(total, bytes, &total) != 0))
         {
             return clopts_process_argv_sentinel();
         }
     }
 
     /* One block: the handle, argc + 1 pointers, then the strings. */
-    if ((clopts_core_size_mul((size_t)argc + 1, sizeof(char *), &pointers) != 0) ||
-        (clopts_core_size_add(pointers, sizeof(*args), &pointers) != 0) ||
-        (clopts_core_size_add(pointers, total, &total) != 0))
+    if ((clopts_size_mul((size_t)argc + 1, sizeof(char *), &pointers) != 0) ||
+        (clopts_size_add(pointers, sizeof(*args), &pointers) != 0) ||
+        (clopts_size_add(pointers, total, &total) != 0))
     {
         return clopts_process_argv_sentinel();
     }
-    args = (clopts_argv_t *)clopts_core_malloc(total);
+    args = (clopts_argv_t *)clopts_mem_alloc(total);
     if (args == NULL)
     {
         return clopts_process_argv_sentinel();
@@ -131,7 +131,7 @@ clopts_argv_t *clopts_process_argv_convert(int argc, const wchar_t *const *wargs
                                     (left > (size_t)INT_MAX) ? INT_MAX : (int)left, NULL, NULL);
             if (n <= 0)
             {
-                clopts_core_free(args);
+                clopts_mem_free(args);
                 return clopts_process_argv_sentinel();
             }
         }
@@ -172,13 +172,13 @@ clopts_argv_t *clopts_process_argv_from_cmdline(const wchar_t *cmdline)
     {
         return clopts_process_argv_sentinel();
     }
-    if ((clopts_core_size_mul(argc, sizeof(wchar_t *), &pointers) != 0) ||
-        (clopts_core_size_mul(units, sizeof(wchar_t), &bytes) != 0) ||
-        (clopts_core_size_add(pointers, bytes, &bytes) != 0))
+    if ((clopts_size_mul(argc, sizeof(wchar_t *), &pointers) != 0) ||
+        (clopts_size_mul(units, sizeof(wchar_t), &bytes) != 0) ||
+        (clopts_size_add(pointers, bytes, &bytes) != 0))
     {
         return clopts_process_argv_sentinel();
     }
-    work = clopts_core_malloc(bytes);
+    work = clopts_mem_alloc(bytes);
     if (work == NULL)
     {
         return clopts_process_argv_sentinel();
@@ -188,7 +188,7 @@ clopts_argv_t *clopts_process_argv_from_cmdline(const wchar_t *cmdline)
     clopts_process_split(cmdline, buf, wargs, &argc, &units);
 
     args = clopts_process_argv_convert((int)argc, (const wchar_t *const *)wargs);
-    clopts_core_free(work);
+    clopts_mem_free(work);
     return args;
 }
 
@@ -252,7 +252,7 @@ clopts_env_status_t clopts_process_env_lookup(void *ctx, const char *name, const
      * env->wide holds the name followed by the value. Growing it does not
      * keep its contents, so the name is converted again after every reserve.
      */
-    if (clopts_core_size_add((size_t)name_units, PROCESS_WIN32_ENV_INITIAL_UNITS, &units) != 0)
+    if (clopts_size_add((size_t)name_units, PROCESS_WIN32_ENV_INITIAL_UNITS, &units) != 0)
     {
         return CLOPTS_ENV_FAILED;
     }
@@ -297,7 +297,7 @@ clopts_env_status_t clopts_process_env_lookup(void *ctx, const char *name, const
         {
             return CLOPTS_ENV_FAILED;
         }
-        if (clopts_core_size_add((size_t)name_units, ((size_t)got > room) ? (size_t)got : room + 1, &units) != 0)
+        if (clopts_size_add((size_t)name_units, ((size_t)got > room) ? (size_t)got : room + 1, &units) != 0)
         {
             return CLOPTS_ENV_FAILED;
         }
@@ -317,7 +317,7 @@ clopts_env_status_t clopts_process_env_lookup(void *ctx, const char *name, const
             return CLOPTS_ENV_FAILED;
         }
     }
-    if ((bytes > (size_t)INT_MAX) || (clopts_core_size_add(bytes, 1, &units) != 0) ||
+    if ((bytes > (size_t)INT_MAX) || (clopts_size_add(bytes, 1, &units) != 0) ||
         (clopts_process_env_reserve_value(env, units) != 0))
     {
         return CLOPTS_ENV_FAILED;

@@ -92,7 +92,7 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
         return error;
     }
 
-    option = (clopts_option_t *)clopts_core_malloc(sizeof(*option));
+    option = (clopts_option_t *)clopts_mem_alloc(sizeof(*option));
     if (option == NULL)
     {
         return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
@@ -102,10 +102,10 @@ clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *
     option->long_name = NULL;
     if (long_name != NULL)
     {
-        option->long_name = clopts_core_strdup(long_name);
+        option->long_name = clopts_mem_strdup(long_name);
         if (option->long_name == NULL)
         {
-            clopts_core_free(option);
+            clopts_mem_free(option);
             return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
         }
     }
@@ -132,25 +132,25 @@ void clopts_option_destroy(clopts_option_t *option)
         return;
     }
 
-    clopts_core_free(option->long_name);
-    clopts_core_free(option->help);
-    clopts_core_free(option->value_name);
-    clopts_core_free(option->default_value);
-    clopts_core_free(option->env);
-    clopts_core_free(option);
+    clopts_mem_free(option->long_name);
+    clopts_mem_free(option->help);
+    clopts_mem_free(option->value_name);
+    clopts_mem_free(option->default_value);
+    clopts_mem_free(option->env);
+    clopts_mem_free(option);
 }
 
 clopts_decl_error_t clopts_option_set_help(clopts_option_t *option, const char *help)
 {
     assert(option != NULL);
-    return (clopts_core_replace_string(&option->help, help) == 0) ? CLOPTS_DECL_ERROR_NONE
+    return (clopts_mem_replace_string(&option->help, help) == 0) ? CLOPTS_DECL_ERROR_NONE
                                                                   : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
 clopts_decl_error_t clopts_option_set_value_name(clopts_option_t *option, const char *value_name)
 {
     assert(option != NULL);
-    return (clopts_core_replace_string(&option->value_name, value_name) == 0) ? CLOPTS_DECL_ERROR_NONE
+    return (clopts_mem_replace_string(&option->value_name, value_name) == 0) ? CLOPTS_DECL_ERROR_NONE
                                                                               : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
@@ -171,7 +171,7 @@ clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *e
         }
     }
 
-    return (clopts_core_replace_string(&option->env, env) == 0) ? CLOPTS_DECL_ERROR_NONE
+    return (clopts_mem_replace_string(&option->env, env) == 0) ? CLOPTS_DECL_ERROR_NONE
                                                                 : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
@@ -192,7 +192,7 @@ clopts_decl_error_t clopts_option_set_default(clopts_option_t *option, const cha
         }
     }
 
-    return (clopts_core_replace_string(&option->default_value, default_value) == 0) ? CLOPTS_DECL_ERROR_NONE
+    return (clopts_mem_replace_string(&option->default_value, default_value) == 0) ? CLOPTS_DECL_ERROR_NONE
                                                                                     : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 

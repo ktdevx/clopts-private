@@ -22,20 +22,20 @@
 /* Option index of scope; requires index < the option count. */
 static clopts_option_t *scope_option(const clopts_scope_t *scope, size_t index)
 {
-    return *(clopts_option_t **)clopts_core_vec_at(&scope->options, index);
+    return *(clopts_option_t **)clopts_vec_at(&scope->options, index);
 }
 
 /* Positional index of scope; requires index < the positional count. */
 static clopts_positional_t *scope_positional(const clopts_scope_t *scope, size_t index)
 {
-    return *(clopts_positional_t **)clopts_core_vec_at(&scope->positionals, index);
+    return *(clopts_positional_t **)clopts_vec_at(&scope->positionals, index);
 }
 
 void clopts_scope_init(clopts_scope_t *scope)
 {
     assert(scope != NULL);
-    clopts_core_vec_init(&scope->options, sizeof(clopts_option_t *));
-    clopts_core_vec_init(&scope->positionals, sizeof(clopts_positional_t *));
+    clopts_vec_init(&scope->options, sizeof(clopts_option_t *));
+    clopts_vec_init(&scope->positionals, sizeof(clopts_positional_t *));
 }
 
 void clopts_scope_release(clopts_scope_t *scope)
@@ -47,13 +47,13 @@ void clopts_scope_release(clopts_scope_t *scope)
     {
         clopts_option_destroy(scope_option(scope, i));
     }
-    clopts_core_vec_free(&scope->options);
+    clopts_vec_free(&scope->options);
 
     for (i = 0; i < scope->positionals.len; i++)
     {
         clopts_positional_destroy(scope_positional(scope, i));
     }
-    clopts_core_vec_free(&scope->positionals);
+    clopts_vec_free(&scope->positionals);
 }
 
 /*
@@ -121,7 +121,7 @@ clopts_decl_error_t clopts_scope_add_option(clopts_scope_t *scope, clopts_option
     {
         return error;
     }
-    return (clopts_core_vec_push(&scope->options, &option) == 0) ? CLOPTS_DECL_ERROR_NONE
+    return (clopts_vec_push(&scope->options, &option) == 0) ? CLOPTS_DECL_ERROR_NONE
                                                                  : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
@@ -162,7 +162,7 @@ clopts_decl_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_po
     {
         return error;
     }
-    return (clopts_core_vec_push(&scope->positionals, &positional) == 0) ? CLOPTS_DECL_ERROR_NONE
+    return (clopts_vec_push(&scope->positionals, &positional) == 0) ? CLOPTS_DECL_ERROR_NONE
                                                                           : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 

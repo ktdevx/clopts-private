@@ -28,7 +28,7 @@ static clopts_argv_t *process_argv_new(clopts_argv_status_t status, int argc,
 {
     clopts_argv_t *args;
 
-    args = (clopts_argv_t *)clopts_core_malloc(sizeof(*args));
+    args = (clopts_argv_t *)clopts_mem_alloc(sizeof(*args));
     if (args == NULL)
     {
         return NULL;
@@ -102,5 +102,5 @@ void clopts_argv_destroy(clopts_argv_t *args)
     {
         return;
     }
-    clopts_core_free(args);
+    clopts_mem_free(args);
 }

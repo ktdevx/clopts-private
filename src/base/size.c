@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "core/core_internal.h"
+#include "base/size.h"
 
 #include <assert.h>
 #include <stdint.h>
 
-int clopts_core_size_mul(size_t a, size_t b, size_t *out)
+int clopts_size_mul(size_t a, size_t b, size_t *out)
 {
     assert(out != NULL);
 
@@ -21,7 +21,7 @@ int clopts_core_size_mul(size_t a, size_t b, size_t *out)
     return 0;
 }
 
-int clopts_core_size_add(size_t a, size_t b, size_t *out)
+int clopts_size_add(size_t a, size_t b, size_t *out)
 {
     assert(out != NULL);
 

@@ -9,7 +9,7 @@
 #include <stddef.h>
 
 #include "clopts/decl_types.h"
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 
 #ifdef __cplusplus
 extern "C" {

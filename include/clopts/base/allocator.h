@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_ALLOC_H
-#define CLOPTS_ALLOC_H
+#ifndef CLOPTS_BASE_ALLOCATOR_H
+#define CLOPTS_BASE_ALLOCATOR_H
 
 #include <stddef.h>
 
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,4 +50,4 @@ CLOPTS_API void clopts_set_allocator(const clopts_allocator_t *allocator);
 }
 #endif
 
-#endif /* CLOPTS_ALLOC_H */
+#endif /* CLOPTS_BASE_ALLOCATOR_H */

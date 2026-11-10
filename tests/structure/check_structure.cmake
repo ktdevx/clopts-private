@@ -27,11 +27,11 @@ endif()
 # ---- Rules -----------------------------------------------------------------
 # <module>:<modules it may include, comma-separated>
 set(_module_rules
-    "core:"
-    "decl:core"
-    "parser:core,decl"
-    "process:core"
-    "text:core"
+    "base:"
+    "decl:base"
+    "parser:base,decl"
+    "process:base"
+    "text:base"
 )
 # <module>/<file>:<further modules that file may include>
 set(_file_rules

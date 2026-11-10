@@ -6,7 +6,7 @@
 #ifndef CLOPTS_DECL_ERROR_H
 #define CLOPTS_DECL_ERROR_H
 
-#include "clopts/export.h"
+#include "clopts/base/export.h"
 
 #ifdef __cplusplus
 extern "C" {

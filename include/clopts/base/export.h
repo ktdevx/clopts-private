@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_EXPORT_H
-#define CLOPTS_EXPORT_H
+#ifndef CLOPTS_BASE_EXPORT_H
+#define CLOPTS_BASE_EXPORT_H
 
 #if defined(CLOPTS_STATIC)
 #define CLOPTS_API
@@ -20,4 +20,4 @@
 #define CLOPTS_API
 #endif
 
-#endif /* CLOPTS_EXPORT_H */
+#endif /* CLOPTS_BASE_EXPORT_H */

@@ -9,7 +9,9 @@
 #include "clopts/decl.h"
 #include "clopts/text.h"
 #include "clopts/writer.h"
-#include "core/core_internal.h"
+#include "base/mem.h"
+#include "base/size.h"
+#include "base/vec.h"
 
 /*
  * Internal declarations of the text module, shared by its source files and
@@ -25,7 +27,7 @@
  *     call, without retry. The first failure sets failed; after that fn is not
  *     called again. A write of 0 bytes never calls fn.
  *   - measure mode (fn == NULL): nothing is written; the display width
- *     (clopts_text_width) of the bytes is added to width.
+ *     (clopts_utf8_count, base/utf8.h) of the bytes is added to width.
  *
  * State: failed changes from false to true at most once.
  */
@@ -49,14 +51,6 @@ void clopts_text_out_char(clopts_text_out_t *out, char c);
 void clopts_text_out_spaces(clopts_text_out_t *out, size_t count);
 /* CLOPTS_WRITE_OK, or CLOPTS_WRITE_FAILED once a callback has failed. */
 clopts_write_status_t clopts_text_out_status(const clopts_text_out_t *out);
-
-/*
- * Display width of the len bytes at data: the number of code points of a
- * strict UTF-8 decoding. A valid sequence (no overlong form, no surrogate,
- * nothing above U+10FFFF) counts as 1; every byte that is not part of a
- * valid sequence counts as 1.
- */
-size_t clopts_text_width(const char *data, size_t len);
 
 /*
  * One row of a help list (layout.c): an option of the declaration, or a

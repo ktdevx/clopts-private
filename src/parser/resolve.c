@@ -57,7 +57,7 @@ static int resolve_env_value(clopts_parser_slot_t *slot, const clopts_option_t *
     char *copy;
     int rc;
 
-    copy = clopts_core_strdup(borrowed);
+    copy = clopts_mem_strdup(borrowed);
     if (copy == NULL)
     {
         return -1;
@@ -69,7 +69,7 @@ static int resolve_env_value(clopts_parser_slot_t *slot, const clopts_option_t *
     }
     rc = clopts_parser_slot_append_list(slot, copy, clopts_option_get_delimiter(option), CLOPTS_SOURCE_ENV);
     /* The items are copies of their own; the whole string is no longer needed. */
-    clopts_core_free(copy);
+    clopts_mem_free(copy);
     return rc;
 }
 
