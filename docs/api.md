@@ -28,7 +28,7 @@
 
 ## 関数名の付け方
 
-公開関数の名前は `clopts_<型>_<動詞>[_<対象>]` の形をとり、動詞で何をするかを示す。
+型の操作は `clopts_<型>_<動詞>[_<対象>]` の形をとり、動詞で何をするかを示す。型 `clopts_<型>_t` とその操作は、同じ名前のヘッダ `clopts/<モジュール>/<型>.h` が宣言する。型に属さない関数（`clopts_parse`、`clopts_write_help`、`clopts_set_allocator`）と、列挙、マクロ、利用者が埋めて渡す構造体は、`clopts_` / `CLOPTS_` で始め、何をするか、何を表すかで名付ける。
 
 | 種類 | 形 | 例 |
 |------|----|----|
@@ -40,7 +40,7 @@
 | 追加 | `clopts_<型>_add_<要素>` | `clopts_program_add_option` |
 | 要素の数・要素 | `clopts_<型>_get_<要素>_count` / `clopts_<型>_get_<要素>_at` | `clopts_scope_get_option_count` |
 | 検索 | `clopts_<型>_find_<対象>` | `clopts_program_find_command` |
-| その他の動作 | 動詞 | `clopts_parse`、`clopts_write_help` |
+| 型に属さない動作 | 何をするか | `clopts_parse`、`clopts_write_help`、`clopts_set_allocator` |
 
 - `get` は読み取りだけに使う。`get` の関数が返すものは解放しない。
 - `create` の関数が作ったハンドルは、その型の `destroy` で解放する。ただし、プログラムかコマンドに渡したオプション・位置引数・コマンドは、プログラムと一緒に解放される（「[ハンドルと寿命](#ハンドルと寿命)」）。`clopts_parse` と `clopts_parse_with_env` が返す結果は `clopts_result_destroy` で解放する。

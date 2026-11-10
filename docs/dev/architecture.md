@@ -14,7 +14,7 @@
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）を書き込みのコールバックへ出す。公開の入口（`write.c`、`clopts/text/write.h`）、ヘルプと Usage 行（`help.c`）、1 行の文面（`message.c`）、書き込みと計測の 2 つのモードを持つ出力先（`out.c`） |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
 
-名前とファイルの付け方は [設計の考え方](design.md) に従う。この対応はテスト `structure.names`（`tests/structure/check_names.cmake`）で検査する。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h`、定義 `x.c`、接頭辞 `clopts_x_` を 1 組持たせる（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
+名前とファイルの付け方は [設計の考え方](design.md) に従う。内部ヘッダの関数の接頭辞はテスト `structure.names`（`tests/structure/check_names.cmake`）で、宣言のない定義はコンパイラ（`-Wmissing-prototypes`）で検査する。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h`、定義 `x.c`、接頭辞 `clopts_x_` を 1 組持たせる（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
 
 依存の向きは次のとおりである。
 
@@ -34,7 +34,7 @@ flowchart LR
 - parse は、プロセスの環境変数を process の内部ヘッダ `process/env.h`（`clopts_env_lookup` と、その文脈 `clopts_env_t`）で読む。参照のコールバックが渡されなかったときに、解析の入口（`parse.c`）が文脈をスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`require.c`）は参照のコールバックを引数で受け取るだけで、OS を知らない。プロセスの環境を読むのは process だけである。
 - text は decl と parse の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。
 - 内部ヘッダの関数は、共有ライブラリから export しない。
-- 依存の向きはテスト `structure.modules`（ラベル `structure`、`tests/structure/check_structure.cmake`）で、`src/` と `include/clopts/` の両方について検査する。各モジュールが include してよいほかのモジュールは上の図のとおりで（text は decl と parse の公開ヘッダだけ）、ファイルごとの例外はない。ほかのモジュールに見せる内部ヘッダは `base/*`、`decl/lookup.h`、`process/env.h` だけで、実装ヘッダ（`x_impl.h`）は同じモジュールのファイルしか include できない。`<windows.h>` の include は `process/*_win32.c` の外に、環境変数を読む関数（`getenv` など）の呼び出しは process の外に置けない。モジュールを足すときは、このスクリプトの規則にも足す。
+- 依存の向きはテスト `structure.modules`（ラベル `structure`、`tests/structure/check_structure.cmake`）で、`src/` と `include/clopts/` の両方について検査する。各モジュールが include してよいほかのモジュールは上の図のとおりで（text は decl と parse の公開ヘッダだけ）、ファイルごとの例外はない。実装ヘッダ（`x_impl.h`）は、同じモジュールのファイルしか include できない。`<windows.h>` の include は `process/*_win32.c` の外に、環境変数を読む関数（`getenv` など）の呼び出しは process の外に置けない。モジュールを足すときは、このスクリプトの規則にも足す。
 
 ## 宣言モデル
 
