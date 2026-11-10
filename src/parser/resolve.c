@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: MIT
  *
  * Resolver: resolution from the environment and the defaults (step 4 of
- * parsing, parse.c). The required checks that follow are in parse.c. Without
- * a lookup callback, the process environment is read through the process
- * module (clopts_process_env_lookup), with a lookup context that lives on
- * the stack of clopts_parser_resolve() only.
+ * parsing, parse.c). The required checks that follow are in parse.c. The
+ * values come from a lookup callback only; which source it reads (the
+ * process environment or the caller's) is decided by parse.c.
  *
  * A lookup callback lends its string: it stays valid only until the next
  * call of the callback. The resolver copies a found string through the
@@ -15,7 +14,6 @@
  */
 
 #include "parser/parser_internal.h"
-#include "process/process_internal.h"
 
 #include <assert.h>
 
@@ -175,12 +173,12 @@ clopts_parser_resolve_status_t clopts_parser_resolve(clopts_result_t *result, co
                                                      bool include_command)
 {
     resolve_state_t state;
-    clopts_process_env_ctx_t process_env;
     int rc;
 
     assert(result != NULL);
     assert(result != clopts_parser_result_oom());
     assert(program != NULL);
+    assert(getenv_fn != NULL);
 
     state.result = result;
     state.getenv_fn = getenv_fn;
@@ -188,19 +186,7 @@ clopts_parser_resolve_status_t clopts_parser_resolve(clopts_result_t *result, co
     state.error_command = include_command ? clopts_result_get_command(result) : NULL;
     state.invalid = false;
 
-    if (getenv_fn == NULL)
-    {
-        clopts_process_env_init(&process_env);
-        state.getenv_fn = clopts_process_env_lookup;
-        state.env_ctx = &process_env;
-        rc = resolve_all(&state, program, include_command);
-        clopts_process_env_release(&process_env);
-    }
-    else
-    {
-        rc = resolve_all(&state, program, include_command);
-    }
-
+    rc = resolve_all(&state, program, include_command);
     if (rc != 0)
     {
         return CLOPTS_PARSER_RESOLVE_OUT_OF_MEMORY;
