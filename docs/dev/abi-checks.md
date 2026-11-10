@@ -27,7 +27,7 @@
 
    `CLOPTS_API` のない宣言は `abi.header_rules` が違反として報告する。宣言は `extern "C"` の中（各公開ヘッダの `#ifdef __cplusplus` で囲まれた範囲）に置く。
 2. 定義を `src/<module>/` に書く。
-3. `abi/clopts.symbols` の、宣言したヘッダの組（`# clopts/<header>.h` の注釈の下）に、ヘッダの中の宣言順に合わせた位置で名前を足す。
+3. `abi/clopts.symbols` の、宣言したヘッダの組（`# clopts/<module>/<header>.h` の注釈の下）に、ヘッダの中の宣言順に合わせた位置で名前を足す。
 4. 互換を保つ変更なので、SOVERSION は変えない（`docs/abi.md` の「互換を保つ変更」）。
 
 ### 消すとき
@@ -53,7 +53,7 @@
   ```
 
   注記 `windows` の付いた名前は、Windows の照合（`FORMAT` が `dumpbin` / `objdump-pe`）でだけ export を要求し、Linux と macOS（`nm-elf` / `nm-macho`）では一覧に無いものとして扱う。C++ のリンク検査（`abi.headers_cxx`）では、その名前の参照を `#ifdef _WIN32` で囲んで生成する。`windows` 以外の語や、3 語以上の行は形式の誤りになる。Windows 専用の公開関数を足すときは、この注記を付ける。
-- 並び順は自由だが、公開ヘッダごとに `# clopts/<header>.h` の注釈でまとめ、ヘッダの中の宣言順に並べることを推奨する（並び順は検査しない）。
+- 並び順は自由だが、公開ヘッダごとに `# clopts/<module>/<header>.h` の注釈でまとめ、ヘッダの中の宣言順に並べることを推奨する（並び順は検査しない）。
 
 ```text
 # clopts/decl/program.h

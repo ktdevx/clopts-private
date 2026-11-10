@@ -8,7 +8,9 @@
 #   - Blank lines and lines starting with "#" (after optional whitespace) are
 #     ignored.
 #   - Order is free; by convention names are grouped per public header under a
-#     "# clopts/<header>.h" comment, in the header's declaration order.
+#     "# clopts/<module>/<header>.h" comment, in the header's declaration
+#     order, and the groups follow the modules (base, decl, parse, process,
+#     text).
 #   - Only CLOPTS_API functions are listed; static inline functions in the
 #     public headers (e.g. clopts_file_write) are not exported and are not
 #     listed.
@@ -28,14 +30,19 @@
 # clopts/base/allocator.h
 clopts_set_allocator
 
-# clopts/process/argv.h
-clopts_argv_create
-clopts_argv_create_from_wide windows
-clopts_argv_get_status
-clopts_argv_get_count
-clopts_argv_get_values
-clopts_argv_get_error_index
-clopts_argv_destroy
+# clopts/decl/program.h
+clopts_program_create
+clopts_program_destroy
+clopts_program_set_description
+clopts_program_add_option
+clopts_program_add_positional
+clopts_program_add_command
+clopts_program_get_name
+clopts_program_get_description
+clopts_program_get_scope
+clopts_program_get_command_count
+clopts_program_get_command_at
+clopts_program_find_command
 
 # clopts/decl/command.h
 clopts_command_create
@@ -49,8 +56,12 @@ clopts_command_get_summary
 clopts_command_get_description
 clopts_command_get_scope
 
-# clopts/decl/decl_error.h
-clopts_decl_error_get_message
+# clopts/decl/scope.h
+clopts_scope_get_option_count
+clopts_scope_get_option_at
+clopts_scope_get_positional_count
+clopts_scope_get_positional_at
+clopts_scope_shadows_option
 
 # clopts/decl/option.h
 clopts_option_create
@@ -76,6 +87,20 @@ clopts_option_get_count_max
 clopts_option_is_required
 clopts_option_is_negatable
 clopts_option_is_terminal
+
+# clopts/decl/positional.h
+clopts_positional_create
+clopts_positional_destroy
+clopts_positional_set_help
+clopts_positional_set_required
+clopts_positional_set_variadic
+clopts_positional_get_name
+clopts_positional_get_help
+clopts_positional_is_required
+clopts_positional_is_variadic
+
+# clopts/decl/decl_error.h
+clopts_decl_error_get_message
 
 # clopts/parse/parse.h
 clopts_parse
@@ -106,37 +131,14 @@ clopts_usage_error_get_argv_index
 clopts_usage_error_get_name_len
 clopts_usage_error_get_short_name
 
-# clopts/decl/positional.h
-clopts_positional_create
-clopts_positional_destroy
-clopts_positional_set_help
-clopts_positional_set_required
-clopts_positional_set_variadic
-clopts_positional_get_name
-clopts_positional_get_help
-clopts_positional_is_required
-clopts_positional_is_variadic
-
-# clopts/decl/scope.h
-clopts_scope_get_option_count
-clopts_scope_get_option_at
-clopts_scope_get_positional_count
-clopts_scope_get_positional_at
-clopts_scope_shadows_option
-
-# clopts/decl/program.h
-clopts_program_create
-clopts_program_destroy
-clopts_program_set_description
-clopts_program_add_option
-clopts_program_add_positional
-clopts_program_add_command
-clopts_program_get_name
-clopts_program_get_description
-clopts_program_get_scope
-clopts_program_get_command_count
-clopts_program_get_command_at
-clopts_program_find_command
+# clopts/process/argv.h
+clopts_argv_create
+clopts_argv_create_from_wide windows
+clopts_argv_get_status
+clopts_argv_get_count
+clopts_argv_get_values
+clopts_argv_get_error_index
+clopts_argv_destroy
 
 # clopts/text/write.h
 clopts_write_help
