@@ -14,53 +14,63 @@
 #include <assert.h>
 #include <stdlib.h>
 
+static void *malloc_default(size_t size);
+static void *calloc_default(size_t count, size_t size);
+static void *realloc_default(void *ptr, size_t size);
+static void free_default(void *ptr);
+
+/* The allocator in use. Starts as the standard functions. */
+static clopts_allocator_t current =
+{
+    malloc_default,
+    calloc_default,
+    realloc_default,
+    free_default
+};
+
 /*
  * The standard functions, wrapped: the address of a CRT function imported
  * from a DLL is not an address constant (MSVC C4232), so the static
- * initializer below uses these instead.
+ * initializer of current uses these instead.
  */
-static void *std_malloc(size_t size)
+static void *malloc_default(size_t size)
 {
     return malloc(size);
 }
 
-static void *std_calloc(size_t count, size_t size)
+static void *calloc_default(size_t count, size_t size)
 {
     return calloc(count, size);
 }
 
-static void *std_realloc(void *ptr, size_t size)
+static void *realloc_default(void *ptr, size_t size)
 {
     return realloc(ptr, size);
 }
 
-static void std_free(void *ptr)
+static void free_default(void *ptr)
 {
     free(ptr);
 }
 
-static const clopts_allocator_t std_allocator = {
-    std_malloc, std_calloc, std_realloc, std_free
-};
-
-/* The allocator in use. Starts as the standard functions. */
-static clopts_allocator_t current = {
-    std_malloc, std_calloc, std_realloc, std_free
-};
-
-void clopts_set_allocator(const clopts_allocator_t *allocator)
+void clopts_set_allocator(const clopts_allocator_t *alloc)
 {
-    if (allocator == NULL)
+    if (alloc == NULL)
     {
-        current = std_allocator;
+        current.malloc_fn = malloc_default;
+        current.calloc_fn = calloc_default;
+        current.realloc_fn = realloc_default;
+        current.free_fn = free_default;
+
         return;
     }
 
-    assert(allocator->malloc_fn != NULL);
-    assert(allocator->calloc_fn != NULL);
-    assert(allocator->realloc_fn != NULL);
-    assert(allocator->free_fn != NULL);
-    current = *allocator;
+    assert(alloc->malloc_fn != NULL);
+    assert(alloc->calloc_fn != NULL);
+    assert(alloc->realloc_fn != NULL);
+    assert(alloc->free_fn != NULL);
+
+    current = *alloc;
 }
 
 void *clopts_malloc(size_t size)

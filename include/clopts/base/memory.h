@@ -34,7 +34,7 @@ typedef struct clopts_allocator
 } clopts_allocator_t;
 
 /*
- * Copies the four functions of allocator and uses them for every later
+ * Copies the four functions of alloc and uses them for every later
  * allocation and release. NULL restores malloc / calloc / realloc / free.
  * All four functions must be set (not NULL).
  *
@@ -44,7 +44,7 @@ typedef struct clopts_allocator
  * time. The call is not synchronized; no other thread may use the library
  * while it runs.
  */
-CLOPTS_API void clopts_set_allocator(const clopts_allocator_t *allocator);
+CLOPTS_API void clopts_set_allocator(const clopts_allocator_t *alloc);
 
 #ifdef __cplusplus
 }

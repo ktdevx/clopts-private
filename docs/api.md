@@ -751,12 +751,12 @@ typedef struct clopts_allocator
 
 | 関数 | 引数と戻り値 |
 |------|--------------|
-| `clopts_set_allocator`（`allocator`） | `allocator` の 4 つの関数を写して、以降のすべての確保と解放に使う。NULL なら標準の `malloc` / `calloc` / `realloc` / `free` に戻す。4 つとも NULL でないこと（1 つでも NULL なら契約違反） |
+| `clopts_set_allocator`（`alloc`） | `alloc` の 4 つの関数を写して、以降のすべての確保と解放に使う。NULL なら標準の `malloc` / `calloc` / `realloc` / `free` に戻す。4 つとも NULL でないこと（1 つでも NULL なら契約違反） |
 
 - 各関数の引数と意味は、標準の `malloc` / `calloc` / `realloc` / `free` と同じである。利用側の文脈を渡す引数はない。
 - ライブラリは、大きさ 0 では呼ばない（1 バイトとして確保する）。そのため、`malloc_fn`、`calloc_fn`、`realloc_fn` の NULL は、つねに確保の失敗を意味する。失敗した `realloc_fn` は、標準の `realloc` と同じく、元のブロックを有効なまま残すこと。
 - `calloc_fn` を呼ぶ前に、ライブラリが `count * size` のあふれを検査する。`free_fn` に NULL は渡さない。
-- 呼び出しの後に `allocator` の指す構造体を変えても、解放しても、影響しない。
+- 呼び出しの後に `alloc` の指す構造体を変えても、解放しても、影響しない。
 - 設定してよいのは、ライブラリが確保したもの（プログラム、結果、argv のハンドル）が 1 つも生きていないときだけである。ブロックは、解放する時点で設定されている `free_fn` で解放されるので、生きている間に変えると、確保したときとは別の関数で解放されてしまう。ライブラリはこの誤りを検出しない。通常は `main` の最初で 1 回呼ぶ。
 - メモリ不足の番兵（`clopts_parse` などや `clopts_argv_create` が確保に失敗したときに返す共有のオブジェクト）は、静的なオブジェクトで、アロケーターとは関係しない。
 
