@@ -14,17 +14,6 @@
 /* Capacity of the first allocation, in elements. */
 #define VEC_INITIAL_CAP ((size_t)8)
 
-void clopts_vec_init(clopts_vec_t *vec, size_t elem_size)
-{
-    assert(vec != NULL);
-    assert(elem_size > 0);
-
-    vec->data = NULL;
-    vec->len = 0;
-    vec->cap = 0;
-    vec->elem_size = elem_size;
-}
-
 /*
  * Grows the storage to the next capacity (8, then doubling). Returns 0 on
  * success and -1 on overflow or allocation failure, leaving vec unchanged.
@@ -57,7 +46,19 @@ static int vec_grow(clopts_vec_t *vec)
 
     vec->data = new_data;
     vec->cap = new_cap;
+
     return 0;
+}
+
+void clopts_vec_init(clopts_vec_t *vec, size_t elem_size)
+{
+    assert(vec != NULL);
+    assert(elem_size > 0);
+
+    vec->data = NULL;
+    vec->len = 0;
+    vec->cap = 0;
+    vec->elem_size = elem_size;
 }
 
 int clopts_vec_push(clopts_vec_t *vec, const void *elem)
@@ -77,6 +78,7 @@ int clopts_vec_push(clopts_vec_t *vec, const void *elem)
     /* len < cap here, and cap * elem_size was checked when it was allocated. */
     memcpy((unsigned char *)vec->data + (vec->len * vec->elem_size), elem, vec->elem_size);
     vec->len++;
+
     return 0;
 }
 

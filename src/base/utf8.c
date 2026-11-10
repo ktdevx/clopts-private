@@ -33,6 +33,7 @@ size_t clopts_utf8_sequence(const char *data, size_t avail)
     {
         return 1;
     }
+
     if ((lead >= 0xC2) && (lead <= 0xDF))
     {
         n = 2;
@@ -70,10 +71,12 @@ size_t clopts_utf8_sequence(const char *data, size_t avail)
     {
         return 0;
     }
+
     if ((p[1] < lo) || (p[1] > hi))
     {
         return 0;
     }
+
     for (i = 2; i < n; i++)
     {
         if ((p[i] < 0x80) || (p[i] > 0xBF))
@@ -81,6 +84,7 @@ size_t clopts_utf8_sequence(const char *data, size_t avail)
             return 0;
         }
     }
+
     return n;
 }
 
@@ -100,8 +104,10 @@ bool clopts_utf8_valid(const char *s)
         {
             return false;
         }
+    
         i += n;
     }
+
     return true;
 }
 
@@ -120,5 +126,6 @@ size_t clopts_utf8_count(const char *data, size_t len)
         i += (n != 0) ? n : 1;
         count++;
     }
+
     return count;
 }

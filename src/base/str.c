@@ -31,8 +31,10 @@ char *clopts_strndup(const char *s, size_t len)
     {
         return NULL;
     }
+
     memcpy(copy, s, len);
     copy[len] = '\0';
+
     return copy;
 }
 
@@ -42,6 +44,7 @@ char *clopts_strdup(const char *s)
     {
         return NULL;
     }
+
     return clopts_strndup(s, strlen(s));
 }
 
