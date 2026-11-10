@@ -17,7 +17,7 @@
 | `clopts/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse.h` が取り込む |
 | `clopts/text.h` | ヘルプ・使い方・版・エラーの文面を出す関数 |
 | `clopts/writer.h` | 書き込みコールバックの型と、`FILE*` へ書く便宜関数 |
-| `clopts/platform.h` | UTF-8 の argv を得る関数 |
+| `clopts/argv.h` | UTF-8 の argv を得る関数 |
 | `clopts/alloc.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
 
 引数がどの規則で解釈されるか（`--`、`-` 単体、並べ替え、`--no-<name>`、カウント、環境変数の優先順位など）は [解析規則](parsing.md) の章で、Windows での argv と環境変数の扱いは [Windows での注意](windows.md) の章で示す。共有ライブラリとしての互換性の方針は [ABI の互換性](abi.md) の章にある。
@@ -755,11 +755,9 @@ typedef struct clopts_allocator
 - 設定してよいのは、ライブラリが確保したもの（プログラム、結果、argv のハンドル）が 1 つも生きていないときだけである。ブロックは、解放する時点で設定されている `free_fn` で解放されるので、生きている間に変えると、確保したときとは別の関数で解放されてしまう。ライブラリはこの誤りを検出しない。通常は `main` の最初で 1 回呼ぶ。
 - メモリ不足の番兵（`clopts_parse` などや `clopts_argv_create` が確保に失敗したときに返す共有のオブジェクト）は、静的なオブジェクトで、アロケーターとは関係しない。
 
-## プラットフォームの関数
+## argv の取得
 
-`clopts/platform.h` は、プロセスの argv を UTF-8 で得て、`clopts_parse` / `clopts_parse_with_env` に渡すための関数を持つ。環境変数は解析が自分で UTF-8 で読むので、ここには関数がない。Windows でのふるまい（コマンドラインからの取得、`wmain`、`activeCodePage`）と使い分けは [Windows での注意](windows.md) の章で示す。ここでは関数の一覧だけを示す。
-
-### argv
+`clopts/argv.h` は、プロセスの argv を UTF-8 で得て、`clopts_parse` / `clopts_parse_with_env` に渡すための関数を持つ。環境変数は解析が自分で UTF-8 で読むので、ここには関数がない。Windows でのふるまい（コマンドラインからの取得、`wmain`、`activeCodePage`）と使い分けは [Windows での注意](windows.md) の章で示す。ここでは関数の一覧だけを示す。
 
 | 関数 | 引数と戻り値 |
 |------|--------------|

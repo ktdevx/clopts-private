@@ -5,5 +5,5 @@ clopts_alpha
   clopts_alpha_get  
 clopts_beta
 
-# clopts/platform.h
+# clopts/argv.h
 clopts_gamma windows

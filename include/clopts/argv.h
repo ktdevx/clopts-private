@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_PLATFORM_H
-#define CLOPTS_PLATFORM_H
+#ifndef CLOPTS_ARGV_H
+#define CLOPTS_ARGV_H
 
 #include <stddef.h>
 
@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 /*
- * Platform API: the process arguments (argv) in UTF-8, ready to be passed
+ * argv API: the process arguments (argv) in UTF-8, ready to be passed
  * to clopts_parse() / clopts_parse_with_env(). The environment variables
  * need nothing here: the parse reads them in UTF-8 itself (clopts/parse.h).
  *
@@ -75,4 +75,4 @@ CLOPTS_API void clopts_argv_destroy(clopts_argv_t *args);
 }
 #endif
 
-#endif /* CLOPTS_PLATFORM_H */
+#endif /* CLOPTS_ARGV_H */

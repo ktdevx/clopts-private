@@ -7,10 +7,10 @@
 #define CLOPTS_CLOPTS_H
 
 #include "clopts/alloc.h"
+#include "clopts/argv.h"
 #include "clopts/decl.h"
 #include "clopts/env.h"
 #include "clopts/parse.h"
-#include "clopts/platform.h"
 #include "clopts/text.h"
 #include "clopts/writer.h"
 

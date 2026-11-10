@@ -7,7 +7,7 @@
 #define CLOPTS_PLATFORM_INTERNAL_H
 
 #include "clopts/env.h"
-#include "clopts/platform.h"
+#include "clopts/argv.h"
 #include "core/core_internal.h"
 
 #include <stddef.h>

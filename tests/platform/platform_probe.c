@@ -11,7 +11,7 @@
  * written to stderr.
  */
 
-#include <clopts/platform.h>
+#include <clopts/argv.h>
 
 #include <stdio.h>
 #include <stdlib.h>   /* __argc / __argv */
