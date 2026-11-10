@@ -9,12 +9,12 @@
 | `clopts/clopts.h` | すべての公開ヘッダを取り込む |
 | `clopts/base/alloc.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
 | `clopts/base/export.h` | 公開関数の印 `CLOPTS_API` |
-| `clopts/base/error.h` | ビルダー関数が返すエラーの型（`clopts_error_t`）とその説明（`clopts_error_get_message`） |
-| `clopts/decl/program.h` | プログラムの関数（作成、解放、説明、グローバルオプション・位置引数・サブコマンドを渡す関数、読み取り）と、ビルダー関数に共通の規則。宣言のほかのヘッダをすべて取り込む |
-| `clopts/decl/command.h` | サブコマンドの関数（作成、解放、説明、オプションと位置引数を渡す関数、読み取り） |
+| `clopts/base/error.h` | 宣言エラーの型（`clopts_error_t`）とその説明（`clopts_error_get_message`） |
+| `clopts/decl/program.h` | プログラムの関数（作成、解放、宣言エラー、説明、グローバルオプション・位置引数・サブコマンドを足す関数、`--help`・`--version` を足す関数、読み取り）と、ビルダー関数に共通の規則。宣言のほかのヘッダをすべて取り込む |
+| `clopts/decl/command.h` | サブコマンドの関数（説明、オプションと位置引数を足す関数、読み取り） |
 | `clopts/decl/scope.h` | プログラム自身とサブコマンドが持つオプションと位置引数の並び（Scope）の読み取り |
-| `clopts/decl/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（作成、解放、属性、読み取り） |
-| `clopts/decl/positional.h` | 位置引数の関数（作成、解放、属性、読み取り） |
+| `clopts/decl/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（属性、読み取り） |
+| `clopts/decl/positional.h` | 位置引数の関数（属性、読み取り） |
 | `clopts/parse/parse.h` | 解析の関数。結果と使い方エラーのヘッダを取り込む |
 | `clopts/parse/result.h` | 結果の状態と値の出所の列挙、結果のアクセサ |
 | `clopts/parse/usage_error.h` | 使い方エラーの種別の列挙と、使い方エラーのアクセサ |
@@ -32,25 +32,25 @@
 
 | 種類 | 形 | 例 |
 |------|----|----|
-| 作成 | `clopts_<型>_create` | `clopts_option_create` |
-| 解放 | `clopts_<型>_destroy` | `clopts_option_destroy` |
+| 作成 | `clopts_<型>_create` | `clopts_program_create` |
+| 解放 | `clopts_<型>_destroy` | `clopts_program_destroy` |
 | 読み取り | `clopts_<型>_get_<属性>` | `clopts_option_get_help` |
 | 読み取り（bool の属性） | `clopts_<型>_is_<属性>` | `clopts_option_is_required` |
 | 書き込み | `clopts_<型>_set_<属性>` | `clopts_option_set_help` |
-| 追加 | `clopts_<型>_add_<要素>` | `clopts_program_add_option` |
+| 追加（作って付ける） | `clopts_<型>_add_<要素>` | `clopts_program_add_option` |
 | 要素の数・要素 | `clopts_<型>_get_<要素>_count` / `clopts_<型>_get_<要素>_at` | `clopts_scope_get_option_count` |
 | 検索 | `clopts_<型>_find_<対象>` | `clopts_program_find_command` |
 | 型に属さない動作 | 何をするか | `clopts_parse`、`clopts_write_help`、`clopts_set_allocator` |
 
 - `get` は読み取りだけに使う。`get` の関数が返すものは解放しない。
-- `create` の関数が作ったハンドルは、その型の `destroy` で解放する。ただし、プログラムかコマンドに渡したオプション・位置引数・コマンドは、プログラムと一緒に解放される（「[ハンドルと寿命](#ハンドルと寿命)」）。`clopts_parse` と `clopts_parse_with_env` が返す結果は `clopts_result_destroy` で解放する。
+- `create` の関数が作ったハンドルは、その型の `destroy` で解放する。`add` の関数が作ったオプション・位置引数・コマンドは、足した先のプログラムが持ち、プログラムと一緒に解放される（「[ハンドルと寿命](#ハンドルと寿命)」）。`clopts_parse` と `clopts_parse_with_env` が返す結果は `clopts_result_destroy` で解放する。
 - `is_` は宣言の bool の属性（`set_<属性>` と組になるもの）に使う。解析結果の FLAG の値は、ほかの値と並べて `clopts_result_get_flag` で読む。
 
 ## 全体の流れ
 
 CLOpts を使うプログラムは、次の順に API を呼ぶ。
 
-1. 宣言する: `clopts_program_create` でプログラムを名前で作り、グローバルオプション・位置引数・サブコマンドを渡す（所有権を移す）。オプションと位置引数は単独で作って設定してから、プログラムかコマンドに渡す。サブコマンドも単独で作って埋めてから、プログラムに渡す。誤った呼び出しは、その場で戻り値として宣言エラーを返す。
+1. 宣言する: `clopts_program_create` でプログラムを名前で作り、グローバルオプション・位置引数・サブコマンドを足す。足す関数が作って付けたハンドルを返すので、それに属性を設定する。呼び出しごとには確かめず、宣言の後で `clopts_program_get_error` を 1 回だけ確かめる。
 2. 解析する: `clopts_parse`（または `clopts_parse_with_env`）に argv を渡し、結果のハンドルを受け取る。
 3. 状態で分岐する: `clopts_result_get_status` で解析の状態を読む。
 4. 値を読む、または文面を出す: 成功なら `clopts_result_get_command` で選ばれたコマンドを見て処理を選び、結果のアクセサで値を読む。終端オプション（`--help`、`--version` など）で終わったなら `clopts_result_get_terminal_option` でどれかを見てヘルプや版を、エラーならエラーを `clopts_write_*` で出す。
@@ -129,17 +129,18 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
 
 int main(int argc, char **argv)
 {
-    struct taskbook_options opts = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-    clopts_program_t *program = NULL;
+    struct taskbook_options opts = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+    clopts_program_t *program = declare(&opts);
+    clopts_error_t error = clopts_program_get_error(program);
     clopts_argv_t *args;
     clopts_result_t *result;
-    clopts_error_t error;
     int code;
 
-    error = declare(&program, &opts);
+    /* A declaration mistake, or out of memory (program may be NULL). */
     if (error != CLOPTS_ERROR_NONE)
     {
         fprintf(stderr, "taskbook: error: invalid declaration: %s\n", clopts_error_get_message(error));
+        clopts_program_destroy(program);
         return 1;
     }
 
@@ -164,62 +165,37 @@ int main(int argc, char **argv)
 }
 ```
 
-宣言の部分では、まずプログラムを作り、グローバルオプションを渡す。`CHECK` は呼び出しの戻り値を `e` に入れ、エラーなら関数の後始末（`fail:`）へ飛ぶマクロである（taskbook の中にある）。`-h, --help` と `--version` は、終端の FLAG を作る taskbook の小さな関数 `create_terminal` で作っている。
+宣言の部分（taskbook の `declare`）では、まずプログラムを作り、グローバルオプションを足す。足す関数は、作って付けたオプションのハンドルを返す。後で値を読むために、それを `opts` にとっておく。`-h, --help` と `--version` は、それぞれ 1 行で足せる（「[ヘルプのための宣言](#ヘルプのための宣言)」）。
 
 ```c
-CHECK(clopts_program_create("taskbook", &program));
-CHECK(clopts_program_set_description(program, "Keep a small list of tasks."));
-CHECK(clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &option));
-CHECK(clopts_option_set_count_max(option, 3));
-CHECK(clopts_option_set_help(option, "Print more details (up to 3 times)"));
-CHECK(clopts_program_add_option(program, option));
-opts->verbose = option;
-option = NULL; /* now owned by the program */
+clopts_program_t *program = clopts_program_create("taskbook");
+
+clopts_program_set_description(program, "Keep a small list of tasks.");
+opts->verbose = clopts_program_add_option(program, CLOPTS_OPTION_COUNT, "verbose", 'v');
+clopts_option_set_count_max(opts->verbose, 3);
+clopts_option_set_help(opts->verbose, "Print more details (up to 3 times)");
 ```
 
-サブコマンドは単独で作って埋めてから、プログラムに渡す。たとえば `add` は次のように宣言している。
+サブコマンドも、プログラムに足すと作られる。返ったコマンドに、オプションと位置引数を足す。たとえば `add` は次のように宣言している。
 
 ```c
-CHECK(clopts_command_create("add", &command));
-CHECK(clopts_command_set_summary(command, "Add a task"));
-CHECK(clopts_command_set_description(command, "Add a task with the given title."));
-CHECK(clopts_option_create(CLOPTS_OPTION_LIST, "tag", 't', &option));
-CHECK(clopts_option_set_value_name(option, "TAG"));
-CHECK(clopts_option_set_delimiter(option, ','));
-CHECK(clopts_option_set_help(option, "Tags of the task"));
-CHECK(clopts_command_add_option(command, option));
-opts->tag = option;
-option = NULL; /* now owned by add */
-CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "priority", 'p', &option));
-CHECK(clopts_option_set_value_name(option, "LEVEL"));
-CHECK(clopts_option_set_default(option, "normal"));
-CHECK(clopts_option_set_help(option, "Priority: low, normal or high"));
-CHECK(clopts_command_add_option(command, option));
-opts->priority = option;
-option = NULL; /* now owned by add */
-CHECK(clopts_positional_create("TITLE", &positional));
+opts->add = clopts_program_add_command(program, "add");
+clopts_command_set_summary(opts->add, "Add a task");
+clopts_command_set_description(opts->add, "Add a task with the given title.");
+opts->tag = clopts_command_add_option(opts->add, CLOPTS_OPTION_LIST, "tag", 't');
+clopts_option_set_value_name(opts->tag, "TAG");
+clopts_option_set_delimiter(opts->tag, ',');
+clopts_option_set_help(opts->tag, "Tags of the task");
+opts->priority = clopts_command_add_option(opts->add, CLOPTS_OPTION_VALUE, "priority", 'p');
+clopts_option_set_value_name(opts->priority, "LEVEL");
+clopts_option_set_default(opts->priority, "normal");
+clopts_option_set_help(opts->priority, "Priority: low, normal or high");
+positional = clopts_command_add_positional(opts->add, "TITLE");
 clopts_positional_set_required(positional, true);
-CHECK(clopts_positional_set_help(positional, "Title of the task"));
-CHECK(clopts_command_add_positional(command, positional));
-positional = NULL; /* now owned by add */
-CHECK(clopts_program_add_command(program, command));
-opts->add = command;
-command = NULL; /* now owned by the program */
+clopts_positional_set_help(positional, "Title of the task");
 ```
 
-`clopts_program_add_command` が成功するとプログラムがコマンドを持ち、失敗すると何も変わらないので、呼び出し側がコマンドを解放する。後始末では、まだどこにも渡していないものと、プログラム（渡したものをすべて持っている）を解放する。
-
-```c
-fail:
-    /* Whatever is not attached is still ours; the program owns the rest. */
-    clopts_option_destroy(option);
-    clopts_positional_destroy(positional);
-    clopts_command_destroy(command);
-    clopts_program_destroy(program);
-    return e;
-```
-
-失敗したら NULL のハンドルを次の呼び出しに渡さず、その場で後始末して戻る理由は「[失敗の扱い](#失敗の扱い)」で示す。
+宣言の途中では、どの呼び出しの結果も確かめない。誤った呼び出しは何も変えず、プログラムが最初の宣言エラーを覚える。その後の呼び出しは何もせず、足す関数は NULL を返し、NULL のハンドルを渡された関数も何もしない。そのため、宣言を書き終えた後で `main` が `clopts_program_get_error` を 1 回確かめれば、どの呼び出しの誤りも、`clopts_program_create` のメモリ不足（プログラムが NULL）も分かる。後始末は `clopts_program_destroy` だけでよい（「[失敗の扱い](#失敗の扱い)」）。
 
 `taskbook add "Write docs" -t docs,api -v` を実行すると、`add` の処理（`run_add`）が選ばれ、受け取った値とその出所を標準出力へ出して、終了コード 0 で終わる。
 
@@ -248,17 +224,17 @@ Run 'taskbook --help' for usage.
 | ハンドル | 表すもの | 作る関数 | 解放する関数 | 有効な期間 | 依存するハンドル |
 |----------|----------|----------|--------------|------------|------------------|
 | `clopts_program_t` | プログラムの宣言全体。プログラム自身の範囲（グローバルオプションと、サブコマンドのないプログラムの位置引数）とサブコマンドを持つ | `clopts_program_create` | `clopts_program_destroy` | `clopts_program_destroy` まで | なし |
-| `clopts_command_t` | サブコマンド | `clopts_command_create` | プログラムに渡す前は `clopts_command_destroy`。`clopts_program_add_command` で渡した後は、なし（プログラムと一緒に解放される） | 渡す前は `clopts_command_destroy` まで。渡した後はプログラムの `clopts_program_destroy` まで（同じアドレスのまま） | 渡した後はプログラム |
-| `clopts_option_t` | オプション | `clopts_option_create` | プログラムかコマンドに渡す前は `clopts_option_destroy`。`clopts_program_add_option` か `clopts_command_add_option` で渡した後は、なし（プログラムと一緒に解放される） | 渡す前は `clopts_option_destroy` まで。渡した後はプログラムの `clopts_program_destroy` まで（同じアドレスのまま） | 渡した後はプログラム |
-| `clopts_positional_t` | 位置引数 | `clopts_positional_create` | プログラムかコマンドに渡す前は `clopts_positional_destroy`。`clopts_program_add_positional` か `clopts_command_add_positional` で渡した後は、なし（プログラムと一緒に解放される） | 渡す前は `clopts_positional_destroy` まで。渡した後はプログラムの `clopts_program_destroy` まで（同じアドレスのまま） | 渡した後はプログラム |
+| `clopts_command_t` | サブコマンド | `clopts_program_add_command` | なし（プログラムと一緒に解放される） | プログラムの `clopts_program_destroy` まで（同じアドレスのまま） | プログラム |
+| `clopts_option_t` | オプション | `clopts_program_add_option`、`clopts_command_add_option`、`clopts_program_add_help_option`、`clopts_program_add_version_option` | なし（プログラムと一緒に解放される） | プログラムの `clopts_program_destroy` まで（同じアドレスのまま） | プログラム |
+| `clopts_positional_t` | 位置引数 | `clopts_program_add_positional`、`clopts_command_add_positional` | なし（プログラムと一緒に解放される） | プログラムの `clopts_program_destroy` まで（同じアドレスのまま） | プログラム |
 | `clopts_result_t` | 解析の結果 | `clopts_parse`、`clopts_parse_with_env` | `clopts_result_destroy` | `clopts_result_destroy` まで。ただしアクセサを呼べるのはプログラムの解放前だけ | プログラム、argv（結果の文字列が argv を借用する） |
 | `clopts_argv_t` | UTF-8 の argv | `clopts_argv_create`、`clopts_argv_create_from_wide`（Windows のみ） | `clopts_argv_destroy` | `clopts_argv_destroy` まで。Windows 以外では、渡した argv が有効な間だけ | Windows 以外では、呼び出し側の argv |
 
-オプションと位置引数は自分を渡したプログラムやコマンドを知らず、コマンドは自分を渡したプログラムを知らない。渡した後は読み取り専用になり、同じものを 2 回渡すこともできない。ライブラリはこれを検査しないので、渡した後に属性を変える関数や渡す関数を呼ぶことと、同じオプション・位置引数・コマンドを 2 回渡すことは契約違反で、動作は未定義になる。
+オプション・位置引数・コマンドは、プログラムかコマンドに足す関数だけが作る。作られたときにはもう足した先に付いており、どこにも付いていないものは存在しない。そのため、利用側が解放するのはプログラムだけである。
 
 プログラムは、最初に解析するか文面を出した後は変えてはならない。その後にプログラムや、プログラムが持つものにビルダー関数を呼ぶことは契約違反で、動作は未定義になる（検出されない）。これを守るのは呼び出し側の責務である。
 
-プログラムは、プログラム自身の範囲でもある。プログラムに渡したオプションはグローバルオプションになり、サブコマンドの中でも見つかる。サブコマンドのないプログラムでは、位置引数もプログラムに渡す。
+プログラムは、プログラム自身の範囲でもある。プログラムに足したオプションはグローバルオプションになり、サブコマンドの中でも見つかる。サブコマンドのないプログラムでは、位置引数もプログラムに足す。
 
 解放の順序は次のとおり。
 
@@ -268,24 +244,43 @@ Run 'taskbook --help' for usage.
 
 ## 宣言
 
-宣言は、実行時にビルダー関数を呼んで組み立てる。宣言の関数は、ハンドルごとに `clopts/decl/program.h`、`clopts/decl/command.h`、`clopts/decl/option.h`、`clopts/decl/positional.h` に分かれており、`clopts/decl/program.h` で全部を取り込める。オプションと位置引数の並びは、プログラムとコマンドのどちらが持つものも、Scope（`clopts/decl/scope.h`）として同じ関数で読む。プログラムは名前で作り、そこに渡して埋める。オプションと位置引数は単独で作って設定してからプログラムかコマンドに渡し、サブコマンドは単独で作って埋めてからプログラムに渡す。
+宣言は、実行時にビルダー関数を呼んで組み立てる。宣言の関数は、ハンドルごとに `clopts/decl/program.h`、`clopts/decl/command.h`、`clopts/decl/option.h`、`clopts/decl/positional.h` に分かれており、`clopts/decl/program.h` で全部を取り込める。オプションと位置引数の並びは、プログラムとコマンドのどちらが持つものも、Scope（`clopts/decl/scope.h`）として同じ関数で読む。
 
-ビルダー関数（解放の関数、読み取りの関数、失敗しない `clopts_positional_set_required` と `clopts_positional_set_variadic` を除く）は、どれも `clopts_error_t` を返す。成功なら `CLOPTS_ERROR_NONE`、失敗ならその理由である（「[失敗の扱い](#失敗の扱い)」）。ハンドルを作る関数は、作ったハンドルを最後の引数 `out` に入れる。
+プログラムは名前で作る。オプション・位置引数・サブコマンドは、プログラムかコマンドに足す関数（`add` の関数）が作って付け、そのハンドルを返す。属性は、返ったハンドルに属性の関数（`set` の関数）で設定する。
+
+ビルダー関数（作る関数、`add` の関数、`set` の関数）は、エラーを戻り値で返さない。`set` の関数は `void` で、`add` の関数は失敗すると NULL を返す。誤りはプログラムが最初の 1 件を覚え、利用側は宣言の後で `clopts_program_get_error` を 1 回だけ確かめる（「[失敗の扱い](#失敗の扱い)」）。
+
+```c
+clopts_program_t *program = clopts_program_create("tool");
+clopts_option_t *verbose = clopts_program_add_option(program, CLOPTS_OPTION_COUNT, "verbose", 'v');
+
+clopts_option_set_help(verbose, "Print more details");
+clopts_program_add_help_option(program);
+if (clopts_program_get_error(program) != CLOPTS_ERROR_NONE)
+{
+    /* 宣言の誤りか、メモリ不足。program は NULL のこともある */
+    clopts_program_destroy(program);
+    return 1;
+}
+```
 
 ### プログラム
 
 | 関数 | 引数と戻り値 |
 |------|--------------|
-| `clopts_program_create`（`name, out`） | `name` という名前（複製される）の空のプログラムを作り、`*out` に入れる。名前はヘルプ・使い方・版・エラーの文面に出るプログラムの名前になる。名前が不正（NULL、空、`-` で始まる、空白を含む）なら `CLOPTS_ERROR_INVALID_NAME`。NULL の `out` は契約違反で、`assert` で検出される |
-| `clopts_program_destroy`（`program`） | プログラムと、それが持つすべてのもの（グローバルオプション、位置引数、サブコマンドと、それに渡されたオプションと位置引数）を解放する。NULL なら何もしない |
+| `clopts_program_create`（`name`） | `name` という名前（複製される）の空のプログラムを作って返す。名前はヘルプ・使い方・版・エラーの文面に出るプログラムの名前になる。メモリが足りなければ NULL を返す。名前が不正（NULL、空、`-` で始まる、空白を含む）なら、宣言エラー `CLOPTS_ERROR_INVALID_NAME` を持つプログラムを返す |
+| `clopts_program_destroy`（`program`） | プログラムと、それが持つすべてのもの（グローバルオプション、位置引数、サブコマンドと、それに足したオプションと位置引数）を解放する。NULL なら何もしない。宣言エラーのあるプログラムも、これで解放する |
+| `clopts_program_get_error`（`program`） | プログラムの最初の宣言エラー。なければ `CLOPTS_ERROR_NONE`。NULL のプログラム（`clopts_program_create` のメモリ不足）では `CLOPTS_ERROR_OUT_OF_MEMORY` |
 | `clopts_program_set_description`（`program, description`） | プログラムのヘルプに出す説明 |
-| `clopts_program_add_option`（`program, option`） | `option` をグローバルオプションとしてプログラムに渡す。成功するとプログラムが `option` を持ち、`option` はプログラムが解放されるまで読み取り専用で有効になる。失敗すると何も変わらず、`option` は呼び出し側が持ったままになる。失敗の理由は、グローバルオプションの中での名前の重なり（`CLOPTS_ERROR_DUPLICATE`）、グローバルオプションの中での否定形との衝突（`CLOPTS_ERROR_CONFLICT`） |
-| `clopts_program_add_positional`（`program, positional`） | `positional` を、すでに渡した位置引数の後ろに渡す。所有権は `clopts_program_add_option` と同じに移る。失敗の理由は検査の順に、プログラムにサブコマンドがある（`CLOPTS_ERROR_CONFLICT`）、最後の位置引数が可変長（`CLOPTS_ERROR_ORDER`）、必須の位置引数を省略できる位置引数の後ろに渡した（`CLOPTS_ERROR_ORDER`） |
-| `clopts_program_add_command`（`program, command`） | `command` を、すでに渡したサブコマンドの後ろに渡す。成功するとプログラムが `command` を持ち、`command` はプログラムが解放されるまで読み取り専用で有効になる。失敗すると何も変わらず、`command` は呼び出し側が持ったままになる。失敗の理由は検査の順に、同じ名前のサブコマンドがある（`CLOPTS_ERROR_DUPLICATE`）、プログラムに位置引数がある（`CLOPTS_ERROR_CONFLICT`） |
+| `clopts_program_add_option`（`program, kind, long_name, short_name`） | 種類 `kind` のグローバルオプションを作ってプログラムに足し、そのハンドルを返す。失敗したら NULL。`long_name` は先頭の `--` を除いた名前（なければ NULL）、`short_name` は 1 文字の名前（なければ `'\0'`）で、少なくとも一方が要る。エラーは検査の順に、種類が不正（`CLOPTS_ERROR_INVALID_ARGUMENT`）、名前がない・名前が不正（`CLOPTS_ERROR_INVALID_NAME`）、グローバルオプションの中での名前の重なり（`CLOPTS_ERROR_DUPLICATE`）、グローバルオプションの中での否定形との衝突（`CLOPTS_ERROR_CONFLICT`） |
+| `clopts_program_add_positional`（`program, name`） | `name` という名前（複製される。ヘルプと文面に使う）の位置引数を作り、すでに足した位置引数の後ろに足して、そのハンドルを返す。失敗したら NULL。足したときは、省略でき、可変長でない。エラーは検査の順に、名前が NULL か空（`CLOPTS_ERROR_INVALID_NAME`）、プログラムにサブコマンドがある（`CLOPTS_ERROR_CONFLICT`）、最後の位置引数が可変長（`CLOPTS_ERROR_ORDER`） |
+| `clopts_program_add_command`（`program, name`） | `name` という名前（複製される）のサブコマンドを作り、すでに足したサブコマンドの後ろに足して、そのハンドルを返す。失敗したら NULL。エラーは検査の順に、名前が不正（`clopts_program_create` と同じ規則。`CLOPTS_ERROR_INVALID_NAME`）、同じ名前のサブコマンドがある（`CLOPTS_ERROR_DUPLICATE`）、プログラムに位置引数がある（`CLOPTS_ERROR_CONFLICT`） |
+| `clopts_program_add_help_option`（`program`） | `-h` / `--help`、説明 `Show this help` の終端の FLAG をグローバルオプションとして足し、そのハンドルを返す。失敗したら NULL（エラーは `clopts_program_add_option` と同じ）。「[ヘルプのための宣言](#ヘルプのための宣言)」を参照 |
+| `clopts_program_add_version_option`（`program`） | `--version`（短い名前なし）、説明 `Show version information` の終端の FLAG を、`clopts_program_add_help_option` と同じに足す |
 | `clopts_program_get_name`（`program`） | 名前 |
 | `clopts_program_get_description`（`program`） | 説明。設定していなければ NULL |
 | `clopts_program_get_scope`（`program`） | プログラム自身の Scope（グローバルオプションと、プログラムの位置引数）。プログラムが解放されるまで有効 |
-| `clopts_program_get_command_count`（`program`）、`clopts_program_get_command_at`（`program, index`） | サブコマンドの数と、`index` 番目のサブコマンド（渡した順） |
+| `clopts_program_get_command_count`（`program`）、`clopts_program_get_command_at`（`program, index`） | サブコマンドの数と、`index` 番目のサブコマンド（足した順） |
 | `clopts_program_find_command`（`program, name`） | 名前が `name` と一致する（大文字と小文字を区別し、前方一致はしない）サブコマンド。なければ NULL。NULL の `name` は契約違反で、`assert` で検出される |
 
 NULL のプログラムを読み取りの関数に渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
@@ -294,42 +289,39 @@ NULL のプログラムを読み取りの関数に渡すのは契約違反で、
 
 ### コマンド
 
+サブコマンドは `clopts_program_add_command` が作り、プログラムが持つ。コマンドを解放する関数はない。
+
 | 関数 | 引数と戻り値 |
 |------|--------------|
-| `clopts_command_create`（`name, out`） | `name` という名前（複製される）のサブコマンドを、どのプログラムにも渡していない状態で作り、`*out` に入れる。名前が不正（NULL、空、`-` で始まる、空白を含む）なら `CLOPTS_ERROR_INVALID_NAME` |
-| `clopts_command_destroy`（`command`） | プログラムに渡していないコマンドを、渡されたオプションと位置引数ごと解放する。NULL なら何もしない。プログラムに渡したコマンドを渡すのは契約違反で、動作は未定義（検出されない） |
 | `clopts_command_set_summary`（`command, summary`） | プログラムのヘルプのコマンド一覧に出す 1 行の説明 |
 | `clopts_command_set_description`（`command, description`） | コマンドのヘルプに出す説明 |
-| `clopts_command_add_option`（`command, option`） | `option` をコマンドに渡す。成功するとコマンドが `option` を持ち、`option` はコマンドが解放されるまで読み取り専用で有効になる。失敗すると何も変わらず、`option` は呼び出し側が持ったままになる（直してもう一度渡すか、`clopts_option_destroy` で解放する）。失敗の理由は、同じコマンドの中での名前の重なり（`CLOPTS_ERROR_DUPLICATE`）、同じコマンドの中での否定形との衝突（`CLOPTS_ERROR_CONFLICT`） |
-| `clopts_command_add_positional`（`command, positional`） | `positional` を、すでに渡した位置引数の後ろに渡す。所有権は `clopts_command_add_option` と同じに移る。失敗の理由は、最後の位置引数が可変長（`CLOPTS_ERROR_ORDER`）、必須の位置引数を省略できる位置引数の後ろに渡した（`CLOPTS_ERROR_ORDER`） |
+| `clopts_command_add_option`（`command, kind, long_name, short_name`） | 種類 `kind` のオプションを作ってコマンドに足し、そのハンドルを返す。失敗したら NULL。引数とエラーは `clopts_program_add_option` と同じで、名前の重なり（`CLOPTS_ERROR_DUPLICATE`）と否定形との衝突（`CLOPTS_ERROR_CONFLICT`）は、同じコマンドの中で調べる |
+| `clopts_command_add_positional`（`command, name`） | 位置引数を作り、すでに足した位置引数の後ろに足して、そのハンドルを返す。失敗したら NULL。エラーは検査の順に、名前が NULL か空（`CLOPTS_ERROR_INVALID_NAME`）、最後の位置引数が可変長（`CLOPTS_ERROR_ORDER`） |
 | `clopts_command_get_name`（`command`） | 名前 |
 | `clopts_command_get_summary`（`command`）、`clopts_command_get_description`（`command`） | 1 行の説明と説明。設定していなければ NULL |
-| `clopts_command_get_scope`（`command`） | コマンドの Scope（渡したオプションと位置引数）。コマンドが解放されるまで有効 |
+| `clopts_command_get_scope`（`command`） | コマンドの Scope（足したオプションと位置引数）。コマンドが解放されるまで有効 |
 
 NULL のコマンドを読み取りの関数に渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
 
 ### Scope
 
-Scope は、プログラム自身かサブコマンドが持つオプションと位置引数の並びである。プログラムとコマンドのどちらが持つものも、次の関数で同じに読む。Scope は読み取り専用で、オプションと位置引数を渡すのは持ち主（`clopts_program_add_option`、`clopts_command_add_option` など）である。渡すときの規則は持ち主ごとに違う（プログラムはサブコマンドがあると位置引数を持てない）。
+Scope は、プログラム自身かサブコマンドが持つオプションと位置引数の並びである。プログラムとコマンドのどちらが持つものも、次の関数で同じに読む。Scope は読み取り専用で、オプションと位置引数を足すのは持ち主（`clopts_program_add_option`、`clopts_command_add_option` など）である。足すときの規則は持ち主ごとに違う（プログラムはサブコマンドがあると位置引数を持てない）。
 
 | 関数 | 引数と戻り値 |
 |------|--------------|
-| `clopts_scope_get_option_count`（`scope`）、`clopts_scope_get_option_at`（`scope, index`） | オプションの数と、`index` 番目のオプション（渡した順） |
-| `clopts_scope_get_positional_count`（`scope`）、`clopts_scope_get_positional_at`（`scope, index`） | 位置引数の数と、`index` 番目の位置引数（渡した順） |
+| `clopts_scope_get_option_count`（`scope`）、`clopts_scope_get_option_at`（`scope, index`） | オプションの数と、`index` 番目のオプション（足した順） |
+| `clopts_scope_get_positional_count`（`scope`）、`clopts_scope_get_positional_at`（`scope, index`） | 位置引数の数と、`index` 番目の位置引数（足した順） |
 | `clopts_scope_shadows_option`（`scope, option`） | `option` を書けるすべての形（長い名前、否定できるなら `--no-<長い名前>`、短い名前）が `scope` のオプションを指すとき true。解析は選ばれたサブコマンドの Scope を先に引くので、サブコマンドの Scope が隠すグローバルオプションは、そのサブコマンドの後ろでは指定できない。名前は解析と同じ規則で比べる（「[名前の規則](#名前の規則)」） |
 
 NULL の Scope とオプションは契約違反で、`assert` で検出される。
 
-サブコマンドに渡したオプションは、そのコマンドのオプションになる。コマンドに渡す関数が検査するのは、そのコマンドの中の関係だけである。グローバルオプションとサブコマンドのオプションの名前が重なってもよく、そのときはサブコマンドの名前がグローバルオプションを隠す（「[名前の規則](#名前の規則)」）。
+サブコマンドに足したオプションは、そのコマンドのオプションになる。コマンドに足す関数が検査するのは、そのコマンドの中の関係だけである。グローバルオプションとサブコマンドのオプションの名前が重なってもよく、そのときはサブコマンドの名前がグローバルオプションを隠す（「[名前の規則](#名前の規則)」）。
 
-読み取りの関数（`clopts_command_get_name` などの、`clopts_command_`・`clopts_program_`・`clopts_scope_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のプログラム・コマンド・オプション・位置引数は契約違反で、`assert` で検出される（「[プログラム](#プログラム)」「[コマンド](#コマンド)」「[オプションの属性](#オプションの属性)」「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/text/write.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
+読み取りの関数（`clopts_command_get_name` などの、`clopts_command_`・`clopts_program_`・`clopts_scope_`・`clopts_option_`・`clopts_positional_` で始まる `_get_`・`_is_`・`_find_` の関数と `clopts_scope_shadows_option`）は、宣言の途中でも呼べる。ただし、宣言エラーのあるプログラムとそのハンドルは、`clopts_program_get_error` と `clopts_program_destroy` のほかには使わない（「[失敗の扱い](#失敗の扱い)」）。NULL のプログラム・コマンド・オプション・位置引数は契約違反で、`assert` で検出される（「[プログラム](#プログラム)」「[コマンド](#コマンド)」「[オプションの属性](#オプションの属性)」「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/text/write.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
 
 ### オプション
 
-| 関数 | 引数と戻り値 |
-|------|--------------|
-| `clopts_option_create`（`kind, long_name, short_name, out`） | 種類 `kind` のオプションを、どこにも渡していない状態で作り、`*out` に入れる。`long_name` は先頭の `--` を除いた名前（なければ NULL）、`short_name` は 1 文字の名前（なければ `'\0'`）で、少なくとも一方が必要である（なければ `CLOPTS_ERROR_INVALID_NAME`）。種類が不正なら `CLOPTS_ERROR_INVALID_ARGUMENT`、名前が不正なら `CLOPTS_ERROR_INVALID_NAME` |
-| `clopts_option_destroy`（`option`） | プログラムにもコマンドにも渡していないオプションを解放する。NULL なら何もしない。渡したオプションを渡すのは契約違反で、動作は未定義（検出されない） |
+オプションは、プログラムかコマンドに足す関数（`clopts_program_add_option`、`clopts_command_add_option`、`clopts_program_add_help_option`、`clopts_program_add_version_option`）が作り、プログラムが持つ。オプションを解放する関数はない。
 
 `clopts_option_kind_t` は次の 4 値をとる。値は ABI の一部である。
 
@@ -342,21 +334,21 @@ NULL の Scope とオプションは契約違反で、`assert` で検出され�
 
 ### オプションの属性
 
-属性はコマンドに渡す前に設定する。
+属性は、足す関数が返したハンドルに設定する。属性の関数は `void` で、NULL のオプション（失敗した足す関数の戻り値）には何もしない。
 
 | 関数 | 対象の種類 | 意味 |
 |------|------------|------|
 | `clopts_option_set_help`（`option, help`） | すべて | ヘルプに出す 1 行の説明 |
 | `clopts_option_set_value_name`（`option, value_name`） | VALUE、LIST（ほかの種類にも設定できるが、使われない） | ヘルプに出す値の名前（taskbook の `<LEVEL>` など） |
-| `clopts_option_set_env`（`option, env`） | VALUE、LIST | argv で値が与えられないときに読む環境変数の名前 |
-| `clopts_option_set_default`（`option, default_value`） | VALUE、LIST | 既定値。LIST では区切り文字で分けられる |
-| `clopts_option_set_required`（`option, required`） | VALUE、LIST | argv か環境変数から値を得なければならない |
-| `clopts_option_set_negatable`（`option, negatable`） | FLAG | `--no-<long_name>` を受け付け、フラグを false にする |
+| `clopts_option_set_env`（`option, env`） | VALUE、LIST | argv で値が与えられないときに読む環境変数の名前。名前が不正なら `CLOPTS_ERROR_INVALID_NAME` |
+| `clopts_option_set_default`（`option, default_value`） | VALUE、LIST | 既定値。LIST では区切り文字で分けられる。必須のオプションには設定できない（`CLOPTS_ERROR_CONFLICT`） |
+| `clopts_option_set_required`（`option, required`） | VALUE、LIST | argv か環境変数から値を得なければならない。既定値のあるオプションには設定できない（`CLOPTS_ERROR_CONFLICT`） |
+| `clopts_option_set_negatable`（`option, negatable`） | FLAG | `--no-<long_name>` を受け付け、フラグを false にする。同じプログラムか同じコマンドに `no-<long_name>` という名前のオプションがあれば `CLOPTS_ERROR_CONFLICT` |
 | `clopts_option_set_delimiter`（`option, delimiter`） | LIST | 値の区切り文字。`'\0'` で元に戻す（このとき 1 回の指定が 1 つの値になる） |
 | `clopts_option_set_count_max`（`option, count_max`） | COUNT | 回数の上限。0 で既定値（`UINT_MAX`）に戻す |
 | `clopts_option_set_terminal`（`option, terminal`） | FLAG | 終端オプションにする。argv に現れたところで解析を止め、`CLOPTS_PARSE_TERMINATED` で終える（「[解析と状態](#解析と状態)」）。`--help` や `--version` に使う |
 
-文字列の属性は複製され、もう一度設定すると前の複製が置き換わる（最後の呼び出しが有効）。NULL、false、`'\0'`、0 を渡すと属性を元に戻す（元に戻す呼び出しは検査されない）。対象でない種類のオプションに環境変数・既定値・必須・否定・区切り文字・回数の上限・終端を設定すると、宣言エラーが返り、属性は変わらない（「[宣言エラーの種類](#宣言エラーの種類)」を参照）。値の名前は検査されず、FLAG と COUNT では使われない。
+文字列の属性は複製され、もう一度設定すると前の複製が置き換わる（最後の呼び出しが有効）。NULL、false、`'\0'`、0 を渡すと属性を元に戻す（元に戻す呼び出しは検査されない）。対象でない種類のオプションに環境変数・既定値・必須・否定・区切り文字・回数の上限・終端を設定すると、属性は変わらず、プログラムに宣言エラー `CLOPTS_ERROR_NOT_APPLICABLE` が残る（「[宣言エラーの種類](#宣言エラーの種類)」を参照）。値の名前は検査されず、FLAG と COUNT では使われない。
 
 属性は、次の読み取りの関数で読める。NULL のオプションを渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
 
@@ -371,17 +363,26 @@ NULL の Scope とオプションは契約違反で、`assert` で検出され�
 
 ### 位置引数
 
+位置引数は、プログラムかコマンドに足す関数（`clopts_program_add_positional`、`clopts_command_add_positional`）が作り、プログラムが持つ。足したときは省略でき、可変長でない。同じプログラムか同じコマンドの位置引数は、必須のものが先に、可変長のものが最後に並んでいなければならない。この順序は、足す関数と、必須・可変長を変える関数が検査する。
+
 | 関数 | 意味 |
 |------|------|
-| `clopts_positional_create`（`name, out`） | `name` という名前（複製される。ヘルプと文面に使う）の位置引数を、どのコマンドにも渡していない状態で作り、`*out` に入れる。NULL か空なら `CLOPTS_ERROR_INVALID_NAME` |
-| `clopts_positional_destroy`（`positional`） | コマンドに渡していない位置引数を解放する（`clopts_option_destroy` と同じ扱い） |
 | `clopts_positional_set_help`（`positional, help`） | ヘルプに出す 1 行の説明。NULL で元に戻す |
-| `clopts_positional_set_required`（`positional, required`） | 必須にする。必須の位置引数は、省略できる位置引数より前に渡す（渡すときに検査される）。失敗しないので戻り値はない |
-| `clopts_positional_set_variadic`（`positional, variadic`） | 残りのトークンをすべて受け取る。可変長の位置引数の後ろには、位置引数を渡せない（渡すときに検査される）。失敗しないので戻り値はない |
+| `clopts_positional_set_required`（`positional, required`） | 必須にする（false で省略できるように戻す）。変えた結果、省略できる位置引数の後ろに必須の位置引数が来るなら `CLOPTS_ERROR_ORDER` |
+| `clopts_positional_set_variadic`（`positional, variadic`） | 残りのトークンをすべて受け取る。後ろにほかの位置引数があれば `CLOPTS_ERROR_ORDER` |
 | `clopts_positional_get_name`、`clopts_positional_get_help`（`positional`） | 名前と、ヘルプの説明（設定していなければ NULL） |
 | `clopts_positional_is_required`、`clopts_positional_is_variadic`（`positional`） | 必須か、可変長か |
 
-NULL の位置引数を読み取りの関数に渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
+足したばかりの位置引数は省略できるので、必須の位置引数を 2 つ並べるときは、1 つ目を必須にしてから 2 つ目を足す。1 つ目を省略できるまま 2 つ目を足して必須にすると、`CLOPTS_ERROR_ORDER` になる。
+
+```c
+src = clopts_command_add_positional(command, "SRC");
+clopts_positional_set_required(src, true);
+dst = clopts_command_add_positional(command, "DST");
+clopts_positional_set_required(dst, true);
+```
+
+属性の関数は `void` で、NULL の位置引数には何もしない。NULL の位置引数を読み取りの関数に渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
 
 ### 名前の規則
 
@@ -390,21 +391,23 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 - オプションの短い名前: `-`、`=`、空白は使えない。
 - 位置引数の名前: NULL と空は不正である。
 - 環境変数の名前: 空のもの、`=` を含むもの、正しい UTF-8 でないものは不正である（どの OS でも、そういう名前の変数は引けない）。
-- 予約された名前はない。`help`、`h`、`version` もふつうの名前で、`--help` が要るなら終端の FLAG として、`help` コマンドが要るならサブコマンドとして宣言する（「[ヘルプのための宣言](#ヘルプのための宣言)」）。
+- 予約された名前はない。`help`、`h`、`version` もふつうの名前で、`clopts_program_add_help_option` と `clopts_program_add_version_option` も、その名前のふつうの終端の FLAG を足すだけである。`help` コマンドが要るなら、サブコマンドとして宣言する（「[ヘルプのための宣言](#ヘルプのための宣言)」）。
 - オプションの名前は、グローバルオプションの中と、同じコマンドの中では重ねられない。グローバルオプションとサブコマンドのオプションの間では重ねてよい。サブコマンドが選ばれた後は、そのコマンドの名前が先に探されるので、同じ名前のグローバルオプションは隠れる（[解析規則](parsing.md) の章）。
 - サブコマンドの名前は、同じプログラムの中では重ねられない。
 
-名前の形はプログラム・コマンド・オプション・位置引数を作るときに、オプションの名前の重なりはプログラムかコマンドに渡すときに、サブコマンドの名前の重なりは `clopts_program_add_command` が検査する。
+名前の形は `clopts_program_create` と足す関数が、環境変数の名前は `clopts_option_set_env` が、オプションの名前の重なりはプログラムかコマンドに足す関数が、サブコマンドの名前の重なりは `clopts_program_add_command` が検査する。
 
 ### 失敗の扱い
 
-ビルダー関数は、呼ばれるたびにその場で検査され、結果を戻り値で返す。
+ビルダー関数は、呼ばれるたびにその場で検査される。結果は戻り値では返らず、プログラムに残る。
 
-- 失敗した呼び出しは、何も変えない。ハンドルを作る関数は `*out` を NULL にする。そのため、成功した呼び出しだけで組み立てたプログラムは、つねに正しい。プログラムにエラーが記録されることはなく、解析が宣言エラーを返すこともない。
-- オプションや位置引数だけで決まる検査（種類、名前の形、属性の組み合わせ）は、作る関数と属性の関数が行う。同じプログラムか同じコマンドのほかのオプション・位置引数との関係で決まる検査（名前の重なり、否定形との衝突、位置引数の順序）は、プログラムかコマンドに渡す関数が行う。コマンドの間の関係で決まる検査（サブコマンドの名前の重なり、プログラムの位置引数とサブコマンドの混在）は、`clopts_program_add_command` と `clopts_program_add_positional` が行う。
-- メモリの確保に失敗すると `CLOPTS_ERROR_OUT_OF_MEMORY` が返る。
-- NULL のハンドルや NULL の `out` を渡すのは契約違反で、`assert` で検出される（`NDEBUG` のビルドでは検査されず、動作は未定義）。エラーは返らない。そのため、作る関数が失敗したら、NULL のハンドルを次の呼び出しに渡さず、その場で後始末して戻る（taskbook と textcount の書き方）。プログラムやコマンドに渡せなかったオプション・位置引数・コマンドは、呼び出し側が解放する。
-- 渡した後のオプション・位置引数・コマンドに属性の関数や渡す関数を呼ぶことと、同じものを 2 回渡すことは検査しない（契約違反で、動作は未定義）。
+- 失敗した呼び出しは、何も変えない。足す関数は NULL を返す。プログラムは最初の宣言エラーを覚え、`clopts_program_get_error` がそれを返す。後のエラーで置き換わることはない。
+- プログラムにエラーが残った後は、そのプログラムと、それが持つものへのビルダー関数はすべて何もせず、足す関数は NULL を返す。そのため、後の呼び出しの誤りは報告されない（最初の誤りを直すと、次の誤りが見えるようになる）。
+- ビルダー関数は、どれも NULL のハンドルを受け付けて何もしない（足す関数は NULL を返す）。失敗した足す関数の戻り値をそのまま次の呼び出しに渡してよい。`clopts_program_create` はメモリが足りないと NULL を返し、`clopts_program_get_error`（NULL）は `CLOPTS_ERROR_OUT_OF_MEMORY` を返す。そのため、宣言の後の 1 回の確認で、メモリ不足も分かる。
+- 宣言のエラーは、呼び出しの途中では確かめない。宣言をすべて書いた後で `clopts_program_get_error` を 1 回確かめ、`CLOPTS_ERROR_NONE` でなければ `clopts_program_destroy` で解放する（taskbook と textcount の書き方）。後始末はこれだけでよい。
+- 宣言エラーのあるプログラムで使ってよいのは、`clopts_program_get_error` と `clopts_program_destroy` だけである。解析すること（`clopts_parse`、`clopts_parse_with_env`）と文面を出すこと（`clopts_write_*`）は契約違反で、`assert` で検出される。プログラムのハンドルも読まない。
+- オプションや位置引数だけで決まる検査（種類、名前の形、属性の組み合わせ）は、足す関数と属性の関数が行う。同じプログラムか同じコマンドのほかのオプション・位置引数との関係で決まる検査（名前の重なり、否定形との衝突、位置引数の順序）は、足す関数と、それを変える属性の関数（`clopts_option_set_negatable`、`clopts_positional_set_required`、`clopts_positional_set_variadic`）が行う。コマンドの間の関係で決まる検査（サブコマンドの名前の重なり、プログラムの位置引数とサブコマンドの混在）は、`clopts_program_add_command` と `clopts_program_add_positional` が行う。
+- メモリの確保に失敗すると、宣言エラーは `CLOPTS_ERROR_OUT_OF_MEMORY` になる。
 - 宣言エラーの短い説明（英語）は、`clopts/base/error.h` の `clopts_error_get_message` で得られる。
 
 解析はプログラムに書き込まない。
@@ -415,7 +418,7 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 
 | 関数 | 引数と戻り値 |
 |------|--------------|
-| `clopts_parse`（`program, argc, argv`） | `argv[1]` から `argv[argc-1]` までを `program` の宣言に従って解析し、結果を返す（`argv[0]` は読み飛ばす）。`argc` は 0 以上で、`argv[0]` から `argv[argc-1]` は NUL で終わる文字列（`argc` が 0 なら argv は読まれない）。環境変数はプロセスの環境から UTF-8 で読む（Windows では `GetEnvironmentVariableW` で読んで UTF-8 に変換し、それ以外では `getenv()` の値をそのまま使う）。宣言も argv も書き換えない。NULL は返さない。メモリの確保に失敗したとき（または `program` が NULL のとき）は、共有のメモリ不足の番兵を返す |
+| `clopts_parse`（`program, argc, argv`） | `argv[1]` から `argv[argc-1]` までを `program` の宣言に従って解析し、結果を返す（`argv[0]` は読み飛ばす）。`argc` は 0 以上で、`argv[0]` から `argv[argc-1]` は NUL で終わる文字列（`argc` が 0 なら argv は読まれない）。環境変数はプロセスの環境から UTF-8 で読む（Windows では `GetEnvironmentVariableW` で読んで UTF-8 に変換し、それ以外では `getenv()` の値をそのまま使う）。宣言も argv も書き換えない。NULL は返さない。メモリの確保に失敗したとき（または `program` が NULL のとき）は、共有のメモリ不足の番兵を返す。宣言エラーのあるプログラム（`clopts_program_get_error`）を渡すのは契約違反で、`assert` で検出される |
 | `clopts_parse_with_env`（`program, argc, argv, env_fn, env_ctx`） | `clopts_parse` と同じだが、環境変数の値をプロセスの環境の代わりに `env_fn(env_ctx, name, &value)` から得る。テストや、設定ファイルなど別の出どころの値を渡すときに使う。`env_fn` が NULL なら `clopts_parse` と同じくプロセスの環境から読む |
 | `clopts_result_get_status`（`result`） | 結果の状態（`clopts_parse_status_t`）を返す |
 
@@ -507,7 +510,7 @@ color: false
 
 優先順位は argv、環境変数、既定値の順である（詳しくは [解析規則](parsing.md) の章）。
 
-オプションの値は、オプションのアドレスで探される。そのため、別のプログラムのオプションや、選ばれなかったコマンドのオプション、コマンドに渡していないオプションを渡したときは「値なし」を返す。
+オプションの値は、オプションのアドレスで探される。そのため、別のプログラムのオプションや、選ばれなかったコマンドのオプションを渡したときは「値なし」を返す。
 
 次のものは契約違反で、`assert` で検出される: 範囲外の `index`。NULL の結果はメモリ不足の番兵と同じに読まれ（状態は `CLOPTS_PARSE_OUT_OF_MEMORY`）、契約違反ではない。
 
@@ -598,17 +601,17 @@ Run 'taskbook add --help' for usage.
 
 ## 宣言エラーの種類
 
-`clopts_error_t` は、ビルダー関数の結果を示す（`CLOPTS_ERROR_NONE` は成功）。表の「説明」は `clopts_error_get_message` が返す文字列である。
+`clopts_error_t` は、プログラムが覚えた最初の宣言エラーの種類を示す（`CLOPTS_ERROR_NONE` はエラーなし）。`clopts_program_get_error` が返す。表の「説明」は `clopts_error_get_message` が返す文字列である。
 
-| 種別 | 返す関数と起きる例 | 説明 |
-|------|--------------------|------|
-| `CLOPTS_ERROR_INVALID_ARGUMENT` | `clopts_option_kind_t` にない種類で `clopts_option_create`。NULL のハンドルや `out` は契約違反で、`assert` で検出される | `invalid argument` |
-| `CLOPTS_ERROR_INVALID_NAME` | 不正なコマンド名・オプション名・位置引数名（`clopts_command_create`、`clopts_option_create`、`clopts_positional_create`）、長い名前も短い名前もないオプション（`clopts_option_create`（`CLOPTS_OPTION_FLAG, NULL, '\0', &option`））、不正な環境変数名（空、`=` を含む、正しい UTF-8 でない。`clopts_option_set_env`（`option, ""`）） | `invalid name` |
-| `CLOPTS_ERROR_DUPLICATE` | 同じ名前のサブコマンドを 2 つ渡した（`clopts_program_add_command`）、同じコマンドの中でオプションの名前が重なった（`clopts_program_add_option`、`clopts_command_add_option`） | `duplicate name` |
+| 種別 | 記録する関数と起きる例 | 説明 |
+|------|------------------------|------|
+| `CLOPTS_ERROR_INVALID_ARGUMENT` | `clopts_option_kind_t` にない種類で `clopts_program_add_option`、`clopts_command_add_option` | `invalid argument` |
+| `CLOPTS_ERROR_INVALID_NAME` | 不正なプログラム名・コマンド名・オプション名・位置引数名（`clopts_program_create`、`clopts_program_add_command`、`clopts_program_add_option`、`clopts_command_add_option`、`clopts_program_add_positional`、`clopts_command_add_positional`）、長い名前も短い名前もないオプション（`clopts_program_add_option`（`program, CLOPTS_OPTION_FLAG, NULL, '\0'`））、不正な環境変数名（空、`=` を含む、正しい UTF-8 でない。`clopts_option_set_env`（`option, ""`）） | `invalid name` |
+| `CLOPTS_ERROR_DUPLICATE` | 同じ名前のサブコマンドを 2 つ足した（`clopts_program_add_command`）、グローバルオプションの中か同じコマンドの中でオプションの名前が重なった（`clopts_program_add_option`、`clopts_command_add_option`。`--help` があるのに `clopts_program_add_help_option` を呼んだときも） | `duplicate name` |
 | `CLOPTS_ERROR_NOT_APPLICABLE` | その種類のオプションには使えない属性を設定した。FLAG でないオプションに否定（`clopts_option_set_negatable`（`option, true`））と終端、FLAG か COUNT に既定値・環境変数・必須、LIST でないオプションに区切り文字、COUNT でないオプションに回数の上限 | `does not apply to this kind` |
-| `CLOPTS_ERROR_CONFLICT` | ほかの設定とぶつかる。否定できる FLAG `x` と `no-x` という名前のオプションを同じコマンドに渡した（どちらの順で渡しても、後から渡した方の `clopts_command_add_option`）、必須と既定値の両方を設定した（どちらの順でも、後の `clopts_option_set_default` か `clopts_option_set_required`）、プログラムに位置引数とサブコマンドの両方を渡そうとした（`clopts_program_add_command`、`clopts_program_add_positional`） | `conflicts with another setting` |
-| `CLOPTS_ERROR_ORDER` | 位置引数の並びが正しくない。省略できる位置引数の後ろに必須の位置引数を渡した、可変長の位置引数の後ろに位置引数を渡した（`clopts_command_add_positional`、`clopts_program_add_positional`） | `out of order` |
-| `CLOPTS_ERROR_OUT_OF_MEMORY` | メモリの確保に失敗した | `out of memory` |
+| `CLOPTS_ERROR_CONFLICT` | ほかの設定とぶつかる。否定できる FLAG `x` と `no-x` という名前のオプションが同じプログラムか同じコマンドにある（`x` を否定できるようにしてから `no-x` を足したなら `clopts_command_add_option` か `clopts_program_add_option`、`no-x` を足してから `x` を否定できるようにしたなら `clopts_option_set_negatable`）、必須と既定値の両方を設定した（どちらの順でも、後の `clopts_option_set_default` か `clopts_option_set_required`）、プログラムに位置引数とサブコマンドの両方を足そうとした（`clopts_program_add_command`、`clopts_program_add_positional`） | `conflicts with another setting` |
+| `CLOPTS_ERROR_ORDER` | 位置引数の並びが正しくない。省略できる位置引数の後ろの位置引数を必須にした、または必須の位置引数の前の位置引数を省略できるようにした（`clopts_positional_set_required`）、後ろに位置引数がある位置引数を可変長にした（`clopts_positional_set_variadic`）、可変長の位置引数の後ろに位置引数を足した（`clopts_command_add_positional`、`clopts_program_add_positional`） | `out of order` |
+| `CLOPTS_ERROR_OUT_OF_MEMORY` | メモリの確保に失敗した。`clopts_program_create` が NULL を返したときも、`clopts_program_get_error`（NULL）がこれを返す | `out of memory` |
 
 taskbook と textcount は、宣言エラーがあれば `<program>: error: invalid declaration: <説明>` の 1 行を標準エラーへ出し、終了コード 1 で終わる。
 
@@ -654,9 +657,9 @@ clopts_write_help(program, NULL, clopts_file_write, stdout);
 
 `clopts_file_write` は `static inline` の関数で、利用側の翻訳単位でコンパイルされ、ライブラリには含まれない（公開シンボルの一覧にも載らない）。そのため、ライブラリと利用側で C ランタイムが違っても、`FILE*` がライブラリの境界を越えない。`fwrite()` がすべてのバイトを書けば 0 を、そうでなければ 1 を返し、`len` が 0 なら何も書かずに 0 を返す。`ctx` は有効な `FILE*` でなければならず、`len` が 0 より大きいときは `data` が NULL であってはならない（そうでなければ動作は未定義）。
 
-文面の関数の前提（`assert` で検出される）は、`program` と `write_fn` が NULL でないこと、`command` が NULL か `program` のサブコマンドであること、`result` が `program` から得たもので、`program` がまだ解放されていないことである。NULL の結果はメモリ不足の番兵と同じに読まれる。文面の関数は、宣言も結果も書き換えず、メモリも確保しない。
+文面の関数の前提（`assert` で検出される）は、`program` と `write_fn` が NULL でないこと、`program` に宣言エラーがないこと、`command` が NULL か `program` のサブコマンドであること、`result` が `program` から得たもので、`program` がまだ解放されていないことである。NULL の結果はメモリ不足の番兵と同じに読まれる。文面の関数は、宣言も結果も書き換えず、メモリも確保しない。
 
-ヘルプの文面の例として、`taskbook help add`（`taskbook add --help` と同じ）の出力を示す。`-h, --help` と `--version` はプログラムに渡したグローバルオプションなので、`Global Options:` に並ぶ。
+ヘルプの文面の例として、`taskbook help add`（`taskbook add --help` と同じ）の出力を示す。`-h, --help` と `--version` はプログラムに足したグローバルオプションなので、`Global Options:` に並ぶ。
 
 <!-- clopts-check: -- taskbook help add -->
 ```text
@@ -684,24 +687,22 @@ Global Options:
 
 解析器は `--help` や `help` コマンドを知らないので、ヘルプの文面と組で使うものはふつうの宣言として足す。
 
-`-h` / `--help` と `--version` は、終端の FLAG（`clopts_option_set_terminal`）としてプログラムに渡す。グローバルオプションはサブコマンドの中でも見つかるので、`taskbook add --help` も解析を止めて `CLOPTS_PARSE_TERMINATED` になる。どの終端オプションで止まったかは `clopts_result_get_terminal_option` で分かる。
+`-h` / `--help` と `--version` は、終端の FLAG（`clopts_option_set_terminal`）として、グローバルオプションに足す。`clopts_program_add_help_option` は `-h, --help`（説明 `Show this help`）を、`clopts_program_add_version_option` は `--version`（説明 `Show version information`）を、それぞれ 1 行で足す。グローバルオプションはサブコマンドの中でも見つかるので、`taskbook add --help` も解析を止めて `CLOPTS_PARSE_TERMINATED` になる。どの終端オプションで止まったかは `clopts_result_get_terminal_option` で分かる。taskbook は `--version` のハンドルだけをとっておき、それ以外の終端オプションならヘルプを出す。
 
 ```c
-CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "help", 'h', &option));
-CHECK(clopts_option_set_terminal(option, true));
-CHECK(clopts_option_set_help(option, "Show this help"));
-CHECK(clopts_program_add_option(program, option));
+clopts_program_add_help_option(program);
+opts->version = clopts_program_add_version_option(program);
 ```
 
-`help` コマンドも、ふつうのサブコマンドとして宣言する。taskbook は、省略できる位置引数 `COMMAND` を 1 つとる `help` コマンドをプログラムに渡している。
+この 2 つの関数も、ヘルプや版を出力しない。出力するのは、`CLOPTS_PARSE_TERMINATED` を見た利用側である（「[全体の流れ](#全体の流れ)」の `finish`）。名前か説明を変えたいときは、返ったハンドルに `clopts_option_set_help` を呼ぶか、FLAG を `clopts_program_add_option` で足して `clopts_option_set_terminal` を呼ぶ。
+
+`help` コマンドも、ふつうのサブコマンドとして宣言する。taskbook は、省略できる位置引数 `COMMAND` を 1 つとる `help` コマンドをプログラムに足している。
 
 ```c
-CHECK(clopts_command_create("help", &command));
-CHECK(clopts_command_set_summary(command, "Show help for a command"));
-CHECK(clopts_positional_create("COMMAND", &positional));
-CHECK(clopts_positional_set_help(positional, "Command to show help for"));
-CHECK(clopts_command_add_positional(command, positional));
-CHECK(clopts_program_add_command(program, command));
+help = clopts_program_add_command(program, "help");
+clopts_command_set_summary(help, "Show help for a command");
+positional = clopts_command_add_positional(help, "COMMAND");
+clopts_positional_set_help(positional, "Command to show help for");
 ```
 
 `help` コマンドが選ばれたら、位置引数があればその名前を `clopts_program_find_command` で引き、見つかったコマンドの（位置引数がなければプログラム全体の）ヘルプを `clopts_write_help` で出す。
@@ -717,7 +718,7 @@ Run 'taskbook --help' for usage.
 ## メモリの所有と寿命
 
 - ビルダー関数に渡した文字列（名前、説明、値の名前、環境変数の名前、既定値）は、ライブラリが複製する。呼び出し側は、呼び出しの直後にその文字列を変更・解放してよい。`clopts_write_version` の `version` は複製されず、呼び出しの間だけ読まれる。
-- ライブラリが確保したものは、ライブラリの関数で解放する: プログラムとそれが持つハンドルは `clopts_program_destroy`、プログラムに渡していないコマンドは `clopts_command_destroy`、どこにも渡していないオプションと位置引数は `clopts_option_destroy` と `clopts_positional_destroy`、結果は `clopts_result_destroy`、argv のハンドルは `clopts_argv_destroy`。ライブラリから得た文字列を `free()` してはならない。
+- ライブラリが確保したものは、ライブラリの関数で解放する: プログラムとそれが持つハンドル（足したオプション・位置引数・コマンド）は `clopts_program_destroy`、結果は `clopts_result_destroy`、argv のハンドルは `clopts_argv_destroy`。ライブラリから得た文字列を `free()` してはならない。
 - ライブラリの確保と解放は、すべて設定されたアロケーター（既定は標準の `malloc` / `calloc` / `realloc` / `free`）を通る。差し替え方は「[アロケーター](#アロケーター)」で示す。
 - ライブラリは argv を書き換えない。宣言も、解析によって書き換えられない。
 - 結果から得た文字列（値、LIST の各値、位置引数、エラーのトークン）は、結果を解放するまで有効で、しかも呼び出し側がプログラムと argv の両方を生かしている間だけ有効である。`clopts_result_get_positional_at` と `clopts_usage_error_get_token` は argv の要素そのものを返す。argv を `clopts_argv_create` で得たときは、結果を使い終えてから `clopts_argv_destroy` を呼ぶ。
@@ -725,8 +726,7 @@ Run 'taskbook --help' for usage.
 - 解放の順序: 結果のアクセサは、プログラムを解放する前に呼ぶ。`clopts_result_destroy` そのものは、`clopts_program_destroy` の前でも後でも呼べる。
 - メモリ不足の番兵（`clopts_parse` などがメモリ不足で終わったときに返す共有の結果）は、`clopts_result_destroy` に渡しても何もしない。そのため、状態にかかわらず、得た結果は必ず `clopts_result_destroy` に渡してよい。
 - 文面の関数（`clopts_write_*`）はメモリを確保しない。
-- 渡す前のオプションと位置引数は、呼び出し側が持つ。`clopts_program_add_option`・`clopts_program_add_positional`・`clopts_command_add_option`・`clopts_command_add_positional` が成功すると、プログラムかコマンドが持つ。失敗したときは呼び出し側が持ったままなので、`clopts_option_destroy` か `clopts_positional_destroy` で解放する。
-- プログラムに渡す前のコマンドは、呼び出し側が持つ。`clopts_program_add_command` が成功すると、プログラムが持つ。失敗したときは呼び出し側が持ったままなので、`clopts_command_destroy` で解放する（コマンドに渡したオプションと位置引数も一緒に解放される）。
+- 足す関数が作ったオプション・位置引数・コマンドは、はじめからプログラムが持つ。呼び出し側が持つものはない。足す関数が失敗したときは何も作られず、解放するものはない。宣言エラーがあっても、後始末は `clopts_program_destroy` だけでよい。
 
 ### スレッド
 

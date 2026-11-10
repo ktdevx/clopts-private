@@ -201,7 +201,7 @@ Run 'taskbook --help' for usage.
 
 ## グローバルオプションとサブコマンド
 
-サブコマンドのあるプログラムでは、プログラムに渡したオプションがグローバルオプションになる。argv は次のように読まれる。
+サブコマンドのあるプログラムでは、プログラムに足したオプションがグローバルオプションになる。argv は次のように読まれる。
 
 - サブコマンド名より前には、グローバルオプションだけを置ける。サブコマンドのオプションをそこに置くと、未知のオプションのエラーになる。
 - 最初のオプションでない要素が、サブコマンド名である。
@@ -434,7 +434,7 @@ color: false
 
 ## 終端オプション、ヘルプと版、使い方エラー
 
-解析器には、組み込みのオプションもコマンドもない。`--help`、`-h`、`--version` は終端の FLAG として、`help` コマンドはサブコマンドとして足す、ふつうの宣言である。taskbook と textcount は、プログラムに `-h` / `--help` と `--version` を、taskbook はさらに `help` コマンドを宣言している。
+解析器には、組み込みのオプションもコマンドもない。`--help`、`-h`、`--version` は終端の FLAG として、`help` コマンドはサブコマンドとして足す、ふつうの宣言である。taskbook と textcount は、プログラムに `-h` / `--help` と `--version` を（`clopts_program_add_help_option` と `clopts_program_add_version_option` で）、taskbook はさらに `help` コマンドを宣言している。
 
 `--help` と `--version` は終端オプション（`clopts_option_set_terminal` を設定した FLAG）である。終端オプションは次のように扱われる。
 

@@ -18,7 +18,6 @@
 /* Option handles read after the parse. */
 struct textcount_options
 {
-    const clopts_option_t *help;
     const clopts_option_t *version;
     clopts_option_t *lines;
     clopts_option_t *words;
@@ -82,116 +81,43 @@ static int run(const clopts_result_t *result, const struct textcount_options *op
     return 0;
 }
 
-/* Runs one declaration call; on an error, jumps to the cleanup of the function. */
-#define CHECK(call)                 \
-    do                              \
-    {                               \
-        e = (call);                 \
-        if (e != CLOPTS_ERROR_NONE) \
-        {                           \
-            goto fail;              \
-        }                           \
-    } while (0)
-
 /*
- * Creates the terminal FLAG named long_name / short_name with help into
- * *out. Returns the declaration error, or CLOPTS_ERROR_NONE; on an error *out
- * is NULL and nothing is left to release.
+ * Declares the program. Nothing is checked here: the program keeps the first
+ * declaration error, and main() checks it once.
  */
-static clopts_error_t create_terminal(const char *long_name, char short_name, const char *help,
-                                      clopts_option_t **out)
+static clopts_program_t *declare(struct textcount_options *opts)
 {
-    clopts_error_t e;
-    clopts_option_t *option = NULL;
+    clopts_program_t *program = clopts_program_create("textcount");
+    clopts_positional_t *files;
 
-    *out = NULL;
-    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, long_name, short_name, &option));
-    CHECK(clopts_option_set_terminal(option, true));
-    CHECK(clopts_option_set_help(option, help));
-    *out = option;
-    return CLOPTS_ERROR_NONE;
+    clopts_program_set_description(program, "Count the lines and words of text files.");
 
-fail:
-    clopts_option_destroy(option);
-    return e;
-}
+    opts->lines = clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "lines", 'l');
+    clopts_option_set_help(opts->lines, "Count lines");
+    opts->words = clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "words", 'w');
+    clopts_option_set_help(opts->words, "Count words");
+    opts->total = clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "total", '\0');
+    clopts_option_set_negatable(opts->total, true);
+    clopts_option_set_help(opts->total, "Print a total line");
+    opts->quiet = clopts_program_add_option(program, CLOPTS_OPTION_COUNT, "quiet", 'q');
+    clopts_option_set_help(opts->quiet, "Print less (repeat for even less)");
+    opts->encoding = clopts_program_add_option(program, CLOPTS_OPTION_VALUE, "encoding", 'e');
+    clopts_option_set_value_name(opts->encoding, "NAME");
+    clopts_option_set_env(opts->encoding, "TEXTCOUNT_ENCODING");
+    clopts_option_set_default(opts->encoding, "utf-8");
+    clopts_option_set_help(opts->encoding, "Text encoding of the files");
+    opts->exclude = clopts_program_add_option(program, CLOPTS_OPTION_LIST, "exclude", 'x');
+    clopts_option_set_value_name(opts->exclude, "PATTERN");
+    clopts_option_set_delimiter(opts->exclude, ',');
+    clopts_option_set_help(opts->exclude, "Skip files matching the patterns");
+    clopts_program_add_help_option(program);
+    opts->version = clopts_program_add_version_option(program);
 
-/*
- * Declares the program into *out: the program, then its options and
- * positionals. Returns the declaration error that stopped it, or
- * CLOPTS_ERROR_NONE.
- */
-static clopts_error_t declare(clopts_program_t **out, struct textcount_options *opts)
-{
-    clopts_error_t e;
-    clopts_program_t *program = NULL;
-    clopts_option_t *option = NULL;
-    clopts_positional_t *positional = NULL;
-
-    CHECK(clopts_program_create("textcount", &program));
-    CHECK(clopts_program_set_description(program, "Count the lines and words of text files."));
-
-    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "lines", 'l', &option));
-    CHECK(clopts_option_set_help(option, "Count lines"));
-    CHECK(clopts_program_add_option(program, option));
-    opts->lines = option;
-    option = NULL; /* now owned by the program */
-    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "words", 'w', &option));
-    CHECK(clopts_option_set_help(option, "Count words"));
-    CHECK(clopts_program_add_option(program, option));
-    opts->words = option;
-    option = NULL; /* now owned by the program */
-    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "total", '\0', &option));
-    CHECK(clopts_option_set_negatable(option, true));
-    CHECK(clopts_option_set_help(option, "Print a total line"));
-    CHECK(clopts_program_add_option(program, option));
-    opts->total = option;
-    option = NULL; /* now owned by the program */
-    CHECK(clopts_option_create(CLOPTS_OPTION_COUNT, "quiet", 'q', &option));
-    CHECK(clopts_option_set_help(option, "Print less (repeat for even less)"));
-    CHECK(clopts_program_add_option(program, option));
-    opts->quiet = option;
-    option = NULL; /* now owned by the program */
-    CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "encoding", 'e', &option));
-    CHECK(clopts_option_set_value_name(option, "NAME"));
-    CHECK(clopts_option_set_env(option, "TEXTCOUNT_ENCODING"));
-    CHECK(clopts_option_set_default(option, "utf-8"));
-    CHECK(clopts_option_set_help(option, "Text encoding of the files"));
-    CHECK(clopts_program_add_option(program, option));
-    opts->encoding = option;
-    option = NULL; /* now owned by the program */
-    CHECK(clopts_option_create(CLOPTS_OPTION_LIST, "exclude", 'x', &option));
-    CHECK(clopts_option_set_value_name(option, "PATTERN"));
-    CHECK(clopts_option_set_delimiter(option, ','));
-    CHECK(clopts_option_set_help(option, "Skip files matching the patterns"));
-    CHECK(clopts_program_add_option(program, option));
-    opts->exclude = option;
-    option = NULL; /* now owned by the program */
-    CHECK(create_terminal("help", 'h', "Show this help", &option));
-    CHECK(clopts_program_add_option(program, option));
-    opts->help = option;
-    option = NULL; /* now owned by the program */
-    CHECK(create_terminal("version", '\0', "Show version information", &option));
-    CHECK(clopts_program_add_option(program, option));
-    opts->version = option;
-    option = NULL; /* now owned by the program */
-
-    CHECK(clopts_positional_create("FILE", &positional));
-    clopts_positional_set_required(positional, true);
-    clopts_positional_set_variadic(positional, true);
-    CHECK(clopts_positional_set_help(positional, "Files to count (- for standard input)"));
-    CHECK(clopts_program_add_positional(program, positional));
-    positional = NULL; /* now owned by the program */
-
-    *out = program;
-    return CLOPTS_ERROR_NONE;
-
-fail:
-    /* Whatever is not attached is still ours; the program owns the rest. */
-    clopts_option_destroy(option);
-    clopts_positional_destroy(positional);
-    clopts_program_destroy(program);
-    return e;
+    files = clopts_program_add_positional(program, "FILE");
+    clopts_positional_set_required(files, true);
+    clopts_positional_set_variadic(files, true);
+    clopts_positional_set_help(files, "Files to count (- for standard input)");
+    return program;
 }
 
 /* Writes the text for result and returns the exit code (0, 1 or 2). */
@@ -230,17 +156,18 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
 
 int main(int argc, char **argv)
 {
-    struct textcount_options opts = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-    clopts_program_t *program = NULL;
+    struct textcount_options opts = {NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+    clopts_program_t *program = declare(&opts);
+    clopts_error_t error = clopts_program_get_error(program);
     clopts_argv_t *args;
     clopts_result_t *result;
-    clopts_error_t error;
     int code;
 
-    error = declare(&program, &opts);
+    /* A declaration mistake, or out of memory (program may be NULL). */
     if (error != CLOPTS_ERROR_NONE)
     {
         fprintf(stderr, "textcount: error: invalid declaration: %s\n", clopts_error_get_message(error));
+        clopts_program_destroy(program);
         return 1;
     }
 

@@ -6,8 +6,8 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 ## 特徴
 
-- **宣言からの解析と文面の生成**: プログラムを名前で作り（`clopts_program_create`）、そこにグローバルオプション・位置引数・サブコマンドを渡して宣言する。オプション（フラグ、カウント、単一値、リスト値）と位置引数は単独で作って設定してから、プログラムかコマンドに渡す。サブコマンドも単独で作って埋めてから、プログラムに渡す。宣言の誤りは、誤った呼び出しの戻り値ですぐに返る。解析器に組み込みのオプションはなく、`--help`・`--version` は終端オプションとして、`help` コマンドはサブコマンドとして足す、ふつうの宣言である。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
-- **構造化エラー**: 使い方の誤りは文字列ではなく、種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読めるエラーとして返る。宣言の誤り（名前の重複など）は使い方の誤りと区別して返る。
+- **宣言からの解析と文面の生成**: プログラムを名前で作り（`clopts_program_create`）、そこにグローバルオプション・位置引数・サブコマンドを足して宣言する。オプション（フラグ、カウント、単一値、リスト値）・位置引数・サブコマンドは、足す関数が作って付け、そのハンドルを返す。属性は、そのハンドルに設定する。宣言の誤りはプログラムが最初の 1 件を覚えるので、呼び出しごとには確かめず、宣言の後で 1 回だけ確かめる（`clopts_program_get_error`）。解析器に組み込みのオプションはない。`--help`・`--version` は 1 行で足せる終端オプション（`clopts_program_add_help_option`・`clopts_program_add_version_option`）で、ヘルプや版を出力するのは利用側である。`help` コマンドはサブコマンドとして足す、ふつうの宣言である。解析の規則とヘルプ・使い方・版の文面は、すべてこの宣言から決まる。宣言を 1 か所変えれば、挙動とヘルプが一緒に変わる。
+- **構造化エラー**: 使い方の誤りは文字列ではなく、種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読めるエラーとして返る。宣言の誤り（名前の重複など）は、使い方の誤りとは別に、宣言の時点でプログラムに残る。
 - **入出力も `exit` もしない**: ライブラリは標準出力にも標準エラーにも書かず、`exit` も呼ばない。ヘルプやエラーの文面は書き込みのコールバックに渡すので、表示の仕方と終了コードは利用側が決める。`FILE*` に出すなら、公開ヘッダの `clopts_file_write` を渡すだけでよい。
 - **アロケーターの差し替え**: `clopts_set_allocator` で、ライブラリが使う `malloc` / `calloc` / `realloc` / `free` を差し替えられる。ライブラリの確保と解放は、例外なく設定した関数を通る。
 - **Windows での UTF-8 の引数**: `clopts_argv_create` が Windows のコマンドラインを UTF-8 の argv に変換する。環境変数も、解析が UTF-8 で読む。他の OS では何も変換しないので、同じソースがどの OS でも動く。
@@ -15,7 +15,7 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 ## 最小のサンプル
 
-名前を 1 つ受け取って挨拶するプログラム `hello` を示す。宣言し（誤りがあればその説明を出して終了コード 1 で終わる）、UTF-8 の argv を得て解析し、状態に応じて結果を読むかヘルプ・版・エラーの文面を出し、最後に解放する。
+名前を 1 つ受け取って挨拶するプログラム `hello` を示す。宣言し、宣言の誤りを 1 回だけ確かめ（誤りがあればその説明を出して終了コード 1 で終わる）、UTF-8 の argv を得て解析し、状態に応じて結果を読むかヘルプ・版・エラーの文面を出し、最後に解放する。
 
 <!-- clopts-source: tests/docs/readme_minimal.c -->
 ```c
@@ -24,82 +24,40 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 
 #include "clopts/clopts.h"
 
-/* Runs one declaration call; on an error, jumps to the cleanup of the function. */
-#define CHECK(call)                 \
-    do                              \
-    {                               \
-        e = (call);                 \
-        if (e != CLOPTS_ERROR_NONE) \
-        {                           \
-            goto fail;              \
-        }                           \
-    } while (0)
-
-/* Declares: hello [-g TEXT] [-h] [--version] NAME */
-static clopts_error_t declare(clopts_program_t **out, clopts_option_t **greeting,
-                              const clopts_option_t **version)
-{
-    clopts_error_t e;
-    clopts_program_t *program = NULL;
-    clopts_option_t *option = NULL;
-    clopts_positional_t *name = NULL;
-
-    CHECK(clopts_program_create("hello", &program));
-    CHECK(clopts_program_set_description(program, "Greet someone."));
-
-    CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
-    CHECK(clopts_option_set_value_name(option, "TEXT"));
-    CHECK(clopts_option_set_default(option, "Hello"));
-    CHECK(clopts_option_set_help(option, "Word to greet with"));
-    CHECK(clopts_program_add_option(program, option));
-    *greeting = option; /* now owned by the program */
-    option = NULL;
-
-    CHECK(clopts_positional_create("NAME", &name));
-    clopts_positional_set_required(name, true);
-    CHECK(clopts_positional_set_help(name, "Who to greet"));
-    CHECK(clopts_program_add_positional(program, name));
-    name = NULL; /* now owned by the program */
-
-    /* -h / --help and --version are terminal flags: they end the parse. */
-    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "help", 'h', &option));
-    CHECK(clopts_option_set_terminal(option, true));
-    CHECK(clopts_option_set_help(option, "Show this help"));
-    CHECK(clopts_program_add_option(program, option));
-    option = NULL;
-
-    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "version", '\0', &option));
-    CHECK(clopts_option_set_terminal(option, true));
-    CHECK(clopts_option_set_help(option, "Show version information"));
-    CHECK(clopts_program_add_option(program, option));
-    *version = option;
-    option = NULL;
-
-    *out = program;
-    return CLOPTS_ERROR_NONE;
-
-fail:
-    /* Whatever is not attached is still ours; the program owns the rest. */
-    clopts_option_destroy(option);
-    clopts_positional_destroy(name);
-    clopts_program_destroy(program);
-    return e;
-}
-
 int main(int argc, char **argv)
 {
-    clopts_program_t *program = NULL;
-    clopts_option_t *greeting = NULL;
-    const clopts_option_t *version = NULL;
+    clopts_program_t *program;
+    clopts_option_t *greeting;
+    clopts_option_t *version;
+    clopts_positional_t *name;
     clopts_argv_t *args;
     clopts_result_t *result;
     clopts_error_t error;
     int code = 0;
 
-    error = declare(&program, &greeting, &version);
+    /* Declares: hello [-g TEXT] [-h] [--version] NAME */
+    program = clopts_program_create("hello");
+    clopts_program_set_description(program, "Greet someone.");
+
+    greeting = clopts_program_add_option(program, CLOPTS_OPTION_VALUE, "greeting", 'g');
+    clopts_option_set_value_name(greeting, "TEXT");
+    clopts_option_set_default(greeting, "Hello");
+    clopts_option_set_help(greeting, "Word to greet with");
+
+    name = clopts_program_add_positional(program, "NAME");
+    clopts_positional_set_required(name, true);
+    clopts_positional_set_help(name, "Who to greet");
+
+    /* -h / --help and --version are terminal flags: they end the parse. */
+    clopts_program_add_help_option(program);
+    version = clopts_program_add_version_option(program);
+
+    /* The program keeps the first declaration error; one check covers every call above. */
+    error = clopts_program_get_error(program);
     if (error != CLOPTS_ERROR_NONE)
     {
         fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_error_get_message(error));
+        clopts_program_destroy(program);
         return 1;
     }
 

@@ -18,9 +18,9 @@ extern "C" {
 /*
  * Parse API. clopts_parse*() return a result handle that is read with the
  * accessors of clopts/parse/result.h and released with
- * clopts_result_destroy(). A program built with the builder functions of
- * clopts/decl/program.h is always valid, so a parse never reports a
- * declaration error.
+ * clopts_result_destroy(). The program must have no declaration error
+ * (clopts_program_get_error(), clopts/decl/program.h); such a program is
+ * always valid, so a parse never reports a declaration error.
  *
  * Lookup: an option token is looked up in the selected command first and
  * then in the program (the global options). In each of them the exact long

@@ -3,82 +3,40 @@
 
 #include "clopts/clopts.h"
 
-/* Runs one declaration call; on an error, jumps to the cleanup of the function. */
-#define CHECK(call)                 \
-    do                              \
-    {                               \
-        e = (call);                 \
-        if (e != CLOPTS_ERROR_NONE) \
-        {                           \
-            goto fail;              \
-        }                           \
-    } while (0)
-
-/* Declares: hello [-g TEXT] [-h] [--version] NAME */
-static clopts_error_t declare(clopts_program_t **out, clopts_option_t **greeting,
-                              const clopts_option_t **version)
-{
-    clopts_error_t e;
-    clopts_program_t *program = NULL;
-    clopts_option_t *option = NULL;
-    clopts_positional_t *name = NULL;
-
-    CHECK(clopts_program_create("hello", &program));
-    CHECK(clopts_program_set_description(program, "Greet someone."));
-
-    CHECK(clopts_option_create(CLOPTS_OPTION_VALUE, "greeting", 'g', &option));
-    CHECK(clopts_option_set_value_name(option, "TEXT"));
-    CHECK(clopts_option_set_default(option, "Hello"));
-    CHECK(clopts_option_set_help(option, "Word to greet with"));
-    CHECK(clopts_program_add_option(program, option));
-    *greeting = option; /* now owned by the program */
-    option = NULL;
-
-    CHECK(clopts_positional_create("NAME", &name));
-    clopts_positional_set_required(name, true);
-    CHECK(clopts_positional_set_help(name, "Who to greet"));
-    CHECK(clopts_program_add_positional(program, name));
-    name = NULL; /* now owned by the program */
-
-    /* -h / --help and --version are terminal flags: they end the parse. */
-    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "help", 'h', &option));
-    CHECK(clopts_option_set_terminal(option, true));
-    CHECK(clopts_option_set_help(option, "Show this help"));
-    CHECK(clopts_program_add_option(program, option));
-    option = NULL;
-
-    CHECK(clopts_option_create(CLOPTS_OPTION_FLAG, "version", '\0', &option));
-    CHECK(clopts_option_set_terminal(option, true));
-    CHECK(clopts_option_set_help(option, "Show version information"));
-    CHECK(clopts_program_add_option(program, option));
-    *version = option;
-    option = NULL;
-
-    *out = program;
-    return CLOPTS_ERROR_NONE;
-
-fail:
-    /* Whatever is not attached is still ours; the program owns the rest. */
-    clopts_option_destroy(option);
-    clopts_positional_destroy(name);
-    clopts_program_destroy(program);
-    return e;
-}
-
 int main(int argc, char **argv)
 {
-    clopts_program_t *program = NULL;
-    clopts_option_t *greeting = NULL;
-    const clopts_option_t *version = NULL;
+    clopts_program_t *program;
+    clopts_option_t *greeting;
+    clopts_option_t *version;
+    clopts_positional_t *name;
     clopts_argv_t *args;
     clopts_result_t *result;
     clopts_error_t error;
     int code = 0;
 
-    error = declare(&program, &greeting, &version);
+    /* Declares: hello [-g TEXT] [-h] [--version] NAME */
+    program = clopts_program_create("hello");
+    clopts_program_set_description(program, "Greet someone.");
+
+    greeting = clopts_program_add_option(program, CLOPTS_OPTION_VALUE, "greeting", 'g');
+    clopts_option_set_value_name(greeting, "TEXT");
+    clopts_option_set_default(greeting, "Hello");
+    clopts_option_set_help(greeting, "Word to greet with");
+
+    name = clopts_program_add_positional(program, "NAME");
+    clopts_positional_set_required(name, true);
+    clopts_positional_set_help(name, "Who to greet");
+
+    /* -h / --help and --version are terminal flags: they end the parse. */
+    clopts_program_add_help_option(program);
+    version = clopts_program_add_version_option(program);
+
+    /* The program keeps the first declaration error; one check covers every call above. */
+    error = clopts_program_get_error(program);
     if (error != CLOPTS_ERROR_NONE)
     {
         fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_error_get_message(error));
+        clopts_program_destroy(program);
         return 1;
     }
 

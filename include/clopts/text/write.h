@@ -19,9 +19,10 @@ extern "C" {
 
 /*
  * Text API: help, Usage line, version line, usage hint and error line of a
- * program. --help and --version are ordinary terminal FLAG options, and a
- * help command is an ordinary subcommand, that the program declares itself
- * (clopts/decl/option.h, clopts/decl/command.h). Every function writes its
+ * program. --help and --version are ordinary terminal FLAG options
+ * (clopts_program_add_help_option(), clopts_program_add_version_option(),
+ * clopts/decl/program.h), and a help command is an ordinary subcommand that
+ * the program declares itself. Every function writes its
  * text through write_fn(ctx, ...) only; nothing is written to a stream
  * directly. To write
  * to a FILE*, pass the ready-made callback clopts_file_write below, e.g.

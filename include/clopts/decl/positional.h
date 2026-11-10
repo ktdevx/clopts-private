@@ -30,7 +30,11 @@ typedef struct clopts_positional clopts_positional_t;
 /* One-line description in help. NULL resets it. */
 CLOPTS_API void clopts_positional_set_help(clopts_positional_t *positional, const char *help);
 
-/* The positional must be given. ORDER (an optional positional precedes it). */
+/*
+ * The positional must be given. ORDER (required: an optional positional
+ * precedes it; optional: a required positional follows it). Make each
+ * positional required before adding the next one.
+ */
 CLOPTS_API void clopts_positional_set_required(clopts_positional_t *positional, bool required);
 
 /* Takes all remaining tokens. ORDER (another positional follows it). */
