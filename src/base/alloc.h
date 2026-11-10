@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_SRC_BASE_MEMORY_H
-#define CLOPTS_SRC_BASE_MEMORY_H
+#ifndef CLOPTS_SRC_BASE_ALLOC_H
+#define CLOPTS_SRC_BASE_ALLOC_H
 
-#include "clopts/base/memory.h"
+#include "clopts/base/alloc.h"
 
 #include <stddef.h>
 
@@ -14,7 +14,7 @@
  * Allocation gateway.
  *
  * Every allocation and release of the library goes through these functions,
- * which call the allocator in use (clopts_set_allocator, memory.c). A size of
+ * which call the allocator in use (clopts_set_allocator, alloc.c). A size of
  * 0 is allocated as 1 byte, so NULL always means failure. The product
  * count * size is checked with clopts_size_mul; on overflow nothing is
  * allocated and NULL is returned.
@@ -35,4 +35,4 @@ void *clopts_realloc(void *ptr, size_t size);
 /* Releases ptr, allocated by the functions above. NULL is ignored. */
 void clopts_free(void *ptr);
 
-#endif /* CLOPTS_SRC_BASE_MEMORY_H */
+#endif /* CLOPTS_SRC_BASE_ALLOC_H */

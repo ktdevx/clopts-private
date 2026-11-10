@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_BASE_MEMORY_H
-#define CLOPTS_BASE_MEMORY_H
+#ifndef CLOPTS_BASE_ALLOC_H
+#define CLOPTS_BASE_ALLOC_H
 
 #include <stddef.h>
 
@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 /*
- * Memory of the library: replaces the functions it allocates and releases
+ * Allocation of the library: replaces the functions it allocates and releases
  * memory with. One allocator is used by the whole library.
  *
  * Every function has the arguments and the meaning of its standard
@@ -50,4 +50,4 @@ CLOPTS_API void clopts_set_allocator(const clopts_allocator_t *alloc);
 }
 #endif
 
-#endif /* CLOPTS_BASE_MEMORY_H */
+#endif /* CLOPTS_BASE_ALLOC_H */

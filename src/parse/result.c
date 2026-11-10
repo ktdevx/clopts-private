@@ -10,7 +10,7 @@
 
 #include "parse/result.h"
 
-#include "base/memory.h"
+#include "base/alloc.h"
 #include "parse/usage_error.h"
 
 #include <assert.h>

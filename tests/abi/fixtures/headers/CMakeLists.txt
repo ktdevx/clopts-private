@@ -94,7 +94,7 @@ list(TRANSFORM fixture_keyed REPLACE "^[0-9]+\\|" "" OUTPUT_VARIABLE fixture_hea
 
 set(fixture_sources "")
 foreach(fixture_header IN LISTS fixture_headers)
-    # fixture_name: the path below include/clopts/ without ".h" (base/memory).
+    # fixture_name: the path below include/clopts/ without ".h" (base/alloc).
     file(RELATIVE_PATH fixture_name "${CLOPTS_SOURCE_DIR}/include/clopts" "${fixture_header}")
     string(REGEX REPLACE "\\.h$" "" fixture_name "${fixture_name}")
     string(MAKE_C_IDENTIFIER "${fixture_name}" fixture_id)

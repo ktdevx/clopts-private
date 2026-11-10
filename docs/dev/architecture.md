@@ -8,13 +8,13 @@
 
 | モジュール | ディレクトリ | 役割 |
 |------------|--------------|------|
-| base | `src/base/` | ドメインを知らない部品。メモリ（使うアロケーターと、その差し替え `clopts/base/memory.h`、確保の窓口。ライブラリの確保と解放はすべてここを通る）、所有する文字列の複製（`base/string.h`）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`）、エラーの種類とその説明（`error.c`、`clopts/base/error.h`。ビルダー関数が返す） |
+| base | `src/base/` | ドメインを知らない部品。メモリの確保（使うアロケーターと、その差し替え `clopts/base/alloc.h`、確保の窓口。ライブラリの確保と解放はすべてここを通る）、所有する文字列の複製（`base/string.h`）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`）、エラーの種類とその説明（`error.c`、`clopts/base/error.h`。ビルダー関数が返す） |
 | decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則（`name.c`）と 1 つの範囲の中での比べ方（`scope.c`）、書かれた名前がどのオプションを指すか（`lookup.c`）。公開ヘッダは `clopts/decl/` |
 | parse | `src/parse/` | 解析の入口と手順（`parse.c`）、argv の要素の読み取り（`token.c`）、走査（`scan.c`）、環境変数と既定値の解決（`resolve.c`）、必須の検査（`require.c`）、途中の記録（`matches.c`、`slot.c`）、使い方エラー（`usage_error.c`）、結果（`result.c`）。公開ヘッダは `clopts/parse/` |
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）を書き込みのコールバックへ出す。公開の入口（`write.c`、`clopts/text/write.h`）、ヘルプと Usage 行（`help.c`）、1 行の文面（`message.c`）、書き込みと計測の 2 つのモードを持つ出力先（`out.c`） |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
 
-名前とファイルの付け方は [設計の考え方](design.md) に従う。構造体の操作が構造体と同じヘッダにあることはテスト `structure.names`（`tests/structure/check_names.cmake`）で、宣言のない定義はコンパイラ（`-Wmissing-prototypes`）で検査する。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h` と定義 `x.c` を 1 組持たせ、構造体 `clopts_x_t` の操作は `clopts_x_*` と名付けて同じヘッダに置く（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。それ以外の名前は、何をするか、何を表すかで付ける（`src/base/memory.h` の `clopts_malloc`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
+名前とファイルの付け方は [設計の考え方](design.md) に従う。構造体の操作が構造体と同じヘッダにあることはテスト `structure.names`（`tests/structure/check_names.cmake`）で、宣言のない定義はコンパイラ（`-Wmissing-prototypes`）で検査する。1 つの概念に、内部ヘッダ `src/<モジュール>/x.h` と定義 `x.c` を 1 組持たせ、構造体 `clopts_x_t` の操作は `clopts_x_*` と名付けて同じヘッダに置く（`src/parse/matches.h`、`matches.c`、`clopts_matches_*`）。それ以外の名前は、何をするか、何を表すかで付ける（`src/base/alloc.h` の `clopts_malloc`）。公開ヘッダは `include/clopts/<モジュール>/x.h` に置き、その関数は `src/<モジュール>/x.c` で定義する。
 
 依存の向きは次のとおりである。
 
@@ -29,7 +29,7 @@ flowchart LR
     process --> base
 ```
 
-- decl、parse、text、process は base の内部ヘッダ（`base/memory.h`、`base/vec.h` など）を使う。base はほかのモジュールに依存しない。
+- decl、parse、text、process は base の内部ヘッダ（`base/alloc.h`、`base/vec.h` など）を使う。base はほかのモジュールに依存しない。
 - decl は解析を知らない。parse は宣言を公開の読み取り関数で読み、書かれた名前を decl の内部ヘッダ `decl/lookup.h`（選ばれたコマンド、プログラムの順に引く）で引く。宣言には書き込まない。
 - parse は、プロセスの環境変数を process の内部ヘッダ `process/env.h`（`clopts_env_lookup` と、その文脈 `clopts_env_t`）で読む。参照のコールバックが渡されなかったときに、解析の入口（`parse.c`）が文脈をスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`require.c`）は参照のコールバックを引数で受け取るだけで、OS を知らない。プロセスの環境を読むのは process だけである。
 - text は decl と parse の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。

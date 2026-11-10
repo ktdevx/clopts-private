@@ -13,7 +13,7 @@
  * argv.c makes and reads handles, and argv_posix.c and argv_win32.c create
  * them from the process (clopts_argv_create). Only files of the process
  * module include it (docs/dev/design.md, chapter 3). Every
- * allocation goes through the allocation gateway (base/memory.h).
+ * allocation goes through the allocation gateway (base/alloc.h).
  */
 
 /* argv handle. Never changes after it is created. */

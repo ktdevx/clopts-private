@@ -97,7 +97,7 @@ _clopts_structure_add_test(names_selftest.good "${_clopts_structure_names}/good/
 set(_clopts_structure_names_internal_header
     "base/base_internal\\.h:1: an internal header is named after a concept")
 set(_clopts_structure_names_op_outside_type
-    "base/memory\\.h:2: 'clopts_vec_sum' is an operation of clopts_vec_t but is not declared with it \\(base/vec\\.h\\)")
+    "base/alloc\\.h:2: 'clopts_vec_sum' is an operation of clopts_vec_t but is not declared with it \\(base/vec\\.h\\)")
 set(_clopts_structure_names_public_op_outside_type
     "clopts/parse/parse\\.h:2: 'clopts_result_get_count' is an operation of clopts_result_t but is not declared with it \\(parse/result\\.h\\)")
 foreach(_clopts_structure_case IN ITEMS internal_header op_outside_type public_op_outside_type)

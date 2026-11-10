@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Suite memory: the allocation gateway (clopts_malloc / calloc / realloc /
+ * Suite alloc: the allocation gateway (clopts_malloc / calloc / realloc /
  * free) and clopts_set_allocator().
  *
  * Checked here: the gateway with the standard functions, that it calls the
@@ -13,7 +13,7 @@
  * vec (only when its buffer grows).
  */
 
-#include "base/memory.h"
+#include "base/alloc.h"
 #include "base/vec.h"
 #include "test_alloc.h"
 
@@ -311,7 +311,7 @@ NAOS_TEST(vec_push_failure_keeps_the_elements)
     NAOS_CHECK_TRUE(test_alloc_end());
 }
 
-NAOS_SUITE(memory,
+NAOS_SUITE(alloc,
     NAOS_ADD_TEST(standard_functions_allocate_and_free),
     NAOS_ADD_TEST(set_allocator_routes_every_function),
     NAOS_ADD_TEST(set_allocator_copies_the_struct),

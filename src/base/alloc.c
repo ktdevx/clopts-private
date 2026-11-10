@@ -2,12 +2,12 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Memory of the library: the allocator in use (clopts_set_allocator,
- * include/clopts/base/memory.h) and the allocation gateway, the only place of
+ * Allocation of the library: the allocator in use (clopts_set_allocator,
+ * include/clopts/base/alloc.h) and the allocation gateway, the only place of
  * the library that calls its functions.
  */
 
-#include "base/memory.h"
+#include "base/alloc.h"
 
 #include "base/size.h"
 

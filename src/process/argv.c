@@ -8,7 +8,7 @@
 
 #include "process/argv_impl.h"
 
-#include "base/memory.h"
+#include "base/alloc.h"
 
 #include <assert.h>
 

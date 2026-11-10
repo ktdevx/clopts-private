@@ -6,7 +6,7 @@
  * (tests/support/test_alloc.h) over handle creation, the Windows
  * conversions and environment lookups. Each run gives the sentinel or
  * FAILED when a fault point failed and the expected outcome otherwise, and leaves no block alive after the release. The
- * allocation gateway itself is tested by base (tests/base/test_memory.c).
+ * allocation gateway itself is tested by base (tests/base/test_alloc.c).
  *
  * It also checks that the helpers of test_util hold the longest array they
  * accept, which the long inputs of the sweeps rely on.

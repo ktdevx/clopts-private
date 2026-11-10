@@ -17,7 +17,7 @@
 
 #include "clopts/decl/program.h"
 
-#include "base/memory.h"
+#include "base/alloc.h"
 #include "base/string.h"
 #include "base/vec.h"
 #include "decl/name.h"

@@ -7,7 +7,7 @@
 
 #include "parse/slot.h"
 
-#include "base/memory.h"
+#include "base/alloc.h"
 #include "base/string.h"
 
 #include <assert.h>

@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: MIT
  *
  * Owned strings: copies allocated through the allocation gateway
- * (base/memory.h).
+ * (base/alloc.h).
  */
 
 #include "base/string.h"
 
-#include "base/memory.h"
+#include "base/alloc.h"
 #include "base/size.h"
 
 #include <assert.h>

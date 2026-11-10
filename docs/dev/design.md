@@ -54,7 +54,7 @@
 
 - 構造体とその操作をヘッダの名前で縛るのは、オブジェクトとその操作を 1 組にして、名前から置き場所が引けるようにするためである。`clopts_result_get_status` を見れば、`result.h` の構造体の操作だと分かる。
 - それ以外を縛らないのは、名前は語彙であり、置き場所の手がかりではないからである。`CLOPTS_API` はどのヘッダで定義されてもよく、`clopts_parse_status_t` を「`result.h` にあるから」と `clopts_result_status_t` に変えても、意味の説明にはならない。
-- 内部でも同じである。`clopts_malloc` と `clopts_strdup` は、標準の `malloc` と `strdup` の代わりだと名前から分かる。`memory.h` にあるからと `clopts_memory_alloc` と付けると、置き場所は分かるが、何の代わりかが名前から薄れる。置き場所は、呼ぶ側の include が示す。何でも入れるヘッダを置かないので、include は概念を 1 つ名指す。
+- 内部でも同じである。`clopts_malloc` と `clopts_strdup` は、標準の `malloc` と `strdup` の代わりだと名前から分かる。`alloc.h` にあるからと `clopts_alloc_block` と付けると、置き場所は分かるが、何の代わりかが名前から薄れる。置き場所は、呼ぶ側の include が示す。何でも入れるヘッダを置かないので、include は概念を 1 つ名指す。
 - 縛らない名前がヘッダの名前と一致することはある（`parse.h` の `clopts_parse`、`error.h` の `clopts_error_get_message`、`utf8.h` の `clopts_utf8_valid`）。意味で付けた結果であり、規則ではない。
 
 構造体の操作が構造体と同じヘッダにあることは、公開と内部の両方について、テスト `structure.names` で検査する。それ以外の名前は検査しない。

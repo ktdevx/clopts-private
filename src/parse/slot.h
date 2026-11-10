@@ -18,7 +18,7 @@
  * split). The value and its source are always updated together, and
  * value == owned whenever owned is not NULL. The fields may be read freely;
  * they are written only through the clopts_slot_* functions. Every
- * allocation goes through the allocation gateway (base/memory.h).
+ * allocation goes through the allocation gateway (base/alloc.h).
  */
 typedef struct clopts_slot
 {

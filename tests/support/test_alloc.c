@@ -5,7 +5,7 @@
 
 #include "test_alloc.h"
 
-#include <clopts/base/memory.h>
+#include <clopts/base/alloc.h>
 
 #include <stdint.h>
 #include <stdlib.h>
