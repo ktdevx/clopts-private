@@ -145,7 +145,6 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
     {                                                                               \
         fixture_tool_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
-        NAOS_REQUIRE_TRUE((f).ok);                                                  \
     } while (0)
 
 /* Builds the filt fixture into f. */
@@ -154,7 +153,6 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
     {                                                                               \
         fixture_filt_init(&(f));                                                    \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
-        NAOS_REQUIRE_TRUE((f).ok);                                                  \
     } while (0)
 
 /* Builds the strict fixture into f. */
@@ -163,7 +161,6 @@ static void check_usage(clopts_program_t *program, char **argv, const expected_e
     {                                                                               \
         fixture_strict_init(&(f));                                                  \
         NAOS_REQUIRE_NOT_NULL((f).program);                                         \
-        NAOS_REQUIRE_TRUE((f).ok);                                                  \
     } while (0)
 
 /* ---- sentinel ----------------------------------------------------------- */
@@ -559,13 +556,11 @@ typedef struct rec
     clopts_option_t *stop;
 } rec_t;
 
-/* Makes an unattached terminal FLAG, negatable or not (NULL on failure). */
-static clopts_option_t *rec_terminal(const char *long_name, char short_name, bool negatable)
+/* Makes option, a FLAG just added (NULL is fine), terminal and negatable or not, and returns it. */
+static clopts_option_t *rec_terminal(clopts_option_t *option, bool negatable)
 {
-    clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
-
-    test_decl_check(clopts_option_set_terminal(option, true));
-    test_decl_check(clopts_option_set_negatable(option, negatable));
+    clopts_option_set_terminal(option, true);
+    clopts_option_set_negatable(option, negatable);
     return option;
 }
 
@@ -575,19 +570,16 @@ static void rec_init(rec_t *r)
     clopts_option_t *out;
 
     memset(r, 0, sizeof(*r));
-    test_decl_reset();
-    program = test_decl_begin("rec");
-    r->quit = test_decl_global_attach(program, rec_terminal("quit", 'q', false));
-    r->info = test_decl_global_attach(program, rec_terminal("info", '\0', true));
-    r->run = test_decl_command(program, "run");
-    r->stop = test_decl_attach(r->run, rec_terminal("stop", 's', false));
-    out = test_decl_option(CLOPTS_OPTION_VALUE, "out", 'o');
-    test_decl_check(clopts_option_set_required(out, true));
-    (void)test_decl_attach(r->run, out);
-    r->idle = test_decl_command(program, "idle");
+    program = clopts_program_create("rec");
+    r->quit = rec_terminal(clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "quit", 'q'), false);
+    r->info = rec_terminal(clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "info", '\0'), true);
+    r->run = clopts_program_add_command(program, "run");
+    r->stop = rec_terminal(clopts_command_add_option(r->run, CLOPTS_OPTION_FLAG, "stop", 's'), false);
+    out = clopts_command_add_option(r->run, CLOPTS_OPTION_VALUE, "out", 'o');
+    clopts_option_set_required(out, true);
+    r->idle = clopts_program_add_command(program, "idle");
     r->program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(r->program);
-    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
 }
 
 NAOS_TEST(recovery_finds_a_terminal_of_the_selected_command)

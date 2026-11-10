@@ -18,7 +18,6 @@
 #include "parse/result_internal.h"
 #include "test_alloc.h"
 #include "test_fixtures.h"
-#include "test_decl.h"
 
 #include <naos/naos.h>
 
@@ -146,7 +145,6 @@ NAOS_TEST(fixture_commands_are_shaped_as_designed)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_STR_EQ(clopts_program_get_name(t.program), "tool");
     NAOS_CHECK_STR_EQ(clopts_program_get_description(t.program), "A fictional tool with subcommands.");
     NAOS_REQUIRE_UINT_EQ(clopts_program_get_command_count(t.program), 4);
@@ -157,7 +155,7 @@ NAOS_TEST(fixture_commands_are_shaped_as_designed)
 
     NAOS_CHECK_PTR_EQ(clopts_program_find_command(t.program, "copy"), t.copy);
 
-    /* Program: the global options, then the terminal options of test_decl.h; no positionals. */
+    /* Program: the global options, then --help and --version; no positionals. */
     NAOS_REQUIRE_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(t.program)), 5);
     NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(t.program), 0), t.verbose);
     NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(t.program), 1), t.color);
@@ -202,7 +200,6 @@ NAOS_TEST(fixture_filt_has_no_commands_and_a_help_option)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(f.program), 0);
     NAOS_CHECK_STR_EQ(clopts_program_get_name(f.program), "filt");
     NAOS_REQUIRE_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(f.program)), 2);
@@ -242,7 +239,6 @@ NAOS_TEST(parse_leaves_the_program_unchanged)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 6, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -266,7 +262,6 @@ NAOS_TEST(parse_with_env_null_lookup_uses_the_default)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     with_env = clopts_parse_with_env(f.program, 3, argv, NULL, NULL);
     plain = clopts_parse(f.program, 3, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(with_env), CLOPTS_PARSE_OK);
@@ -287,7 +282,6 @@ NAOS_TEST(tool_without_arguments_is_no_command)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     result = clopts_parse(t.program, 1, argv);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
     NAOS_CHECK_NULL(clopts_result_get_command(result));
@@ -307,7 +301,6 @@ NAOS_TEST(tool_with_argc_zero_is_no_command)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     result = clopts_parse(t.program, 0, NULL);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
     NAOS_CHECK_NULL(clopts_result_get_command(result));
@@ -328,7 +321,6 @@ NAOS_TEST(no_command_resolves_global_scope_only)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_checked(t.program, 1, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
@@ -351,7 +343,6 @@ NAOS_TEST(no_command_checks_required_global_options)
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
-    NAOS_REQUIRE_TRUE(s.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(s.program, 1, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
@@ -375,7 +366,6 @@ NAOS_TEST(filt_without_arguments_is_ok_with_default)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(f.program, 1, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -396,7 +386,6 @@ NAOS_TEST(filt_with_argc_zero_is_ok_with_default)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     result = clopts_parse_with_env(f.program, 0, NULL, fixture_env_getenv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -417,7 +406,6 @@ NAOS_TEST(filt_takes_value_from_env)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_checked(f.program, 1, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -437,7 +425,6 @@ NAOS_TEST(env_failure_is_out_of_memory_and_result_is_freeable)
     test_alloc_begin(0);
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     env.fail_next = true;
     result = clopts_parse_with_env(f.program, 1, argv, fixture_env_getenv, &env);
@@ -459,7 +446,6 @@ NAOS_TEST(result_allocation_failure_returns_sentinel)
     test_alloc_begin(0);
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     test_alloc_set_fail_at(test_alloc.calls + 1);
     result = clopts_parse(t.program, 2, argv);
     NAOS_CHECK_PTR_EQ(result, clopts_result_sentinel());
@@ -478,7 +464,6 @@ NAOS_TEST(selection_allocation_failure_is_out_of_memory)
     test_alloc_begin(0);
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     /*
      * Fault points of the parse: the matches (1), the global slots (2) and
      * the build slots (3), allocated when build is selected at argv[1],
@@ -510,7 +495,6 @@ NAOS_TEST(same_program_parsed_twice_gives_independent_results)
     test_alloc_begin(0);
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     first = parse_checked(f.program, 2, first_argv, &env);
     second = parse_checked(f.program, 5, second_argv, &env);
@@ -550,7 +534,6 @@ NAOS_TEST(tool_build_selects_build_and_checks_its_required_options)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
@@ -575,7 +558,6 @@ NAOS_TEST(tool_build_with_global_option_before_it_is_ok)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 6, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -597,7 +579,6 @@ NAOS_TEST(tool_misspelled_command_is_unknown_command)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     check_token_error(result, CLOPTS_USAGE_ERROR_UNKNOWN_COMMAND, NULL, argv, 1);
@@ -616,7 +597,6 @@ NAOS_TEST(tool_command_name_is_case_sensitive)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     check_token_error(result, CLOPTS_USAGE_ERROR_UNKNOWN_COMMAND, NULL, argv, 1);
@@ -634,7 +614,6 @@ NAOS_TEST(tool_dashdash_then_command_is_unknown_command)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     check_token_error(result, CLOPTS_USAGE_ERROR_UNKNOWN_COMMAND, NULL, argv, 2);
@@ -652,7 +631,6 @@ NAOS_TEST(tool_single_dash_is_unknown_command)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     check_token_error(result, CLOPTS_USAGE_ERROR_UNKNOWN_COMMAND, NULL, argv, 1);
@@ -676,7 +654,6 @@ NAOS_TEST(tool_help_command_alone_selects_the_help_command)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -698,7 +675,6 @@ NAOS_TEST(tool_help_with_command_takes_it_as_positional)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -724,7 +700,6 @@ NAOS_TEST(tool_help_with_unknown_name_is_ok_at_parse_level)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -745,7 +720,6 @@ NAOS_TEST(tool_help_with_command_and_extra_is_unexpected_argument)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 4, argv, &env);
     check_token_error(result, CLOPTS_USAGE_ERROR_UNEXPECTED_ARGUMENT, t.help_command, argv, 3);
@@ -766,7 +740,6 @@ NAOS_TEST(tool_help_command_then_long_help_is_terminated)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     check_terminated(result, t.help, t.help_command);
@@ -786,7 +759,6 @@ NAOS_TEST(tool_long_help_is_terminated)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     check_terminated(result, t.help, NULL);
@@ -808,7 +780,6 @@ NAOS_TEST(tool_short_help_is_terminated)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     check_terminated(result, t.help, NULL);
@@ -827,7 +798,6 @@ NAOS_TEST(tool_short_help_in_a_group_is_terminated)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     check_terminated(result, t.help, NULL);
@@ -846,7 +816,6 @@ NAOS_TEST(tool_long_version_is_terminated)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     check_terminated(result, t.version, NULL);
@@ -864,7 +833,6 @@ NAOS_TEST(tool_long_version_ignores_following_tokens)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 4, argv, &env);
     /* build is not looked at, so it is not selected; --bogus is not an error. */
@@ -883,7 +851,6 @@ NAOS_TEST(tool_first_terminal_option_wins)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     check_terminated(result, t.version, NULL);
@@ -902,7 +869,6 @@ NAOS_TEST(tool_long_help_with_value_is_unexpected_value)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 2, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
@@ -927,7 +893,6 @@ NAOS_TEST(strict_long_help_skips_the_required_global_option)
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
-    NAOS_REQUIRE_TRUE(s.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(s.program, 2, argv, &env);
     check_terminated(result, s.help, NULL);
@@ -946,7 +911,6 @@ NAOS_TEST(strict_run_long_help_skips_the_required_global_option)
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
-    NAOS_REQUIRE_TRUE(s.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(s.program, 3, argv, &env);
     check_terminated(result, s.help, s.run);
@@ -966,7 +930,6 @@ NAOS_TEST(tool_build_long_help_is_terminated_with_build)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     check_terminated(result, t.help, t.build);
@@ -985,7 +948,6 @@ NAOS_TEST(tool_copy_version_is_terminated_with_copy)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 4, argv, &env);
     check_terminated(result, t.version, t.copy);
@@ -1006,7 +968,6 @@ NAOS_TEST(tool_build_help_then_unknown_option_is_terminated)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 5, argv, &env);
     check_terminated(result, t.help, t.build);
@@ -1025,7 +986,6 @@ NAOS_TEST(tool_build_help_as_option_value_is_not_terminal)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 5, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
@@ -1057,7 +1017,6 @@ NAOS_TEST(tool_terminated_keeps_the_values_given_before_it)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = clopts_parse_with_env(t.program, 13, argv, fixture_env_getenv, &env);
     check_terminated(result, t.help, t.build);
@@ -1094,7 +1053,6 @@ NAOS_TEST(filt_short_help_keeps_positionals_before_it_and_the_default)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(f.program, 4, argv, &env);
     check_terminated(result, f.help, NULL);
@@ -1118,7 +1076,6 @@ NAOS_TEST(tool_build_unknown_option_then_help_is_terminated)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 4, argv, &env);
     /* The usage error is dropped: no error field is set. */
@@ -1139,7 +1096,6 @@ NAOS_TEST(tool_unknown_command_then_version_is_terminated)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     check_terminated(result, t.version, NULL);
@@ -1160,7 +1116,6 @@ NAOS_TEST(tool_recovery_takes_an_exact_token_even_after_a_value_option)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 6, argv, &env);
     check_terminated(result, t.help, t.build);
@@ -1181,7 +1136,6 @@ NAOS_TEST(tool_recovery_ignores_inexact_forms)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 6, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
@@ -1205,7 +1159,6 @@ NAOS_TEST(tool_recovery_stops_at_dashdash)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 5, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
@@ -1227,7 +1180,6 @@ NAOS_TEST(tool_dashdash_then_help_is_unknown_command)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 3, argv, &env);
     check_token_error(result, CLOPTS_USAGE_ERROR_UNKNOWN_COMMAND, NULL, argv, 2);
@@ -1247,7 +1199,6 @@ NAOS_TEST(tool_build_dashdash_help_is_a_positional)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 4, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
@@ -1269,7 +1220,6 @@ NAOS_TEST(tool_build_dashdash_help_with_output_is_ok)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_checked(t.program, 6, argv, &env);
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);

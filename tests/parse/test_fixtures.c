@@ -7,15 +7,15 @@
  * The three programs reproduce the first-version declarations (names, kinds,
  * help texts, value names, environment variables, defaults, delimiters, count
  * limit and positionals) with the builder functions: the program and its
- * global options first, then the commands, which test_decl_finish() adds.
- * The terminal options -h/--help and --version come from test_decl.h, the
- * help command from clopts/text/write.h.
+ * global options first, then the commands. The terminal options -h/--help
+ * and --version come from clopts_program_add_help_option() and
+ * clopts_program_add_version_option(), the help command from test_decl.h.
+ * No builder call is checked: test_decl_finish() looks at the program once
+ * at the end.
  */
 
 #include "test_fixtures.h"
 #include "test_decl.h"
-
-#include "clopts/text/write.h"
 
 #include <assert.h>
 #include <string.h>
@@ -27,188 +27,76 @@ void fixture_tool_init(fixture_tool_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    test_decl_reset();
-    f->program = test_decl_begin("tool");
-    if (f->program != NULL)
-    {
-        test_decl_check(clopts_program_set_description(f->program, "A fictional tool with subcommands."));
-    }
+    f->program = clopts_program_create("tool");
+    clopts_program_set_description(f->program, "A fictional tool with subcommands.");
 
-    f->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
-    if (f->verbose != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->verbose, "Increase verbosity."));
-    }
-    f->verbose = test_decl_global_attach(f->program, f->verbose);
+    f->verbose = clopts_program_add_option(f->program, CLOPTS_OPTION_COUNT, "verbose", 'v');
+    clopts_option_set_help(f->verbose, "Increase verbosity.");
 
-    f->color = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
-    if (f->color != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->color, "Colorize the output."));
-    }
-    if (f->color != NULL)
-    {
-        test_decl_check(clopts_option_set_negatable(f->color, true));
-    }
-    f->color = test_decl_global_attach(f->program, f->color);
+    f->color = clopts_program_add_option(f->program, CLOPTS_OPTION_FLAG, "color", '\0');
+    clopts_option_set_help(f->color, "Colorize the output.");
+    clopts_option_set_negatable(f->color, true);
 
-    f->config = test_decl_option(CLOPTS_OPTION_VALUE, "config", '\0');
-    if (f->config != NULL)
-    {
-        test_decl_check(clopts_option_set_value_name(f->config, "PATH"));
-    }
-    if (f->config != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->config, "Configuration file."));
-    }
-    if (f->config != NULL)
-    {
-        test_decl_check(clopts_option_set_env(f->config, "TOOL_CONFIG"));
-    }
-    f->config = test_decl_global_attach(f->program, f->config);
+    f->config = clopts_program_add_option(f->program, CLOPTS_OPTION_VALUE, "config", '\0');
+    clopts_option_set_value_name(f->config, "PATH");
+    clopts_option_set_help(f->config, "Configuration file.");
+    clopts_option_set_env(f->config, "TOOL_CONFIG");
 
-    f->help = test_decl_global_attach(f->program, test_decl_help_option());
-    f->version = test_decl_global_attach(f->program, test_decl_version_option());
+    f->help = clopts_program_add_help_option(f->program);
+    f->version = clopts_program_add_version_option(f->program);
 
     /* build */
-    f->build = test_decl_command(f->program, "build");
-    if (f->build != NULL)
-    {
-        test_decl_check(clopts_command_set_summary(f->build, "Build a source."));
-    }
+    f->build = clopts_program_add_command(f->program, "build");
+    clopts_command_set_summary(f->build, "Build a source.");
 
-    f->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
-    if (f->output != NULL)
-    {
-        test_decl_check(clopts_option_set_value_name(f->output, "FILE"));
-    }
-    if (f->output != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->output, "Output file."));
-    }
-    if (f->output != NULL)
-    {
-        test_decl_check(clopts_option_set_required(f->output, true));
-    }
-    f->output = test_decl_attach(f->build, f->output);
+    f->output = clopts_command_add_option(f->build, CLOPTS_OPTION_VALUE, "output", 'o');
+    clopts_option_set_value_name(f->output, "FILE");
+    clopts_option_set_help(f->output, "Output file.");
+    clopts_option_set_required(f->output, true);
 
-    f->keys = test_decl_option(CLOPTS_OPTION_LIST, "keys", 'k');
-    if (f->keys != NULL)
-    {
-        test_decl_check(clopts_option_set_value_name(f->keys, "KEY"));
-    }
-    if (f->keys != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->keys, "Keys to build."));
-    }
-    if (f->keys != NULL)
-    {
-        test_decl_check(clopts_option_set_delimiter(f->keys, ','));
-    }
-    f->keys = test_decl_attach(f->build, f->keys);
+    f->keys = clopts_command_add_option(f->build, CLOPTS_OPTION_LIST, "keys", 'k');
+    clopts_option_set_value_name(f->keys, "KEY");
+    clopts_option_set_help(f->keys, "Keys to build.");
+    clopts_option_set_delimiter(f->keys, ',');
 
-    f->jobs = test_decl_option(CLOPTS_OPTION_COUNT, NULL, 'j');
-    if (f->jobs != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->jobs, "Add a parallel job."));
-    }
-    if (f->jobs != NULL)
-    {
-        test_decl_check(clopts_option_set_count_max(f->jobs, 8));
-    }
-    f->jobs = test_decl_attach(f->build, f->jobs);
+    f->jobs = clopts_command_add_option(f->build, CLOPTS_OPTION_COUNT, NULL, 'j');
+    clopts_option_set_help(f->jobs, "Add a parallel job.");
+    clopts_option_set_count_max(f->jobs, 8);
 
-    f->build_src = test_decl_positional("SRC");
-    if (f->build_src != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->build_src, "Source to build."));
-    }
-    if (f->build_src != NULL)
-    {
-        clopts_positional_set_required(f->build_src, true);
-    }
-    f->build_src = test_decl_attach_positional(f->build, f->build_src);
+    f->build_src = clopts_command_add_positional(f->build, "SRC");
+    clopts_positional_set_help(f->build_src, "Source to build.");
+    clopts_positional_set_required(f->build_src, true);
 
-    f->build_extra = test_decl_positional("EXTRA");
-    if (f->build_extra != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->build_extra, "Extra inputs."));
-    }
-    if (f->build_extra != NULL)
-    {
-        clopts_positional_set_variadic(f->build_extra, true);
-    }
-    f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
+    f->build_extra = clopts_command_add_positional(f->build, "EXTRA");
+    clopts_positional_set_help(f->build_extra, "Extra inputs.");
+    clopts_positional_set_variadic(f->build_extra, true);
 
     /* copy */
-    f->copy = test_decl_command(f->program, "copy");
-    if (f->copy != NULL)
-    {
-        test_decl_check(clopts_command_set_summary(f->copy, "Copy a file."));
-    }
+    f->copy = clopts_program_add_command(f->program, "copy");
+    clopts_command_set_summary(f->copy, "Copy a file.");
 
-    f->copy_src = test_decl_positional("SRC");
-    if (f->copy_src != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->copy_src, "Source."));
-    }
-    if (f->copy_src != NULL)
-    {
-        clopts_positional_set_required(f->copy_src, true);
-    }
-    f->copy_src = test_decl_attach_positional(f->copy, f->copy_src);
+    f->copy_src = clopts_command_add_positional(f->copy, "SRC");
+    clopts_positional_set_help(f->copy_src, "Source.");
+    clopts_positional_set_required(f->copy_src, true);
 
-    f->copy_dst = test_decl_positional("DST");
-    if (f->copy_dst != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->copy_dst, "Destination."));
-    }
-    if (f->copy_dst != NULL)
-    {
-        clopts_positional_set_required(f->copy_dst, true);
-    }
-    f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
+    f->copy_dst = clopts_command_add_positional(f->copy, "DST");
+    clopts_positional_set_help(f->copy_dst, "Destination.");
+    clopts_positional_set_required(f->copy_dst, true);
 
     /* cat */
-    f->cat = test_decl_command(f->program, "cat");
-    if (f->cat != NULL)
-    {
-        test_decl_check(clopts_command_set_summary(f->cat, "Show files."));
-    }
+    f->cat = clopts_program_add_command(f->program, "cat");
+    clopts_command_set_summary(f->cat, "Show files.");
 
-    f->tags = test_decl_option(CLOPTS_OPTION_LIST, "tags", '\0');
-    if (f->tags != NULL)
-    {
-        test_decl_check(clopts_option_set_value_name(f->tags, "TAG"));
-    }
-    if (f->tags != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->tags, "Tags to show."));
-    }
-    if (f->tags != NULL)
-    {
-        test_decl_check(clopts_option_set_default(f->tags, "a,b"));
-    }
-    if (f->tags != NULL)
-    {
-        test_decl_check(clopts_option_set_env(f->tags, "TOOL_TAGS"));
-    }
-    if (f->tags != NULL)
-    {
-        test_decl_check(clopts_option_set_delimiter(f->tags, ','));
-    }
-    f->tags = test_decl_attach(f->cat, f->tags);
+    f->tags = clopts_command_add_option(f->cat, CLOPTS_OPTION_LIST, "tags", '\0');
+    clopts_option_set_value_name(f->tags, "TAG");
+    clopts_option_set_help(f->tags, "Tags to show.");
+    clopts_option_set_default(f->tags, "a,b");
+    clopts_option_set_env(f->tags, "TOOL_TAGS");
+    clopts_option_set_delimiter(f->tags, ',');
 
-    f->cat_file = test_decl_positional("FILE");
-    if (f->cat_file != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->cat_file, "Files to show."));
-    }
-    if (f->cat_file != NULL)
-    {
-        clopts_positional_set_variadic(f->cat_file, true);
-    }
-    f->cat_file = test_decl_attach_positional(f->cat, f->cat_file);
+    f->cat_file = clopts_command_add_positional(f->cat, "FILE");
+    clopts_positional_set_help(f->cat_file, "Files to show.");
+    clopts_positional_set_variadic(f->cat_file, true);
 
     /* help */
     f->help_command = test_decl_help_command(f->program);
@@ -219,7 +107,6 @@ void fixture_tool_init(fixture_tool_t *f)
         /* Everything was released with the program. */
         memset(f, 0, sizeof(*f));
     }
-    f->ok = (test_decl_failures == 0);
 }
 
 void fixture_tool_free(fixture_tool_t *f)
@@ -237,50 +124,26 @@ void fixture_filt_init(fixture_filt_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    test_decl_reset();
-    f->program = test_decl_begin("filt");
-    if (f->program != NULL)
-    {
-        test_decl_check(clopts_program_set_description(f->program, "A fictional filter without subcommands."));
-    }
+    f->program = clopts_program_create("filt");
+    clopts_program_set_description(f->program, "A fictional filter without subcommands.");
 
-    f->lines = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
-    if (f->lines != NULL)
-    {
-        test_decl_check(clopts_option_set_value_name(f->lines, "N"));
-    }
-    if (f->lines != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->lines, "Number of lines."));
-    }
-    if (f->lines != NULL)
-    {
-        test_decl_check(clopts_option_set_default(f->lines, "10"));
-    }
-    if (f->lines != NULL)
-    {
-        test_decl_check(clopts_option_set_env(f->lines, "FILT_LINES"));
-    }
-    f->lines = test_decl_global_attach(f->program, f->lines);
+    f->lines = clopts_program_add_option(f->program, CLOPTS_OPTION_VALUE, "lines", 'n');
+    clopts_option_set_value_name(f->lines, "N");
+    clopts_option_set_help(f->lines, "Number of lines.");
+    clopts_option_set_default(f->lines, "10");
+    clopts_option_set_env(f->lines, "FILT_LINES");
 
-    f->file = test_decl_positional("FILE");
-    if (f->file != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->file, "Files to filter."));
-    }
-    if (f->file != NULL)
-    {
-        clopts_positional_set_variadic(f->file, true);
-    }
-    f->file = test_decl_global_attach_positional(f->program, f->file);
+    f->file = clopts_program_add_positional(f->program, "FILE");
+    clopts_positional_set_help(f->file, "Files to filter.");
+    clopts_positional_set_variadic(f->file, true);
 
-    f->help = test_decl_global_attach(f->program, test_decl_help_option());
+    f->help = clopts_program_add_help_option(f->program);
+
     f->program = test_decl_finish(f->program);
     if (f->program == NULL)
     {
         memset(f, 0, sizeof(*f));
     }
-    f->ok = (test_decl_failures == 0);
 }
 
 void fixture_filt_free(fixture_filt_t *f)
@@ -298,41 +161,24 @@ void fixture_strict_init(fixture_strict_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    test_decl_reset();
-    f->program = test_decl_begin("strict");
-    if (f->program != NULL)
-    {
-        test_decl_check(clopts_program_set_description(f->program, "A fictional program with a required global option."));
-    }
+    f->program = clopts_program_create("strict");
+    clopts_program_set_description(f->program, "A fictional program with a required global option.");
 
-    f->token = test_decl_option(CLOPTS_OPTION_VALUE, "token", '\0');
-    if (f->token != NULL)
-    {
-        test_decl_check(clopts_option_set_value_name(f->token, "TOKEN"));
-    }
-    if (f->token != NULL)
-    {
-        test_decl_check(clopts_option_set_help(f->token, "Access token."));
-    }
-    if (f->token != NULL)
-    {
-        test_decl_check(clopts_option_set_required(f->token, true));
-    }
-    f->token = test_decl_global_attach(f->program, f->token);
+    f->token = clopts_program_add_option(f->program, CLOPTS_OPTION_VALUE, "token", '\0');
+    clopts_option_set_value_name(f->token, "TOKEN");
+    clopts_option_set_help(f->token, "Access token.");
+    clopts_option_set_required(f->token, true);
 
-    f->help = test_decl_global_attach(f->program, test_decl_help_option());
+    f->help = clopts_program_add_help_option(f->program);
 
-    f->run = test_decl_command(f->program, "run");
-    if (f->run != NULL)
-    {
-        test_decl_check(clopts_command_set_summary(f->run, "Run it."));
-    }
+    f->run = clopts_program_add_command(f->program, "run");
+    clopts_command_set_summary(f->run, "Run it.");
+
     f->program = test_decl_finish(f->program);
     if (f->program == NULL)
     {
         memset(f, 0, sizeof(*f));
     }
-    f->ok = (test_decl_failures == 0);
 }
 
 void fixture_strict_free(fixture_strict_t *f)

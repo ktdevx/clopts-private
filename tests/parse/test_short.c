@@ -14,7 +14,6 @@
 
 #include "parse/result_internal.h"
 #include "test_fixtures.h"
-#include "test_decl.h"
 
 #include <clopts/parse/parse.h>
 
@@ -67,7 +66,6 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
     fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
-    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -76,7 +74,6 @@ static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
 {
     fixture_filt_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
-    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -99,12 +96,10 @@ typedef struct custom
     clopts_option_t *out;       /* run:    -o/--out VALUE required */
 } custom_t;
 
-/* Makes an unattached terminal FLAG (NULL on failure). */
-static clopts_option_t *custom_terminal(const char *long_name, char short_name)
+/* Makes option, a FLAG just added (NULL is fine), terminal and returns it. */
+static clopts_option_t *custom_terminal(clopts_option_t *option)
 {
-    clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
-
-    test_decl_check(clopts_option_set_terminal(option, true));
+    clopts_option_set_terminal(option, true);
     return option;
 }
 
@@ -114,22 +109,19 @@ static void custom_init(custom_t *c)
     clopts_program_t *program;
 
     memset(c, 0, sizeof(*c));
-    test_decl_reset();
-    program = test_decl_begin("shadow");
-    c->global_x = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "global-x", 'x');
-    c->verbose = test_decl_global_add(program, CLOPTS_OPTION_COUNT, "verbose", 'v');
-    c->quit = test_decl_global_attach(program, custom_terminal("quit", 'q'));
+    program = clopts_program_create("shadow");
+    c->global_x = clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "global-x", 'x');
+    c->verbose = clopts_program_add_option(program, CLOPTS_OPTION_COUNT, "verbose", 'v');
+    c->quit = custom_terminal(clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "quit", 'q'));
 
-    c->run = test_decl_command(program, "run");
-    c->run_x = test_decl_add(c->run, CLOPTS_OPTION_FLAG, "run-x", 'x');
-    c->stop = test_decl_attach(c->run, custom_terminal("stop", 's'));
-    c->out = test_decl_option(CLOPTS_OPTION_VALUE, "out", 'o');
-    test_decl_check(clopts_option_set_required(c->out, true));
-    c->out = test_decl_attach(c->run, c->out);
+    c->run = clopts_program_add_command(program, "run");
+    c->run_x = clopts_command_add_option(c->run, CLOPTS_OPTION_FLAG, "run-x", 'x');
+    c->stop = custom_terminal(clopts_command_add_option(c->run, CLOPTS_OPTION_FLAG, "stop", 's'));
+    c->out = clopts_command_add_option(c->run, CLOPTS_OPTION_VALUE, "out", 'o');
+    clopts_option_set_required(c->out, true);
 
-    c->program = test_decl_finish(program);
-    NAOS_REQUIRE_NOT_NULL(c->program);
-    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
+    NAOS_REQUIRE_INT_EQ(clopts_program_get_error(program), CLOPTS_ERROR_NONE);
+    c->program = program;
 }
 
 /* Builds the custom program into c and parses argv with it. */
@@ -182,7 +174,6 @@ NAOS_TEST(fixture_short_names_are_as_designed)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_INT_EQ(clopts_option_get_short_name(t.verbose), 'v');
     NAOS_CHECK_INT_EQ(clopts_option_get_short_name(t.color), '\0');
     NAOS_CHECK_INT_EQ(clopts_option_get_short_name(t.config), '\0');
@@ -202,13 +193,11 @@ NAOS_TEST(fixture_short_names_are_as_designed)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_INT_EQ(clopts_option_get_short_name(f.lines), 'n');
     fixture_filt_free(&f);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
-    NAOS_REQUIRE_TRUE(s.ok);
     NAOS_CHECK_INT_EQ(clopts_option_get_short_name(s.token), '\0');
     fixture_strict_free(&s);
 }

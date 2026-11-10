@@ -25,17 +25,15 @@
  *     global: --token VALUE required, -h/--help terminal
  *     run:    no options, no positionals
  *
- * Each init function fills a struct of handles and sets ok when every
- * builder call succeeded. Every allocation of the assembly,
- * clopts_program_create() and clopts_program_add_command() included, goes through the allocator set with
- * clopts_set_allocator(), so with the fault-injecting allocator of
- * tests/support/test_alloc.h each of them is a fault point. When an
- * allocation fails, the remaining builder calls get NULL handles and do
- * nothing, and ok is false. When the program itself could not be created,
- * or adding a command failed at the end, everything is released and the
- * whole struct is NULL. A failure before any command was made can leave an
- * incomplete program (only some global options) with ok false. The free function
- * releases the program (NULL is fine) and clears the struct.
+ * Each init function fills a struct of handles. Every allocation of the
+ * assembly, clopts_program_create() included, goes through the allocator set
+ * with clopts_set_allocator(), so with the fault-injecting allocator of
+ * tests/support/test_alloc.h each of them is a fault point. When a builder
+ * call fails, the program keeps the error and every later builder call does
+ * nothing; the init function then releases the program (test_decl_finish())
+ * and leaves the whole struct NULL. So a fixture either has its program, with
+ * everything declared, or is all NULL. The free function releases the program
+ * (NULL is fine) and clears the struct.
  */
 
 #ifndef CLOPTS_TESTS_PARSER_TEST_FIXTURES_H
@@ -51,7 +49,6 @@
 typedef struct fixture_tool
 {
     clopts_program_t *program;
-    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *build;
     clopts_command_t *copy;
     clopts_command_t *cat;
@@ -80,7 +77,6 @@ void fixture_tool_free(fixture_tool_t *f);
 typedef struct fixture_filt
 {
     clopts_program_t *program;
-    bool ok;                    /* every builder call of the init function succeeded */
     clopts_option_t *lines;     /* -n/--lines VALUE, default "10", env FILT_LINES */
     const clopts_option_t *help;  /* -h/--help terminal FLAG */
     clopts_positional_t *file;  /* FILE variadic */
@@ -94,7 +90,6 @@ void fixture_filt_free(fixture_filt_t *f);
 typedef struct fixture_strict
 {
     clopts_program_t *program;
-    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *run;
     clopts_option_t *token;     /* global: --token VALUE required */
     const clopts_option_t *help;  /* global: -h/--help terminal FLAG */

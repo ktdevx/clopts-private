@@ -17,7 +17,6 @@
 
 #include "parse/result_internal.h"
 #include "test_fixtures.h"
-#include "test_decl.h"
 
 #include <clopts/parse/parse.h>
 
@@ -70,7 +69,6 @@ static clopts_result_t *parse_tool(fixture_tool_t *f, char **argv)
 {
     fixture_tool_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
-    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -79,7 +77,6 @@ static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
 {
     fixture_filt_init(f);
     NAOS_REQUIRE_NOT_NULL(f->program);
-    NAOS_REQUIRE_TRUE(f->ok);
     return parse_checked(f->program, argv);
 }
 
@@ -115,13 +112,11 @@ typedef struct custom
     clopts_option_t *out;             /* run:    -o/--out VALUE required */
 } custom_t;
 
-/* Makes an unattached FLAG, terminal and / or negatable (NULL on failure). */
-static clopts_option_t *custom_flag(const char *long_name, char short_name, bool terminal, bool negatable)
+/* Makes option, a FLAG just added (NULL is fine), terminal and / or negatable, and returns it. */
+static clopts_option_t *custom_flag(clopts_option_t *option, bool terminal, bool negatable)
 {
-    clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
-
-    test_decl_check(clopts_option_set_terminal(option, terminal));
-    test_decl_check(clopts_option_set_negatable(option, negatable));
+    clopts_option_set_terminal(option, terminal);
+    clopts_option_set_negatable(option, negatable);
     return option;
 }
 
@@ -131,30 +126,29 @@ static void custom_init(custom_t *c)
     clopts_program_t *program;
 
     memset(c, 0, sizeof(*c));
-    test_decl_reset();
-    program = test_decl_begin("shadow");
-    c->global_mode = test_decl_global_add(program, CLOPTS_OPTION_VALUE, "mode", '\0');
-    c->global_color = test_decl_global_attach(program, custom_flag("color", '\0', false, true));
-    c->global_no_fast = test_decl_global_attach(program, custom_flag("no-fast", '\0', false, false));
-    c->global_dry = test_decl_global_attach(program, custom_flag("dry", '\0', false, false));
-    c->quit = test_decl_global_attach(program, custom_flag("quit", 'q', true, false));
+    program = clopts_program_create("shadow");
+    c->global_mode = clopts_program_add_option(program, CLOPTS_OPTION_VALUE, "mode", '\0');
+    c->global_color = custom_flag(clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "color", '\0'), false, true);
+    c->global_no_fast =
+        custom_flag(clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "no-fast", '\0'), false, false);
+    c->global_dry = custom_flag(clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "dry", '\0'), false, false);
+    c->quit = custom_flag(clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "quit", 'q'), true, false);
 
-    c->run = test_decl_command(program, "run");
-    c->run_mode = test_decl_add(c->run, CLOPTS_OPTION_VALUE, "mode", '\0');
-    c->run_no_color = test_decl_attach(c->run, custom_flag("no-color", '\0', false, false));
-    c->run_fast = test_decl_attach(c->run, custom_flag("fast", '\0', false, true));
-    c->stop = test_decl_attach(c->run, custom_flag("stop", 's', true, false));
-    c->out = test_decl_option(CLOPTS_OPTION_VALUE, "out", 'o');
-    test_decl_check(clopts_option_set_required(c->out, true));
-    c->out = test_decl_attach(c->run, c->out);
-    (void)test_decl_add_positional(c->run, "ARG");
+    c->run = clopts_program_add_command(program, "run");
+    c->run_mode = clopts_command_add_option(c->run, CLOPTS_OPTION_VALUE, "mode", '\0');
+    c->run_no_color =
+        custom_flag(clopts_command_add_option(c->run, CLOPTS_OPTION_FLAG, "no-color", '\0'), false, false);
+    c->run_fast = custom_flag(clopts_command_add_option(c->run, CLOPTS_OPTION_FLAG, "fast", '\0'), false, true);
+    c->stop = custom_flag(clopts_command_add_option(c->run, CLOPTS_OPTION_FLAG, "stop", 's'), true, false);
+    c->out = clopts_command_add_option(c->run, CLOPTS_OPTION_VALUE, "out", 'o');
+    clopts_option_set_required(c->out, true);
+    (void)clopts_command_add_positional(c->run, "ARG");
 
-    c->idle = test_decl_command(program, "idle");
-    (void)test_decl_attach(c->idle, custom_flag(NULL, 'r', false, true));
+    c->idle = clopts_program_add_command(program, "idle");
+    (void)custom_flag(clopts_command_add_option(c->idle, CLOPTS_OPTION_FLAG, NULL, 'r'), false, true);
 
-    c->program = test_decl_finish(program);
-    NAOS_REQUIRE_NOT_NULL(c->program);
-    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
+    NAOS_REQUIRE_INT_EQ(clopts_program_get_error(program), CLOPTS_ERROR_NONE);
+    c->program = program;
 }
 
 /* Builds the custom program into c and parses argv with it. */
@@ -207,7 +201,6 @@ NAOS_TEST(fixture_long_names_and_kinds_are_as_designed)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_STR_EQ(clopts_option_get_long_name(t.verbose), "verbose");
     NAOS_CHECK_INT_EQ(clopts_option_get_kind(t.verbose), CLOPTS_OPTION_COUNT);
     NAOS_CHECK_STR_EQ(clopts_option_get_long_name(t.color), "color");
@@ -226,13 +219,11 @@ NAOS_TEST(fixture_long_names_and_kinds_are_as_designed)
 
     fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_STR_EQ(clopts_option_get_long_name(f.lines), "lines");
     fixture_filt_free(&f);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
-    NAOS_REQUIRE_TRUE(s.ok);
     NAOS_CHECK_STR_EQ(clopts_option_get_long_name(s.token), "token");
     fixture_strict_free(&s);
 }
@@ -243,7 +234,6 @@ NAOS_TEST(fixture_only_color_is_negatable)
 
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
-    NAOS_REQUIRE_TRUE(t.ok);
     NAOS_CHECK_TRUE(clopts_option_is_negatable(t.color));
     NAOS_CHECK_FALSE(clopts_option_is_negatable(t.verbose));
     NAOS_CHECK_FALSE(clopts_option_is_negatable(t.config));

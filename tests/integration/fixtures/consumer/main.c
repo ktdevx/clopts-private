@@ -29,7 +29,8 @@
 int consumer_cpp_check(int unused);
 
 /*
- * Declares VALUE --name on the program "consumer", parses the fixed argv
+ * Declares VALUE --name and the help option on the program "consumer",
+ * checks the declaration once, parses the fixed argv
  * {"consumer", "--name", "ok"} and checks the status and the value.
  * Returns 0 on success, non-zero on any mismatch.
  */
@@ -45,18 +46,12 @@ static int consumer_parse_check(void)
     const char *value;
     int failed = 0;
 
-    if (clopts_program_create("consumer", &program) != CLOPTS_ERROR_NONE)
+    program = clopts_program_create("consumer");
+    name = clopts_program_add_option(program, CLOPTS_OPTION_VALUE, "name", '\0');
+    clopts_option_set_help(name, "Name to use");
+    (void)clopts_program_add_help_option(program);
+    if (clopts_program_get_error(program) != CLOPTS_ERROR_NONE)
     {
-        return 1;
-    }
-    if (clopts_option_create(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_ERROR_NONE)
-    {
-        clopts_program_destroy(program);
-        return 1;
-    }
-    if (clopts_program_add_option(program, name) != CLOPTS_ERROR_NONE)
-    {
-        clopts_option_destroy(name);
         clopts_program_destroy(program);
         return 1;
     }
@@ -104,8 +99,10 @@ static int consumer_help_check(void)
     clopts_result_t *result;
     int failed = 0;
 
-    if (clopts_program_create("consumer", &program) != CLOPTS_ERROR_NONE)
+    program = clopts_program_create("consumer");
+    if (clopts_program_get_error(program) != CLOPTS_ERROR_NONE)
     {
+        clopts_program_destroy(program);
         return 1;
     }
     result = clopts_parse(program, 0, NULL);

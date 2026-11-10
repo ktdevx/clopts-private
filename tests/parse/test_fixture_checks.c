@@ -50,7 +50,7 @@ static void check_str_or_null(const char *actual, const char *expected)
 
 /*
  * Expected attributes of one option, as declared by the first-version
- * fixtures. command is the command it is attached to, or NULL for a global
+ * fixtures. command is the command it is added to, or NULL for a global
  * option of the program.
  */
 typedef struct expected_option
@@ -72,7 +72,7 @@ typedef struct expected_option
 } expected_option_t;
 
 /*
- * Checks every model field of option, and that it is attached at index of
+ * Checks every model field of option, and that it is at index of
  * expected->command, or among the global options of program at index when
  * expected->command is NULL.
  */
@@ -104,7 +104,7 @@ static void check_option(const clopts_program_t *program, const clopts_option_t 
 }
 
 /*
- * Checks the model fields of positional, and that it is attached at index of
+ * Checks the model fields of positional, and that it is at index of
  * command, or among the positionals of program when command is NULL.
  */
 static void check_positional(const clopts_positional_t *positional, const clopts_program_t *program,
@@ -155,19 +155,19 @@ NAOS_TEST(fixtures_are_built_completely)
 
     fixture_tool_init(&tool);
     NAOS_CHECK_NOT_NULL(tool.program);
-    NAOS_CHECK_TRUE(tool.ok);
+    NAOS_CHECK_INT_EQ(clopts_program_get_error(tool.program), CLOPTS_ERROR_NONE);
     fixture_tool_free(&tool);
     NAOS_CHECK_NULL(tool.program);
 
     fixture_filt_init(&filt);
     NAOS_CHECK_NOT_NULL(filt.program);
-    NAOS_CHECK_TRUE(filt.ok);
+    NAOS_CHECK_INT_EQ(clopts_program_get_error(filt.program), CLOPTS_ERROR_NONE);
     fixture_filt_free(&filt);
     NAOS_CHECK_NULL(filt.program);
 
     fixture_strict_init(&strict);
     NAOS_CHECK_NOT_NULL(strict.program);
-    NAOS_CHECK_TRUE(strict.ok);
+    NAOS_CHECK_INT_EQ(clopts_program_get_error(strict.program), CLOPTS_ERROR_NONE);
     fixture_strict_free(&strict);
     NAOS_CHECK_NULL(strict.program);
 }
@@ -180,7 +180,6 @@ NAOS_TEST(fixture_tool_declaration)
     fixture_tool_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
-    NAOS_REQUIRE_TRUE(f.ok);
 
     check_program(program, "tool", "A fictional tool with subcommands.");
     NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(program)), 5);
@@ -259,7 +258,6 @@ NAOS_TEST(fixture_filt_declaration)
     fixture_filt_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
-    NAOS_REQUIRE_TRUE(f.ok);
 
     check_program(program, "filt", "A fictional filter without subcommands.");
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(program), 0);
@@ -287,7 +285,6 @@ NAOS_TEST(fixture_strict_declaration)
     fixture_strict_init(&f);
     program = f.program;
     NAOS_REQUIRE_NOT_NULL(program);
-    NAOS_REQUIRE_TRUE(f.ok);
 
     check_program(program, "strict", "A fictional program with a required global option.");
     NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(program)), 2);
@@ -319,7 +316,7 @@ NAOS_TEST(fixtures_release_every_block)
     test_alloc_begin(0);
     fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
-    NAOS_CHECK_TRUE(tool.ok);
+    NAOS_CHECK_INT_EQ(clopts_program_get_error(tool.program), CLOPTS_ERROR_NONE);
     NAOS_CHECK_UINT_GT(test_alloc.calls, 0);
     NAOS_CHECK_INT_GT(test_alloc.live, 0);
     fixture_tool_free(&tool);
@@ -328,7 +325,7 @@ NAOS_TEST(fixtures_release_every_block)
     test_alloc_begin(0);
     fixture_filt_init(&filt);
     NAOS_REQUIRE_NOT_NULL(filt.program);
-    NAOS_CHECK_TRUE(filt.ok);
+    NAOS_CHECK_INT_EQ(clopts_program_get_error(filt.program), CLOPTS_ERROR_NONE);
     NAOS_CHECK_INT_GT(test_alloc.live, 0);
     fixture_filt_free(&filt);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -336,7 +333,7 @@ NAOS_TEST(fixtures_release_every_block)
     test_alloc_begin(0);
     fixture_strict_init(&strict);
     NAOS_REQUIRE_NOT_NULL(strict.program);
-    NAOS_CHECK_TRUE(strict.ok);
+    NAOS_CHECK_INT_EQ(clopts_program_get_error(strict.program), CLOPTS_ERROR_NONE);
     NAOS_CHECK_INT_GT(test_alloc.live, 0);
     fixture_strict_free(&strict);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -345,37 +342,35 @@ NAOS_TEST(fixtures_release_every_block)
 /* Checks that a fixture_tool_t whose program could not be made is all NULL. */
 static void check_tool_cleared(const fixture_tool_t *tool)
 {
+    static fixture_tool_t zero; /* all zero (static storage); not const: MSVC C4132 */
+
     NAOS_CHECK_NULL(tool->program);
-    NAOS_CHECK_FALSE(tool->ok);
     NAOS_CHECK_NULL(tool->build);
     NAOS_CHECK_NULL(tool->help_command);
     NAOS_CHECK_NULL(tool->verbose);
     NAOS_CHECK_NULL(tool->help);
+    NAOS_CHECK_TRUE(memcmp(tool, &zero, sizeof(*tool)) == 0);
 }
 
 /*
- * A failing fault point fails every later one too (test_alloc.h). The first
- * two fault points are in clopts_program_create(), and the last one is in the
- * first clopts_program_add_command() of test_decl_finish() (the command
- * array; the later commands fit in it). So when a subcommand was made before
- * the failing fault point, adding it fails: no program is made, everything
- * made so far is released (by the helpers and test_decl_finish()), and the
- * fixture is cleared with ok false. When the failing fault point comes before
- * every subcommand, none is made and the program is kept without
- * subcommands, with ok false; fixture_tool_free() releases it.
+ * A failing fault point fails every later one too (test_alloc.h). Whichever
+ * fault point of the assembly fails first, the builder call that reaches it
+ * leaves OUT_OF_MEMORY in the program (or clopts_program_create() returns
+ * NULL), every later builder call does nothing and allocates nothing, and
+ * test_decl_finish() releases the program: the fixture is all NULL and
+ * nothing leaks. The run stops at its failing fault point: no allocation is
+ * attempted after it.
  */
 NAOS_TEST(fixture_out_of_memory_is_reported_and_released)
 {
     fixture_tool_t tool;
     size_t total;
     size_t fail_at;
-    size_t kept = 0;
 
-    /* number of fault points of a full assembly, test_decl_finish() included */
+    /* number of fault points of a full assembly */
     test_alloc_begin(0);
     fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
-    NAOS_REQUIRE_TRUE(tool.ok);
     total = test_alloc.calls;
     fixture_tool_free(&tool);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -386,37 +381,18 @@ NAOS_TEST(fixture_out_of_memory_is_reported_and_released)
         NAOS_NOTE("fail_at=%u of %u", (unsigned)fail_at, (unsigned)total);
         test_alloc_begin(fail_at);
         fixture_tool_init(&tool);
-        NAOS_CHECK_FALSE(tool.ok);
-        NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
-        if (tool.program != NULL)
-        {
-            /* the program was made, and no subcommand */
-            NAOS_CHECK_UINT_GT(fail_at, 2);
-            NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(tool.program), 0);
-            NAOS_CHECK_NULL(tool.build);
-            NAOS_CHECK_NULL(tool.help_command);
-            kept++;
-        }
-        else
-        {
-            check_tool_cleared(&tool);
-        }
-        if (fail_at == total)
-        {
-            /* only the add of the first subcommand failed, and it stopped at its failing fault point */
-            NAOS_CHECK_NULL(tool.program);
-            NAOS_CHECK_UINT_EQ(test_alloc.calls, fail_at);
-        }
+        check_tool_cleared(&tool);
+        NAOS_CHECK_UINT_EQ(test_alloc.calls, fail_at);
+        NAOS_CHECK_INT_EQ(test_alloc.live, 0);
         fixture_tool_free(&tool);
         NAOS_CHECK_TRUE(test_alloc_end());
     }
-    NAOS_CHECK_UINT_GT(kept, 0);
 
     /* one fault point more: nothing fails */
     test_alloc_begin(total + 1);
     fixture_tool_init(&tool);
     NAOS_CHECK_NOT_NULL(tool.program);
-    NAOS_CHECK_TRUE(tool.ok);
+    NAOS_CHECK_INT_EQ(clopts_program_get_error(tool.program), CLOPTS_ERROR_NONE);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, total);
     fixture_tool_free(&tool);
     NAOS_CHECK_TRUE(test_alloc_end());

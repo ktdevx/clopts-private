@@ -310,7 +310,7 @@ static int process_env_put(const char *name, const char *value)
 #endif
 }
 
-/* The fictional program tool with one VALUE option --output whose fallback is env_name (NULL handles on failure). */
+/* The fictional program tool with one VALUE option --output whose fallback is env_name (all NULL on failure). */
 typedef struct process_env_tool
 {
     clopts_program_t *program;
@@ -319,23 +319,16 @@ typedef struct process_env_tool
 
 static void process_env_tool_init(process_env_tool_t *tool, const char *env_name, const char *default_value)
 {
-    clopts_option_t *output = NULL;
-
-    tool->program = NULL;
-    tool->output = NULL;
-    if (clopts_program_create("tool", &tool->program) != CLOPTS_ERROR_NONE)
+    tool->program = clopts_program_create("tool");
+    tool->output = clopts_program_add_option(tool->program, CLOPTS_OPTION_VALUE, "output", 'o');
+    clopts_option_set_env(tool->output, env_name);
+    clopts_option_set_default(tool->output, default_value);
+    if (clopts_program_get_error(tool->program) != CLOPTS_ERROR_NONE)
     {
-        return;
+        clopts_program_destroy(tool->program);
+        tool->program = NULL;
+        tool->output = NULL;
     }
-    if ((clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_ERROR_NONE)
-        || (clopts_option_set_env(output, env_name) != CLOPTS_ERROR_NONE)
-        || (clopts_option_set_default(output, default_value) != CLOPTS_ERROR_NONE)
-        || (clopts_program_add_option(tool->program, output) != CLOPTS_ERROR_NONE))
-    {
-        clopts_option_destroy(output);
-        output = NULL;
-    }
-    tool->output = output;
 }
 
 /* "tool" with nothing else: --output can only come from the environment or its default. */
