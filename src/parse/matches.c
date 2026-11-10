@@ -37,7 +37,7 @@ static int alloc_slots(const clopts_scope_t *scope, clopts_slot_t **out)
         *out = NULL;
         return 0;
     }
-    slots = (clopts_slot_t *)clopts_mem_calloc(count, sizeof(*slots));
+    slots = (clopts_slot_t *)clopts_calloc(count, sizeof(*slots));
     if (slots == NULL)
     {
         return -1;
@@ -63,7 +63,7 @@ static void free_slots(clopts_slot_t *slots, size_t count)
     {
         clopts_slot_release(&slots[i]);
     }
-    clopts_mem_free(slots);
+    clopts_free(slots);
 }
 
 /* The slot of slots that records option, or NULL. */
@@ -88,7 +88,7 @@ clopts_matches_t *clopts_matches_create(const clopts_program_t *program)
 
     assert(program != NULL);
 
-    matches = (clopts_matches_t *)clopts_mem_calloc(1, sizeof(*matches));
+    matches = (clopts_matches_t *)clopts_calloc(1, sizeof(*matches));
     if (matches == NULL)
     {
         return NULL;
@@ -96,7 +96,7 @@ clopts_matches_t *clopts_matches_create(const clopts_program_t *program)
     scope = clopts_program_get_scope(program);
     if (alloc_slots(scope, &matches->global_slots) != 0)
     {
-        clopts_mem_free(matches);
+        clopts_free(matches);
         return NULL;
     }
     matches->command = NULL;
@@ -116,7 +116,7 @@ void clopts_matches_destroy(clopts_matches_t *matches)
     free_slots(matches->global_slots, matches->global_count);
     free_slots(matches->command_slots, matches->command_count);
     clopts_vec_free(&matches->positionals);
-    clopts_mem_free(matches);
+    clopts_free(matches);
 }
 
 int clopts_matches_select(clopts_matches_t *matches, const clopts_command_t *command)

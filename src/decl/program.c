@@ -57,16 +57,16 @@ clopts_error_t clopts_program_create(const char *name, clopts_program_t **out)
         return CLOPTS_ERROR_INVALID_NAME;
     }
 
-    program = (clopts_program_t *)clopts_mem_calloc(1, sizeof(*program));
+    program = (clopts_program_t *)clopts_calloc(1, sizeof(*program));
     if (program == NULL)
     {
         return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
-    program->name = clopts_mem_strdup(name);
+    program->name = clopts_strdup(name);
     if (program->name == NULL)
     {
-        clopts_mem_free(program);
+        clopts_free(program);
         return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
@@ -92,15 +92,15 @@ void clopts_program_destroy(clopts_program_t *program)
     }
     clopts_vec_free(&program->commands);
     clopts_scope_release(&program->scope);
-    clopts_mem_free(program->name);
-    clopts_mem_free(program->description);
-    clopts_mem_free(program);
+    clopts_free(program->name);
+    clopts_free(program->description);
+    clopts_free(program);
 }
 
 clopts_error_t clopts_program_set_description(clopts_program_t *program, const char *description)
 {
     assert(program != NULL);
-    return (clopts_mem_replace_string(&program->description, description) == 0) ? CLOPTS_ERROR_NONE
+    return (clopts_strrep(&program->description, description) == 0) ? CLOPTS_ERROR_NONE
                                                                                  : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 

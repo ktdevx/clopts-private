@@ -21,37 +21,37 @@
  */
 
 /* Returns a block of size bytes, or NULL. */
-void *clopts_mem_alloc(size_t size);
+void *clopts_malloc(size_t size);
 
 /* Returns a block of count * size bytes, or NULL. */
-void *clopts_mem_alloc_array(size_t count, size_t size);
+void *clopts_malloc_array(size_t count, size_t size);
 
 /* Returns a zero-filled block of count * size bytes, or NULL. */
-void *clopts_mem_calloc(size_t count, size_t size);
+void *clopts_calloc(size_t count, size_t size);
 
 /*
  * Resizes ptr (NULL: allocates) to size bytes. Returns the new block, or NULL
  * leaving ptr valid and unchanged.
  */
-void *clopts_mem_realloc(void *ptr, size_t size);
+void *clopts_realloc(void *ptr, size_t size);
 
 /* Returns a copy of s, or NULL on failure. s == NULL gives NULL without allocating. */
-char *clopts_mem_strdup(const char *s);
+char *clopts_strdup(const char *s);
 
 /*
  * Replaces the owned string *field with a copy of value (NULL resets it to
  * NULL), releasing the old one. Returns 0, or -1 when the copy cannot be
  * allocated, leaving *field unchanged.
  */
-int clopts_mem_replace_string(char **field, const char *value);
+int clopts_strrep(char **field, const char *value);
 
 /*
  * Returns a NUL-terminated copy of the len bytes at s, or NULL. s must not be
  * NULL and must point to at least len bytes.
  */
-char *clopts_mem_strndup(const char *s, size_t len);
+char *clopts_strndup(const char *s, size_t len);
 
 /* Releases ptr, allocated by the functions above. NULL is ignored. */
-void clopts_mem_free(void *ptr);
+void clopts_free(void *ptr);
 
 #endif /* CLOPTS_SRC_BASE_MEMORY_H */

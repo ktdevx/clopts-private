@@ -14,7 +14,7 @@
  * start to the last clopts_program_add_command() of test_decl_finish() at its
  * end), and every block must have been released through it at the end of
  * each run. The allocation
- * gateway itself (clopts_mem_alloc and the others, the overflow checks and
+ * gateway itself (clopts_malloc and the others, the overflow checks and
  * the vec growth) is tested in the core suite.
  */
 

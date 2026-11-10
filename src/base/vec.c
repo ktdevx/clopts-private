@@ -49,7 +49,7 @@ static int vec_grow(clopts_vec_t *vec)
         return -1;
     }
 
-    new_data = clopts_mem_realloc(vec->data, new_bytes);
+    new_data = clopts_realloc(vec->data, new_bytes);
     if (new_data == NULL)
     {
         return -1;
@@ -92,7 +92,7 @@ void clopts_vec_free(clopts_vec_t *vec)
 {
     assert(vec != NULL);
 
-    clopts_mem_free(vec->data);
+    clopts_free(vec->data);
     vec->data = NULL;
     vec->len = 0;
     vec->cap = 0;

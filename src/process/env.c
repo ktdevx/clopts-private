@@ -25,8 +25,8 @@ void clopts_env_init(clopts_env_t *env)
 void clopts_env_release(clopts_env_t *env)
 {
     assert(env != NULL);
-    clopts_mem_free(env->value);
-    clopts_mem_free(env->wide);
+    clopts_free(env->value);
+    clopts_free(env->wide);
     clopts_env_init(env);
 }
 
@@ -40,12 +40,12 @@ int clopts_env_reserve_value(clopts_env_t *env, size_t bytes)
         return 0;
     }
     /* The old contents need not survive, so the buffer is replaced, not copied. */
-    grown = (char *)clopts_mem_alloc(bytes);
+    grown = (char *)clopts_malloc(bytes);
     if (grown == NULL)
     {
         return -1;
     }
-    clopts_mem_free(env->value);
+    clopts_free(env->value);
     env->value = grown;
     env->value_cap = bytes;
     return 0;
@@ -61,12 +61,12 @@ int clopts_env_reserve_wide(clopts_env_t *env, size_t units)
         return 0;
     }
     /* NULL both when units * sizeof(clopts_utf16_t) overflows and when the allocation fails. */
-    grown = clopts_mem_alloc_array(units, sizeof(clopts_utf16_t));
+    grown = clopts_malloc_array(units, sizeof(clopts_utf16_t));
     if (grown == NULL)
     {
         return -1;
     }
-    clopts_mem_free(env->wide);
+    clopts_free(env->wide);
     env->wide = grown;
     env->wide_cap = units;
     return 0;

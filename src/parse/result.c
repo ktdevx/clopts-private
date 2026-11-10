@@ -54,7 +54,7 @@ clopts_result_t *clopts_result_create(clopts_parse_status_t status, const clopts
         clopts_matches_destroy(matches);
         return clopts_result_sentinel();
     }
-    result = (clopts_result_t *)clopts_mem_alloc(sizeof(*result));
+    result = (clopts_result_t *)clopts_malloc(sizeof(*result));
     if (result == NULL)
     {
         clopts_matches_destroy(matches);
@@ -202,5 +202,5 @@ void clopts_result_destroy(clopts_result_t *result)
         return;
     }
     clopts_matches_destroy(result->matches);
-    clopts_mem_free(result);
+    clopts_free(result);
 }

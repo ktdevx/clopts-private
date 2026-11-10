@@ -32,10 +32,10 @@ void clopts_slot_release(clopts_slot_t *slot)
     assert(slot != NULL);
     for (i = 0; i < slot->items.len; i++)
     {
-        clopts_mem_free(*(char **)clopts_vec_at(&slot->items, i));
+        clopts_free(*(char **)clopts_vec_at(&slot->items, i));
     }
     clopts_vec_free(&slot->items);
-    clopts_mem_free(slot->owned);
+    clopts_free(slot->owned);
     slot->owned = NULL;
     slot->value = NULL;
 }
@@ -69,7 +69,7 @@ void clopts_slot_set_value(clopts_slot_t *slot, const char *value, clopts_source
     /* Keep value == owned: an owned copy that is no longer the value is released. */
     if ((slot->owned != NULL) && (slot->owned != value))
     {
-        clopts_mem_free(slot->owned);
+        clopts_free(slot->owned);
         slot->owned = NULL;
     }
     slot->value = value;
@@ -83,7 +83,7 @@ void clopts_slot_set_owned_value(clopts_slot_t *slot, char *owned, clopts_source
 
     if (slot->owned != owned)
     {
-        clopts_mem_free(slot->owned);
+        clopts_free(slot->owned);
     }
     slot->owned = owned;
     slot->value = owned;
@@ -95,14 +95,14 @@ static int append_item(clopts_slot_t *slot, const char *item, size_t len)
 {
     char *copy;
 
-    copy = clopts_mem_strndup(item, len);
+    copy = clopts_strndup(item, len);
     if (copy == NULL)
     {
         return -1;
     }
     if (clopts_vec_push(&slot->items, &copy) != 0)
     {
-        clopts_mem_free(copy);
+        clopts_free(copy);
         return -1;
     }
     return 0;

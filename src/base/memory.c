@@ -64,12 +64,12 @@ void clopts_set_allocator(const clopts_allocator_t *allocator)
     current = *allocator;
 }
 
-void *clopts_mem_alloc(size_t size)
+void *clopts_malloc(size_t size)
 {
     return current.malloc_fn((size == 0) ? 1 : size);
 }
 
-void *clopts_mem_alloc_array(size_t count, size_t size)
+void *clopts_malloc_array(size_t count, size_t size)
 {
     size_t bytes;
 
@@ -77,10 +77,10 @@ void *clopts_mem_alloc_array(size_t count, size_t size)
     {
         return NULL;
     }
-    return clopts_mem_alloc(bytes);
+    return clopts_malloc(bytes);
 }
 
-void *clopts_mem_calloc(size_t count, size_t size)
+void *clopts_calloc(size_t count, size_t size)
 {
     size_t bytes;
 
@@ -95,43 +95,43 @@ void *clopts_mem_calloc(size_t count, size_t size)
     return current.calloc_fn(count, size);
 }
 
-void *clopts_mem_realloc(void *ptr, size_t size)
+void *clopts_realloc(void *ptr, size_t size)
 {
     if (ptr == NULL)
     {
-        return clopts_mem_alloc(size);
+        return clopts_malloc(size);
     }
     return current.realloc_fn(ptr, (size == 0) ? 1 : size);
 }
 
-char *clopts_mem_strdup(const char *s)
+char *clopts_strdup(const char *s)
 {
     if (s == NULL)
     {
         return NULL;
     }
-    return clopts_mem_strndup(s, strlen(s));
+    return clopts_strndup(s, strlen(s));
 }
 
-int clopts_mem_replace_string(char **field, const char *value)
+int clopts_strrep(char **field, const char *value)
 {
     char *copy;
 
     assert(field != NULL);
 
-    copy = clopts_mem_strdup(value);
+    copy = clopts_strdup(value);
     if ((value != NULL) && (copy == NULL))
     {
         return -1;
     }
 
-    clopts_mem_free(*field);
+    clopts_free(*field);
     *field = copy;
 
     return 0;
 }
 
-char *clopts_mem_strndup(const char *s, size_t len)
+char *clopts_strndup(const char *s, size_t len)
 {
     size_t bytes;
     char *copy;
@@ -143,7 +143,7 @@ char *clopts_mem_strndup(const char *s, size_t len)
         return NULL;
     }
 
-    copy = (char *)clopts_mem_alloc(bytes);
+    copy = (char *)clopts_malloc(bytes);
     if (copy == NULL)
     {
         return NULL;
@@ -153,7 +153,7 @@ char *clopts_mem_strndup(const char *s, size_t len)
     return copy;
 }
 
-void clopts_mem_free(void *ptr)
+void clopts_free(void *ptr)
 {
     if (ptr != NULL)
     {

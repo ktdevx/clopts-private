@@ -81,7 +81,7 @@ clopts_argv_t *clopts_argv_convert(int argc, const wchar_t *const *wargs)
     {
         return clopts_argv_sentinel();
     }
-    args = (clopts_argv_t *)clopts_mem_alloc(total);
+    args = (clopts_argv_t *)clopts_malloc(total);
     if (args == NULL)
     {
         return clopts_argv_sentinel();
@@ -100,7 +100,7 @@ clopts_argv_t *clopts_argv_convert(int argc, const wchar_t *const *wargs)
             n = clopts_utf16_to_utf8(wargs[i], len, out, left);
             if (n == 0)
             {
-                clopts_mem_free(args);
+                clopts_free(args);
                 return clopts_argv_sentinel();
             }
         }
@@ -147,7 +147,7 @@ clopts_argv_t *clopts_argv_from_cmdline(const wchar_t *cmdline)
     {
         return clopts_argv_sentinel();
     }
-    work = clopts_mem_alloc(bytes);
+    work = clopts_malloc(bytes);
     if (work == NULL)
     {
         return clopts_argv_sentinel();
@@ -157,7 +157,7 @@ clopts_argv_t *clopts_argv_from_cmdline(const wchar_t *cmdline)
     clopts_cmdline_split(cmdline, buf, wargs, &argc, &units);
 
     args = clopts_argv_convert((int)argc, (const wchar_t *const *)wargs);
-    clopts_mem_free(work);
+    clopts_free(work);
     return args;
 }
 

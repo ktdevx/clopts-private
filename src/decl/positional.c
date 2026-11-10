@@ -40,16 +40,16 @@ clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **
         return CLOPTS_ERROR_INVALID_NAME;
     }
 
-    positional = (clopts_positional_t *)clopts_mem_calloc(1, sizeof(*positional));
+    positional = (clopts_positional_t *)clopts_calloc(1, sizeof(*positional));
     if (positional == NULL)
     {
         return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
-    positional->name = clopts_mem_strdup(name);
+    positional->name = clopts_strdup(name);
     if (positional->name == NULL)
     {
-        clopts_mem_free(positional);
+        clopts_free(positional);
         return CLOPTS_ERROR_OUT_OF_MEMORY;
     }
 
@@ -69,15 +69,15 @@ void clopts_positional_destroy(clopts_positional_t *positional)
         return;
     }
 
-    clopts_mem_free(positional->name);
-    clopts_mem_free(positional->help);
-    clopts_mem_free(positional);
+    clopts_free(positional->name);
+    clopts_free(positional->help);
+    clopts_free(positional);
 }
 
 clopts_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help)
 {
     assert(positional != NULL);
-    return (clopts_mem_replace_string(&positional->help, help) == 0) ? CLOPTS_ERROR_NONE
+    return (clopts_strrep(&positional->help, help) == 0) ? CLOPTS_ERROR_NONE
                                                                       : CLOPTS_ERROR_OUT_OF_MEMORY;
 }
 
