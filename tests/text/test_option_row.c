@@ -80,18 +80,16 @@ static void end(void)
 /* Writes the help of the one-option program of option into rec. */
 static clopts_write_status_t write_option(text_recorder_t *rec, const clopts_option_t *option)
 {
-    size_t i;
+    size_t i = 0;
 
     text_recorder_init(rec);
-    for (i = 0; i < solo_count; i++)
+    while ((i < solo_count) && (solos[i].option != option))
     {
-        if (solos[i].option == option)
-        {
-            return clopts_write_help(solos[i].program, NULL, text_recorder_write, rec);
-        }
+        i++;
     }
-    NAOS_FAIL("the option was not given to solo()");
-    return CLOPTS_WRITE_FAILED;
+    /* The option must have been given to solo(). */
+    NAOS_REQUIRE_UINT_LT(i, solo_count);
+    return clopts_write_help(solos[i].program, NULL, text_recorder_write, rec);
 }
 
 /* The row of option in its one-option help is exactly expected. */

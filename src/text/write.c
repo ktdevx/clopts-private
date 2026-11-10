@@ -17,7 +17,8 @@
 #include <assert.h>
 #include <stdbool.h>
 
-/* True when command is a subcommand of program. */
+#ifndef NDEBUG
+/* True when command is a subcommand of program (read by the asserts only). */
 static bool has_command(const clopts_program_t *program, const clopts_command_t *command)
 {
     size_t count = clopts_program_get_command_count(program);
@@ -32,6 +33,7 @@ static bool has_command(const clopts_program_t *program, const clopts_command_t 
     }
     return false;
 }
+#endif
 
 clopts_write_status_t clopts_write_help(const clopts_program_t *program, const clopts_command_t *command,
                                         clopts_write_fn write_fn, void *ctx)
@@ -95,14 +97,12 @@ clopts_write_status_t clopts_write_usage_hint(const clopts_program_t *program, c
 clopts_write_status_t clopts_write_error(const clopts_program_t *program, const clopts_result_t *result,
                                          unsigned flags, clopts_write_fn write_fn, void *ctx)
 {
-    const clopts_command_t *command;
     clopts_out_t out;
 
     assert(program != NULL);
     assert(write_fn != NULL);
-
-    command = clopts_usage_error_get_command(clopts_result_get_usage_error(result));
-    assert((command == NULL) || has_command(program, command));
+    assert((clopts_usage_error_get_command(clopts_result_get_usage_error(result)) == NULL) ||
+           has_command(program, clopts_usage_error_get_command(clopts_result_get_usage_error(result))));
 
     switch (clopts_result_get_status(result))
     {

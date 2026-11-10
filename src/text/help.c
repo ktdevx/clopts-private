@@ -245,6 +245,7 @@ static item_t list_item(const list_t *list, size_t index)
     size_t listed = 0;
     size_t i;
 
+    assert(index < list_count(list));
     for (i = 0; i < len; i++)
     {
         if (source_listed(list, i))
@@ -256,7 +257,6 @@ static item_t list_item(const list_t *list, size_t index)
             listed++;
         }
     }
-    assert(false && "index must be less than list_count()");
     return item;
 }
 
