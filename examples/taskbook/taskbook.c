@@ -115,7 +115,7 @@ static int run_done(const clopts_result_t *result, const struct taskbook_options
     do                               \
     {                                \
         e = (call);                  \
-        if (e != CLOPTS_ERROR_NONE)   \
+        if (e != CLOPTS_DECL_ERROR_NONE)   \
         {                            \
             goto fail;               \
         }                            \
@@ -123,13 +123,13 @@ static int run_done(const clopts_result_t *result, const struct taskbook_options
 
 /*
  * Creates the terminal FLAG named long_name / short_name with help into
- * *out. Returns the declaration error, or CLOPTS_ERROR_NONE; on an error *out
+ * *out. Returns the declaration error, or CLOPTS_DECL_ERROR_NONE; on an error *out
  * is NULL and nothing is left to release.
  */
-static clopts_error_t create_terminal(const char *long_name, char short_name, const char *help,
+static clopts_decl_error_t create_terminal(const char *long_name, char short_name, const char *help,
                                       clopts_option_t **out)
 {
-    clopts_error_t e;
+    clopts_decl_error_t e;
     clopts_option_t *option = NULL;
 
     *out = NULL;
@@ -137,7 +137,7 @@ static clopts_error_t create_terminal(const char *long_name, char short_name, co
     CHECK(clopts_option_set_terminal(option, true));
     CHECK(clopts_option_set_help(option, help));
     *out = option;
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 
 fail:
     clopts_option_destroy(option);
@@ -147,11 +147,11 @@ fail:
 /*
  * Declares the program into *out: the program and its global options first,
  * then each command, filled and then added. Returns the declaration error
- * that stopped it, or CLOPTS_ERROR_NONE.
+ * that stopped it, or CLOPTS_DECL_ERROR_NONE.
  */
-static clopts_error_t declare(clopts_program_t **out, struct taskbook_options *opts)
+static clopts_decl_error_t declare(clopts_program_t **out, struct taskbook_options *opts)
 {
-    clopts_error_t e;
+    clopts_decl_error_t e;
     clopts_program_t *program = NULL;
     clopts_command_t *command = NULL;
     clopts_option_t *option = NULL;
@@ -245,7 +245,7 @@ static clopts_error_t declare(clopts_program_t **out, struct taskbook_options *o
     command = NULL; /* now owned by the program */
 
     *out = program;
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 
 fail:
     /* Whatever is not attached is still ours; the program owns the rest. */
@@ -291,9 +291,9 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
 {
     switch (clopts_result_get_status(result))
     {
-    case CLOPTS_OK:
+    case CLOPTS_PARSE_OK:
         return run(program, result, opts);
-    case CLOPTS_TERMINATED:
+    case CLOPTS_PARSE_TERMINATED:
         if (clopts_result_get_terminal_option(result) == opts->version)
         {
             clopts_write_version(program, "1.2.3", clopts_file_write, stdout);
@@ -303,16 +303,16 @@ static int finish(const clopts_program_t *program, const clopts_result_t *result
             clopts_write_help(program, clopts_result_get_command(result), clopts_file_write, stdout);
         }
         return 0;
-    case CLOPTS_USAGE_ERROR:
+    case CLOPTS_PARSE_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
         clopts_write_usage_hint(program, clopts_result_get_error_command(result), clopts_file_write, stderr);
         return 2;
-    case CLOPTS_NO_COMMAND:
+    case CLOPTS_PARSE_NO_COMMAND:
         clopts_write_usage(program, NULL, clopts_file_write, stderr);
         clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
         return 2;
     default:
-        /* CLOPTS_OUT_OF_MEMORY */
+        /* CLOPTS_PARSE_OUT_OF_MEMORY */
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
         return 1;
     }
@@ -325,13 +325,13 @@ int main(int argc, char **argv)
     clopts_argv_t *args;
     clopts_env_t *env;
     clopts_result_t *result;
-    clopts_error_t error;
+    clopts_decl_error_t error;
     int code;
 
     error = declare(&program, &opts);
-    if (error != CLOPTS_ERROR_NONE)
+    if (error != CLOPTS_DECL_ERROR_NONE)
     {
-        fprintf(stderr, "taskbook: error: invalid declaration: %s\n", clopts_error_get_message(error));
+        fprintf(stderr, "taskbook: error: invalid declaration: %s\n", clopts_decl_error_get_message(error));
         return 1;
     }
 

@@ -115,7 +115,7 @@ int wmain(int argc, wchar_t **wargv)
     clopts_result_t *result;
     int code = 0;
 
-    if (clopts_program_create("app", &program) != CLOPTS_ERROR_NONE)
+    if (clopts_program_create("app", &program) != CLOPTS_DECL_ERROR_NONE)
     {
         fputs("app: error: out of memory\n", stderr);
         return 1;
@@ -161,12 +161,12 @@ Windows では、CRT の `getenv` も、値を ANSI のコードページで返�
 - Windows の `clopts_env_lookup` は、変数の値を `GetEnvironmentVariableW` で UTF-16 のまま読み、UTF-8 に変換する。変数の名前（`clopts_option_set_env` で宣言した名前）は UTF-8 として UTF-16 に変換してから引く。Windows では、環境変数の名前の大文字と小文字は区別されない。
 - Windows 以外の OS では、`getenv` で読んだ値をそのまま返す（パススルー）。値は変換されず、プロセスの環境の中を指す。
 - 返した値は文脈から借用したもので、同じ文脈での次の呼び出しか `clopts_env_destroy` まで有効である。解析の関数は値を受け取った直後に複製するので、結果の値は文脈を解放した後も読める。そのため、`clopts_env_destroy` は解析の後ならいつ呼んでもよい。argv のハンドルと違い、結果を使い終えるまで待つ必要はない。
-- `clopts_env_create` が確保に失敗して NULL を返しても、そのまま `clopts_parse_with_env` に渡してよい。そのときは環境変数を引く時点で `CLOPTS_ENV_FAILED` になり、解析は `CLOPTS_OUT_OF_MEMORY` で終わる。`clopts_env_destroy` は NULL を無視する。
+- `clopts_env_create` が確保に失敗して NULL を返しても、そのまま `clopts_parse_with_env` に渡してよい。そのときは環境変数を引く時点で `CLOPTS_ENV_FAILED` になり、解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる。`clopts_env_destroy` は NULL を無視する。
 - 1 つの文脈を、複数のスレッドから同時に使ってはならない。
 
 ### 引き方の失敗
 
-`clopts_env_lookup` が `CLOPTS_ENV_FAILED` を返すと、解析は `CLOPTS_OUT_OF_MEMORY` で終わる。メモリ不足のほかに、Windows では次の場合にも失敗する。
+`clopts_env_lookup` が `CLOPTS_ENV_FAILED` を返すと、解析は `CLOPTS_PARSE_OUT_OF_MEMORY` で終わる。メモリ不足のほかに、Windows では次の場合にも失敗する。
 
 | `clopts_env_get_error` | 起きるとき |
 |--------------------|------------|
@@ -174,7 +174,7 @@ Windows では、CRT の `getenv` も、値を ANSI のコードページで返�
 | `CLOPTS_ENV_ERROR_INVALID_NAME` | Windows で、引こうとした名前が正しい UTF-8 でない |
 | `CLOPTS_ENV_ERROR_OUT_OF_MEMORY` | メモリの確保に失敗した（Windows では、`GetEnvironmentVariableW` が変数がない以外の理由で失敗したときも） |
 
-解析が `CLOPTS_OUT_OF_MEMORY` で終わったときに、本当のメモリ不足か環境変数の問題かを区別したければ、`clopts_env_get_error`（`env`）を見る。最後の引き方が失敗していれば、その理由を返し、`clopts_env_get_error_name`（`env`）が引こうとした名前を返す（名前を複製できなかったときは NULL）。最後の引き方が成功していれば `CLOPTS_ENV_ERROR_NONE` である。文脈が NULL のときは `CLOPTS_ENV_ERROR_OUT_OF_MEMORY` として読まれる。
+解析が `CLOPTS_PARSE_OUT_OF_MEMORY` で終わったときに、本当のメモリ不足か環境変数の問題かを区別したければ、`clopts_env_get_error`（`env`）を見る。最後の引き方が失敗していれば、その理由を返し、`clopts_env_get_error_name`（`env`）が引こうとした名前を返す（名前を複製できなかったときは NULL）。最後の引き方が成功していれば `CLOPTS_ENV_ERROR_NONE` である。文脈が NULL のときは `CLOPTS_ENV_ERROR_OUT_OF_MEMORY` として読まれる。
 
 ## `activeCodePage` との関係
 

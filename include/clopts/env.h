@@ -24,7 +24,7 @@ typedef enum clopts_env_status
     CLOPTS_ENV_FOUND = 0,
     /* Not set. *value is not read. */
     CLOPTS_ENV_UNSET = 1,
-    /* Lookup failed. The parse ends with CLOPTS_OUT_OF_MEMORY. */
+    /* Lookup failed. The parse ends with CLOPTS_PARSE_OUT_OF_MEMORY. */
     CLOPTS_ENV_FAILED = 2
 } clopts_env_status_t;
 

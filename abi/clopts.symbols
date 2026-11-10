@@ -43,8 +43,8 @@ clopts_command_get_option_at
 clopts_command_get_positional_count
 clopts_command_get_positional_at
 
-# clopts/error.h
-clopts_error_get_message
+# clopts/decl_error.h
+clopts_decl_error_get_message
 
 # clopts/help.h
 clopts_write_help

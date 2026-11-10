@@ -39,13 +39,13 @@ extern "C" {
  * be NULL or empty, start with '-' or contain white space (INVALID_NAME).
  * out must not be NULL (contract violation, caught by assert).
  */
-CLOPTS_API clopts_error_t clopts_program_create(const char *name, clopts_program_t **out);
+CLOPTS_API clopts_decl_error_t clopts_program_create(const char *name, clopts_program_t **out);
 
 /* Releases program and everything attached to it. NULL does nothing. */
 CLOPTS_API void clopts_program_destroy(clopts_program_t *program);
 
 /* Description in the program help. */
-CLOPTS_API clopts_error_t clopts_program_set_description(clopts_program_t *program, const char *description);
+CLOPTS_API clopts_decl_error_t clopts_program_set_description(clopts_program_t *program, const char *description);
 
 /*
  * Attaches option to program as a global option. On success program owns
@@ -54,7 +54,7 @@ CLOPTS_API clopts_error_t clopts_program_set_description(clopts_program_t *progr
  * or NEGATION_CONFLICT (within the global options). option must not be
  * attached already (the behavior is undefined, clopts/decl_types.h).
  */
-CLOPTS_API clopts_error_t clopts_program_add_option(clopts_program_t *program, clopts_option_t *option);
+CLOPTS_API clopts_decl_error_t clopts_program_add_option(clopts_program_t *program, clopts_option_t *option);
 
 /*
  * Attaches positional to program, after the positionals already attached.
@@ -63,7 +63,7 @@ CLOPTS_API clopts_error_t clopts_program_add_option(clopts_program_t *program, c
  * attached one is variadic) or POSITIONAL_ORDER (positional is required and
  * the last attached one is optional), in that order.
  */
-CLOPTS_API clopts_error_t clopts_program_add_positional(clopts_program_t *program,
+CLOPTS_API clopts_decl_error_t clopts_program_add_positional(clopts_program_t *program,
                                                         clopts_positional_t *positional);
 
 /*
@@ -75,7 +75,7 @@ CLOPTS_API clopts_error_t clopts_program_add_positional(clopts_program_t *progra
  * must not be added already (the behavior is undefined,
  * clopts/decl_types.h).
  */
-CLOPTS_API clopts_error_t clopts_program_add_command(clopts_program_t *program, clopts_command_t *command);
+CLOPTS_API clopts_decl_error_t clopts_program_add_command(clopts_program_t *program, clopts_command_t *command);
 
 /* ---- read functions: a NULL program is a contract violation (assert) ---- */
 

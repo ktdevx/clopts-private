@@ -121,7 +121,7 @@ NAOS_TEST(sentinel_values_are_unset)
     clopts_result_t *result;
 
     result = clopts_parse(NULL, 0, NULL);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OUT_OF_MEMORY);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, NULL));
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, NULL), 0);
     NAOS_CHECK_NULL(clopts_result_get_value(result, NULL));
@@ -170,7 +170,7 @@ NAOS_TEST(parse_unset_options_read_as_empty)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.color), CLOPTS_SOURCE_NONE);
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, f.verbose), 0);
@@ -191,7 +191,7 @@ NAOS_TEST(parse_flag_repeated_stays_true)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.color), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -206,7 +206,7 @@ NAOS_TEST(parse_count_with_default_limit_counts_every_occurrence)
 
     /* 3 + 1 + 1 + 2 + 1 = 8: no clamp below the default limit. */
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, f.verbose), 8);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.verbose), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -222,14 +222,14 @@ NAOS_TEST(parse_value_keeps_the_string_as_is)
 
     /* No conversion or validation: any string, including "", is kept. */
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, f.output), argv[4]);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "not-a-number");
     clopts_result_destroy(result);
     fixture_tool_free(&f);
 
     result = parse_tool(&f, argv_empty);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, f.output), argv_empty[3] + 9);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "");
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.output), CLOPTS_SOURCE_EXPLICIT);
@@ -245,7 +245,7 @@ NAOS_TEST(parse_list_keeps_whitespace)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, f.keys, expected, ARRAY_LEN(expected));
     clopts_result_destroy(result);
     fixture_tool_free(&f);
@@ -273,7 +273,7 @@ NAOS_TEST(parse_list_items_are_copies)
     argv[6] = t6;
     argv[7] = NULL;
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_REQUIRE_UINT_EQ(clopts_result_get_list_count(result, f.keys), 1);
     NAOS_CHECK_TRUE(clopts_result_get_list_at(result, f.keys, 0) != t6);
 
@@ -294,7 +294,7 @@ NAOS_TEST(parse_short_list_repeats_are_concatenated)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, f.keys, expected, ARRAY_LEN(expected));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.keys), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -309,7 +309,7 @@ NAOS_TEST(parse_long_list_repeats_are_concatenated)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, f.keys, expected, ARRAY_LEN(expected));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.keys), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -324,7 +324,7 @@ NAOS_TEST(parse_list_keeps_empty_items)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, f.keys, expected, ARRAY_LEN(expected));
     clopts_result_destroy(result);
     fixture_tool_free(&f);
@@ -338,7 +338,7 @@ NAOS_TEST(parse_list_lone_delimiter_gives_two_empty_items)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, f.keys, expected, ARRAY_LEN(expected));
     clopts_result_destroy(result);
     fixture_tool_free(&f);
@@ -351,7 +351,7 @@ NAOS_TEST(parse_value_last_occurrence_wins)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, f.output), argv[6]);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "b");
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.output), CLOPTS_SOURCE_EXPLICIT);
@@ -367,7 +367,7 @@ NAOS_TEST(parse_count_nine_times_is_clamped_to_eight)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, f.jobs), 8);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.jobs), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -381,7 +381,7 @@ NAOS_TEST(parse_flag_then_negation_is_false)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.color), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -395,7 +395,7 @@ NAOS_TEST(parse_negation_then_flag_is_true)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.color), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -410,7 +410,7 @@ NAOS_TEST(parse_cat_tags_default_is_split)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, f.tags, expected, ARRAY_LEN(expected));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.tags), CLOPTS_SOURCE_DEFAULT);
     clopts_result_destroy(result);
@@ -426,7 +426,7 @@ NAOS_TEST(parse_cat_tags_env_is_split)
     clopts_result_t *result;
 
     result = parse_tool_env(&f, argv, vars, ARRAY_LEN(vars));
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, f.tags, expected, ARRAY_LEN(expected));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.tags), CLOPTS_SOURCE_ENV);
     clopts_result_destroy(result);
@@ -442,7 +442,7 @@ NAOS_TEST(parse_cat_tags_explicit_is_split_and_wins)
     clopts_result_t *result;
 
     result = parse_tool_env(&f, argv, vars, ARRAY_LEN(vars));
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, f.tags, expected, ARRAY_LEN(expected));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.tags), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -552,7 +552,7 @@ static void check_nosub_usage(const clopts_result_t *result, char **argv,
                               clopts_usage_error_t usage, const clopts_option_t *option,
                               const clopts_positional_t *positional, int index)
 {
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), usage);
     NAOS_CHECK_NULL(clopts_result_get_error_command(result));
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), option);
@@ -603,7 +603,7 @@ NAOS_TEST(nosub_dashdash_makes_the_rest_positional)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_NULL(clopts_result_get_command(result));
     check_positionals(result, expected, ARRAY_LEN(expected));
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, n.verbose), 0);
@@ -622,7 +622,7 @@ NAOS_TEST(nosub_lone_dash_is_positional)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_positionals(result, expected, ARRAY_LEN(expected));
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, n.output), argv[3]);
     clopts_result_destroy(result);
@@ -639,19 +639,19 @@ NAOS_TEST(nosub_negation_last_occurrence_wins)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv_off, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, n.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.color), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
 
     result = parse_nosub(&n, argv_on, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, n.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.color), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
 
     result = parse_nosub(&n, argv_only_off, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, n.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.color), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -686,7 +686,7 @@ NAOS_TEST(nosub_count_is_clamped_to_count_max)
     nosub_init(&n);
     /* 2 + 1 + 1 + 2 + 1 = 7 occurrences, clamped to 3. */
     result = parse_nosub(&n, argv, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, n.verbose), 3);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.verbose), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, n.output), argv[6]);
@@ -694,7 +694,7 @@ NAOS_TEST(nosub_count_is_clamped_to_count_max)
 
     /* Below the limit the occurrences are counted as they are. */
     result = parse_nosub(&n, argv_two, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, n.verbose), 2);
     clopts_result_destroy(result);
     nosub_free(&n);
@@ -710,7 +710,7 @@ NAOS_TEST(nosub_list_is_concatenated_and_split)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_items(result, n.keys, expected, ARRAY_LEN(expected));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.keys), CLOPTS_SOURCE_EXPLICIT);
     clopts_result_destroy(result);
@@ -725,7 +725,7 @@ NAOS_TEST(nosub_unset_options_are_empty_and_default_applies)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_UINT_EQ(clopts_result_get_list_count(result, n.keys), 0);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.keys), CLOPTS_SOURCE_NONE);
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, n.verbose), 0);
@@ -749,20 +749,20 @@ NAOS_TEST(nosub_env_fallback_and_source)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv, vars, ARRAY_LEN(vars));
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, n.mode), "slow");
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.mode), CLOPTS_SOURCE_ENV);
     clopts_result_destroy(result);
 
     /* An empty variable is still set and wins over the default. */
     result = parse_nosub(&n, argv, empty, ARRAY_LEN(empty));
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, n.mode), "");
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.mode), CLOPTS_SOURCE_ENV);
     clopts_result_destroy(result);
 
     result = parse_nosub(&n, argv_explicit, vars, ARRAY_LEN(vars));
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, n.mode), argv_explicit[4] + 7);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, n.mode), "eager");
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, n.mode), CLOPTS_SOURCE_EXPLICIT);
@@ -804,7 +804,7 @@ NAOS_TEST(nosub_missing_required_positional)
 
     /* The optional variadic REST accepts zero tokens. */
     result = parse_nosub(&n, argv_src_only, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_positionals(result, expected, ARRAY_LEN(expected));
     clopts_result_destroy(result);
     nosub_free(&n);
@@ -813,7 +813,7 @@ NAOS_TEST(nosub_missing_required_positional)
 /* Checks that result is TERMINATED by terminal (recorded as given), without a command. */
 static void check_nosub_terminated(const clopts_result_t *result, const clopts_option_t *terminal)
 {
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_TERMINATED);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_TERMINATED);
     NAOS_CHECK_PTR_EQ(clopts_result_get_terminal_option(result), terminal);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, terminal));
     NAOS_CHECK_NULL(clopts_result_get_command(result));
@@ -879,13 +879,13 @@ NAOS_TEST(nosub_version_consumed_as_value_or_after_dashdash_is_not_a_request)
 
     nosub_init(&n);
     result = parse_nosub(&n, argv_value, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, n.output), argv_value[2]);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, n.version));
     clopts_result_destroy(result);
 
     result = parse_nosub(&n, argv_dashdash, NULL, 0);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_positionals(result, expected, ARRAY_LEN(expected));
     clopts_result_destroy(result);
 

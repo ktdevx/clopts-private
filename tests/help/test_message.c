@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite message: the texts of every usage error kind, the out-of-memory
- * line, the prefixes, the texts of clopts_error_get_message() and the
+ * line, the prefixes, the texts of clopts_decl_error_get_message() and the
  * coverage of the text tables.
  *
  * The usage errors are caused by parsing real argv against the fictional
@@ -41,7 +41,7 @@ static clopts_env_status_t message_env_unset(void *ctx, const char *name, const 
 /* What message_parse_and_write observed. */
 typedef struct message_run
 {
-    clopts_status_t status;       /* status of the result */
+    clopts_parse_status_t status;       /* status of the result */
     clopts_usage_error_t usage;   /* usage error kind of the result */
     clopts_write_status_t write;  /* return value of clopts_write_error */
     help_recorder_t rec;          /* the bytes written */
@@ -75,7 +75,7 @@ NAOS_TEST(unknown_command_names_the_token)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_COMMAND);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -92,7 +92,7 @@ NAOS_TEST(unknown_long_option_names_the_part_before_the_equals_sign)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_OPTION);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -125,7 +125,7 @@ NAOS_TEST(unknown_short_option_in_a_group_names_the_character)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_OPTION);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -143,7 +143,7 @@ NAOS_TEST(unknown_non_ascii_byte_in_a_group_names_the_whole_token)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNKNOWN_OPTION);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -176,7 +176,7 @@ NAOS_TEST(missing_value_names_the_short_form_as_written)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_VALUE);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -225,7 +225,7 @@ NAOS_TEST(unexpected_value_names_the_long_name_of_the_option)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNEXPECTED_VALUE);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -261,7 +261,7 @@ NAOS_TEST(unexpected_value_to_a_terminal_option_names_the_part_before_the_equals
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNEXPECTED_VALUE);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -283,7 +283,7 @@ NAOS_TEST(missing_option_names_the_long_name)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -300,13 +300,13 @@ NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
     message_run_t run;
 
     target = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 't');
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_ERROR_NONE);
+    NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_DECL_ERROR_NONE);
     target = test_decl_global_attach(program, target);
     program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_NOT_NULL(target);
     message_parse_and_write(program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -323,7 +323,7 @@ NAOS_TEST(missing_argument_names_the_positional)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -356,7 +356,7 @@ NAOS_TEST(unexpected_argument_names_the_token)
     help_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
     message_parse_and_write(f.program, MESSAGE_ARGC(argv), argv, 0u, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(run.usage, CLOPTS_USAGE_UNEXPECTED_ARGUMENT);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_OK);
     NAOS_CHECK_MEM_EQ(run.rec.buf, run.rec.len, expected, strlen(expected));
@@ -427,28 +427,28 @@ NAOS_TEST(statuses_without_an_error_are_unavailable)
     NAOS_REQUIRE_NOT_NULL(f.program);
 
     message_parse_and_write(f.program, MESSAGE_ARGC(argv_ok), argv_ok, MESSAGE_PREFIX_BOTH, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
 
     message_parse_and_write(f.program, MESSAGE_ARGC(argv_help), argv_help, MESSAGE_PREFIX_BOTH, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_TERMINATED);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_TERMINATED);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
 
     message_parse_and_write(f.program, MESSAGE_ARGC(argv_version), argv_version, MESSAGE_PREFIX_BOTH, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_TERMINATED);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_TERMINATED);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
 
     /* A terminal option after a usage error replaces the error: there is no error line. */
     message_parse_and_write(f.program, MESSAGE_ARGC(argv_recovered), argv_recovered, MESSAGE_PREFIX_BOTH, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_TERMINATED);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_TERMINATED);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
 
     message_parse_and_write(f.program, MESSAGE_ARGC(argv_no_command), argv_no_command, MESSAGE_PREFIX_BOTH, &run);
-    NAOS_CHECK_INT_EQ(run.status, CLOPTS_NO_COMMAND);
+    NAOS_CHECK_INT_EQ(run.status, CLOPTS_PARSE_NO_COMMAND);
     NAOS_CHECK_INT_EQ(run.write, CLOPTS_WRITE_UNAVAILABLE);
     NAOS_CHECK_UINT_EQ(run.rec.calls, 0);
 
@@ -591,33 +591,33 @@ NAOS_TEST(decl_error_message_of_every_kind)
 {
     static const struct
     {
-        clopts_error_t kind;
+        clopts_decl_error_t kind;
         const char *text;
     } cases[] = {
-        { CLOPTS_ERROR_INVALID_NAME, "invalid name" },
-        { CLOPTS_ERROR_NO_NAME, "option has neither a long nor a short name" },
-        { CLOPTS_ERROR_DUPLICATE_COMMAND, "duplicate command name" },
-        { CLOPTS_ERROR_DUPLICATE_OPTION, "duplicate option name" },
-        { CLOPTS_ERROR_NOT_NEGATABLE, "only a flag can be negatable" },
-        { CLOPTS_ERROR_NEGATION_CONFLICT, "conflicts with the negated form of a flag" },
-        { CLOPTS_ERROR_DEFAULT_NOT_ALLOWED, "a flag or count cannot have a default value" },
-        { CLOPTS_ERROR_ENV_NOT_ALLOWED, "a flag or count cannot have an environment variable" },
-        { CLOPTS_ERROR_REQUIRED_WITH_DEFAULT, "a required option cannot have a default value" },
-        { CLOPTS_ERROR_REQUIRED_NOT_ALLOWED, "a flag or count cannot be required" },
-        { CLOPTS_ERROR_POSITIONAL_ORDER, "a required argument cannot follow an optional one" },
-        { CLOPTS_ERROR_VARIADIC_POSITION, "only the last argument can be variadic" },
-        { CLOPTS_ERROR_ATTRIBUTE_KIND, "attribute does not apply to this kind of option" },
-        { CLOPTS_ERROR_MIXED_LAYOUT, "a program cannot have both arguments and subcommands" },
-        { CLOPTS_ERROR_INVALID_KIND, "invalid option kind" },
-        { CLOPTS_ERROR_INVALID_ARGUMENT, "invalid argument" },
-        { CLOPTS_ERROR_OUT_OF_MEMORY, "out of memory" },
+        { CLOPTS_DECL_ERROR_INVALID_NAME, "invalid name" },
+        { CLOPTS_DECL_ERROR_NO_NAME, "option has neither a long nor a short name" },
+        { CLOPTS_DECL_ERROR_DUPLICATE_COMMAND, "duplicate command name" },
+        { CLOPTS_DECL_ERROR_DUPLICATE_OPTION, "duplicate option name" },
+        { CLOPTS_DECL_ERROR_NOT_NEGATABLE, "only a flag can be negatable" },
+        { CLOPTS_DECL_ERROR_NEGATION_CONFLICT, "conflicts with the negated form of a flag" },
+        { CLOPTS_DECL_ERROR_DEFAULT_NOT_ALLOWED, "a flag or count cannot have a default value" },
+        { CLOPTS_DECL_ERROR_ENV_NOT_ALLOWED, "a flag or count cannot have an environment variable" },
+        { CLOPTS_DECL_ERROR_REQUIRED_WITH_DEFAULT, "a required option cannot have a default value" },
+        { CLOPTS_DECL_ERROR_REQUIRED_NOT_ALLOWED, "a flag or count cannot be required" },
+        { CLOPTS_DECL_ERROR_POSITIONAL_ORDER, "a required argument cannot follow an optional one" },
+        { CLOPTS_DECL_ERROR_VARIADIC_POSITION, "only the last argument can be variadic" },
+        { CLOPTS_DECL_ERROR_ATTRIBUTE_KIND, "attribute does not apply to this kind of option" },
+        { CLOPTS_DECL_ERROR_MIXED_LAYOUT, "a program cannot have both arguments and subcommands" },
+        { CLOPTS_DECL_ERROR_INVALID_KIND, "invalid option kind" },
+        { CLOPTS_DECL_ERROR_INVALID_ARGUMENT, "invalid argument" },
+        { CLOPTS_DECL_ERROR_OUT_OF_MEMORY, "out of memory" },
     };
     size_t i;
 
     NAOS_CHECK_UINT_EQ(sizeof(cases) / sizeof(cases[0]), MESSAGE_DECL_KIND_MAX);
     for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
-        const char *text = clopts_error_get_message(cases[i].kind);
+        const char *text = clopts_decl_error_get_message(cases[i].kind);
 
         NAOS_TRACE_PUSH("kind %d", (int)cases[i].kind);
         NAOS_REQUIRE_NOT_NULL(text);
@@ -638,8 +638,8 @@ NAOS_TEST(decl_error_message_of_a_builder_error)
     NAOS_REQUIRE_NOT_NULL(first);
     second = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "out", '\0');
     NAOS_CHECK_NULL(second);
-    NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_ERROR_DUPLICATE_OPTION);
-    NAOS_CHECK_STR_EQ(clopts_error_get_message(test_decl_last), "duplicate option name");
+    NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
+    NAOS_CHECK_STR_EQ(clopts_decl_error_get_message(test_decl_last), "duplicate option name");
     test_decl_discard(program);
 }
 
@@ -651,9 +651,9 @@ NAOS_TEST(decl_error_message_of_a_mixed_layout)
 
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "FILE"));
-    NAOS_REQUIRE_INT_EQ(clopts_command_create("run", &command), CLOPTS_ERROR_NONE);
-    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_ERROR_MIXED_LAYOUT);
-    NAOS_CHECK_STR_EQ(clopts_error_get_message(CLOPTS_ERROR_MIXED_LAYOUT),
+    NAOS_REQUIRE_INT_EQ(clopts_command_create("run", &command), CLOPTS_DECL_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_DECL_ERROR_MIXED_LAYOUT);
+    NAOS_CHECK_STR_EQ(clopts_decl_error_get_message(CLOPTS_DECL_ERROR_MIXED_LAYOUT),
                       "a program cannot have both arguments and subcommands");
     /* The failed call left the command with the caller. */
     clopts_command_destroy(command);
@@ -688,11 +688,11 @@ NAOS_TEST(decl_error_message_covers_every_kind)
     int i;
     int j;
 
-    NAOS_CHECK_NULL(clopts_error_get_message(CLOPTS_ERROR_NONE));
-    NAOS_CHECK_NULL(clopts_error_get_message((clopts_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
+    NAOS_CHECK_NULL(clopts_decl_error_get_message(CLOPTS_DECL_ERROR_NONE));
+    NAOS_CHECK_NULL(clopts_decl_error_get_message((clopts_decl_error_t)(MESSAGE_DECL_KIND_MAX + 1)));
     for (i = 1; i <= MESSAGE_DECL_KIND_MAX; i++)
     {
-        texts[i] = clopts_error_get_message((clopts_error_t)i);
+        texts[i] = clopts_decl_error_get_message((clopts_decl_error_t)i);
         NAOS_REQUIRE_NOT_NULL(texts[i]);
         NAOS_CHECK_TRUE(texts[i][0] != '\0');
         for (j = 1; j < i; j++)

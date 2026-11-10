@@ -87,82 +87,83 @@ static bool scope_has_negation_name(const clopts_scope_t *scope, const char *lon
 }
 
 /* Checks of clopts_scope_add_option(scope, option) against scope, in order. */
-static clopts_error_t scope_check_option(const clopts_scope_t *scope, const clopts_option_t *option)
+static clopts_decl_error_t scope_check_option(const clopts_scope_t *scope, const clopts_option_t *option)
 {
     const char *l = clopts_option_get_long_name(option);
 
     if (clopts_decl_find_conflict(scope, l, clopts_option_get_short_name(option)) != NULL)
     {
-        return CLOPTS_ERROR_DUPLICATE_OPTION;
+        return CLOPTS_DECL_ERROR_DUPLICATE_OPTION;
     }
 
     if ((l != NULL) && (strncmp(l, "no-", 3) == 0) && scope_has_negatable(scope, l + 3, strlen(l) - 3))
     {
-        return CLOPTS_ERROR_NEGATION_CONFLICT;
+        return CLOPTS_DECL_ERROR_NEGATION_CONFLICT;
     }
 
     if (clopts_option_is_negatable(option) && (l != NULL) && scope_has_negation_name(scope, l))
     {
-        return CLOPTS_ERROR_NEGATION_CONFLICT;
+        return CLOPTS_DECL_ERROR_NEGATION_CONFLICT;
     }
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
-clopts_error_t clopts_scope_add_option(clopts_scope_t *scope, clopts_option_t *option)
+clopts_decl_error_t clopts_scope_add_option(clopts_scope_t *scope, clopts_option_t *option)
 {
-    clopts_error_t error;
+    clopts_decl_error_t error;
 
     assert(scope != NULL);
     assert(option != NULL);
 
     error = scope_check_option(scope, option);
-    if (error != CLOPTS_ERROR_NONE)
+    if (error != CLOPTS_DECL_ERROR_NONE)
     {
         return error;
     }
-    return (clopts_core_vec_push(&scope->options, &option) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_vec_push(&scope->options, &option) == 0) ? CLOPTS_DECL_ERROR_NONE
+                                                                 : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
 /* Checks of clopts_scope_add_positional(scope, positional) against scope, in order. */
-static clopts_error_t scope_check_positional(const clopts_scope_t *scope, const clopts_positional_t *positional)
+static clopts_decl_error_t scope_check_positional(const clopts_scope_t *scope, const clopts_positional_t *positional)
 {
     const clopts_positional_t *last;
 
     if (scope->positionals.len == 0)
     {
-        return CLOPTS_ERROR_NONE;
+        return CLOPTS_DECL_ERROR_NONE;
     }
 
     last = scope_positional(scope, scope->positionals.len - 1);
     if (clopts_positional_is_variadic(last))
     {
-        return CLOPTS_ERROR_VARIADIC_POSITION;
+        return CLOPTS_DECL_ERROR_VARIADIC_POSITION;
     }
 
     /* The attached ones are in order, so checking the last one is enough. */
     if (clopts_positional_is_required(positional) && !clopts_positional_is_required(last))
     {
-        return CLOPTS_ERROR_POSITIONAL_ORDER;
+        return CLOPTS_DECL_ERROR_POSITIONAL_ORDER;
     }
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
-clopts_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_positional_t *positional)
+clopts_decl_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_positional_t *positional)
 {
-    clopts_error_t error;
+    clopts_decl_error_t error;
 
     assert(scope != NULL);
     assert(positional != NULL);
 
     error = scope_check_positional(scope, positional);
-    if (error != CLOPTS_ERROR_NONE)
+    if (error != CLOPTS_DECL_ERROR_NONE)
     {
         return error;
     }
-    return (clopts_core_vec_push(&scope->positionals, &positional) == 0) ? CLOPTS_ERROR_NONE
-                                                                          : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_vec_push(&scope->positionals, &positional) == 0) ? CLOPTS_DECL_ERROR_NONE
+                                                                          : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
 /* ---- read functions ---- */

@@ -250,7 +250,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
 
     switch (clopts_result_get_status(result))
     {
-    case CLOPTS_USAGE_ERROR:
+    case CLOPTS_PARSE_USAGE_ERROR:
         kind = clopts_result_get_usage_error(result);
         text = clopts_help_usage_text(kind);
         if (text == NULL)
@@ -261,7 +261,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
         message_write_prefix(&out, program, command, flags);
         message_write_usage_body(&out, result, kind, text);
         break;
-    case CLOPTS_OUT_OF_MEMORY:
+    case CLOPTS_PARSE_OUT_OF_MEMORY:
         clopts_help_out_init(&out, write_fn, ctx);
         message_write_prefix(&out, program, NULL, flags);
         clopts_help_out_str(&out, "out of memory");

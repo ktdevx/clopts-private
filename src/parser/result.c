@@ -27,7 +27,7 @@
  */
 struct clopts_result
 {
-    clopts_status_t status;
+    clopts_parse_status_t status;
     const clopts_command_t *command;  /* selected command, or NULL */
     const clopts_option_t *terminal;  /* TERMINATED: the terminal option, else NULL */
     clopts_parser_error_t error;
@@ -43,7 +43,7 @@ struct clopts_result
  * safely because it is a const static object.
  */
 static const struct clopts_result parser_result_sentinel = {
-    .status = CLOPTS_OUT_OF_MEMORY,
+    .status = CLOPTS_PARSE_OUT_OF_MEMORY,
     .command = NULL,
     .terminal = NULL,
     .error = {
@@ -142,7 +142,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
         clopts_core_free(result);
         return NULL;
     }
-    result->status = CLOPTS_OK;
+    result->status = CLOPTS_PARSE_OK;
     result->command = NULL;
     result->terminal = NULL;
     result->error.usage = CLOPTS_USAGE_NONE;
@@ -337,7 +337,7 @@ void clopts_parser_result_set_terminal(clopts_result_t *result, const clopts_opt
     result->terminal = option;
 }
 
-void clopts_parser_result_finish(clopts_result_t *result, clopts_status_t status)
+void clopts_parser_result_finish(clopts_result_t *result, clopts_parse_status_t status)
 {
     assert(result != NULL);
     assert(result != &parser_result_sentinel);
@@ -423,14 +423,14 @@ static const clopts_result_t *result_or_sentinel(const clopts_result_t *result)
 /* Returns true when result carries an error (status USAGE_ERROR). */
 static bool result_has_error(const clopts_result_t *result)
 {
-    return ((result != NULL) && (result->status == CLOPTS_USAGE_ERROR));
+    return ((result != NULL) && (result->status == CLOPTS_PARSE_USAGE_ERROR));
 }
 
 /* Returns true when the value accessors of result are meaningful (status OK, TERMINATED or NO_COMMAND). */
 static bool result_has_values(const clopts_result_t *result)
 {
-    return ((result->status == CLOPTS_OK) || (result->status == CLOPTS_TERMINATED)
-            || (result->status == CLOPTS_NO_COMMAND));
+    return ((result->status == CLOPTS_PARSE_OK) || (result->status == CLOPTS_PARSE_TERMINATED)
+            || (result->status == CLOPTS_PARSE_NO_COMMAND));
 }
 
 /*
@@ -448,14 +448,14 @@ static const clopts_parser_slot_t *find_slot(const clopts_result_t *result, cons
     {
         return NULL;
     }
-    if (result->status == CLOPTS_NO_COMMAND)
+    if (result->status == CLOPTS_PARSE_NO_COMMAND)
     {
         return slot_of(result->global_slots, result->global_count, option);
     }
     return clopts_parser_result_find_slot((clopts_result_t *)result, option);
 }
 
-clopts_status_t clopts_result_get_status(const clopts_result_t *result)
+clopts_parse_status_t clopts_result_get_status(const clopts_result_t *result)
 {
     return result_or_sentinel(result)->status;
 }
@@ -468,7 +468,7 @@ const clopts_command_t *clopts_result_get_command(const clopts_result_t *result)
 const clopts_option_t *clopts_result_get_terminal_option(const clopts_result_t *result)
 {
     result = result_or_sentinel(result);
-    return (result->status == CLOPTS_TERMINATED) ? result->terminal : NULL;
+    return (result->status == CLOPTS_PARSE_TERMINATED) ? result->terminal : NULL;
 }
 
 clopts_usage_error_t clopts_result_get_usage_error(const clopts_result_t *result)

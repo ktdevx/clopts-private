@@ -26,7 +26,7 @@ struct clopts_positional
     bool variadic;              /* true for the last positional of a command only */
 };
 
-clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
+clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out)
 {
     clopts_positional_t *positional;
 
@@ -36,20 +36,20 @@ clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **
 
     if ((name == NULL) || (name[0] == '\0'))
     {
-        return CLOPTS_ERROR_INVALID_NAME;
+        return CLOPTS_DECL_ERROR_INVALID_NAME;
     }
 
     positional = (clopts_positional_t *)clopts_core_calloc(1, sizeof(*positional));
     if (positional == NULL)
     {
-        return CLOPTS_ERROR_OUT_OF_MEMORY;
+        return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
     }
 
     positional->name = clopts_core_strdup(name);
     if (positional->name == NULL)
     {
         clopts_core_free(positional);
-        return CLOPTS_ERROR_OUT_OF_MEMORY;
+        return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
     }
 
     positional->help = NULL;
@@ -58,7 +58,7 @@ clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **
 
     *out = positional;
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
 void clopts_positional_destroy(clopts_positional_t *positional)
@@ -73,10 +73,11 @@ void clopts_positional_destroy(clopts_positional_t *positional)
     clopts_core_free(positional);
 }
 
-clopts_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help)
+clopts_decl_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help)
 {
     assert(positional != NULL);
-    return (clopts_core_replace_string(&positional->help, help) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&positional->help, help) == 0) ? CLOPTS_DECL_ERROR_NONE
+                                                                      : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
 void clopts_positional_set_required(clopts_positional_t *positional, bool required)

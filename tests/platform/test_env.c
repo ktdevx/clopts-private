@@ -469,13 +469,13 @@ static void platform_env_tool_init(platform_env_tool_t *tool, const char *env_na
 
     tool->program = NULL;
     tool->output = NULL;
-    if (clopts_program_create("tool", &tool->program) != CLOPTS_ERROR_NONE)
+    if (clopts_program_create("tool", &tool->program) != CLOPTS_DECL_ERROR_NONE)
     {
         return;
     }
-    if ((clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_ERROR_NONE)
-        || (clopts_option_set_env(output, env_name) != CLOPTS_ERROR_NONE)
-        || (clopts_program_add_option(tool->program, output) != CLOPTS_ERROR_NONE))
+    if ((clopts_option_create(CLOPTS_OPTION_VALUE, "output", 'o', &output) != CLOPTS_DECL_ERROR_NONE)
+        || (clopts_option_set_env(output, env_name) != CLOPTS_DECL_ERROR_NONE)
+        || (clopts_program_add_option(tool->program, output) != CLOPTS_DECL_ERROR_NONE))
     {
         clopts_option_destroy(output);
         output = NULL;
@@ -509,7 +509,7 @@ NAOS_TEST(parse_with_env_takes_a_utf8_value_from_the_environment)
     NAOS_REQUIRE_NOT_NULL(env);
 
     result = platform_env_tool_parse(&tool, env);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, tool.output), CLOPTS_SOURCE_ENV);
     NAOS_CHECK_NOT_NULL(clopts_result_get_value(result, tool.output));
     if (clopts_result_get_value(result, tool.output) != NULL)
@@ -546,7 +546,7 @@ NAOS_TEST(parse_with_env_leaves_an_unset_variable_unset)
     NAOS_REQUIRE_NOT_NULL(env);
 
     result = platform_env_tool_parse(&tool, env);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, tool.output), CLOPTS_SOURCE_NONE);
     NAOS_CHECK_NULL(clopts_result_get_value(result, tool.output));
     NAOS_CHECK_INT_EQ(clopts_env_get_error(env), CLOPTS_ENV_ERROR_NONE);
@@ -569,7 +569,7 @@ NAOS_TEST(parse_with_env_null_context_ends_with_out_of_memory)
     NAOS_REQUIRE_NOT_NULL(tool.program);
 
     result = platform_env_tool_parse(&tool, NULL);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OUT_OF_MEMORY);
     NAOS_CHECK_NULL(clopts_result_get_value(result, tool.output));
 
     clopts_result_destroy(result);
@@ -1041,7 +1041,7 @@ NAOS_TEST(parse_with_env_invalid_name_ends_with_out_of_memory_and_keeps_the_reas
     NAOS_REQUIRE_NOT_NULL(env);
 
     result = platform_env_tool_parse(&tool, env);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OUT_OF_MEMORY);
     NAOS_CHECK_INT_EQ(clopts_env_get_error(env), CLOPTS_ENV_ERROR_INVALID_NAME);
     NAOS_CHECK_NOT_NULL(clopts_env_get_error_name(env));
     if (clopts_env_get_error_name(env) != NULL)

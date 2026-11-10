@@ -41,14 +41,14 @@
 
 #include "clopts/decl.h"
 
-extern clopts_error_t test_decl_last;
+extern clopts_decl_error_t test_decl_last;
 extern unsigned test_decl_failures;
 
 /* Clears test_decl_last and test_decl_failures. */
 void test_decl_reset(void);
 
 /* Records error (counting it in test_decl_failures unless it is NONE) and returns it. */
-clopts_error_t test_decl_check(clopts_error_t error);
+clopts_decl_error_t test_decl_check(clopts_decl_error_t error);
 
 /* Maximum number of commands test_decl_command() remembers per program. */
 #define TEST_DECL_MAX_COMMANDS 16

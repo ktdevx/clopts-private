@@ -101,7 +101,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program);
 
 /*
  * Returns the out-of-memory sentinel: a static const result with status
- * CLOPTS_OUT_OF_MEMORY, no error (NONE / argv_index -1) and no slots. No
+ * CLOPTS_PARSE_OUT_OF_MEMORY, no error (NONE / argv_index -1) and no slots. No
  * function writes to it and clopts_result_destroy() ignores it.
  */
 clopts_result_t *clopts_parser_result_oom(void);
@@ -146,7 +146,7 @@ void clopts_parser_result_set_error(clopts_result_t *result, const clopts_parser
 void clopts_parser_result_set_terminal(clopts_result_t *result, const clopts_option_t *option);
 
 /* Writes the final status of result. */
-void clopts_parser_result_finish(clopts_result_t *result, clopts_status_t status);
+void clopts_parser_result_finish(clopts_result_t *result, clopts_parse_status_t status);
 
 /*
  * Readers of a result. Unlike the public accessors (clopts/parse.h), they do

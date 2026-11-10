@@ -505,7 +505,7 @@ NAOS_TEST(write_error_stops_after_a_write_failure)
     help_fixture_tool_init(&tool);
     NAOS_REQUIRE_NOT_NULL(tool.program);
     usage_result = clopts_parse_with_env(tool.program, 3, argv, out_env_unset, NULL);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(usage_result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(usage_result), CLOPTS_PARSE_USAGE_ERROR);
     {
         const unsigned both = CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR;
         const out_case_t cases[] = {

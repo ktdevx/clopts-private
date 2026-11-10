@@ -18,7 +18,7 @@
  *      selected.
  *
  * Allocation and environment lookup failures after the result exists end
- * with CLOPTS_OUT_OF_MEMORY on that result, which stays releasable with
+ * with CLOPTS_PARSE_OUT_OF_MEMORY on that result, which stays releasable with
  * clopts_result_destroy(). This file writes the final status of the result;
  * nothing else in the parse does.
  */
@@ -61,10 +61,10 @@ static void parse_run(const clopts_program_t *program, int argc, char *const *ar
     case CLOPTS_PARSER_SCAN_DONE:
         break;
     case CLOPTS_PARSER_SCAN_USAGE_ERROR:
-        clopts_parser_result_finish(result, CLOPTS_USAGE_ERROR);
+        clopts_parser_result_finish(result, CLOPTS_PARSE_USAGE_ERROR);
         return;
     case CLOPTS_PARSER_SCAN_OUT_OF_MEMORY:
-        clopts_parser_result_finish(result, CLOPTS_OUT_OF_MEMORY);
+        clopts_parser_result_finish(result, CLOPTS_PARSE_OUT_OF_MEMORY);
         return;
     }
 
@@ -72,7 +72,7 @@ static void parse_run(const clopts_program_t *program, int argc, char *const *ar
     selected_scope = ((clopts_program_get_command_count(program) == 0) || (clopts_result_get_command(result) != NULL));
     if (clopts_parser_resolve(result, program, getenv_fn, env_ctx, selected_scope) != 0)
     {
-        clopts_parser_result_finish(result, CLOPTS_OUT_OF_MEMORY);
+        clopts_parser_result_finish(result, CLOPTS_PARSE_OUT_OF_MEMORY);
         return;
     }
 
@@ -80,19 +80,19 @@ static void parse_run(const clopts_program_t *program, int argc, char *const *ar
     if (terminal != NULL)
     {
         clopts_parser_result_set_terminal(result, terminal);
-        clopts_parser_result_finish(result, CLOPTS_TERMINATED);
+        clopts_parser_result_finish(result, CLOPTS_PARSE_TERMINATED);
         return;
     }
 
     /* 6. */
     if (clopts_parser_check_required(result, program, selected_scope) != 0)
     {
-        clopts_parser_result_finish(result, CLOPTS_USAGE_ERROR);
+        clopts_parser_result_finish(result, CLOPTS_PARSE_USAGE_ERROR);
         return;
     }
 
     /* 7. */
-    clopts_parser_result_finish(result, selected_scope ? CLOPTS_OK : CLOPTS_NO_COMMAND);
+    clopts_parser_result_finish(result, selected_scope ? CLOPTS_PARSE_OK : CLOPTS_PARSE_NO_COMMAND);
 }
 
 /* Shared body of clopts_parse() and clopts_parse_with_env(). */

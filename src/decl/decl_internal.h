@@ -66,10 +66,10 @@ void clopts_scope_init(clopts_scope_t *scope);
 void clopts_scope_release(clopts_scope_t *scope);
 
 /* DUPLICATE_OPTION, NEGATION_CONFLICT (in that order) or OUT_OF_MEMORY; on success scope owns option. */
-clopts_error_t clopts_scope_add_option(clopts_scope_t *scope, clopts_option_t *option);
+clopts_decl_error_t clopts_scope_add_option(clopts_scope_t *scope, clopts_option_t *option);
 
 /* VARIADIC_POSITION, POSITIONAL_ORDER (in that order) or OUT_OF_MEMORY; on success scope owns positional. */
-clopts_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_positional_t *positional);
+clopts_decl_error_t clopts_scope_add_positional(clopts_scope_t *scope, clopts_positional_t *positional);
 
 size_t clopts_scope_option_count(const clopts_scope_t *scope);
 /* index must be less than clopts_scope_option_count() (assert). */
