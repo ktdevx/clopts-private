@@ -6,7 +6,7 @@
 #ifndef CLOPTS_TEXT_H
 #define CLOPTS_TEXT_H
 
-#include "clopts/decl_types.h"
+#include "clopts/decl/program.h"
 #include "clopts/base/export.h"
 #include "clopts/parse.h"
 #include "clopts/writer.h"
@@ -19,13 +19,13 @@ extern "C" {
  * Text API: help, Usage line, version line, usage hint and error line of a
  * program. --help and --version are ordinary terminal FLAG options, and a
  * help command is an ordinary subcommand, that the program declares itself
- * (clopts/option.h, clopts/command.h). Every function writes its text through
+ * (clopts/decl/option.h, clopts/decl/command.h). Every function writes its text through
  * write_fn(ctx, ...) only; nothing is written to a stream directly. To write
  * to a FILE*, pass the ready-made callback of clopts/writer.h, e.g.
  * clopts_write_help(program, NULL, clopts_file_write, stdout).
  *
  * This module reads the declaration through the read functions of
- * clopts/decl.h only, like any other user of the library.
+ * clopts/decl/program.h only, like any other user of the library.
  *
  * Preconditions (caught by assert): program and write_fn are not NULL; a
  * command is NULL (the program itself) or a subcommand of program; a result was obtained from

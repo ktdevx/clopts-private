@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Option (clopts/option.h): creation, release and attributes. Everything
+ * Option (clopts/decl/option.h): creation, release and attributes. Everything
  * here depends on the option alone: nothing reads or writes a command or a
  * program. The checks against the other options of the same command are
  * made when the option is attached (command.c).
@@ -14,8 +14,10 @@
  * is a contract violation (assert).
  */
 
-#include "clopts/option.h"
-#include "decl/decl_internal.h"
+#include "clopts/decl/option.h"
+
+#include "base/mem.h"
+#include "decl/name.h"
 
 #include <assert.h>
 
@@ -68,7 +70,7 @@ static clopts_decl_error_t option_check_create(clopts_option_kind_t kind, const 
         return CLOPTS_DECL_ERROR_NO_NAME;
     }
 
-    if (((l != NULL) && (!clopts_decl_valid_long_name(l))) || ((s != '\0') && (!clopts_decl_valid_short_name(s))))
+    if (((l != NULL) && (!clopts_name_valid_long(l))) || ((s != '\0') && (!clopts_name_valid_short(s))))
     {
         return CLOPTS_DECL_ERROR_INVALID_NAME;
     }
@@ -165,7 +167,7 @@ clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *e
             return CLOPTS_DECL_ERROR_ENV_NOT_ALLOWED;
         }
 
-        if (!clopts_decl_valid_env_name(env))
+        if (!clopts_name_valid_env(env))
         {
             return CLOPTS_DECL_ERROR_INVALID_NAME;
         }

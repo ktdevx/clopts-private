@@ -37,7 +37,7 @@ set(_clopts_structure_bad_scan_reads_process
 set(_clopts_structure_bad_base_reads_decl
     "base/vec\\.c:2: base may not include 'decl/'")
 set(_clopts_structure_bad_getenv_outside_process
-    "decl/names\\.c:6: call of getenv outside process")
+    "decl/name\\.c:6: call of getenv outside process")
 set(_clopts_structure_bad_windows_h_outside_process
     "text/out\\.c:2: #include <windows\\.h> outside process")
 set(_clopts_structure_bad_windows_h_outside_win32

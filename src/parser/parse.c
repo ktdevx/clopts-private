@@ -69,10 +69,10 @@ static const clopts_option_t *first_missing_option(const clopts_parser_slot_t *s
 {
     size_t i;
 
-    assert(slot_count == clopts_scope_option_count(scope));
+    assert(slot_count == clopts_scope_get_option_count(scope));
     for (i = 0; i < slot_count; i++)
     {
-        const clopts_option_t *option = clopts_scope_option_at(scope, i);
+        const clopts_option_t *option = clopts_scope_get_option_at(scope, i);
 
         if (clopts_option_is_required(option) && !slot_given(&slots[i]))
         {
@@ -99,7 +99,7 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
     command = include_command ? clopts_result_get_command(result) : NULL;
 
     slots = clopts_parser_result_get_slots(result, true, &slot_count);
-    missing = first_missing_option(slots, slot_count, clopts_program_scope(program));
+    missing = first_missing_option(slots, slot_count, clopts_program_get_scope(program));
     if (missing != NULL)
     {
         set_missing(result, command, missing, NULL);
@@ -113,17 +113,17 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
     if (command != NULL)
     {
         slots = clopts_parser_result_get_slots(result, false, &slot_count);
-        missing = first_missing_option(slots, slot_count, clopts_command_scope(command));
+        missing = first_missing_option(slots, slot_count, clopts_command_get_scope(command));
         if (missing != NULL)
         {
             set_missing(result, command, missing, NULL);
             return -1;
         }
-        positional_scope = clopts_command_scope(command);
+        positional_scope = clopts_command_get_scope(command);
     }
     else if (clopts_program_get_command_count(program) == 0)
     {
-        positional_scope = clopts_program_scope(program);
+        positional_scope = clopts_program_get_scope(program);
     }
     else
     {
@@ -137,9 +137,9 @@ int clopts_parser_check_required(clopts_result_t *result, const clopts_program_t
      * required variadic positional therefore needs at least one token.
      */
     recorded = clopts_parser_result_get_positional_count(result);
-    for (i = 0; i < clopts_scope_positional_count(positional_scope); i++)
+    for (i = 0; i < clopts_scope_get_positional_count(positional_scope); i++)
     {
-        const clopts_positional_t *positional = clopts_scope_positional_at(positional_scope, i);
+        const clopts_positional_t *positional = clopts_scope_get_positional_at(positional_scope, i);
 
         if (clopts_positional_is_required(positional) && (i >= recorded))
         {

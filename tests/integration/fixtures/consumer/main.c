@@ -10,7 +10,7 @@
  *
  * consumer_parse_check() runs declaration -> parse -> lookup -> release with
  * public functions only. consumer_help_check() calls the five text writers
- * of clopts/text.h and clopts_decl_error_get_message() of clopts/decl_error.h
+ * of clopts/text.h and clopts_decl_error_get_message() of clopts/decl/decl_error.h
  * through the umbrella header (in a shared build, each call
  * must resolve against an exported symbol). consumer_argv_check() calls
  * every function of clopts/process/argv.h (clopts_argv_create_from_wide only on Windows)

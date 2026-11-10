@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_DECL_ERROR_H
-#define CLOPTS_DECL_ERROR_H
+#ifndef CLOPTS_DECL_DECL_ERROR_H
+#define CLOPTS_DECL_DECL_ERROR_H
 
 #include "clopts/base/export.h"
 
@@ -57,4 +57,4 @@ CLOPTS_API const char *clopts_decl_error_get_message(clopts_decl_error_t error);
 }
 #endif
 
-#endif /* CLOPTS_DECL_ERROR_H */
+#endif /* CLOPTS_DECL_DECL_ERROR_H */

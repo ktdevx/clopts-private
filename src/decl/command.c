@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Builder of subcommands (clopts/command.h): creation and
+ * Builder of subcommands (clopts/decl/command.h): creation and
  * release, texts, the attach of options and positionals, and the read
  * functions. The options and positionals live in the scope of the command,
  * which makes the checks against the other options and positionals of the
@@ -19,8 +19,11 @@
  * comparisons live in names.c.
  */
 
-#include "clopts/command.h"
-#include "decl/decl_internal.h"
+#include "clopts/decl/command.h"
+
+#include "base/mem.h"
+#include "decl/name.h"
+#include "decl/scope.h"
 
 #include <assert.h>
 
@@ -28,7 +31,7 @@
  * A subcommand. A command does not point to the program it
  * is attached to. Attached, it is owned by that program and read-only.
  * Everything outside this file reads it through the public read functions,
- * or its scope through clopts_command_scope().
+ * or its scope through clopts_command_get_scope().
  */
 struct clopts_command
 {
@@ -46,7 +49,7 @@ clopts_decl_error_t clopts_command_create(const char *name, clopts_command_t **o
 
     *out = NULL;
 
-    if (!clopts_decl_valid_command_name(name))
+    if (!clopts_name_valid_command(name))
     {
         return CLOPTS_DECL_ERROR_INVALID_NAME;
     }
@@ -115,13 +118,13 @@ clopts_decl_error_t clopts_command_add_positional(clopts_command_t *command, clo
     return clopts_scope_add_positional(&command->scope, positional);
 }
 
-const clopts_scope_t *clopts_command_scope(const clopts_command_t *command)
+/* ---- read functions: a NULL command is a contract violation ---- */
+
+const clopts_scope_t *clopts_command_get_scope(const clopts_command_t *command)
 {
     assert(command != NULL);
     return &command->scope;
 }
-
-/* ---- read functions: a NULL command is a contract violation ---- */
 
 const char *clopts_command_get_name(const clopts_command_t *command)
 {
@@ -144,23 +147,13 @@ const char *clopts_command_get_description(const clopts_command_t *command)
 size_t clopts_command_get_option_count(const clopts_command_t *command)
 {
     assert(command != NULL);
-    return clopts_scope_option_count(&command->scope);
+    return clopts_scope_get_option_count(&command->scope);
 }
 
-const clopts_option_t *clopts_command_get_option_at(const clopts_command_t *command, size_t index)
-{
-    assert(command != NULL);
-    return clopts_scope_option_at(&command->scope, index);
-}
 
 size_t clopts_command_get_positional_count(const clopts_command_t *command)
 {
     assert(command != NULL);
-    return clopts_scope_positional_count(&command->scope);
+    return clopts_scope_get_positional_count(&command->scope);
 }
 
-const clopts_positional_t *clopts_command_get_positional_at(const clopts_command_t *command, size_t index)
-{
-    assert(command != NULL);
-    return clopts_scope_positional_at(&command->scope, index);
-}

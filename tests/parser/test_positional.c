@@ -129,8 +129,8 @@ NAOS_TEST(fixture_positionals_are_as_designed)
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
     check_positional(f.file, "FILE", false, true);
-    NAOS_REQUIRE_UINT_EQ(clopts_program_get_positional_count(f.program), 1);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_positional_at(f.program, 0), f.file);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(f.program)), 1);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_program_get_scope(f.program), 0), f.file);
     fixture_filt_free(&f);
 }
 
@@ -142,13 +142,13 @@ NAOS_TEST(fixture_programs_with_commands_have_no_program_positionals)
     fixture_tool_init(&t);
     NAOS_REQUIRE_NOT_NULL(t.program);
     NAOS_REQUIRE_TRUE(t.ok);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(t.program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(t.program)), 0);
     fixture_tool_free(&t);
 
     fixture_strict_init(&s);
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(s.program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(s.program)), 0);
     fixture_strict_free(&s);
 }
 

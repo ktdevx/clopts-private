@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_POSITIONAL_H
-#define CLOPTS_POSITIONAL_H
+#ifndef CLOPTS_DECL_POSITIONAL_H
+#define CLOPTS_DECL_POSITIONAL_H
 
 #include <stdbool.h>
 
-#include "clopts/decl_types.h"
 #include "clopts/base/export.h"
+#include "clopts/decl/decl_error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,8 +18,10 @@ extern "C" {
 /*
  * Positional: creation, release and attributes. A positional is created
  * unattached, configured, and then attached with
- * clopts_command_add_positional() (clopts/command.h), which checks the order.
+ * clopts_command_add_positional() (clopts/decl/command.h), which checks the order.
  */
+
+typedef struct clopts_positional clopts_positional_t;
 
 /* Creates an unattached positional named name (copied, not empty), used in help and messages. */
 CLOPTS_API clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out);
@@ -48,4 +50,4 @@ CLOPTS_API bool clopts_positional_is_variadic(const clopts_positional_t *positio
 }
 #endif
 
-#endif /* CLOPTS_POSITIONAL_H */
+#endif /* CLOPTS_DECL_POSITIONAL_H */

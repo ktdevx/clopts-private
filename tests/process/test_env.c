@@ -25,7 +25,7 @@
 
 #include "test_alloc.h"
 
-#include "clopts/decl.h"
+#include "clopts/decl/program.h"
 #include "clopts/parse.h"
 
 #include <naos/naos.h>

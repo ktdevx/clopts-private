@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Builder of the program (clopts/program.h): creation and release, the
+ * Builder of the program (clopts/decl/program.h): creation and release, the
  * description, the attach of global options, positionals and subcommands,
  * and the read functions.
  *
@@ -15,8 +15,12 @@
  * allocation has succeeded, so a failing call leaves every handle as it was.
  */
 
-#include "clopts/program.h"
-#include "decl/decl_internal.h"
+#include "clopts/decl/program.h"
+
+#include "base/mem.h"
+#include "base/vec.h"
+#include "decl/name.h"
+#include "decl/scope.h"
 
 #include <assert.h>
 #include <string.h>
@@ -25,7 +29,7 @@
  * A program: its name and description, its own scope (the global options and
  * the positionals of a program without subcommands) and the subcommands, in
  * the order they were added. Everything outside this file reads it through
- * the public read functions, or its scope through clopts_program_scope().
+ * the public read functions.
  */
 struct clopts_program
 {
@@ -48,7 +52,7 @@ clopts_decl_error_t clopts_program_create(const char *name, clopts_program_t **o
     assert(out != NULL);
     *out = NULL;
 
-    if (!clopts_decl_valid_command_name(name))
+    if (!clopts_name_valid_command(name))
     {
         return CLOPTS_DECL_ERROR_INVALID_NAME;
     }
@@ -128,7 +132,7 @@ clopts_decl_error_t clopts_program_add_command(clopts_program_t *program, clopts
     {
         return CLOPTS_DECL_ERROR_DUPLICATE_COMMAND;
     }
-    if (clopts_scope_positional_count(&program->scope) > 0)
+    if (clopts_scope_get_positional_count(&program->scope) > 0)
     {
         return CLOPTS_DECL_ERROR_MIXED_LAYOUT;
     }
@@ -136,13 +140,13 @@ clopts_decl_error_t clopts_program_add_command(clopts_program_t *program, clopts
                                                                       : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
-const clopts_scope_t *clopts_program_scope(const clopts_program_t *program)
+/* ---- read functions: a NULL program is a contract violation ---- */
+
+const clopts_scope_t *clopts_program_get_scope(const clopts_program_t *program)
 {
     assert(program != NULL);
     return &program->scope;
 }
-
-/* ---- read functions: a NULL program is a contract violation ---- */
 
 const char *clopts_program_get_name(const clopts_program_t *program)
 {
@@ -159,26 +163,16 @@ const char *clopts_program_get_description(const clopts_program_t *program)
 size_t clopts_program_get_option_count(const clopts_program_t *program)
 {
     assert(program != NULL);
-    return clopts_scope_option_count(&program->scope);
+    return clopts_scope_get_option_count(&program->scope);
 }
 
-const clopts_option_t *clopts_program_get_option_at(const clopts_program_t *program, size_t index)
-{
-    assert(program != NULL);
-    return clopts_scope_option_at(&program->scope, index);
-}
 
 size_t clopts_program_get_positional_count(const clopts_program_t *program)
 {
     assert(program != NULL);
-    return clopts_scope_positional_count(&program->scope);
+    return clopts_scope_get_positional_count(&program->scope);
 }
 
-const clopts_positional_t *clopts_program_get_positional_at(const clopts_program_t *program, size_t index)
-{
-    assert(program != NULL);
-    return clopts_scope_positional_at(&program->scope, index);
-}
 
 size_t clopts_program_get_command_count(const clopts_program_t *program)
 {

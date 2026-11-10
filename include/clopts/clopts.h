@@ -8,7 +8,7 @@
 
 #include "clopts/base/allocator.h"
 #include "clopts/process/argv.h"
-#include "clopts/decl.h"
+#include "clopts/decl/program.h"
 #include "clopts/process/env.h"
 #include "clopts/parse.h"
 #include "clopts/text.h"

@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "clopts/decl_types.h"
+#include "clopts/decl/program.h"
 #include "clopts/process/env.h"
 #include "clopts/base/export.h"
 
@@ -20,13 +20,13 @@ extern "C" {
 /*
  * Parse API. clopts_parse*() return a result handle that is read with the
  * accessors below and released with clopts_result_destroy(). A program built
- * with the builder functions of clopts/decl.h is always valid, so a parse
+ * with the builder functions of clopts/decl/program.h is always valid, so a parse
  * never reports a declaration error.
  *
  * Lookup: an option token is looked up in the selected command first and
  * then in the program (the global options). In each of them the exact long
  * name comes first and --no-<name> of a negatable FLAG second, so a name of
- * a command shadows the same global option. The parser knows no built-in
+ * a command shadows the same global option (clopts_scope_shadows_option()). The parser knows no built-in
  * option or command: --help, --version and a help command are ordinary
  * declarations (clopts/text.h).
  *
@@ -59,6 +59,8 @@ extern "C" {
  *
  * Contract violations (caught by assert): an index out of range.
  */
+
+typedef struct clopts_result clopts_result_t;
 
 /* Outcome of a parse. */
 typedef enum clopts_parse_status

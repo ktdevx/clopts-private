@@ -9,7 +9,7 @@
 /*
  * Declaration helpers for the unit tests (tests/support/).
  *
- * They wrap the builder functions of clopts/decl.h so that a test can build a
+ * They wrap the builder functions of clopts/decl/program.h so that a test can build a
  * program in the "handle or NULL" style: each helper returns the new handle,
  * or NULL when the call failed, and accepts NULL handles (giving NULL again).
  * The builder functions themselves do not accept NULL handles (a contract
@@ -39,7 +39,7 @@
  * completely (for example under fault injection).
  */
 
-#include "clopts/decl.h"
+#include "clopts/decl/program.h"
 
 extern clopts_decl_error_t test_decl_last;
 extern unsigned test_decl_failures;

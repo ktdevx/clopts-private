@@ -126,57 +126,13 @@ typedef struct text_item
     const char *help;
 } text_item_t;
 
-/*
- * A scope read through the public read functions: the program itself
- * (command == NULL: its global options and positionals) or a subcommand.
- */
-typedef struct text_scope
-{
-    const clopts_program_t *program;
-    const clopts_command_t *command;
-} text_scope_t;
-
-/* The scope of command of program (NULL: the program itself). */
-static text_scope_t text_scope(const clopts_program_t *program, const clopts_command_t *command)
-{
-    text_scope_t scope;
-
-    scope.program = program;
-    scope.command = command;
-    return scope;
-}
-
-static size_t text_option_count(const text_scope_t *scope)
-{
-    return (scope->command != NULL) ? clopts_command_get_option_count(scope->command)
-                                    : clopts_program_get_option_count(scope->program);
-}
-
-static const clopts_option_t *text_option_at(const text_scope_t *scope, size_t index)
-{
-    return (scope->command != NULL) ? clopts_command_get_option_at(scope->command, index)
-                                    : clopts_program_get_option_at(scope->program, index);
-}
-
-static size_t text_positional_count(const text_scope_t *scope)
-{
-    return (scope->command != NULL) ? clopts_command_get_positional_count(scope->command)
-                                    : clopts_program_get_positional_count(scope->program);
-}
-
-static const clopts_positional_t *text_positional_at(const text_scope_t *scope, size_t index)
-{
-    return (scope->command != NULL) ? clopts_command_get_positional_at(scope->command, index)
-                                    : clopts_program_get_positional_at(scope->program, index);
-}
-
 /* Where the declared rows of a list come from. */
 typedef enum text_source_kind
 {
     TEXT_SOURCE_NONE,         /* no declared rows */
     TEXT_SOURCE_OPTIONS,      /* the options of scope, except those shadowed by shadow (when not NULL) */
     TEXT_SOURCE_POSITIONALS,  /* the positionals of scope */
-    TEXT_SOURCE_COMMANDS      /* the subcommands of the program of scope: name and summary as a fixed row */
+    TEXT_SOURCE_COMMANDS      /* the subcommands of program: name and summary as a fixed row */
 } text_source_kind_t;
 
 /*
@@ -186,21 +142,22 @@ typedef enum text_source_kind
 typedef struct text_list
 {
     text_source_kind_t kind;
-    text_scope_t scope;
-    const clopts_command_t *shadow;
+    const clopts_program_t *program;
+    const clopts_scope_t *scope;
+    const clopts_scope_t *shadow;
     const clopts_text_row_t *rows;
     size_t row_count;
 } text_list_t;
 
 /* True when scope has an option with the long name l (exact). */
-static bool text_has_long(const text_scope_t *scope, const char *l)
+static bool text_has_long(const clopts_scope_t *scope, const char *l)
 {
-    size_t count = text_option_count(scope);
+    size_t count = clopts_scope_get_option_count(scope);
     size_t i;
 
     for (i = 0; i < count; i++)
     {
-        const char *name = clopts_option_get_long_name(text_option_at(scope, i));
+        const char *name = clopts_option_get_long_name(clopts_scope_get_option_at(scope, i));
 
         if ((name != NULL) && (strcmp(name, l) == 0))
         {
@@ -210,118 +167,17 @@ static bool text_has_long(const text_scope_t *scope, const char *l)
     return false;
 }
 
-/* True when the long name l is taken in scope: exactly, or as --no-<name> of a negatable FLAG. */
-static bool text_long_taken(const text_scope_t *scope, const char *l)
-{
-    size_t count;
-    size_t i;
-
-    if (text_has_long(scope, l))
-    {
-        return true;
-    }
-    if (strncmp(l, "no-", 3) != 0)
-    {
-        return false;
-    }
-    count = text_option_count(scope);
-    for (i = 0; i < count; i++)
-    {
-        const clopts_option_t *option = text_option_at(scope, i);
-        const char *name = clopts_option_get_long_name(option);
-
-        if ((name != NULL) && clopts_option_is_negatable(option) && (strcmp(name, l + 3) == 0))
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/* True when the short name c is taken in scope. */
-static bool text_short_taken(const text_scope_t *scope, char c)
-{
-    size_t count = text_option_count(scope);
-    size_t i;
-
-    for (i = 0; i < count; i++)
-    {
-        if (clopts_option_get_short_name(text_option_at(scope, i)) == c)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/*
- * True when --no-<l> is taken in scope: by an option named "no-<l>", or as
- * the negation of a negatable FLAG named l.
- */
-static bool text_negation_taken(const text_scope_t *scope, const char *l)
-{
-    size_t count = text_option_count(scope);
-    size_t i;
-
-    for (i = 0; i < count; i++)
-    {
-        const clopts_option_t *option = text_option_at(scope, i);
-        const char *name = clopts_option_get_long_name(option);
-
-        if (name == NULL)
-        {
-            continue;
-        }
-        if ((strncmp(name, "no-", 3) == 0) && (strcmp(name + 3, l) == 0))
-        {
-            return true;
-        }
-        if (clopts_option_is_negatable(option) && (strcmp(name, l) == 0))
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/*
- * True when the global option option is shadowed in command: every form it
- * can be given in (its long name, --no-<long> when it is negatable, its short
- * name) is found in command first, so it cannot be given there.
- */
-static bool text_shadowed(const clopts_option_t *option, const clopts_program_t *program,
-                          const clopts_command_t *command)
-{
-    const text_scope_t scope = text_scope(program, command);
-    const char *l = clopts_option_get_long_name(option);
-    const char s = clopts_option_get_short_name(option);
-
-    if ((l != NULL) && !text_long_taken(&scope, l))
-    {
-        return false;
-    }
-    if ((l != NULL) && clopts_option_is_negatable(option) && !text_negation_taken(&scope, l))
-    {
-        return false;
-    }
-    if ((s != '\0') && !text_short_taken(&scope, s))
-    {
-        return false;
-    }
-    return true;
-}
-
 /* Number of declared elements of the source of list, before any filter. */
 static size_t text_source_len(const text_list_t *list)
 {
     switch (list->kind)
     {
     case TEXT_SOURCE_OPTIONS:
-        return text_option_count(&list->scope);
+        return clopts_scope_get_option_count(list->scope);
     case TEXT_SOURCE_POSITIONALS:
-        return text_positional_count(&list->scope);
+        return clopts_scope_get_positional_count(list->scope);
     case TEXT_SOURCE_COMMANDS:
-        return clopts_program_get_command_count(list->scope.program);
+        return clopts_program_get_command_count(list->program);
     case TEXT_SOURCE_NONE:
     default:
         return 0;
@@ -335,7 +191,7 @@ static bool text_source_listed(const text_list_t *list, size_t index)
     {
         return true;
     }
-    return !text_shadowed(text_option_at(&list->scope, index), list->scope.program, list->shadow);
+    return !clopts_scope_shadows_option(list->shadow, clopts_scope_get_option_at(list->scope, index));
 }
 
 /* Number of declared rows of list. */
@@ -369,14 +225,14 @@ static text_item_t text_source_item(const text_list_t *list, size_t index)
     switch (list->kind)
     {
     case TEXT_SOURCE_OPTIONS:
-        item.option = text_option_at(&list->scope, index);
+        item.option = clopts_scope_get_option_at(list->scope, index);
         break;
     case TEXT_SOURCE_POSITIONALS:
-        item.positional = text_positional_at(&list->scope, index);
+        item.positional = clopts_scope_get_positional_at(list->scope, index);
         break;
     case TEXT_SOURCE_COMMANDS:
     {
-        const clopts_command_t *command = clopts_program_get_command_at(list->scope.program, index);
+        const clopts_command_t *command = clopts_program_get_command_at(list->program, index);
 
         item.left = clopts_command_get_name(command);
         item.help = clopts_command_get_summary(command);
@@ -568,7 +424,8 @@ void clopts_text_write_list(clopts_text_out_t *out, const clopts_text_row_t *row
     assert((count == 0) || (rows != NULL));
 
     list.kind = TEXT_SOURCE_NONE;
-    list.scope = text_scope(NULL, NULL);
+    list.program = NULL;
+    list.scope = NULL;
     list.shadow = NULL;
     list.rows = rows;
     list.row_count = count;
@@ -612,7 +469,8 @@ static void text_write_positional_usage(clopts_text_out_t *out, const clopts_pos
 static void text_write_usage_line(clopts_text_out_t *out, const clopts_program_t *program,
                                   const clopts_command_t *command)
 {
-    const text_scope_t scope = text_scope(program, command);
+    const clopts_scope_t *scope =
+        (command != NULL) ? clopts_command_get_scope(command) : clopts_program_get_scope(program);
     size_t count;
     size_t i;
 
@@ -629,11 +487,11 @@ static void text_write_usage_line(clopts_text_out_t *out, const clopts_program_t
         return;
     }
     clopts_text_out_str(out, " [<options>]");
-    count = text_positional_count(&scope);
+    count = clopts_scope_get_positional_count(scope);
     for (i = 0; i < count; i++)
     {
         clopts_text_out_char(out, ' ');
-        text_write_positional_usage(out, text_positional_at(&scope, i));
+        text_write_positional_usage(out, clopts_scope_get_positional_at(scope, i));
     }
     clopts_text_out_char(out, '\n');
 }
@@ -659,11 +517,12 @@ static void text_write_list_paragraph(clopts_text_out_t *out, const char *headin
     text_write_rows(out, list);
 }
 
-/* Sets list to the declared rows of kind in scope, with no fixed row. */
-static void text_list_init(text_list_t *list, text_source_kind_t kind, text_scope_t scope,
-                           const clopts_command_t *shadow)
+/* Sets list to the declared rows of kind in scope (or program), with no fixed row. */
+static void text_list_init(text_list_t *list, text_source_kind_t kind, const clopts_program_t *program,
+                           const clopts_scope_t *scope, const clopts_scope_t *shadow)
 {
     list->kind = kind;
+    list->program = program;
     list->scope = scope;
     list->shadow = shadow;
     list->rows = NULL;
@@ -671,27 +530,27 @@ static void text_list_init(text_list_t *list, text_source_kind_t kind, text_scop
 }
 
 /* Writes the Arguments: paragraph of scope, if it has positionals (2.3). */
-static void text_write_arguments(clopts_text_out_t *out, text_scope_t scope)
+static void text_write_arguments(clopts_text_out_t *out, const clopts_scope_t *scope)
 {
     text_list_t list;
 
-    text_list_init(&list, TEXT_SOURCE_POSITIONALS, scope, NULL);
+    text_list_init(&list, TEXT_SOURCE_POSITIONALS, NULL, scope, NULL);
     text_write_list_paragraph(out, "Arguments:", &list);
 }
 
 /* Writes the Options: paragraph of scope, if it has options (1.4, 2.4, 3.3). */
-static void text_write_options(clopts_text_out_t *out, text_scope_t scope)
+static void text_write_options(clopts_text_out_t *out, const clopts_scope_t *scope)
 {
     text_list_t list;
 
-    text_list_init(&list, TEXT_SOURCE_OPTIONS, scope, NULL);
+    text_list_init(&list, TEXT_SOURCE_OPTIONS, NULL, scope, NULL);
     text_write_list_paragraph(out, "Options:", &list);
 }
 
 /* Writes the help of a program with subcommands (1.1 to 1.6). */
 static void text_write_global_help(clopts_text_out_t *out, const clopts_program_t *program)
 {
-    const text_scope_t global = text_scope(program, NULL);
+    const clopts_scope_t *global = clopts_program_get_scope(program);
     const char *description = clopts_program_get_description(program);
     text_list_t commands;
 
@@ -701,13 +560,13 @@ static void text_write_global_help(clopts_text_out_t *out, const clopts_program_
         text_write_text_paragraph(out, description);
     }
 
-    text_list_init(&commands, TEXT_SOURCE_COMMANDS, global, NULL);
+    text_list_init(&commands, TEXT_SOURCE_COMMANDS, program, NULL, NULL);
     text_write_list_paragraph(out, "Commands:", &commands);
 
     text_write_options(out, global);
 
     /* Only when the program has a global --help to point to. */
-    if (text_has_long(&global, "help"))
+    if (text_has_long(global, "help"))
     {
         clopts_text_out_str(out, "\nRun '");
         clopts_text_out_str(out, clopts_program_get_name(program));
@@ -732,10 +591,11 @@ static void text_write_command_help(clopts_text_out_t *out, const clopts_program
     {
         text_write_text_paragraph(out, summary);
     }
-    text_write_arguments(out, text_scope(program, command));
-    text_write_options(out, text_scope(program, command));
+    text_write_arguments(out, clopts_command_get_scope(command));
+    text_write_options(out, clopts_command_get_scope(command));
 
-    text_list_init(&globals, TEXT_SOURCE_OPTIONS, text_scope(program, NULL), command);
+    text_list_init(&globals, TEXT_SOURCE_OPTIONS, NULL, clopts_program_get_scope(program),
+                   clopts_command_get_scope(command));
     text_write_list_paragraph(out, "Global Options:", &globals);
 }
 
@@ -749,8 +609,8 @@ static void text_write_single_help(clopts_text_out_t *out, const clopts_program_
     {
         text_write_text_paragraph(out, description);
     }
-    text_write_arguments(out, text_scope(program, NULL));
-    text_write_options(out, text_scope(program, NULL));
+    text_write_arguments(out, clopts_program_get_scope(program));
+    text_write_options(out, clopts_program_get_scope(program));
 }
 
 /* ---- public functions -------------------------------------------------- */

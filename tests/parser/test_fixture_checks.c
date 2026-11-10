@@ -28,8 +28,8 @@ static const clopts_command_t *command_at(const clopts_program_t *program, size_
 /* The global option index of program; the test stops when there is none. */
 static const clopts_option_t *global_at(const clopts_program_t *program, size_t index)
 {
-    NAOS_REQUIRE_UINT_GT(clopts_program_get_option_count(program), index);
-    return clopts_program_get_option_at(program, index);
+    NAOS_REQUIRE_UINT_GT(clopts_scope_get_option_count(clopts_program_get_scope(program)), index);
+    return clopts_scope_get_option_at(clopts_program_get_scope(program), index);
 }
 
 /* Checks that actual is NULL when expected is NULL, and the same string otherwise. */
@@ -86,8 +86,8 @@ static void check_option(const clopts_program_t *program, const clopts_option_t 
     }
     else
     {
-        NAOS_REQUIRE_UINT_GT(clopts_command_get_option_count(expected->command), expected->index);
-        NAOS_CHECK_PTR_EQ(clopts_command_get_option_at(expected->command, expected->index), option);
+        NAOS_REQUIRE_UINT_GT(clopts_scope_get_option_count(clopts_command_get_scope(expected->command)), expected->index);
+        NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_command_get_scope(expected->command), expected->index), option);
     }
     NAOS_CHECK_INT_EQ(clopts_option_get_kind(option), expected->kind);
     check_str_or_null(clopts_option_get_long_name(option), expected->long_name);
@@ -114,13 +114,13 @@ static void check_positional(const clopts_positional_t *positional, const clopts
     NAOS_REQUIRE_NOT_NULL(positional);
     if (command == NULL)
     {
-        NAOS_REQUIRE_UINT_GT(clopts_program_get_positional_count(program), index);
-        NAOS_CHECK_PTR_EQ(clopts_program_get_positional_at(program, index), positional);
+        NAOS_REQUIRE_UINT_GT(clopts_scope_get_positional_count(clopts_program_get_scope(program)), index);
+        NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_program_get_scope(program), index), positional);
     }
     else
     {
-        NAOS_REQUIRE_UINT_GT(clopts_command_get_positional_count(command), index);
-        NAOS_CHECK_PTR_EQ(clopts_command_get_positional_at(command, index), positional);
+        NAOS_REQUIRE_UINT_GT(clopts_scope_get_positional_count(clopts_command_get_scope(command)), index);
+        NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_command_get_scope(command), index), positional);
     }
     NAOS_CHECK_STR_EQ(clopts_positional_get_name(positional), name);
     NAOS_CHECK_STR_EQ(clopts_positional_get_help(positional), help);
@@ -183,8 +183,8 @@ NAOS_TEST(fixture_tool_declaration)
     NAOS_REQUIRE_TRUE(f.ok);
 
     check_program(program, "tool", "A fictional tool with subcommands.");
-    NAOS_CHECK_UINT_EQ(clopts_program_get_option_count(program), 5);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(program)), 5);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(program)), 0);
 
     {
         const expected_option_t verbose = {NULL, 0, CLOPTS_OPTION_COUNT, "verbose", 'v', "Increase verbosity.",
@@ -211,8 +211,8 @@ NAOS_TEST(fixture_tool_declaration)
     check_command(f.cat, program, 2, "cat", "Show files.");
     check_command(f.help_command, program, 3, "help", "Show help for a command");
 
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(f.build), 3);
-    NAOS_CHECK_UINT_EQ(clopts_command_get_positional_count(f.build), 2);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(f.build)), 3);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(f.build)), 2);
     {
         const expected_option_t output = {f.build, 0, CLOPTS_OPTION_VALUE, "output", 'o', "Output file.",
                                           "FILE", NULL, NULL, '\0', 0, true, false, false};
@@ -228,13 +228,13 @@ NAOS_TEST(fixture_tool_declaration)
     check_positional(f.build_src, program, f.build, 0, "SRC", "Source to build.", true, false);
     check_positional(f.build_extra, program, f.build, 1, "EXTRA", "Extra inputs.", false, true);
 
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(f.copy), 0);
-    NAOS_CHECK_UINT_EQ(clopts_command_get_positional_count(f.copy), 2);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(f.copy)), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(f.copy)), 2);
     check_positional(f.copy_src, program, f.copy, 0, "SRC", "Source.", true, false);
     check_positional(f.copy_dst, program, f.copy, 1, "DST", "Destination.", true, false);
 
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(f.cat), 1);
-    NAOS_CHECK_UINT_EQ(clopts_command_get_positional_count(f.cat), 1);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(f.cat)), 1);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(f.cat)), 1);
     {
         const expected_option_t tags = {f.cat, 0, CLOPTS_OPTION_LIST, "tags", '\0', "Tags to show.",
                                         "TAG", "a,b", "TOOL_TAGS", ',', 0, false, false, false};
@@ -243,9 +243,9 @@ NAOS_TEST(fixture_tool_declaration)
     }
     check_positional(f.cat_file, program, f.cat, 0, "FILE", "Files to show.", false, true);
 
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(f.help_command), 0);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_get_positional_count(f.help_command), 1);
-    check_positional(clopts_command_get_positional_at(f.help_command, 0), program, f.help_command, 0, "COMMAND",
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(f.help_command)), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(f.help_command)), 1);
+    check_positional(clopts_scope_get_positional_at(clopts_command_get_scope(f.help_command), 0), program, f.help_command, 0, "COMMAND",
                      "Command to show help for", false, false);
 
     fixture_tool_free(&f);
@@ -263,8 +263,8 @@ NAOS_TEST(fixture_filt_declaration)
 
     check_program(program, "filt", "A fictional filter without subcommands.");
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(program), 0);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_option_count(program), 2);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(program), 1);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(program)), 2);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(program)), 1);
     {
         const expected_option_t lines = {NULL, 0, CLOPTS_OPTION_VALUE, "lines", 'n', "Number of lines.",
                                          "N", "10", "FILT_LINES", '\0', 0, false, false, false};
@@ -290,8 +290,8 @@ NAOS_TEST(fixture_strict_declaration)
     NAOS_REQUIRE_TRUE(f.ok);
 
     check_program(program, "strict", "A fictional program with a required global option.");
-    NAOS_CHECK_UINT_EQ(clopts_program_get_option_count(program), 2);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(program)), 2);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(program)), 0);
     {
         const expected_option_t token = {NULL, 0, CLOPTS_OPTION_VALUE, "token", '\0', "Access token.",
                                          "TOKEN", NULL, NULL, '\0', 0, true, false, false};
@@ -304,8 +304,8 @@ NAOS_TEST(fixture_strict_declaration)
 
     NAOS_REQUIRE_UINT_EQ(clopts_program_get_command_count(program), 1);
     check_command(f.run, program, 0, "run", "Run it.");
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(f.run), 0);
-    NAOS_CHECK_UINT_EQ(clopts_command_get_positional_count(f.run), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(f.run)), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(f.run)), 0);
 
     fixture_strict_free(&f);
 }

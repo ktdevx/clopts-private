@@ -10,16 +10,17 @@
 #include "base/mem.h"
 #include "base/size.h"
 #include "base/vec.h"
-#include "decl/decl_internal.h"
+#include "decl/lookup.h"
 
 /*
  * Internal contracts of the parser module, shared by the entry of parsing
- * and its required checks (parse.c), the scanner and its lookups (scan.c),
- * the resolver (resolve.c) and the result handle (result.c). The parser reads a declaration through the public read
- * functions and the scope functions of the decl module
- * (decl/decl_internal.h), and never writes to it. None of these symbols is
+ * and its required checks (parse.c), the scanner (scan.c), the resolver
+ * (resolve.c) and the result handle (result.c). The parser reads a
+ * declaration through the public read functions and looks written names up
+ * with the lookup of the decl module (decl/lookup.h); it never writes to a
+ * declaration. None of these symbols is
  * exported from the shared library. Every allocation goes through the
- * allocation gateway of core (clopts_mem_alloc and the others,
+ * allocation gateway of base (clopts_mem_alloc and the others,
  * base/mem.h).
  */
 
@@ -31,18 +32,6 @@
  * and its source are always updated together, and value == owned whenever
  * owned is not NULL.
  */
-
-/*
- * Where a looked-up option was found: the scanner (scan.c) looks an option
- * up by name and finds its slot through this.
- */
-typedef struct clopts_parser_ref
-{
-    const clopts_option_t *option;  /* NULL when not found */
-    bool global;                    /* true: the program, false: the selected command */
-    size_t index;                   /* index in that scope */
-    bool negated;                   /* found through --no-<name> */
-} clopts_parser_ref_t;
 
 /* Recorded state of one option. */
 typedef struct clopts_parser_slot
@@ -92,7 +81,7 @@ clopts_result_t *clopts_parser_result_oom(void);
 int clopts_parser_result_select(clopts_result_t *result, const clopts_command_t *command);
 
 /* Returns the slot of the option referred to by ref. */
-clopts_parser_slot_t *clopts_parser_result_slot(clopts_result_t *result, const clopts_parser_ref_t *ref);
+clopts_parser_slot_t *clopts_parser_result_slot(clopts_result_t *result, const clopts_lookup_t *ref);
 
 /* FLAG: records value (false when negated) with source; the last one wins. */
 void clopts_parser_slot_set_flag(clopts_parser_slot_t *slot, bool value, clopts_source_t source);

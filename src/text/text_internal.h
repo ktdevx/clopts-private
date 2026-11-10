@@ -6,7 +6,7 @@
 #ifndef CLOPTS_TEXT_INTERNAL_H
 #define CLOPTS_TEXT_INTERNAL_H
 
-#include "clopts/decl.h"
+#include "clopts/decl/program.h"
 #include "clopts/text.h"
 #include "clopts/writer.h"
 #include "base/mem.h"
@@ -16,7 +16,7 @@
 /*
  * Internal declarations of the text module, shared by its source files and
  * its tests (tests/text/). The text module reads the declaration through the
- * public read functions of clopts/decl.h only; it does not see the internal
+ * public read functions of clopts/decl/program.h only; it does not see the internal
  * model of the parser.
  */
 

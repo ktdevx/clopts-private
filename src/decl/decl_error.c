@@ -5,7 +5,7 @@
  * The descriptions of the declaration errors, generated from CLOPTS_DECL_ERROR_LIST.
  */
 
-#include "clopts/decl_error.h"
+#include "clopts/decl/decl_error.h"
 
 #include <stddef.h>
 

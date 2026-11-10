@@ -266,9 +266,9 @@ static bool is_global_option(const clopts_program_t *program, const clopts_optio
 {
     size_t i;
 
-    for (i = 0; i < clopts_program_get_option_count(program); i++)
+    for (i = 0; i < clopts_scope_get_option_count(clopts_program_get_scope(program)); i++)
     {
-        if (clopts_program_get_option_at(program, i) == option)
+        if (clopts_scope_get_option_at(clopts_program_get_scope(program), i) == option)
         {
             return true;
         }
@@ -290,7 +290,7 @@ static void check_partial_tool(const fixture_tool_t *t)
     NAOS_REQUIRE_NOT_NULL(t->program);
     NAOS_CHECK_FALSE(t->ok);
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(t->program), 0);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(t->program), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(t->program)), 0);
     NAOS_CHECK_STR_EQ(clopts_program_get_name(t->program), "tool");
     NAOS_CHECK_NULL(t->build);
     NAOS_CHECK_NULL(t->copy);
@@ -442,8 +442,8 @@ static void view_take(program_view_t *view, const clopts_program_t *program)
     view->present = true;
     snap_copy_text(&view->name, clopts_program_get_name(program));
     snap_copy_text(&view->description, clopts_program_get_description(program));
-    view->option_count = clopts_program_get_option_count(program);
-    view->positional_count = clopts_program_get_positional_count(program);
+    view->option_count = clopts_scope_get_option_count(clopts_program_get_scope(program));
+    view->positional_count = clopts_scope_get_positional_count(clopts_program_get_scope(program));
     view->command_count = clopts_program_get_command_count(program);
 }
 
@@ -547,8 +547,8 @@ NAOS_TEST(sweep_program_builder_calls)
         st.option = test_decl_option(CLOPTS_OPTION_FLAG, name, '\0');
         NAOS_REQUIRE_NOT_NULL(st.option);
         NAOS_CHECK_UINT_EQ(sweep_step(step_add_option, &st), ((i == 0) || (i == 8)) ? 1 : 0);
-        NAOS_REQUIRE_UINT_EQ(clopts_program_get_option_count(st.program), i + 1);
-        NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(st.program, i), st.option);
+        NAOS_REQUIRE_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(st.program)), i + 1);
+        NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(st.program), i), st.option);
     }
 
     for (i = 0; i < BUILD_ATTACHES; i++)
@@ -573,8 +573,8 @@ NAOS_TEST(sweep_program_builder_calls)
         st.positional = test_decl_positional(name);
         NAOS_REQUIRE_NOT_NULL(st.positional);
         NAOS_CHECK_UINT_EQ(sweep_step(step_add_positional, &st), ((i == 0) || (i == 8)) ? 1 : 0);
-        NAOS_REQUIRE_UINT_EQ(clopts_program_get_positional_count(st.flat), i + 1);
-        NAOS_CHECK_PTR_EQ(clopts_program_get_positional_at(st.flat, i), st.positional);
+        NAOS_REQUIRE_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(st.flat)), i + 1);
+        NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_program_get_scope(st.flat), i), st.positional);
     }
 
     clopts_program_destroy(st.program);

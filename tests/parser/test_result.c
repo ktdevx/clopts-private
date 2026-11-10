@@ -107,9 +107,9 @@ static bool index_in(const clopts_scope_t *scope, const clopts_option_t *option,
 {
     size_t i;
 
-    for (i = 0; i < clopts_scope_option_count(scope); i++)
+    for (i = 0; i < clopts_scope_get_option_count(scope); i++)
     {
-        if (clopts_scope_option_at(scope, i) == option)
+        if (clopts_scope_get_option_at(scope, i) == option)
         {
             *index = i;
             return true;
@@ -142,15 +142,15 @@ static size_t test_slot_count(clopts_result_t *result, bool global)
  */
 static clopts_parser_slot_t *slot_of(const sample_t *s, clopts_result_t *result, const clopts_option_t *option)
 {
-    clopts_parser_ref_t ref;
+    clopts_lookup_t ref;
 
     ref.option = option;
     ref.negated = false;
-    ref.global = index_in(clopts_program_scope(s->program), option, &ref.index);
+    ref.global = index_in(clopts_program_get_scope(s->program), option, &ref.index);
     if (!ref.global)
     {
         NAOS_REQUIRE_NOT_NULL(clopts_result_get_command(result));
-        NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(clopts_result_get_command(result)), option, &ref.index));
+        NAOS_REQUIRE_TRUE(index_in(clopts_command_get_scope(clopts_result_get_command(result)), option, &ref.index));
     }
     return clopts_parser_result_slot(result, &ref);
 }
@@ -217,7 +217,7 @@ NAOS_TEST(new_allocates_one_slot_per_global_option)
     {
         /* Slot i records global option i. */
         NAOS_CHECK_PTR_EQ(test_slots(result, true)[i].option,
-                          clopts_program_get_option_at(s.program, i));
+                          clopts_scope_get_option_at(clopts_program_get_scope(s.program), i));
         NAOS_CHECK_INT_EQ(test_slots(result, true)[i].source, CLOPTS_SOURCE_NONE);
         NAOS_CHECK_NULL(test_slots(result, true)[i].value);
         NAOS_CHECK_NULL(test_slots(result, true)[i].owned);
@@ -667,15 +667,15 @@ NAOS_TEST(options_keep_their_attach_position_in_their_command)
     global_options[6] = s.help;
     for (i = 0; i < sizeof(global_options) / sizeof(global_options[0]); i++)
     {
-        NAOS_REQUIRE_TRUE(index_in(clopts_program_scope(s.program), global_options[i], &index));
+        NAOS_REQUIRE_TRUE(index_in(clopts_program_get_scope(s.program), global_options[i], &index));
         NAOS_CHECK_UINT_EQ(index, i);
     }
-    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.build), s.release, &index));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_get_scope(s.build), s.release, &index));
     NAOS_CHECK_UINT_EQ(index, 0);
-    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.build), s.build_output, &index));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_get_scope(s.build), s.build_output, &index));
     NAOS_CHECK_UINT_EQ(index, 1);
     /* copy's --output is at the same position as build's --release. */
-    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.copy), s.copy_output, &index));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_get_scope(s.copy), s.copy_output, &index));
     NAOS_CHECK_UINT_EQ(index, 0);
     clopts_program_destroy(s.program);
     NAOS_CHECK_TRUE(test_alloc_end());
@@ -711,14 +711,14 @@ NAOS_TEST(option_at_the_same_position_elsewhere_reads_as_unset)
     NAOS_REQUIRE_STR_EQ(clopts_result_get_value(result, s.build_output), "out");
 
     /* Same position as a recorded global slot and command slot. */
-    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.build), s.release, &pos_a));
-    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.copy), s.copy_output, &pos_b));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_get_scope(s.build), s.release, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_get_scope(s.copy), s.copy_output, &pos_b));
     NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
-    NAOS_REQUIRE_TRUE(index_in(clopts_program_scope(s.program), s.force, &pos_a));
-    NAOS_REQUIRE_TRUE(index_in(clopts_program_scope(other.program), other.force, &pos_b));
+    NAOS_REQUIRE_TRUE(index_in(clopts_program_get_scope(s.program), s.force, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(clopts_program_get_scope(other.program), other.force, &pos_b));
     NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
-    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(s.build), s.build_output, &pos_a));
-    NAOS_REQUIRE_TRUE(index_in(clopts_command_scope(other.build), other.build_output, &pos_b));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_get_scope(s.build), s.build_output, &pos_a));
+    NAOS_REQUIRE_TRUE(index_in(clopts_command_get_scope(other.build), other.build_output, &pos_b));
     NAOS_REQUIRE_UINT_EQ(pos_a, pos_b);
     /* An option of a command that was not selected. */
     CHECK_UNSET(result, s.copy_output);

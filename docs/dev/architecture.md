@@ -9,8 +9,8 @@
 | モジュール | ディレクトリ | 役割 |
 |------------|--------------|------|
 | base | `src/base/` | ドメインを知らない部品。使うアロケーター（`clopts/base/allocator.h`）と確保の窓口（ライブラリの確保と解放はすべてここを通る）、サイズの計算、可変長配列、UTF-8 の読み取り、`CLOPTS_API`（`clopts/base/export.h`） |
-| decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則と比べ方、宣言エラーの説明 |
-| parser | `src/parser/` | 解析の入口と手順、名前での検索、argv の走査、環境変数と既定値の解決、必須の検査、結果のハンドル |
+| decl | `src/decl/` | 宣言のビルダー（プログラム・コマンド・オプション・位置引数と、その共通部品の Scope）、名前の規則（`name.c`）と 1 つの範囲の中での比べ方（`scope.c`）、書かれた名前がどのオプションを指すか（`lookup.c`）、宣言エラーの説明。公開ヘッダは `clopts/decl/` |
+| parser | `src/parser/` | 解析の入口と手順、argv の走査、環境変数と既定値の解決、必須の検査、結果のハンドル |
 | text | `src/text/` | 利用者向けの文面（ヘルプ・使い方・版・使い方のヒント・エラー）の書き込みのコールバックへの出力と、help サブコマンドの宣言と結果の読み取りの補助 |
 | process | `src/process/` | プロセスの入力（argv と環境変数）を OS から UTF-8 で得る。argv のハンドル（`argv.c`、`clopts/process/argv.h`）、環境変数の参照（`env.c`、`clopts/process/env.h`。プロセスの環境変数の参照は解析の入口が使う）、Windows のコマンドラインの分割（`cmdline.c`）、UTF-16 から UTF-8 への変換（`utf16_win32.c`）。OS ごとの実装は `*_posix.c` と `*_win32.c` に置き、`<windows.h>` を include するのは `*_win32.c` だけである |
 
@@ -30,7 +30,7 @@ flowchart LR
 ```
 
 - decl、parser、text、process は base の内部ヘッダ（`base/mem.h`、`base/vec.h` など）を使う。base はほかのモジュールに依存しない。
-- decl は解析を知らない。parser は decl の内部ヘッダ `decl/decl_internal.h`（Scope の読み取りと名前の比べ方）で宣言を読み、書き込まない。
+- decl は解析を知らない。parser は宣言を公開の読み取り関数で読み、書かれた名前を decl の内部ヘッダ `decl/lookup.h`（選ばれたコマンド、プログラムの順に引く）で引く。宣言には書き込まない。
 - parser は、プロセスの環境変数を process の内部ヘッダ（`clopts_env_lookup` と、その文脈 `clopts_env_t`）で読む。process に依存するのは解析の入口（`parse.c`）だけで、参照のコールバックが渡されなかったときに、文脈を入口のスタックに置いてプロセスの環境変数の参照をつなぎ、解析ごとに作って解放する。走査・解決・検査（`scan.c`、`resolve.c`、`result.c`）は参照のコールバックだけを見て、OS を知らない。プロセスの環境を読むのは process だけである。
 - text は decl と parser の内部ヘッダを読まない。宣言と結果は公開の読み取り関数とアクセサだけで読む。text は、ライブラリの利用者が書けることしかしていない。
 - 各モジュールの内部ヘッダ（`<module>/<module>_internal.h`）の関数は、共有ライブラリから export しない。
@@ -78,7 +78,7 @@ classDiagram
 
 - Program はプログラム自身の範囲である。名前（プログラムの名前）・説明・グローバルオプション・サブコマンドのないプログラムの位置引数を直接持つ。
 - Command はサブコマンドだけを表す。
-- Scope は内部だけの部品（`src/decl/scope.c`、`clopts_scope_t`）で、公開 API には出ない。オプションと位置引数の配列と、それに関わる検査（名前の重なり、否定形との衝突、位置引数の順序）をまとめる。Program と Command はこれを構造体に埋め込み、`clopts_program_scope()` / `clopts_command_scope()` で渡す。
+- Scope（`src/decl/scope.c`、`clopts_scope_t`）は、オプションと位置引数の配列と、それに関わる検査（名前の重なり、否定形との衝突、位置引数の順序）と、1 つの範囲の中での名前の比べ方をまとめる。Program と Command はこれを構造体に埋め込み、`clopts_program_get_scope()` / `clopts_command_get_scope()` で読み取り専用で渡す。公開するのは読み取り（`clopts/decl/scope.h`）だけで、オプションと位置引数を足す関数は持ち主に残す。足すときの規則は持ち主ごとに違う（`MIXED_LAYOUT`）からである。
 - 関係はすべてコンポジション（所有）である。子は親を指さない。オプションと位置引数は自分を渡したプログラムやコマンドを、コマンドは自分を渡したプログラムを知らない。
 - Program が位置引数を持つなら、サブコマンドは持てない（`CLOPTS_DECL_ERROR_MIXED_LAYOUT`）。この排他は型ではなく検査で守る（「[設計の判断](#設計の判断)」）。
 
@@ -92,12 +92,12 @@ classDiagram
 | `clopts_command_t` | `src/decl/command.c` |
 | `clopts_option_t` | `src/decl/option.c` |
 | `clopts_positional_t` | `src/decl/positional.c` |
-| `clopts_scope_t` | `src/decl/decl_internal.h`（Program と Command に埋め込むため。読み書きは `scope.c` の関数だけで行う） |
+| `clopts_scope_t` | `src/decl/scope.h`（Program と Command に埋め込むため。読み書きは `scope.c` の関数だけで行う） |
 | `clopts_result_t` | `src/parser/result.c`（解析のほかのファイルとテストは、`result.c` の関数で読み、記録する） |
 
 読み取り関数に NULL のハンドルを渡すのは契約違反で、`assert` で検出する。
 
-text は公開 API だけを読むので、プログラム自身の範囲とサブコマンドを同じに扱うための小さな値型 `text_scope_t`（`src/text/layout.c`）を持つ。`command` が NULL ならプログラムを表す。
+text は公開 API だけを読む。プログラム自身の範囲とサブコマンドは、どちらも Scope として同じに読む。
 
 ### 検査の置き場所
 
@@ -110,7 +110,7 @@ text は公開 API だけを読むので、プログラム自身の範囲とサ�
 | サブコマンドの名前の重なり | `clopts_program_add_command` |
 | `MIXED_LAYOUT` | `clopts_program_add_command`（位置引数が既にあるとき、名前の重なりの後）と `clopts_program_add_positional`（サブコマンドが既にあるとき、Scope の検査の前） |
 
-名前の規則と比べ方（バイト単位の完全一致）は `src/decl/names.c` にまとめてある。ビルダーの検査も、解析の検索（`src/parser/scan.c`）も、名前はここの関数で比べる。
+名前の規則（名前の形）は `src/decl/name.c` に、1 つの範囲の中での名前の比べ方（バイト単位の完全一致、`--no-<name>`、短い名前）は `src/decl/scope.c` にまとめてある。ビルダーの検査も、解析の検索（`src/decl/lookup.c`）も、ヘルプがグローバルオプションを隠すかの判定（`clopts_scope_shadows_option`）も、名前はここで比べる。
 
 ### 不変条件と契約
 

@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_OPTION_H
-#define CLOPTS_OPTION_H
+#ifndef CLOPTS_DECL_OPTION_H
+#define CLOPTS_DECL_OPTION_H
 
 #include <stdbool.h>
 
-#include "clopts/decl_types.h"
 #include "clopts/base/export.h"
+#include "clopts/decl/decl_error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,10 +18,12 @@ extern "C" {
 /*
  * Option: its kinds, creation, release and attributes. An option is created
  * unattached, configured, and then attached with clopts_command_add_option()
- * (clopts/command.h); it does not know its command. The checks made here
+ * (clopts/decl/command.h); it does not know its command. The checks made here
  * depend on the option alone. Strings are copied; NULL resets. A NULL option
  * passed to a setter is a contract violation (assert).
  */
+
+typedef struct clopts_option clopts_option_t;
 
 /* Kind of an option. */
 typedef enum clopts_option_kind
@@ -111,4 +113,4 @@ CLOPTS_API bool clopts_option_is_terminal(const clopts_option_t *option);
 }
 #endif
 
-#endif /* CLOPTS_OPTION_H */
+#endif /* CLOPTS_DECL_OPTION_H */

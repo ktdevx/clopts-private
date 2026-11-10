@@ -6,13 +6,12 @@
 
 | ヘッダ | 内容 |
 |--------|------|
-| `clopts/decl.h` | 宣言の API 全体（次の 5 つのヘッダをまとめて取り込む） |
-| `clopts/decl_error.h` | エラーの型（`clopts_decl_error_t`）とその説明（`clopts_decl_error_get_message`） |
-| `clopts/decl_types.h` | ハンドルの型と、ビルダー関数に共通の規則 |
-| `clopts/program.h` | プログラムの関数（作成、解放、説明、グローバルオプション・位置引数・サブコマンドを渡す関数、読み取り） |
-| `clopts/command.h` | サブコマンドの関数（作成、解放、説明、オプションと位置引数を渡す関数、読み取り） |
-| `clopts/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（作成、解放、属性、読み取り） |
-| `clopts/positional.h` | 位置引数の関数（作成、解放、属性、読み取り） |
+| `clopts/decl/decl_error.h` | エラーの型（`clopts_decl_error_t`）とその説明（`clopts_decl_error_get_message`） |
+| `clopts/decl/program.h` | プログラムの関数（作成、解放、説明、グローバルオプション・位置引数・サブコマンドを渡す関数、読み取り）と、ビルダー関数に共通の規則。宣言のほかのヘッダをすべて取り込む |
+| `clopts/decl/command.h` | サブコマンドの関数（作成、解放、説明、オプションと位置引数を渡す関数、読み取り） |
+| `clopts/decl/option.h` | オプションの種類（`clopts_option_kind_t`）と、オプションの関数（作成、解放、属性、読み取り） |
+| `clopts/decl/positional.h` | 位置引数の関数（作成、解放、属性、読み取り） |
+| `clopts/decl/scope.h` | プログラム自身とサブコマンドが持つオプションと位置引数の並び（Scope）の読み取り |
 | `clopts/parse.h` | 解析の関数、状態とエラー種別の列挙、結果とエラーのアクセサ |
 | `clopts/process/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse.h` が取り込む |
 | `clopts/text.h` | ヘルプ・使い方・版・エラーの文面を出す関数 |
@@ -36,7 +35,7 @@
 | 読み取り（bool の属性） | `clopts_<型>_is_<属性>` | `clopts_option_is_required` |
 | 書き込み | `clopts_<型>_set_<属性>` | `clopts_option_set_help` |
 | 追加 | `clopts_<型>_add_<要素>` | `clopts_program_add_option` |
-| 要素の数・要素 | `clopts_<型>_get_<要素>_count` / `clopts_<型>_get_<要素>_at` | `clopts_program_get_option_count` |
+| 要素の数・要素 | `clopts_<型>_get_<要素>_count` / `clopts_<型>_get_<要素>_at` | `clopts_scope_get_option_count` |
 | 検索 | `clopts_<型>_find_<対象>` | `clopts_program_find_command` |
 | その他の動作 | 動詞 | `clopts_parse`、`clopts_write_help` |
 
@@ -266,7 +265,7 @@ Run 'taskbook --help' for usage.
 
 ## 宣言
 
-宣言は、実行時にビルダー関数を呼んで組み立てる。宣言の関数は、ハンドルごとに `clopts/program.h`、`clopts/command.h`、`clopts/option.h`、`clopts/positional.h` に分かれており、`clopts/decl.h` で全部を取り込める。プログラムは名前で作り、そこに渡して埋める。オプションと位置引数は単独で作って設定してからプログラムかコマンドに渡し、サブコマンドは単独で作って埋めてからプログラムに渡す。
+宣言は、実行時にビルダー関数を呼んで組み立てる。宣言の関数は、ハンドルごとに `clopts/decl/program.h`、`clopts/decl/command.h`、`clopts/decl/option.h`、`clopts/decl/positional.h` に分かれており、`clopts/decl/program.h` で全部を取り込める。オプションと位置引数の並びは、プログラムとコマンドのどちらが持つものも、Scope（`clopts/decl/scope.h`）として同じ関数で読む。プログラムは名前で作り、そこに渡して埋める。オプションと位置引数は単独で作って設定してからプログラムかコマンドに渡し、サブコマンドは単独で作って埋めてからプログラムに渡す。
 
 ビルダー関数（解放の関数、読み取りの関数、失敗しない `clopts_positional_set_required` と `clopts_positional_set_variadic` を除く）は、どれも `clopts_decl_error_t` を返す。成功なら `CLOPTS_DECL_ERROR_NONE`、失敗ならその理由である（「[失敗の扱い](#失敗の扱い)」）。ハンドルを作る関数は、作ったハンドルを最後の引数 `out` に入れる。
 
@@ -282,8 +281,7 @@ Run 'taskbook --help' for usage.
 | `clopts_program_add_command`（`program, command`） | `command` を、すでに渡したサブコマンドの後ろに渡す。成功するとプログラムが `command` を持ち、`command` はプログラムが解放されるまで読み取り専用で有効になる。失敗すると何も変わらず、`command` は呼び出し側が持ったままになる。失敗の理由は検査の順に、同じ名前のサブコマンドがある（`CLOPTS_DECL_ERROR_DUPLICATE_COMMAND`）、プログラムに位置引数がある（`CLOPTS_DECL_ERROR_MIXED_LAYOUT`） |
 | `clopts_program_get_name`（`program`） | 名前 |
 | `clopts_program_get_description`（`program`） | 説明。設定していなければ NULL |
-| `clopts_program_get_option_count`（`program`）、`clopts_program_get_option_at`（`program, index`） | グローバルオプションの数と、`index` 番目のグローバルオプション（渡した順） |
-| `clopts_program_get_positional_count`（`program`）、`clopts_program_get_positional_at`（`program, index`） | プログラムの位置引数の数と、`index` 番目の位置引数（渡した順） |
+| `clopts_program_get_scope`（`program`） | プログラム自身の Scope（グローバルオプションと、プログラムの位置引数）。プログラムが解放されるまで有効 |
 | `clopts_program_get_command_count`（`program`）、`clopts_program_get_command_at`（`program, index`） | サブコマンドの数と、`index` 番目のサブコマンド（渡した順） |
 | `clopts_program_find_command`（`program, name`） | 名前が `name` と一致する（大文字と小文字を区別し、前方一致はしない）サブコマンド。なければ NULL。NULL の `name` は契約違反で、`assert` で検出される |
 
@@ -303,14 +301,25 @@ NULL のプログラムを読み取りの関数に渡すのは契約違反で、
 | `clopts_command_add_positional`（`command, positional`） | `positional` を、すでに渡した位置引数の後ろに渡す。所有権は `clopts_command_add_option` と同じに移る。失敗の理由は、最後の位置引数が可変長（`CLOPTS_DECL_ERROR_VARIADIC_POSITION`）、必須の位置引数を省略できる位置引数の後ろに渡した（`CLOPTS_DECL_ERROR_POSITIONAL_ORDER`） |
 | `clopts_command_get_name`（`command`） | 名前 |
 | `clopts_command_get_summary`（`command`）、`clopts_command_get_description`（`command`） | 1 行の説明と説明。設定していなければ NULL |
-| `clopts_command_get_option_count`（`command`）、`clopts_command_get_option_at`（`command, index`） | 渡したオプションの数と、`index` 番目のオプション（渡した順） |
-| `clopts_command_get_positional_count`（`command`）、`clopts_command_get_positional_at`（`command, index`） | 渡した位置引数の数と、`index` 番目の位置引数（渡した順） |
+| `clopts_command_get_scope`（`command`） | コマンドの Scope（渡したオプションと位置引数）。コマンドが解放されるまで有効 |
 
 NULL のコマンドを読み取りの関数に渡すのは契約違反で、`assert` で検出される（`assert` が無効なときの動作は未定義）。
 
+### Scope
+
+Scope は、プログラム自身かサブコマンドが持つオプションと位置引数の並びである。プログラムとコマンドのどちらが持つものも、次の関数で同じに読む。Scope は読み取り専用で、オプションと位置引数を渡すのは持ち主（`clopts_program_add_option`、`clopts_command_add_option` など）である。渡すときの規則は持ち主ごとに違う（プログラムはサブコマンドがあると位置引数を持てない）。
+
+| 関数 | 引数と戻り値 |
+|------|--------------|
+| `clopts_scope_get_option_count`（`scope`）、`clopts_scope_get_option_at`（`scope, index`） | オプションの数と、`index` 番目のオプション（渡した順） |
+| `clopts_scope_get_positional_count`（`scope`）、`clopts_scope_get_positional_at`（`scope, index`） | 位置引数の数と、`index` 番目の位置引数（渡した順） |
+| `clopts_scope_shadows_option`（`scope, option`） | `option` を書けるすべての形（長い名前、否定できるなら `--no-<長い名前>`、短い名前）が `scope` のオプションを指すとき true。解析は選ばれたサブコマンドの Scope を先に引くので、サブコマンドの Scope が隠すグローバルオプションは、そのサブコマンドの後ろでは指定できない。名前は解析と同じ規則で比べる（「[名前の規則](#名前の規則)」） |
+
+NULL の Scope とオプションは契約違反で、`assert` で検出される。
+
 サブコマンドに渡したオプションは、そのコマンドのオプションになる。コマンドに渡す関数が検査するのは、そのコマンドの中の関係だけである。グローバルオプションとサブコマンドのオプションの名前が重なってもよく、そのときはサブコマンドの名前がグローバルオプションを隠す（「[名前の規則](#名前の規則)」）。
 
-読み取りの関数（`clopts_command_get_name` などの、`clopts_command_`・`clopts_program_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のプログラム・コマンド・オプション・位置引数は契約違反で、`assert` で検出される（「[プログラム](#プログラム)」「[コマンド](#コマンド)」「[オプションの属性](#オプションの属性)」「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/text.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
+読み取りの関数（`clopts_command_get_name` などの、`clopts_command_`・`clopts_program_`・`clopts_scope_`・`clopts_option_`・`clopts_positional_` で始まり、`_new`・`_free`・`_set_`・`_add_` を含まない関数）は、渡す前でも渡した後でも呼べる。NULL のプログラム・コマンド・オプション・位置引数は契約違反で、`assert` で検出される（「[プログラム](#プログラム)」「[コマンド](#コマンド)」「[オプションの属性](#オプションの属性)」「[位置引数](#位置引数)」を参照）。添字が範囲外なのは契約違反で、`assert` で検出される。`clopts/text.h` の文面の関数も、宣言をこの読み取りの関数だけで読んでいる。
 
 ### オプション
 
@@ -393,7 +402,7 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 - メモリの確保に失敗すると `CLOPTS_DECL_ERROR_OUT_OF_MEMORY` が返る。
 - NULL のハンドルや NULL の `out` を渡すのは契約違反で、`assert` で検出される（`NDEBUG` のビルドでは検査されず、動作は未定義）。エラーは返らない。そのため、作る関数が失敗したら、NULL のハンドルを次の呼び出しに渡さず、その場で後始末して戻る（taskbook と textcount の書き方）。プログラムやコマンドに渡せなかったオプション・位置引数・コマンドは、呼び出し側が解放する。
 - 渡した後のオプション・位置引数・コマンドに属性の関数や渡す関数を呼ぶことと、同じものを 2 回渡すことは検査しない（契約違反で、動作は未定義）。
-- 宣言エラーの短い説明（英語）は、`clopts/decl_error.h` の `clopts_decl_error_get_message` で得られる。
+- 宣言エラーの短い説明（英語）は、`clopts/decl/decl_error.h` の `clopts_decl_error_get_message` で得られる。
 
 解析はプログラムに書き込まない。
 
@@ -619,7 +628,7 @@ taskbook と textcount は、宣言エラーがあれば `<program>: error: inva
 | `clopts_write_usage_hint`（`program, command, write_fn, ctx`） | `Run '<program> [<command>] --help' for usage.` の 1 行 |
 | `clopts_write_error`（`program, result, flags, write_fn, ctx`） | 状態が `CLOPTS_PARSE_USAGE_ERROR`、`CLOPTS_PARSE_OUT_OF_MEMORY` の結果について、エラーの 1 行。それ以外の状態では `CLOPTS_WRITE_UNAVAILABLE` |
 
-宣言エラーの種別の短い説明（英語、静的な文字列）は、`clopts/decl_error.h` の `clopts_decl_error_get_message`（`error`）が返す。`CLOPTS_DECL_ERROR_NONE` と、列挙にない値では NULL を返す。
+宣言エラーの種別の短い説明（英語、静的な文字列）は、`clopts/decl/decl_error.h` の `clopts_decl_error_get_message`（`error`）が返す。`CLOPTS_DECL_ERROR_NONE` と、列挙にない値では NULL を返す。
 
 `clopts_write_error` の `flags` は接頭辞を選ぶ。`CLOPTS_PREFIX_PROGRAM` は `<program>: ` または `<program> <command>: ` を、`CLOPTS_PREFIX_ERROR` は `error: ` を前に付ける。両方を指定するときは `CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR` と書く。定義されていないビットは無視される。メモリ不足の結果では、本文は `out of memory` になる。使い方の案内は `clopts_write_error` の行に含まれないので、必要なら `clopts_write_usage_hint` を続けて呼ぶ。
 

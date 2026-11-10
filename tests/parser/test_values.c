@@ -576,12 +576,12 @@ NAOS_TEST(nosub_declaration_is_valid)
     NAOS_REQUIRE_NOT_NULL(n.program);
     NAOS_REQUIRE_TRUE(n.ok);
     NAOS_CHECK_STR_EQ(clopts_program_get_name(n.program), "nosub");
-    NAOS_REQUIRE_UINT_EQ(clopts_program_get_option_count(n.program), 7);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(n.program, 5), n.help);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(n.program, 6), n.version);
-    NAOS_REQUIRE_UINT_EQ(clopts_program_get_positional_count(n.program), 2);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_positional_at(n.program, 0), n.src);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_positional_at(n.program, 1), n.rest);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(n.program)), 7);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(n.program), 5), n.help);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(n.program), 6), n.version);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(n.program)), 2);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_program_get_scope(n.program), 0), n.src);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_program_get_scope(n.program), 1), n.rest);
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(n.program), 0);
     NAOS_CHECK_TRUE(clopts_option_is_terminal(n.help));
     NAOS_CHECK_TRUE(clopts_option_is_terminal(n.version));

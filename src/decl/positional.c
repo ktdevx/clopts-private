@@ -2,13 +2,14 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Positional (clopts/positional.h): creation, release and attributes.
+ * Positional (clopts/decl/positional.h): creation, release and attributes.
  * Nothing here reads or writes a command or a program; the order of the
  * positionals is checked when one is attached (command.c).
  */
 
-#include "clopts/positional.h"
-#include "decl/decl_internal.h"
+#include "clopts/decl/positional.h"
+
+#include "base/mem.h"
 
 #include <assert.h>
 #include <stdbool.h>

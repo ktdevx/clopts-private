@@ -134,10 +134,10 @@ static int resolve_scope(resolve_state_t *state, clopts_parser_slot_t *slots, si
 {
     size_t i;
 
-    assert(slot_count == clopts_scope_option_count(scope));
+    assert(slot_count == clopts_scope_get_option_count(scope));
     for (i = 0; i < slot_count; i++)
     {
-        if (resolve_slot(state, &slots[i], clopts_scope_option_at(scope, i)) != 0)
+        if (resolve_slot(state, &slots[i], clopts_scope_get_option_at(scope, i)) != 0)
         {
             return -1;
         }
@@ -153,14 +153,14 @@ static int resolve_all(resolve_state_t *state, const clopts_program_t *program, 
     size_t slot_count;
 
     slots = clopts_parser_result_get_slots(state->result, true, &slot_count);
-    if (resolve_scope(state, slots, slot_count, clopts_program_scope(program)) != 0)
+    if (resolve_scope(state, slots, slot_count, clopts_program_get_scope(program)) != 0)
     {
         return -1;
     }
     if (include_command && (command != NULL))
     {
         slots = clopts_parser_result_get_slots(state->result, false, &slot_count);
-        if (resolve_scope(state, slots, slot_count, clopts_command_scope(command)) != 0)
+        if (resolve_scope(state, slots, slot_count, clopts_command_get_scope(command)) != 0)
         {
             return -1;
         }

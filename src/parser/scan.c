@@ -16,105 +16,13 @@
  * Options are looked up by name in the selected command (when there is one)
  * and then in the program, so a name of the command shadows the same global
  * option. In each scope an exact long name comes before --no-<name> of a
- * negatable FLAG. The names themselves are compared by the decl module
- * (decl/names.c).
+ * negatable FLAG. The lookup is the decl module's (decl/lookup.h).
  */
 
 #include "parser/parser_internal.h"
 
 #include <assert.h>
 #include <string.h>
-
-/* ---- lookups ---- */
-
-static clopts_parser_ref_t lookup_no_ref(void)
-{
-    clopts_parser_ref_t ref = { NULL, false, 0, false };
-
-    return ref;
-}
-
-/* Returns a ref to the option at index of scope, or no ref when index is the option count. */
-static clopts_parser_ref_t lookup_ref_at(const clopts_scope_t *scope, bool global, size_t index)
-{
-    clopts_parser_ref_t ref = lookup_no_ref();
-
-    if (index < clopts_scope_option_count(scope))
-    {
-        ref.option = clopts_scope_option_at(scope, index);
-        ref.global = global;
-        ref.index = index;
-    }
-    return ref;
-}
-
-/*
- * Looks the long name up in scope (global tells which one it is). When it is
- * not found exactly, also looks up --no-<name> of a negatable FLAG.
- */
-static clopts_parser_ref_t lookup_long_in(const clopts_scope_t *scope, bool global, const char *name, size_t name_len)
-{
-    clopts_parser_ref_t ref;
-
-    ref = lookup_ref_at(scope, global, clopts_decl_index_of_long(scope, name, name_len));
-    if ((ref.option != NULL) || (name_len <= 3) || (memcmp(name, "no-", 3) != 0))
-    {
-        return ref;
-    }
-    ref = lookup_ref_at(scope, global, clopts_decl_index_of_long(scope, name + 3, name_len - 3));
-    if ((ref.option == NULL) || (clopts_option_get_kind(ref.option) != CLOPTS_OPTION_FLAG)
-        || !clopts_option_is_negatable(ref.option))
-    {
-        return lookup_no_ref();
-    }
-    ref.negated = true;
-    return ref;
-}
-
-/*
- * Looks up the long name given by the name_len bytes at name in selected
- * (the scope of the selected command; NULL when none) and then in global (the
- * scope of the program), so a name of the command shadows the same global
- * option. In each scope the exact long name is looked up first and then,
- * when name starts with "no-", the rest as a negatable FLAG (negated is set).
- */
-static clopts_parser_ref_t lookup_long(const clopts_scope_t *global, const clopts_scope_t *selected,
-                                       const char *name, size_t name_len)
-{
-    clopts_parser_ref_t ref;
-
-    assert((global != NULL) && (name != NULL));
-    if (selected != NULL)
-    {
-        ref = lookup_long_in(selected, false, name, name_len);
-        if (ref.option != NULL)
-        {
-            return ref;
-        }
-    }
-    return lookup_long_in(global, true, name, name_len);
-}
-
-/* Looks up the short name c in selected (NULL when none) and then in global. */
-static clopts_parser_ref_t lookup_short(const clopts_scope_t *global, const clopts_scope_t *selected, char c)
-{
-    clopts_parser_ref_t ref;
-
-    assert(global != NULL);
-    if (c == '\0')
-    {
-        return lookup_no_ref();
-    }
-    if (selected != NULL)
-    {
-        ref = lookup_ref_at(selected, false, clopts_decl_index_of_short(selected, c));
-        if (ref.option != NULL)
-        {
-            return ref;
-        }
-    }
-    return lookup_ref_at(global, true, clopts_decl_index_of_short(global, c));
-}
 
 /* ---- scan ---- */
 
@@ -157,18 +65,6 @@ static void scan_init(scan_state_t *state, const clopts_program_t *program, int 
     state->dashdash = false;
     state->terminal = NULL;
     state->out_of_memory = false;
-}
-
-/* The scope of the program: the global options, and the positionals of a program without subcommands. */
-static const clopts_scope_t *scan_global(const scan_state_t *state)
-{
-    return clopts_program_scope(state->program);
-}
-
-/* The scope of the selected command, or NULL before the selection. */
-static const clopts_scope_t *scan_selected(const scan_state_t *state)
-{
-    return (state->command != NULL) ? clopts_command_scope(state->command) : NULL;
 }
 
 /* True when there is no token left. argc == 0 has no tokens at all. */
@@ -239,7 +135,7 @@ static void scan_select(scan_state_t *state, const clopts_command_t *command)
  * Records a FLAG found through ref (negated or not) given by argv. A
  * terminal one ends the scan, unless it was given as --no-<name>.
  */
-static void scan_flag(scan_state_t *state, const clopts_parser_ref_t *ref)
+static void scan_flag(scan_state_t *state, const clopts_lookup_t *ref)
 {
     clopts_parser_slot_set_flag(clopts_parser_result_slot(state->result, ref), !ref->negated, CLOPTS_SOURCE_EXPLICIT);
     if (clopts_option_is_terminal(ref->option) && !ref->negated)
@@ -256,7 +152,7 @@ static void scan_flag(scan_state_t *state, const clopts_parser_ref_t *ref)
  * none was recorded. VALUE keeps the last one given; LIST appends the split
  * items.
  */
-static clopts_parser_error_t *scan_option_value(scan_state_t *state, const clopts_parser_ref_t *ref,
+static clopts_parser_error_t *scan_option_value(scan_state_t *state, const clopts_lookup_t *ref,
                                                 const char *value, int index)
 {
     clopts_parser_slot_t *slot = clopts_parser_result_slot(state->result, ref);
@@ -301,11 +197,11 @@ static void scan_long_option(scan_state_t *state)
     const char *name = scan_token(state) + 2;
     const size_t name_len = strcspn(name, "=");
     const char *value = (name[name_len] == '=') ? (name + name_len + 1) : NULL;
-    clopts_parser_ref_t ref;
+    clopts_lookup_t ref;
     clopts_parser_error_t *error;
 
     state->pos++;
-    ref = lookup_long(scan_global(state), scan_selected(state), name, name_len);
+    ref = clopts_lookup_long(state->program, state->command, name, name_len);
     if (ref.option == NULL)
     {
         error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, index);
@@ -356,14 +252,14 @@ static void scan_short_option(scan_state_t *state)
 {
     const int index = state->pos;
     const char *chars = scan_token(state) + 1;
-    clopts_parser_ref_t ref;
+    clopts_lookup_t ref;
     clopts_parser_error_t *error;
     size_t i;
 
     state->pos++;
     for (i = 0; chars[i] != '\0'; i++)
     {
-        ref = lookup_short(scan_global(state), scan_selected(state), chars[i]);
+        ref = clopts_lookup_short(state->program, state->command, chars[i]);
         if (ref.option == NULL)
         {
             error = scan_fail(state, CLOPTS_USAGE_UNKNOWN_OPTION, index);
@@ -426,8 +322,8 @@ static void scan_option(scan_state_t *state)
  */
 static void main_positional(scan_state_t *state)
 {
-    const clopts_scope_t *scope = (state->command != NULL) ? scan_selected(state) : scan_global(state);
-    const size_t declared = clopts_scope_positional_count(scope);
+    const clopts_scope_t *scope = (state->command != NULL) ? clopts_command_get_scope(state->command) : clopts_program_get_scope(state->program);
+    const size_t declared = clopts_scope_get_positional_count(scope);
     const size_t taken = clopts_parser_result_get_positional_count(state->result);
     const clopts_positional_t *last;
 
@@ -435,7 +331,7 @@ static void main_positional(scan_state_t *state)
     {
         last = (declared == 0)
                    ? NULL
-                   : clopts_scope_positional_at(scope, declared - 1);
+                   : clopts_scope_get_positional_at(scope, declared - 1);
         if ((last == NULL) || !clopts_positional_is_variadic(last))
         {
             (void)scan_fail(state, CLOPTS_USAGE_UNEXPECTED_ARGUMENT, state->pos);
@@ -559,7 +455,7 @@ static void scan_prelude(scan_state_t *state)
  * scan ("--<long>" with no "=", or "-<c>" alone), or NULL; *ref gets where
  * it was found.
  */
-static const clopts_option_t *recover_terminal(const scan_state_t *state, const char *token, clopts_parser_ref_t *ref)
+static const clopts_option_t *recover_terminal(const scan_state_t *state, const char *token, clopts_lookup_t *ref)
 {
     if ((token[0] != '-') || (token[1] == '\0'))
     {
@@ -571,7 +467,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
         {
             return NULL;
         }
-        *ref = lookup_long(scan_global(state), scan_selected(state), token + 2, strlen(token + 2));
+        *ref = clopts_lookup_long(state->program, state->command, token + 2, strlen(token + 2));
         if (ref->negated)
         {
             return NULL;
@@ -583,7 +479,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
         {
             return NULL;
         }
-        *ref = lookup_short(scan_global(state), scan_selected(state), token[1]);
+        *ref = clopts_lookup_short(state->program, state->command, token[1]);
     }
     if ((ref->option == NULL) || (clopts_option_get_kind(ref->option) != CLOPTS_OPTION_FLAG) || !clopts_option_is_terminal(ref->option))
     {
@@ -607,7 +503,7 @@ static const clopts_option_t *recover_terminal(const scan_state_t *state, const 
  */
 static void scan_recover(scan_state_t *state)
 {
-    clopts_parser_ref_t ref;
+    clopts_lookup_t ref;
     const char *token;
     int i;
 

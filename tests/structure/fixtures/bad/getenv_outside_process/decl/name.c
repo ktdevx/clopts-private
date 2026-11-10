@@ -1,5 +1,5 @@
 /* Bad: only process may read the environment. */
-#include "decl/decl_internal.h"
+#include "decl/scope.h"
 
 static const char *names_value(void)
 {

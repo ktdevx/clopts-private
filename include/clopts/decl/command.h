@@ -3,13 +3,16 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_COMMAND_H
-#define CLOPTS_COMMAND_H
+#ifndef CLOPTS_DECL_COMMAND_H
+#define CLOPTS_DECL_COMMAND_H
 
 #include <stddef.h>
 
-#include "clopts/decl_types.h"
 #include "clopts/base/export.h"
+#include "clopts/decl/decl_error.h"
+#include "clopts/decl/option.h"
+#include "clopts/decl/positional.h"
+#include "clopts/decl/scope.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,10 +22,12 @@ extern "C" {
  * Subcommand: creation, release, texts, the attach of options and
  * positionals, and the read functions. A command is created on its own,
  * filled, and then added to a program with clopts_program_add_command()
- * (clopts/program.h); it does not know its program. The attach functions make
+ * (clopts/decl/program.h); it does not know its program. The attach functions make
  * the checks against the other options and positionals of the same command.
- * The rules shared by every builder function are in clopts/decl_types.h.
+ * The rules shared by every builder function are in clopts/decl/program.h.
  */
+
+typedef struct clopts_command clopts_command_t;
 
 /*
  * Creates an unattached command named name (copied) into *out. The name must
@@ -49,7 +54,7 @@ CLOPTS_API clopts_decl_error_t clopts_command_set_description(clopts_command_t *
  * stays valid (read-only) as long as command does. On failure nothing
  * changes and the caller still owns option: DUPLICATE_OPTION (within
  * command) or NEGATION_CONFLICT (within command). Neither command nor option
- * may be attached already (the behavior is undefined, clopts/decl_types.h).
+ * may be attached already (the behavior is undefined, clopts/decl/program.h).
  */
 CLOPTS_API clopts_decl_error_t clopts_command_add_option(clopts_command_t *command,
                                                          clopts_option_t *option);
@@ -70,17 +75,11 @@ CLOPTS_API const char *clopts_command_get_name(const clopts_command_t *command);
 CLOPTS_API const char *clopts_command_get_summary(const clopts_command_t *command);
 /* NULL when not set. */
 CLOPTS_API const char *clopts_command_get_description(const clopts_command_t *command);
-/* Number of attached options, in the order of attachment. */
-CLOPTS_API size_t clopts_command_get_option_count(const clopts_command_t *command);
-/* index must be less than clopts_command_get_option_count() (caught by assert). */
-CLOPTS_API const clopts_option_t *clopts_command_get_option_at(const clopts_command_t *command, size_t index);
-/* Number of attached positionals, in the order of attachment. */
-CLOPTS_API size_t clopts_command_get_positional_count(const clopts_command_t *command);
-/* index must be less than clopts_command_get_positional_count() (caught by assert). */
-CLOPTS_API const clopts_positional_t *clopts_command_get_positional_at(const clopts_command_t *command, size_t index);
+/* The options and positionals of command (clopts/decl/scope.h). */
+CLOPTS_API const clopts_scope_t *clopts_command_get_scope(const clopts_command_t *command);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CLOPTS_COMMAND_H */
+#endif /* CLOPTS_DECL_COMMAND_H */

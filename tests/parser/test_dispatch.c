@@ -162,41 +162,41 @@ NAOS_TEST(fixture_commands_are_shaped_as_designed)
     NAOS_CHECK_PTR_EQ(clopts_program_find_command(t.program, "copy"), t.copy);
 
     /* Program: the global options, then the terminal options of test_decl.h; no positionals. */
-    NAOS_REQUIRE_UINT_EQ(clopts_program_get_option_count(t.program), 5);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(t.program, 0), t.verbose);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(t.program, 1), t.color);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(t.program, 2), t.config);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(t.program, 3), t.help);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(t.program, 4), t.version);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_positional_count(t.program), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(t.program)), 5);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(t.program), 0), t.verbose);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(t.program), 1), t.color);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(t.program), 2), t.config);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(t.program), 3), t.help);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(t.program), 4), t.version);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(t.program)), 0);
     NAOS_CHECK_TRUE(clopts_option_is_terminal(t.help));
     NAOS_CHECK_TRUE(clopts_option_is_terminal(t.version));
     NAOS_CHECK_FALSE(clopts_option_is_terminal(t.verbose));
 
     NAOS_CHECK_STR_EQ(clopts_command_get_name(t.build), "build");
-    NAOS_REQUIRE_UINT_EQ(clopts_command_get_option_count(t.build), 3);
-    NAOS_CHECK_PTR_EQ(clopts_command_get_option_at(t.build, 0), t.output);
-    NAOS_CHECK_PTR_EQ(clopts_command_get_option_at(t.build, 1), t.keys);
-    NAOS_CHECK_PTR_EQ(clopts_command_get_option_at(t.build, 2), t.jobs);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_get_positional_count(t.build), 2);
-    NAOS_CHECK_PTR_EQ(clopts_command_get_positional_at(t.build, 0), t.build_src);
-    NAOS_CHECK_PTR_EQ(clopts_command_get_positional_at(t.build, 1), t.build_extra);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(t.build)), 3);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_command_get_scope(t.build), 0), t.output);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_command_get_scope(t.build), 1), t.keys);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_command_get_scope(t.build), 2), t.jobs);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(t.build)), 2);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_command_get_scope(t.build), 0), t.build_src);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_command_get_scope(t.build), 1), t.build_extra);
 
     NAOS_CHECK_STR_EQ(clopts_command_get_name(t.copy), "copy");
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(t.copy), 0);
-    NAOS_CHECK_UINT_EQ(clopts_command_get_positional_count(t.copy), 2);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(t.copy)), 0);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(t.copy)), 2);
 
     NAOS_CHECK_STR_EQ(clopts_command_get_name(t.cat), "cat");
-    NAOS_REQUIRE_UINT_EQ(clopts_command_get_option_count(t.cat), 1);
-    NAOS_CHECK_PTR_EQ(clopts_command_get_option_at(t.cat, 0), t.tags);
-    NAOS_CHECK_UINT_EQ(clopts_command_get_positional_count(t.cat), 1);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(t.cat)), 1);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_command_get_scope(t.cat), 0), t.tags);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(t.cat)), 1);
 
     /* help [COMMAND]: no options, one optional positional. */
     NAOS_CHECK_STR_EQ(clopts_command_get_name(t.help_command), "help");
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(t.help_command), 0);
-    NAOS_REQUIRE_UINT_EQ(clopts_command_get_positional_count(t.help_command), 1);
-    NAOS_CHECK_FALSE(clopts_positional_is_required(clopts_command_get_positional_at(t.help_command, 0)));
-    NAOS_CHECK_FALSE(clopts_positional_is_variadic(clopts_command_get_positional_at(t.help_command, 0)));
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(t.help_command)), 0);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_positional_count(clopts_command_get_scope(t.help_command)), 1);
+    NAOS_CHECK_FALSE(clopts_positional_is_required(clopts_scope_get_positional_at(clopts_command_get_scope(t.help_command), 0)));
+    NAOS_CHECK_FALSE(clopts_positional_is_variadic(clopts_scope_get_positional_at(clopts_command_get_scope(t.help_command), 0)));
     fixture_tool_free(&t);
 }
 
@@ -209,12 +209,12 @@ NAOS_TEST(fixture_filt_has_no_commands_and_a_help_option)
     NAOS_REQUIRE_TRUE(f.ok);
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(f.program), 0);
     NAOS_CHECK_STR_EQ(clopts_program_get_name(f.program), "filt");
-    NAOS_REQUIRE_UINT_EQ(clopts_program_get_option_count(f.program), 2);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(f.program, 0), f.lines);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_option_at(f.program, 1), f.help);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(f.program)), 2);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(f.program), 0), f.lines);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_option_at(clopts_program_get_scope(f.program), 1), f.help);
     NAOS_CHECK_TRUE(clopts_option_is_terminal(f.help));
-    NAOS_REQUIRE_UINT_EQ(clopts_program_get_positional_count(f.program), 1);
-    NAOS_CHECK_PTR_EQ(clopts_program_get_positional_at(f.program, 0), f.file);
+    NAOS_REQUIRE_UINT_EQ(clopts_scope_get_positional_count(clopts_program_get_scope(f.program)), 1);
+    NAOS_CHECK_PTR_EQ(clopts_scope_get_positional_at(clopts_program_get_scope(f.program), 0), f.file);
     fixture_filt_free(&f);
 }
 
@@ -252,8 +252,8 @@ NAOS_TEST(parse_leaves_the_program_unchanged)
     NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_STR_EQ(clopts_program_get_name(t.program), "tool");
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(t.program), 4);
-    NAOS_CHECK_UINT_EQ(clopts_program_get_option_count(t.program), 5);
-    NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(t.build), 3);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_program_get_scope(t.program)), 5);
+    NAOS_CHECK_UINT_EQ(clopts_scope_get_option_count(clopts_command_get_scope(t.build)), 3);
     NAOS_CHECK_NULL(clopts_option_get_default(t.output));
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), t.build);
     NAOS_CHECK_NULL(clopts_parser_result_get_terminal(result));
