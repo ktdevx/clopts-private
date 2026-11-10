@@ -507,6 +507,19 @@ NAOS_TEST(unknown_character_in_a_group)
     fixture_tool_free(&f);
 }
 
+NAOS_TEST(short_name_with_other_case_is_unknown)
+{
+    char *argv[] = { "tool", "build", "x", "-V", "-o", "y", NULL };
+    fixture_tool_t f;
+    clopts_result_t *result;
+
+    result = parse_tool(&f, argv);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
+    check_short_error(result, CLOPTS_USAGE_UNKNOWN_OPTION, f.build, NULL, argv, 3, 'V');
+    clopts_result_destroy(result);
+    fixture_tool_free(&f);
+}
+
 NAOS_TEST(trailing_value_option_is_a_missing_value)
 {
     char *argv[] = { "tool", "build", "x", "-o", NULL };
@@ -754,6 +767,7 @@ NAOS_SUITE(short,
     NAOS_ADD_TEST(program_without_subcommands_attached_value),
     NAOS_ADD_TEST(program_without_subcommands_next_token_value),
     NAOS_ADD_TEST(unknown_character_in_a_group),
+    NAOS_ADD_TEST(short_name_with_other_case_is_unknown),
     NAOS_ADD_TEST(trailing_value_option_is_a_missing_value),
     NAOS_ADD_TEST(trailing_value_option_in_a_group_is_a_missing_value),
     NAOS_ADD_TEST(trailing_value_option_without_subcommands_is_a_missing_value),

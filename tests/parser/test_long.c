@@ -5,8 +5,9 @@
  * Suite long: long options, --name=value, value consumption, unknown long
  * options, --no-<name>, global and command scope, the terminal --help /
  * --version of the fixtures, and on a custom program the lookup order
- * (command exact, command negation, global exact, global negation) and terminal
- * options declared on a command or on the program.
+ * (command exact, command negation, global exact, global negation), the
+ * names that are not a negation, and terminal options declared on a command
+ * or on the program.
  *
  * Ported from the first-version long suite onto the builder fixtures of
  * test_fixtures.c (handles instead of index constants) and the result handle
@@ -89,7 +90,7 @@ static clopts_result_t *parse_filt(fixture_filt_t *f, char **argv)
  *                    --dry FLAG, -q/--quit terminal FLAG
  *     run:   --mode VALUE, --no-color FLAG, --fast negatable FLAG,
  *            -s/--stop terminal FLAG, -o/--out VALUE required, ARG optional
- *     idle:  nothing
+ *     idle:  -r negatable FLAG without a long name
  *
  * Every global name but --dry and --quit is shadowed in run: --mode by the
  * same name (command exact over global exact), --no-color of the global
@@ -149,6 +150,7 @@ static void custom_init(custom_t *c)
     (void)test_decl_add_positional(c->run, "ARG");
 
     c->idle = test_decl_command(program, "idle");
+    (void)test_decl_attach(c->idle, custom_flag(NULL, 'r', false, true));
 
     c->program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(c->program);
@@ -996,6 +998,52 @@ NAOS_TEST(lookup_unshadowed_global_name_from_the_command)
     clopts_program_destroy(c.program);
 }
 
+NAOS_TEST(lookup_negation_of_a_flag_that_is_not_negatable_is_unknown)
+{
+    char *argv[] = { "shadow", "idle", "--no-dry", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    check_error(result, CLOPTS_USAGE_UNKNOWN_OPTION, c.idle, NULL, argv, 2, strlen("--no-dry"));
+    clopts_result_destroy(result);
+    clopts_program_destroy(c.program);
+}
+
+NAOS_TEST(lookup_negatable_flag_without_a_long_name_has_no_negation)
+{
+    char *argv[] = { "shadow", "idle", "--no-r", NULL };
+    custom_t c;
+    clopts_result_t *result;
+
+    result = parse_custom(&c, argv);
+    check_error(result, CLOPTS_USAGE_UNKNOWN_OPTION, c.idle, NULL, argv, 2, strlen("--no-r"));
+    clopts_result_destroy(result);
+    clopts_program_destroy(c.program);
+}
+
+NAOS_TEST(lookup_negation_is_exact_and_case_sensitive)
+{
+    /* --color of the program is negatable; none of these is its negation. */
+    static const char *const tokens[] = { "--no-", "--No-color", "--no-Color", "--no-col", "--nocolor" };
+    size_t i;
+
+    for (i = 0; i < sizeof(tokens) / sizeof(tokens[0]); i++)
+    {
+        char token[16];
+        char *argv[] = { "shadow", "idle", token, NULL };
+        custom_t c;
+        clopts_result_t *result;
+
+        strcpy(token, tokens[i]);
+        result = parse_custom(&c, argv);
+        check_error(result, CLOPTS_USAGE_UNKNOWN_OPTION, c.idle, NULL, argv, 2, strlen(tokens[i]));
+        NAOS_CHECK_INT_EQ(clopts_result_get_source(result, c.global_color), CLOPTS_SOURCE_NONE);
+        clopts_result_destroy(result);
+        clopts_program_destroy(c.program);
+    }
+}
+
 /* ---- custom program: terminal options ---------------------------------- */
 
 NAOS_TEST(terminal_of_the_selected_command)
@@ -1146,6 +1194,9 @@ NAOS_SUITE(long,
     NAOS_ADD_TEST(lookup_global_exact_and_negation_when_the_command_has_no_such_name),
     NAOS_ADD_TEST(lookup_global_names_before_the_command),
     NAOS_ADD_TEST(lookup_unshadowed_global_name_from_the_command),
+    NAOS_ADD_TEST(lookup_negation_of_a_flag_that_is_not_negatable_is_unknown),
+    NAOS_ADD_TEST(lookup_negatable_flag_without_a_long_name_has_no_negation),
+    NAOS_ADD_TEST(lookup_negation_is_exact_and_case_sensitive),
     NAOS_ADD_TEST(terminal_of_the_selected_command),
     NAOS_ADD_TEST(global_terminal_reached_from_a_command),
     NAOS_ADD_TEST(global_terminal_before_the_command_has_no_command),

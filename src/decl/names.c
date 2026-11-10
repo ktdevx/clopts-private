@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Name rules and comparisons, shared by the builder and the lookups of the
- * parser (parser/lookup.c).
+ * parser (parser/scan.c).
  *
  * Names are compared byte by byte, exactly and case-sensitively, with no
  * prefix matching. Every function here looks at one scope only.

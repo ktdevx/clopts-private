@@ -6,7 +6,6 @@
 #include <naos/naos.h>
 
 NAOS_DECLARE_SUITE(fixtures);
-NAOS_DECLARE_SUITE(lookup);
 NAOS_DECLARE_SUITE(dispatch);
 NAOS_DECLARE_SUITE(long);
 NAOS_DECLARE_SUITE(short);
@@ -19,7 +18,6 @@ NAOS_DECLARE_SUITE(oom);
 
 NAOS_MAIN(
     NAOS_ADD_SUITE(fixtures),
-    NAOS_ADD_SUITE(lookup),
     NAOS_ADD_SUITE(dispatch),
     NAOS_ADD_SUITE(long),
     NAOS_ADD_SUITE(short),

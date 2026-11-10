@@ -5,7 +5,6 @@ clopts_add_module_tests(parser SOURCES
     parser_tests_main.c
     test_fixtures.c
     test_fixture_checks.c
-    test_lookup.c
     test_dispatch.c
     test_long.c
     test_short.c
