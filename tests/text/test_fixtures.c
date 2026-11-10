@@ -6,10 +6,10 @@
  *
  * The help texts of tool are those of the output example in the design
  * (TextLayout), so that the layout tests can compare against it. Each
- * program is created first (test_decl_begin()), then filled
- * (test_decl_command(), then test_decl_finish()); -h/--help and --version
- * come from test_decl.h and the help command from clopts/text/write.h, declared
- * last.
+ * program is declared with the builder functions without checks and ended
+ * with test_decl_finish(); -h/--help and --version are those of
+ * clopts_program_add_help_option() and clopts_program_add_version_option(),
+ * and the help command (test_decl_help_command()) is declared last.
  */
 
 #include "test_fixtures.h"
@@ -21,26 +21,9 @@
 /* ---- shared steps ------------------------------------------------------ */
 
 /*
- * Adds -h/--help and, when version is not NULL, --version to program as
- * global options (NULL program does nothing).
- */
-static void text_fixture_add_terminals(clopts_program_t *program, const clopts_option_t **help,
-                                       const clopts_option_t **version)
-{
-    if (program == NULL)
-    {
-        return;
-    }
-    *help = test_decl_global_attach(program, test_decl_help_option());
-    if (version != NULL)
-    {
-        *version = test_decl_global_attach(program, test_decl_version_option());
-    }
-}
-
-/*
- * Adds the remembered commands to program; on failure everything was
- * released, so the fixture struct (size bytes at f) is cleared.
+ * Ends a fixture: when program has a declaration error, it is released and
+ * the fixture struct (size bytes at f) is cleared. Returns the program or
+ * NULL.
  */
 static clopts_program_t *text_fixture_finish(clopts_program_t *program, void *f, size_t size)
 {
@@ -60,107 +43,62 @@ void text_fixture_tool_init(text_fixture_tool_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    test_decl_reset();
-    f->program = test_decl_begin("tool");
-    if (f->program != NULL)
-    {
-        test_decl_check(clopts_program_set_description(f->program, "A sample tool for testing."));
-    }
+    f->program = clopts_program_create("tool");
+    clopts_program_set_description(f->program, "A sample tool for testing.");
 
-    f->verbose = test_decl_option(CLOPTS_OPTION_COUNT, "verbose", 'v');
-    test_decl_check(clopts_option_set_help(f->verbose, "Print more details"));
-    f->verbose = test_decl_global_attach(f->program, f->verbose);
+    f->verbose = clopts_program_add_option(f->program, CLOPTS_OPTION_COUNT, "verbose", 'v');
+    clopts_option_set_help(f->verbose, "Print more details");
 
-    f->color = test_decl_option(CLOPTS_OPTION_FLAG, "color", 'c');
-    test_decl_check(clopts_option_set_help(f->color, "Colorize the output"));
-    test_decl_check(clopts_option_set_negatable(f->color, true));
-    f->color = test_decl_global_attach(f->program, f->color);
+    f->color = clopts_program_add_option(f->program, CLOPTS_OPTION_FLAG, "color", 'c');
+    clopts_option_set_help(f->color, "Colorize the output");
+    clopts_option_set_negatable(f->color, true);
 
-    f->config = test_decl_option(CLOPTS_OPTION_VALUE, "config", '\0');
-    test_decl_check(clopts_option_set_value_name(f->config, "FILE"));
-    test_decl_check(clopts_option_set_help(f->config, "Configuration file"));
-    test_decl_check(clopts_option_set_env(f->config, "TOOL_CONFIG"));
-    f->config = test_decl_global_attach(f->program, f->config);
-    text_fixture_add_terminals(f->program, &f->help, &f->version);
+    f->config = clopts_program_add_option(f->program, CLOPTS_OPTION_VALUE, "config", '\0');
+    clopts_option_set_value_name(f->config, "FILE");
+    clopts_option_set_help(f->config, "Configuration file");
+    clopts_option_set_env(f->config, "TOOL_CONFIG");
+
+    f->help = clopts_program_add_help_option(f->program);
+    f->version = clopts_program_add_version_option(f->program);
 
     /* build */
-    f->build = test_decl_command(f->program, "build");
-    if (f->build != NULL)
-    {
-        test_decl_check(clopts_command_set_summary(f->build, "Build an output from a source"));
-    }
-    if (f->build != NULL)
-    {
-        test_decl_check(clopts_command_set_description(f->build, "Build an output from SRC."));
-    }
+    f->build = clopts_program_add_command(f->program, "build");
+    clopts_command_set_summary(f->build, "Build an output from a source");
+    clopts_command_set_description(f->build, "Build an output from SRC.");
 
-    f->output = test_decl_option(CLOPTS_OPTION_VALUE, "output", 'o');
-    test_decl_check(clopts_option_set_value_name(f->output, "FILE"));
-    test_decl_check(clopts_option_set_help(f->output, "Write the result to FILE"));
-    test_decl_check(clopts_option_set_required(f->output, true));
-    f->output = test_decl_attach(f->build, f->output);
+    f->output = clopts_command_add_option(f->build, CLOPTS_OPTION_VALUE, "output", 'o');
+    clopts_option_set_value_name(f->output, "FILE");
+    clopts_option_set_help(f->output, "Write the result to FILE");
+    clopts_option_set_required(f->output, true);
 
-    f->keys = test_decl_option(CLOPTS_OPTION_LIST, "keys", 'k');
-    test_decl_check(clopts_option_set_value_name(f->keys, "KEY"));
-    test_decl_check(clopts_option_set_help(f->keys, "Keys to include"));
-    test_decl_check(clopts_option_set_delimiter(f->keys, ','));
-    test_decl_check(clopts_option_set_default(f->keys, "a,b"));
-    f->keys = test_decl_attach(f->build, f->keys);
+    f->keys = clopts_command_add_option(f->build, CLOPTS_OPTION_LIST, "keys", 'k');
+    clopts_option_set_value_name(f->keys, "KEY");
+    clopts_option_set_help(f->keys, "Keys to include");
+    clopts_option_set_delimiter(f->keys, ',');
+    clopts_option_set_default(f->keys, "a,b");
 
-    f->build_src = test_decl_positional("SRC");
-    if (f->build_src != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->build_src, "Source file"));
-    }
-    if (f->build_src != NULL)
-    {
-        clopts_positional_set_required(f->build_src, true);
-    }
-    f->build_src = test_decl_attach_positional(f->build, f->build_src);
+    f->build_src = clopts_command_add_positional(f->build, "SRC");
+    clopts_positional_set_help(f->build_src, "Source file");
+    clopts_positional_set_required(f->build_src, true);
 
-    f->build_extra = test_decl_positional("EXTRA");
-    if (f->build_extra != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->build_extra, "Extra inputs"));
-    }
-    if (f->build_extra != NULL)
-    {
-        clopts_positional_set_variadic(f->build_extra, true);
-    }
-    f->build_extra = test_decl_attach_positional(f->build, f->build_extra);
+    f->build_extra = clopts_command_add_positional(f->build, "EXTRA");
+    clopts_positional_set_help(f->build_extra, "Extra inputs");
+    clopts_positional_set_variadic(f->build_extra, true);
 
     /* copy */
-    f->copy = test_decl_command(f->program, "copy");
-    if (f->copy != NULL)
-    {
-        test_decl_check(clopts_command_set_summary(f->copy, "Copy a file"));
-    }
+    f->copy = clopts_program_add_command(f->program, "copy");
+    clopts_command_set_summary(f->copy, "Copy a file");
 
-    f->copy_src = test_decl_positional("SRC");
-    if (f->copy_src != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->copy_src, "File to copy"));
-    }
-    if (f->copy_src != NULL)
-    {
-        clopts_positional_set_required(f->copy_src, true);
-    }
-    f->copy_src = test_decl_attach_positional(f->copy, f->copy_src);
+    f->copy_src = clopts_command_add_positional(f->copy, "SRC");
+    clopts_positional_set_help(f->copy_src, "File to copy");
+    clopts_positional_set_required(f->copy_src, true);
 
-    f->copy_dst = test_decl_positional("DST");
-    if (f->copy_dst != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->copy_dst, "Destination"));
-    }
-    if (f->copy_dst != NULL)
-    {
-        clopts_positional_set_required(f->copy_dst, true);
-    }
-    f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
+    f->copy_dst = clopts_command_add_positional(f->copy, "DST");
+    clopts_positional_set_help(f->copy_dst, "Destination");
+    clopts_positional_set_required(f->copy_dst, true);
 
     f->help_command = test_decl_help_command(f->program);
     f->program = text_fixture_finish(f->program, f, sizeof(*f));
-    f->ok = (test_decl_failures == 0);
 }
 
 void text_fixture_tool_free(text_fixture_tool_t *f)
@@ -178,37 +116,22 @@ void text_fixture_filt_init(text_fixture_filt_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    test_decl_reset();
-    f->program = test_decl_begin("filt");
-    if (f->program != NULL)
-    {
-        test_decl_check(clopts_program_set_description(f->program, "Filter the lines of files."));
-    }
+    f->program = clopts_program_create("filt");
+    clopts_program_set_description(f->program, "Filter the lines of files.");
 
-    f->lines = test_decl_option(CLOPTS_OPTION_VALUE, "lines", 'n');
-    test_decl_check(clopts_option_set_value_name(f->lines, "N"));
-    test_decl_check(clopts_option_set_help(f->lines, "Number of lines"));
-    test_decl_check(clopts_option_set_default(f->lines, "10"));
-    test_decl_check(clopts_option_set_env(f->lines, "FILT_LINES"));
-    f->lines = test_decl_global_attach(f->program, f->lines);
+    f->lines = clopts_program_add_option(f->program, CLOPTS_OPTION_VALUE, "lines", 'n');
+    clopts_option_set_value_name(f->lines, "N");
+    clopts_option_set_help(f->lines, "Number of lines");
+    clopts_option_set_default(f->lines, "10");
+    clopts_option_set_env(f->lines, "FILT_LINES");
 
-    f->file = test_decl_positional("FILE");
-    if (f->file != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->file, "Files to filter"));
-    }
-    if (f->file != NULL)
-    {
-        clopts_positional_set_required(f->file, true);
-    }
-    if (f->file != NULL)
-    {
-        clopts_positional_set_variadic(f->file, true);
-    }
-    f->file = test_decl_global_attach_positional(f->program, f->file);
-    text_fixture_add_terminals(f->program, &f->help, NULL);
+    f->file = clopts_program_add_positional(f->program, "FILE");
+    clopts_positional_set_help(f->file, "Files to filter");
+    clopts_positional_set_required(f->file, true);
+    clopts_positional_set_variadic(f->file, true);
+
+    f->help = clopts_program_add_help_option(f->program);
     f->program = text_fixture_finish(f->program, f, sizeof(*f));
-    f->ok = (test_decl_failures == 0);
 }
 
 void text_fixture_filt_free(text_fixture_filt_t *f)
@@ -226,18 +149,15 @@ void text_fixture_bare_init(text_fixture_bare_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    test_decl_reset();
-    f->program = test_decl_begin("bare");
-    text_fixture_add_terminals(f->program, &f->help, &f->version);
+    f->program = clopts_program_create("bare");
+    f->help = clopts_program_add_help_option(f->program);
+    f->version = clopts_program_add_version_option(f->program);
 
-    f->run = test_decl_command(f->program, "run");
-    if (f->run != NULL)
-    {
-        test_decl_check(clopts_command_set_summary(f->run, "Run the task"));
-    }
+    f->run = clopts_program_add_command(f->program, "run");
+    clopts_command_set_summary(f->run, "Run the task");
+
     f->help_command = test_decl_help_command(f->program);
     f->program = text_fixture_finish(f->program, f, sizeof(*f));
-    f->ok = (test_decl_failures == 0);
 }
 
 void text_fixture_bare_free(text_fixture_bare_t *f)
@@ -255,36 +175,25 @@ void text_fixture_wide_init(text_fixture_wide_t *f)
     assert(f != NULL);
 
     memset(f, 0, sizeof(*f));
-    test_decl_reset();
-    f->program = test_decl_begin("wide");
+    f->program = clopts_program_create("wide");
 
-    f->naive = test_decl_option(CLOPTS_OPTION_FLAG, TEXT_FIXTURE_NAIVE, '\0');
-    test_decl_check(clopts_option_set_help(f->naive, "Trust every input"));
-    f->naive = test_decl_global_attach(f->program, f->naive);
+    f->naive = clopts_program_add_option(f->program, CLOPTS_OPTION_FLAG, TEXT_FIXTURE_NAIVE, '\0');
+    clopts_option_set_help(f->naive, "Trust every input");
 
-    f->nihongo = test_decl_option(CLOPTS_OPTION_VALUE, TEXT_FIXTURE_NIHONGO, 'j');
-    test_decl_check(clopts_option_set_value_name(f->nihongo, TEXT_FIXTURE_ATAI));
-    test_decl_check(clopts_option_set_help(f->nihongo, "Japanese text"));
-    f->nihongo = test_decl_global_attach(f->program, f->nihongo);
+    f->nihongo = clopts_program_add_option(f->program, CLOPTS_OPTION_VALUE, TEXT_FIXTURE_NIHONGO, 'j');
+    clopts_option_set_value_name(f->nihongo, TEXT_FIXTURE_ATAI);
+    clopts_option_set_help(f->nihongo, "Japanese text");
 
-    f->raw = test_decl_option(CLOPTS_OPTION_VALUE, "raw", '\0');
-    test_decl_check(clopts_option_set_value_name(f->raw, TEXT_FIXTURE_RAW_VALUE_NAME));
-    test_decl_check(clopts_option_set_help(f->raw, "Raw bytes"));
-    f->raw = test_decl_global_attach(f->program, f->raw);
+    f->raw = clopts_program_add_option(f->program, CLOPTS_OPTION_VALUE, "raw", '\0');
+    clopts_option_set_value_name(f->raw, TEXT_FIXTURE_RAW_VALUE_NAME);
+    clopts_option_set_help(f->raw, "Raw bytes");
 
-    f->file = test_decl_positional(TEXT_FIXTURE_FILE);
-    if (f->file != NULL)
-    {
-        test_decl_check(clopts_positional_set_help(f->file, "Input files"));
-    }
-    if (f->file != NULL)
-    {
-        clopts_positional_set_variadic(f->file, true);
-    }
-    f->file = test_decl_global_attach_positional(f->program, f->file);
-    text_fixture_add_terminals(f->program, &f->help, NULL);
+    f->file = clopts_program_add_positional(f->program, TEXT_FIXTURE_FILE);
+    clopts_positional_set_help(f->file, "Input files");
+    clopts_positional_set_variadic(f->file, true);
+
+    f->help = clopts_program_add_help_option(f->program);
     f->program = text_fixture_finish(f->program, f, sizeof(*f));
-    f->ok = (test_decl_failures == 0);
 }
 
 void text_fixture_wide_free(text_fixture_wide_t *f)

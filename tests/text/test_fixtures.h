@@ -13,7 +13,7 @@
  *   tool         with subcommands, description "A sample tool for testing."
  *     global: -v/--verbose COUNT, -c/--color negatable FLAG,
  *             --config VALUE <FILE> (env TOOL_CONFIG),
- *             -h/--help and --version (clopts/text/write.h)
+ *             -h/--help and --version (clopts/decl/program.h)
  *     build:  summary and description,
  *             -o/--output VALUE <FILE> required,
  *             -k/--keys LIST <KEY> ',' (default "a,b"),
@@ -32,9 +32,9 @@
  *     --raw VALUE whose value name has bytes that are not valid UTF-8,
  *     -h/--help, ファイル optional variadic
  *
- * Each init function fills a struct of handles; the program is NULL only
- * when clopts_program_create() or clopts_program_add_command() failed (the
- * other handles are then NULL too).
+ * Each init function fills a struct of handles; the program is NULL when
+ * the declaration failed (clopts_program_get_error(); under fault injection,
+ * OUT_OF_MEMORY), and the other handles are then NULL too.
  * The free function releases the program (NULL is fine) and clears the
  * struct.
  */
@@ -52,7 +52,6 @@
 typedef struct text_fixture_tool
 {
     clopts_program_t *program;
-    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *build;
     clopts_command_t *copy;
     clopts_command_t *help_command;  /* help [COMMAND] */
@@ -77,7 +76,6 @@ void text_fixture_tool_free(text_fixture_tool_t *f);
 typedef struct text_fixture_filt
 {
     clopts_program_t *program;
-    bool ok;                    /* every builder call of the init function succeeded */
     clopts_option_t *lines;     /* -n/--lines VALUE <N>, default "10", env FILT_LINES */
     const clopts_option_t *help;  /* -h/--help */
     clopts_positional_t *file;  /* FILE required variadic */
@@ -91,7 +89,6 @@ void text_fixture_filt_free(text_fixture_filt_t *f);
 typedef struct text_fixture_bare
 {
     clopts_program_t *program;
-    bool ok;                    /* every builder call of the init function succeeded */
     clopts_command_t *run;      /* summary only, no options, no positionals */
     clopts_command_t *help_command;  /* help [COMMAND] */
     const clopts_option_t *help;     /* -h/--help */
@@ -118,7 +115,6 @@ void text_fixture_bare_free(text_fixture_bare_t *f);
 typedef struct text_fixture_wide
 {
     clopts_program_t *program;
-    bool ok;                    /* every builder call of the init function succeeded */
     clopts_option_t *naive;     /* --naïve FLAG */
     clopts_option_t *nihongo;   /* -j/--日本語 VALUE <値> */
     clopts_option_t *raw;       /* --raw VALUE <TEXT_FIXTURE_RAW_VALUE_NAME> */

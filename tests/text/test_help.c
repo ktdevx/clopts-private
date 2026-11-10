@@ -28,7 +28,6 @@ NAOS_TEST(fixture_tool_builds_ok)
 
     text_fixture_tool_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.build);
     NAOS_CHECK_NOT_NULL(f.copy);
     NAOS_CHECK_NOT_NULL(f.help_command);
@@ -54,7 +53,6 @@ NAOS_TEST(fixture_filt_builds_ok)
 
     text_fixture_filt_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.lines);
     NAOS_CHECK_NOT_NULL(f.help);
     NAOS_CHECK_NOT_NULL(f.file);
@@ -69,7 +67,6 @@ NAOS_TEST(fixture_bare_builds_ok)
 
     text_fixture_bare_init(&f);
     NAOS_REQUIRE_NOT_NULL(f.program);
-    NAOS_CHECK_TRUE(f.ok);
     NAOS_CHECK_NOT_NULL(f.run);
     NAOS_CHECK_NOT_NULL(f.help_command);
     NAOS_CHECK_NOT_NULL(f.help);
@@ -130,11 +127,10 @@ static void layout_nover_init(layout_nover_t *f)
     clopts_program_t *program;
 
     memset(f, 0, sizeof(*f));
-    program = test_decl_begin("nover");
-    f->init = test_decl_command(program, "init");
-    f->name = test_decl_positional("NAME");
-    test_decl_check(clopts_positional_set_help(f->name, "Name to use"));
-    f->name = test_decl_attach_positional(f->init, f->name);
+    program = clopts_program_create("nover");
+    f->init = clopts_program_add_command(program, "init");
+    f->name = clopts_command_add_positional(f->init, "NAME");
+    clopts_positional_set_help(f->name, "Name to use");
     f->program = test_decl_finish(program);
     if (f->program == NULL)
     {
@@ -460,24 +456,17 @@ typedef struct layout_shad
     clopts_command_t *plain;
 } layout_shad_t;
 
-/* Attaches a FLAG named long_name / short_name with help to command; NULL on failure. */
-static clopts_option_t *layout_add_flag(clopts_command_t *command, const char *long_name, char short_name,
-                                        const char *help)
+/* Adds a FLAG named long_name / short_name with help to command. */
+static void layout_add_flag(clopts_command_t *command, const char *long_name, char short_name, const char *help)
 {
-    clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
-
-    test_decl_check(clopts_option_set_help(option, help));
-    return test_decl_attach(command, option);
+    clopts_option_set_help(clopts_command_add_option(command, CLOPTS_OPTION_FLAG, long_name, short_name), help);
 }
 
 /* As layout_add_flag(), for a global option of program. */
-static clopts_option_t *layout_add_global_flag(clopts_program_t *program, const char *long_name, char short_name,
-                                               const char *help)
+static void layout_add_global_flag(clopts_program_t *program, const char *long_name, char short_name,
+                                   const char *help)
 {
-    clopts_option_t *option = test_decl_option(CLOPTS_OPTION_FLAG, long_name, short_name);
-
-    test_decl_check(clopts_option_set_help(option, help));
-    return test_decl_global_attach(program, option);
+    clopts_option_set_help(clopts_program_add_option(program, CLOPTS_OPTION_FLAG, long_name, short_name), help);
 }
 
 static void layout_shad_init(layout_shad_t *f)
@@ -486,29 +475,26 @@ static void layout_shad_init(layout_shad_t *f)
     clopts_option_t *cache;
 
     memset(f, 0, sizeof(*f));
-    test_decl_reset();
-    program = test_decl_begin("shad");
+    program = clopts_program_create("shad");
     layout_add_global_flag(program, "verbose", 'v', "Print more details");
     layout_add_global_flag(program, "quiet", 'q', "Print less");
     layout_add_global_flag(program, "no-cache", '\0', "Skip the cache");
     layout_add_global_flag(program, NULL, 'x', "Extra checks");
     layout_add_global_flag(program, "dry", '\0', "Change nothing");
 
-    f->run = test_decl_command(program, "run");
-    test_decl_check(clopts_command_set_summary(f->run, "Run the task"));
+    f->run = clopts_program_add_command(program, "run");
+    clopts_command_set_summary(f->run, "Run the task");
     layout_add_flag(f->run, "verbose", 'v', "Print the steps");
     layout_add_flag(f->run, "quiet", '\0', "Print no step");
-    cache = test_decl_option(CLOPTS_OPTION_FLAG, "cache", '\0');
-    test_decl_check(clopts_option_set_negatable(cache, true));
-    test_decl_check(clopts_option_set_help(cache, "Use the cache"));
-    test_decl_attach(f->run, cache);
+    cache = clopts_command_add_option(f->run, CLOPTS_OPTION_FLAG, "cache", '\0');
+    clopts_option_set_negatable(cache, true);
+    clopts_option_set_help(cache, "Use the cache");
     layout_add_flag(f->run, NULL, 'x', "Run the extra steps");
 
-    f->plain = test_decl_command(program, "plain");
+    f->plain = clopts_program_add_command(program, "plain");
     f->program = test_decl_finish(program);
-    if ((f->program == NULL) || (test_decl_failures != 0))
+    if (f->program == NULL)
     {
-        clopts_program_destroy(f->program);
         memset(f, 0, sizeof(*f));
     }
 }
@@ -568,24 +554,18 @@ NAOS_TEST(help_negatable_global_option_stays_while_its_negation_is_free)
     clopts_option_t *option;
     clopts_program_t *program;
 
-    test_decl_reset();
-    program = test_decl_begin("neg");
-    option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
-    test_decl_check(clopts_option_set_negatable(option, true));
-    test_decl_check(clopts_option_set_help(option, "Colorize"));
-    (void)test_decl_global_attach(program, option);
-    plain = test_decl_command(program, "plain");
-    option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
-    test_decl_check(clopts_option_set_help(option, "Paint"));
-    (void)test_decl_attach(plain, option);
-    both = test_decl_command(program, "both");
-    option = test_decl_option(CLOPTS_OPTION_FLAG, "color", '\0');
-    test_decl_check(clopts_option_set_negatable(option, true));
-    test_decl_check(clopts_option_set_help(option, "Paint"));
-    (void)test_decl_attach(both, option);
-    program = test_decl_finish(program);
-    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
-    NAOS_REQUIRE_NOT_NULL(program);
+    program = clopts_program_create("neg");
+    option = clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "color", '\0');
+    clopts_option_set_negatable(option, true);
+    clopts_option_set_help(option, "Colorize");
+    plain = clopts_program_add_command(program, "plain");
+    option = clopts_command_add_option(plain, CLOPTS_OPTION_FLAG, "color", '\0');
+    clopts_option_set_help(option, "Paint");
+    both = clopts_program_add_command(program, "both");
+    option = clopts_command_add_option(both, CLOPTS_OPTION_FLAG, "color", '\0');
+    clopts_option_set_negatable(option, true);
+    clopts_option_set_help(option, "Paint");
+    NAOS_REQUIRE_INT_EQ(clopts_program_get_error(program), CLOPTS_ERROR_NONE);
     CHECK_HELP(program, plain, kept);
     CHECK_HELP(program, both, hidden);
     clopts_program_destroy(program);
@@ -647,17 +627,18 @@ NAOS_TEST(help_shadowed_help_option_is_left_out_of_the_global_options)
         "Global Options:\n"
         "      --version  Show version information\n";
     clopts_command_t *sub;
+    clopts_option_t *help;
     clopts_program_t *program;
 
-    test_decl_reset();
-    program = test_decl_begin("hid");
-    (void)test_decl_global_attach(program, test_decl_help_option());
-    (void)test_decl_global_attach(program, test_decl_version_option());
-    sub = test_decl_command(program, "sub");
-    (void)test_decl_attach(sub, test_decl_help_option());
-    program = test_decl_finish(program);
-    NAOS_REQUIRE_NOT_NULL(program);
-    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
+    program = clopts_program_create("hid");
+    clopts_program_add_help_option(program);
+    clopts_program_add_version_option(program);
+    sub = clopts_program_add_command(program, "sub");
+    /* The command spells out what clopts_program_add_help_option() adds to a program. */
+    help = clopts_command_add_option(sub, CLOPTS_OPTION_FLAG, "help", 'h');
+    clopts_option_set_help(help, "Show this help");
+    clopts_option_set_terminal(help, true);
+    NAOS_REQUIRE_INT_EQ(clopts_program_get_error(program), CLOPTS_ERROR_NONE);
     CHECK_HELP(program, sub, expected);
     clopts_program_destroy(program);
 }
@@ -674,21 +655,15 @@ static clopts_program_t *layout_run_line_program(const char *global_long, char g
     clopts_program_t *program;
     clopts_command_t *sub;
 
-    test_decl_reset();
-    program = test_decl_begin("run");
+    program = clopts_program_create("run");
     if ((global_long != NULL) || (global_short != '\0'))
     {
-        test_decl_global_add(program, CLOPTS_OPTION_FLAG, global_long, global_short);
+        clopts_program_add_option(program, CLOPTS_OPTION_FLAG, global_long, global_short);
     }
-    sub = test_decl_command(program, "sub");
+    sub = clopts_program_add_command(program, "sub");
     if (sub_long != NULL)
     {
-        test_decl_add(sub, CLOPTS_OPTION_FLAG, sub_long, '\0');
-    }
-    if (test_decl_failures != 0)
-    {
-        test_decl_discard(program);
-        return NULL;
+        clopts_command_add_option(sub, CLOPTS_OPTION_FLAG, sub_long, '\0');
     }
     return test_decl_finish(program);
 }

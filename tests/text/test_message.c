@@ -295,13 +295,12 @@ NAOS_TEST(missing_option_without_a_long_name_names_the_short_name)
     /* A one-option declaration local to this test: -t VALUE required, no long name. */
     char *argv[] = { "short", NULL };
     const char *expected = "missing required option '-t'\n";
-    clopts_program_t *program = test_decl_begin("short");
+    clopts_program_t *program = clopts_program_create("short");
     clopts_option_t *target;
     message_run_t run;
 
-    target = test_decl_option(CLOPTS_OPTION_VALUE, NULL, 't');
-    NAOS_CHECK_INT_EQ(clopts_option_set_required(target, true), CLOPTS_ERROR_NONE);
-    target = test_decl_global_attach(program, target);
+    target = clopts_program_add_option(program, CLOPTS_OPTION_VALUE, NULL, 't');
+    clopts_option_set_required(target, true);
     program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_NOT_NULL(target);
@@ -327,14 +326,13 @@ NAOS_TEST(invalid_env_value_names_the_variable)
     /* A one-option declaration local to this test: --format VALUE with the variable TOOL_FORMAT. */
     char *argv[] = { "tool", NULL };
     const char *expected = "tool: error: invalid value in environment variable 'TOOL_FORMAT'\n";
-    clopts_program_t *program = test_decl_begin("tool");
+    clopts_program_t *program = clopts_program_create("tool");
     clopts_option_t *format;
     clopts_result_t *result;
     text_recorder_t rec;
 
-    format = test_decl_option(CLOPTS_OPTION_VALUE, "format", '\0');
-    NAOS_CHECK_INT_EQ(clopts_option_set_env(format, "TOOL_FORMAT"), CLOPTS_ERROR_NONE);
-    format = test_decl_global_attach(program, format);
+    format = clopts_program_add_option(program, CLOPTS_OPTION_VALUE, "format", '\0');
+    clopts_option_set_env(format, "TOOL_FORMAT");
     program = test_decl_finish(program);
     NAOS_REQUIRE_NOT_NULL(program);
     NAOS_REQUIRE_NOT_NULL(format);
@@ -762,35 +760,32 @@ NAOS_TEST(error_message_of_every_kind)
 
 NAOS_TEST(error_message_of_a_builder_error)
 {
-    /* The kind returned by a failed builder call has its text. */
-    clopts_program_t *program = test_decl_begin("tool");
+    /* The error a failed builder call leaves in the program has its text. */
+    clopts_program_t *program = clopts_program_create("tool");
     clopts_option_t *first;
     clopts_option_t *second;
 
     NAOS_REQUIRE_NOT_NULL(program);
-    first = test_decl_global_add(program, CLOPTS_OPTION_VALUE, "out", 'o');
+    first = clopts_program_add_option(program, CLOPTS_OPTION_VALUE, "out", 'o');
     NAOS_REQUIRE_NOT_NULL(first);
-    second = test_decl_global_add(program, CLOPTS_OPTION_FLAG, "out", '\0');
+    second = clopts_program_add_option(program, CLOPTS_OPTION_FLAG, "out", '\0');
     NAOS_CHECK_NULL(second);
-    NAOS_REQUIRE_INT_EQ(test_decl_last, CLOPTS_ERROR_DUPLICATE);
-    NAOS_CHECK_STR_EQ(clopts_error_get_message(test_decl_last), "duplicate name");
-    test_decl_discard(program);
+    NAOS_REQUIRE_INT_EQ(clopts_program_get_error(program), CLOPTS_ERROR_DUPLICATE);
+    NAOS_CHECK_STR_EQ(clopts_error_get_message(clopts_program_get_error(program)), "duplicate name");
+    clopts_program_destroy(program);
 }
 
 NAOS_TEST(error_message_of_a_conflict)
 {
     /* A subcommand added to a program with positionals is refused as a conflict. */
-    clopts_program_t *program = test_decl_begin("tool");
-    clopts_command_t *command = NULL;
+    clopts_program_t *program = clopts_program_create("tool");
 
     NAOS_REQUIRE_NOT_NULL(program);
-    NAOS_REQUIRE_NOT_NULL(test_decl_global_add_positional(program, "FILE"));
-    NAOS_REQUIRE_INT_EQ(clopts_command_create("run", &command), CLOPTS_ERROR_NONE);
-    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_ERROR_CONFLICT);
-    NAOS_CHECK_STR_EQ(clopts_error_get_message(CLOPTS_ERROR_CONFLICT), "conflicts with another setting");
-    /* The failed call left the command with the caller. */
-    clopts_command_destroy(command);
-    test_decl_discard(program);
+    NAOS_REQUIRE_NOT_NULL(clopts_program_add_positional(program, "FILE"));
+    NAOS_CHECK_NULL(clopts_program_add_command(program, "run"));
+    NAOS_REQUIRE_INT_EQ(clopts_program_get_error(program), CLOPTS_ERROR_CONFLICT);
+    NAOS_CHECK_STR_EQ(clopts_error_get_message(clopts_program_get_error(program)), "conflicts with another setting");
+    clopts_program_destroy(program);
 }
 
 /* ---- coverage of the text tables (12.1, 12.2) -------------------------- */
