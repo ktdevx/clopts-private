@@ -21,7 +21,7 @@
 #include "base/str.h"
 #include "base/vec.h"
 #include "decl/name.h"
-#include "decl/scope_impl.h"
+#include "decl/scope_internal.h"
 
 #include <assert.h>
 #include <string.h>

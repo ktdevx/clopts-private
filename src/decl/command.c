@@ -24,7 +24,7 @@
 #include "base/alloc_internal.h"
 #include "base/str.h"
 #include "decl/name.h"
-#include "decl/scope_impl.h"
+#include "decl/scope_internal.h"
 
 #include <assert.h>
 

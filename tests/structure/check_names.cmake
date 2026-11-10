@@ -20,9 +20,9 @@
 #   - an operation of a struct, a function named clopts_x or clopts_x_<...>
 #     where clopts_x_t is a struct, is declared in a header that declares
 #     clopts_x_t. The header of a struct is <module>/x.h, public or internal;
-#     an internal header <module>/x_internal.h and an implementation header
-#     <module>/x_impl.h count as <module>/x.h. When several structs match,
-#     the longest name wins (clopts_usage_error_t over a clopts_usage_t).
+#     an internal header <module>/x_internal.h counts as <module>/x.h. When
+#     several structs match, the longest name wins (clopts_usage_error_t over
+#     a clopts_usage_t).
 #
 # Any other name is given by what it means and is not checked: a function
 # outside a struct, and a function named after an enumeration or another
@@ -114,14 +114,13 @@ set(_functions "")  # <name>|<line>|<file>|<key> of every function
 
 # _check_names_scan(<root> <rel>)
 #
-# Reads the header <root>/<rel>, whose key is <rel> without ".h", "_internal"
-# and "_impl" (decl/scope for decl/scope_internal.h and decl/scope_impl.h).
-# Adds the structs it declares to _types and _type_homes_<x> (the keys of the
-# headers that declare clopts_x_t), and the functions it declares to
-# _functions.
+# Reads the header <root>/<rel>, whose key is <rel> without ".h" and
+# "_internal" (decl/scope for decl/scope_internal.h). Adds the structs it
+# declares to _types and _type_homes_<x> (the keys of the headers that declare
+# clopts_x_t), and the functions it declares to _functions.
 macro(_check_names_scan root rel)
     set(_file "${root}/${rel}")
-    string(REGEX REPLACE "(_internal|_impl)?\\.h$" "" _key "${rel}")
+    string(REGEX REPLACE "(_internal)?\\.h$" "" _key "${rel}")
     _check_names_code(_lines "${_file}")
     set(_number 0)
     set(_open "")  # what the typedef being defined is: struct, enum or union
@@ -166,7 +165,7 @@ foreach(_rel IN LISTS _headers)
                 list(APPEND _offending
                     "${SOURCE_DIR}/${_rel}:1: _internal is only for the internal header of a public header, and clopts/${CMAKE_MATCH_1}.h does not exist (name it ${CMAKE_MATCH_1}.h)")
             endif()
-        elseif(NOT _rel MATCHES "_impl\\.h$" AND EXISTS "${INCLUDE_DIR}/clopts/${_rel}")
+        elseif(EXISTS "${INCLUDE_DIR}/clopts/${_rel}")
             string(REGEX REPLACE "\\.h$" "_internal.h" _internal_name "${_rel}")
             list(APPEND _offending
                 "${SOURCE_DIR}/${_rel}:1: has the name of the public header clopts/${_rel} (name it ${_internal_name})")

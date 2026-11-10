@@ -6,7 +6,7 @@
  * the public accessors and the release function.
  */
 
-#include "process/argv_impl.h"
+#include "process/argv_internal.h"
 
 #include "base/alloc_internal.h"
 

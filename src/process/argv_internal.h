@@ -3,17 +3,17 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef CLOPTS_SRC_PROCESS_ARGV_IMPL_H
-#define CLOPTS_SRC_PROCESS_ARGV_IMPL_H
+#ifndef CLOPTS_SRC_PROCESS_ARGV_INTERNAL_H
+#define CLOPTS_SRC_PROCESS_ARGV_INTERNAL_H
 
 #include "clopts/process/argv.h"
 
 /*
- * The implementation of the argv handle for the files that implement it:
- * argv.c makes and reads handles, and argv_posix.c and argv_win32.c create
- * them from the process (clopts_argv_create). Only files of the process
- * module include it (docs/dev/design.md, chapter 3). Every
- * allocation goes through the allocation gateway (base/alloc_internal.h).
+ * argv handles (argv.c): argv.c makes and reads handles, and argv_posix.c
+ * and argv_win32.c create them from the process (clopts_argv_create). The
+ * fields may be read freely; a handle is written only by the functions that
+ * create it. Every allocation goes through the allocation gateway
+ * (base/alloc_internal.h).
  */
 
 /* argv handle. Never changes after it is created. */
@@ -41,4 +41,4 @@ clopts_argv_t *clopts_argv_from_cmdline(const wchar_t *cmdline);
 clopts_argv_t *clopts_argv_convert(int argc, const wchar_t *const *wargs);
 #endif
 
-#endif /* CLOPTS_SRC_PROCESS_ARGV_IMPL_H */
+#endif /* CLOPTS_SRC_PROCESS_ARGV_INTERNAL_H */

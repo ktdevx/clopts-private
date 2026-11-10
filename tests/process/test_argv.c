@@ -12,7 +12,7 @@
 
 #include "test_util.h"
 
-#include "process/argv_impl.h"
+#include "process/argv_internal.h"
 #include "process/utf16.h"
 
 #include "test_alloc.h"

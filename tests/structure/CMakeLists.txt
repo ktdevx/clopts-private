@@ -55,14 +55,12 @@ set(_clopts_structure_bad_windows_h_outside_win32
     "process/env\\.c:2: #include <windows\\.h> outside process/\\*_win32\\.c")
 set(_clopts_structure_bad_text_reads_process_api
     "text/out\\.c:2: text may not include 'clopts/process/'")
-set(_clopts_structure_bad_reads_impl_of_another
-    "parse/scan\\.c:2: 'decl/scope_impl\\.h' is the implementation of decl, for decl only")
 set(_clopts_structure_bad_unknown_module
     "extra/extra\\.c:1: module 'extra' has no dependency rule")
 foreach(_clopts_structure_case IN ITEMS
         text_reads_decl decl_reads_parse base_reads_decl
         getenv_outside_process windows_h_outside_process windows_h_outside_win32 text_reads_process_api
-        reads_impl_of_another unknown_module)
+        unknown_module)
     _clopts_structure_add_test("selftest.${_clopts_structure_case}"
         "${_clopts_structure_fixtures}/bad/${_clopts_structure_case}"
         PASS_REGEX "1 violation\\(s\\)[^\n]*[\r\n ]+[^\n]*/${_clopts_structure_bad_${_clopts_structure_case}}")

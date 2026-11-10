@@ -14,7 +14,7 @@
  * handle as they were.
  */
 
-#include "decl/scope_impl.h"
+#include "decl/scope_internal.h"
 
 #include <assert.h>
 #include <string.h>
