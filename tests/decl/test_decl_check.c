@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: MIT
  *
  * Suite decl: the immediate checks of the program, command and attach
- * functions, the lookups shared with the scanner, and how a parse resolves
- * the names those checks allow. The checks of an option or a positional
+ * functions, the name comparisons of one scope (names.c), and how a parse
+ * resolves the names those checks allow. The lookups of the scanner across
+ * the selected command and the program are in the lookup suite of the parser
+ * tests. The checks of an option or a positional
  * alone are in the decl_option and decl_positional suites.
  *
- * Every builder function returns its clopts_error_t right away, and a
+ * Every builder function returns its clopts_decl_error_t right away, and a
  * failing call changes nothing. Each rule therefore has a test that the
  * offending call returns the expected error and leaves everything as it was
  * (the out pointer NULL, the counts of the program and of the command the
@@ -30,11 +32,12 @@
  * value.
  *
  * Calls whose error is checked go to the API directly; the helpers of
- * test_decl.h build the surrounding declarations. The model and the lookups
- * are internal and are read or called directly.
+ * test_decl.h build the surrounding declarations. The model and the name
+ * comparisons are internal and are read or called directly.
  */
 
-#include "parser/parser_internal.h"
+#include "clopts/parse.h"
+#include "decl/decl_internal.h"
 #include "test_alloc.h"
 #include "test_decl.h"
 
@@ -44,8 +47,8 @@
 
 /* ---- helpers ----------------------------------------------------------- */
 
-/* Checks that call returns CLOPTS_ERROR_NONE. */
-#define EXPECT_OK(call) NAOS_CHECK_INT_EQ((call), CLOPTS_ERROR_NONE)
+/* Checks that call returns CLOPTS_DECL_ERROR_NONE. */
+#define EXPECT_OK(call) NAOS_CHECK_INT_EQ((call), CLOPTS_DECL_ERROR_NONE)
 
 /* Number of elements of the array a. */
 #define COUNT_OF(a) (sizeof(a) / sizeof((a)[0]))
@@ -58,21 +61,6 @@ static char sentinel_program_storage;
 #define SENTINEL_PROGRAM ((clopts_program_t *)&sentinel_program_storage)
 static char sentinel_command_storage;
 #define SENTINEL_COMMAND ((clopts_command_t *)&sentinel_command_storage)
-
-/* clopts_parser_find_long() in the program and command (NULL: none selected). */
-static clopts_parser_ref_t find_long(const clopts_program_t *program, const clopts_command_t *command,
-                                     const char *name, size_t name_len)
-{
-    return clopts_parser_find_long(clopts_program_scope(program),
-                                   (command != NULL) ? clopts_command_scope(command) : NULL, name, name_len);
-}
-
-/* clopts_parser_find_short() in the program and command (NULL: none selected). */
-static clopts_parser_ref_t find_short(const clopts_program_t *program, const clopts_command_t *command, char c)
-{
-    return clopts_parser_find_short(clopts_program_scope(program),
-                                    (command != NULL) ? clopts_command_scope(command) : NULL, c);
-}
 
 /*
  * What options and positionals are attached to: the program (its global
@@ -168,14 +156,14 @@ static void owner_destroy(owner_t owner)
 }
 
 /* clopts_program_add_option() or clopts_command_add_option(). */
-static clopts_error_t owner_add_option(owner_t owner, clopts_option_t *option)
+static clopts_decl_error_t owner_add_option(owner_t owner, clopts_option_t *option)
 {
     return (owner.program != NULL) ? clopts_program_add_option(owner.program, option)
                                    : clopts_command_add_option(owner.command, option);
 }
 
 /* clopts_program_add_positional() or clopts_command_add_positional(). */
-static clopts_error_t owner_add_positional(owner_t owner, clopts_positional_t *positional)
+static clopts_decl_error_t owner_add_positional(owner_t owner, clopts_positional_t *positional)
 {
     return (owner.program != NULL) ? clopts_program_add_positional(owner.program, positional)
                                    : clopts_command_add_positional(owner.command, positional);
@@ -256,7 +244,7 @@ static clopts_positional_t *make_positional(const char *name)
 static clopts_option_t *owner_attach(owner_t owner, clopts_option_t *option)
 {
     NAOS_REQUIRE_NOT_NULL(option);
-    NAOS_REQUIRE_INT_EQ(owner_add_option(owner, option), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(owner_add_option(owner, option), CLOPTS_DECL_ERROR_NONE);
     return option;
 }
 
@@ -264,7 +252,7 @@ static clopts_option_t *owner_attach(owner_t owner, clopts_option_t *option)
 static clopts_positional_t *owner_attach_positional(owner_t owner, clopts_positional_t *positional)
 {
     NAOS_REQUIRE_NOT_NULL(positional);
-    NAOS_REQUIRE_INT_EQ(owner_add_positional(owner, positional), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(owner_add_positional(owner, positional), CLOPTS_DECL_ERROR_NONE);
     return positional;
 }
 
@@ -328,7 +316,7 @@ static clopts_positional_t *global_add_positional(clopts_program_t *program, con
  * Attaches option to owner expecting error: checks that the options of owner
  * are unchanged, then releases option (the caller still owns it).
  */
-static void expect_attach_error(owner_t owner, clopts_option_t *option, clopts_error_t error)
+static void expect_attach_error(owner_t owner, clopts_option_t *option, clopts_decl_error_t error)
 {
     size_t len;
 
@@ -340,7 +328,7 @@ static void expect_attach_error(owner_t owner, clopts_option_t *option, clopts_e
 }
 
 /* As expect_attach_error(), for a positional. */
-static void expect_attach_positional_error(owner_t owner, clopts_positional_t *positional, clopts_error_t error)
+static void expect_attach_positional_error(owner_t owner, clopts_positional_t *positional, clopts_decl_error_t error)
 {
     size_t len;
 
@@ -357,7 +345,7 @@ static void expect_attach_positional_error(owner_t owner, clopts_positional_t *p
  * positionals of program and the numbers of options and positionals of
  * command. command is left with the caller, who still owns it.
  */
-static void expect_add_command_error(clopts_program_t *program, clopts_command_t *command, clopts_error_t error)
+static void expect_add_command_error(clopts_program_t *program, clopts_command_t *command, clopts_decl_error_t error)
 {
     size_t commands;
     size_t options;
@@ -384,7 +372,7 @@ static void expect_add_command_error(clopts_program_t *program, clopts_command_t
 /* Adds command to program; the test stops when the call fails. */
 static clopts_command_t *add_command(clopts_program_t *program, clopts_command_t *command)
 {
-    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_program_add_command(program, command), CLOPTS_DECL_ERROR_NONE);
     return command;
 }
 
@@ -420,38 +408,38 @@ static clopts_result_t *parse_tokens(const clopts_program_t *program, const char
 
 NAOS_TEST(valid_command_name_rules)
 {
-    NAOS_CHECK_TRUE(clopts_parser_valid_command_name("build"));
-    NAOS_CHECK_TRUE(clopts_parser_valid_command_name("a-b"));
-    NAOS_CHECK_TRUE(clopts_parser_valid_command_name("help"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name(NULL));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name(""));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name("-b"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name("a b"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name("a\tb"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_command_name("ab\n"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_command_name("build"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_command_name("a-b"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_command_name("help"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name(NULL));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name(""));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name("-b"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name("a b"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name("a\tb"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_command_name("ab\n"));
 }
 
 NAOS_TEST(valid_long_name_rules)
 {
-    NAOS_CHECK_TRUE(clopts_parser_valid_long_name("output"));
-    NAOS_CHECK_TRUE(clopts_parser_valid_long_name("no-color"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name(NULL));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name(""));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name("-o"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name("a=b"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name("a b"));
-    NAOS_CHECK_FALSE(clopts_parser_valid_long_name("a\rb"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_long_name("output"));
+    NAOS_CHECK_TRUE(clopts_decl_valid_long_name("no-color"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name(NULL));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name(""));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name("-o"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name("a=b"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name("a b"));
+    NAOS_CHECK_FALSE(clopts_decl_valid_long_name("a\rb"));
 }
 
 NAOS_TEST(valid_short_name_rules)
 {
-    NAOS_CHECK_TRUE(clopts_parser_valid_short_name('o'));
-    NAOS_CHECK_TRUE(clopts_parser_valid_short_name('4'));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name('\0'));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name('-'));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name('='));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name(' '));
-    NAOS_CHECK_FALSE(clopts_parser_valid_short_name('\t'));
+    NAOS_CHECK_TRUE(clopts_decl_valid_short_name('o'));
+    NAOS_CHECK_TRUE(clopts_decl_valid_short_name('4'));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name('\0'));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name('-'));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name('='));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name(' '));
+    NAOS_CHECK_FALSE(clopts_decl_valid_short_name('\t'));
 }
 
 /* ---- clopts_command_create -------------------------------------------------- */
@@ -466,7 +454,7 @@ NAOS_TEST(command_name_invalid)
     {
         NAOS_NOTE("name=\"%s\"", (names[i] != NULL) ? names[i] : "(null)");
         out = SENTINEL_COMMAND;
-        NAOS_CHECK_INT_EQ(clopts_command_create(names[i], &out), CLOPTS_ERROR_INVALID_NAME);
+        NAOS_CHECK_INT_EQ(clopts_command_create(names[i], &out), CLOPTS_DECL_ERROR_INVALID_NAME);
         NAOS_CHECK_NULL(out);
     }
 }
@@ -483,7 +471,7 @@ NAOS_TEST(program_name_invalid)
     {
         NAOS_NOTE("name=\"%s\"", (names[i] != NULL) ? names[i] : "(null)");
         out = SENTINEL_PROGRAM;
-        NAOS_CHECK_INT_EQ(clopts_program_create(names[i], &out), CLOPTS_ERROR_INVALID_NAME);
+        NAOS_CHECK_INT_EQ(clopts_program_create(names[i], &out), CLOPTS_DECL_ERROR_INVALID_NAME);
         NAOS_CHECK_NULL(out);
     }
 }
@@ -583,8 +571,8 @@ NAOS_TEST(program_add_command_duplicate_command)
     clopts_command_t *again = new_command("build");
 
     add_command(program, new_command("copy"));
-    expect_add_command_error(program, again, CLOPTS_ERROR_DUPLICATE_COMMAND);
-    expect_add_command_error(program, again, CLOPTS_ERROR_DUPLICATE_COMMAND);
+    expect_add_command_error(program, again, CLOPTS_DECL_ERROR_DUPLICATE_COMMAND);
+    expect_add_command_error(program, again, CLOPTS_DECL_ERROR_DUPLICATE_COMMAND);
     clopts_command_destroy(again);
     NAOS_CHECK_PTR_EQ(clopts_program_find_command(program, "build"), build);
     NAOS_CHECK_PTR_EQ(clopts_program_get_command_at(program, 0), build);
@@ -622,8 +610,8 @@ NAOS_TEST(program_add_command_with_program_positionals_is_mixed)
 
     global_add_positional(program, "file");
     add_positional(build, "file");
-    expect_add_command_error(program, build, CLOPTS_ERROR_MIXED_LAYOUT);
-    expect_add_command_error(program, other, CLOPTS_ERROR_MIXED_LAYOUT);
+    expect_add_command_error(program, build, CLOPTS_DECL_ERROR_MIXED_LAYOUT);
+    expect_add_command_error(program, other, CLOPTS_DECL_ERROR_MIXED_LAYOUT);
     clopts_command_destroy(other);
 
     /* without subcommands the program takes positionals */
@@ -652,11 +640,11 @@ NAOS_TEST(program_add_positional_with_commands_is_mixed)
     clopts_positional_t *positional;
 
     add_command(program, new_command("build"));
-    expect_attach_positional_error(in_program(program), make_positional("file"), CLOPTS_ERROR_MIXED_LAYOUT);
+    expect_attach_positional_error(in_program(program), make_positional("file"), CLOPTS_DECL_ERROR_MIXED_LAYOUT);
     positional = make_positional("files");
     clopts_positional_set_required(positional, true);
     clopts_positional_set_variadic(positional, true);
-    expect_attach_positional_error(in_program(program), positional, CLOPTS_ERROR_MIXED_LAYOUT);
+    expect_attach_positional_error(in_program(program), positional, CLOPTS_DECL_ERROR_MIXED_LAYOUT);
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(program), 1);
 
     /* global options are still allowed */
@@ -693,7 +681,7 @@ NAOS_TEST(program_failed_call_changes_nothing)
     live = test_alloc.live;
     calls = test_alloc.calls;
     test_alloc_set_fail_at(calls + 1);
-    expect_add_command_error(program, again, CLOPTS_ERROR_DUPLICATE_COMMAND);
+    expect_add_command_error(program, again, CLOPTS_DECL_ERROR_DUPLICATE_COMMAND);
     test_alloc_set_fail_at(0);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
@@ -711,7 +699,7 @@ NAOS_TEST(program_failed_call_changes_nothing)
     live = test_alloc.live;
     calls = test_alloc.calls;
     test_alloc_set_fail_at(calls + 1);
-    NAOS_CHECK_INT_EQ(clopts_program_add_positional(program, positional), CLOPTS_ERROR_MIXED_LAYOUT);
+    NAOS_CHECK_INT_EQ(clopts_program_add_positional(program, positional), CLOPTS_DECL_ERROR_MIXED_LAYOUT);
     test_alloc_set_fail_at(0);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
@@ -731,7 +719,7 @@ NAOS_TEST(program_failed_call_changes_nothing)
     live = test_alloc.live;
     calls = test_alloc.calls;
     test_alloc_set_fail_at(calls + 1);
-    expect_add_command_error(program, build, CLOPTS_ERROR_MIXED_LAYOUT);
+    expect_add_command_error(program, build, CLOPTS_DECL_ERROR_MIXED_LAYOUT);
     test_alloc_set_fail_at(0);
     NAOS_CHECK_UINT_EQ(test_alloc.calls, calls);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
@@ -742,7 +730,7 @@ NAOS_TEST(program_failed_call_changes_nothing)
     live = test_alloc.live;
     calls = test_alloc.calls;
     test_alloc_set_fail_at(calls + 1);
-    expect_add_command_error(program, build, CLOPTS_ERROR_OUT_OF_MEMORY);
+    expect_add_command_error(program, build, CLOPTS_DECL_ERROR_OUT_OF_MEMORY);
     test_alloc_set_fail_at(0);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
     add_command(program, build);
@@ -752,7 +740,7 @@ NAOS_TEST(program_failed_call_changes_nothing)
     live = test_alloc.live;
     option = make(CLOPTS_OPTION_FLAG, "verbose", 'v');
     test_alloc_set_fail_at(test_alloc.calls + 1);
-    expect_attach_error(in_program(program), option, CLOPTS_ERROR_OUT_OF_MEMORY);
+    expect_attach_error(in_program(program), option, CLOPTS_DECL_ERROR_OUT_OF_MEMORY);
     test_alloc_set_fail_at(0);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
     clopts_program_destroy(program);
@@ -762,7 +750,7 @@ NAOS_TEST(program_failed_call_changes_nothing)
     positional = make_positional("file");
     calls = test_alloc.calls;
     test_alloc_set_fail_at(calls + 1);
-    expect_attach_positional_error(in_program(program), positional, CLOPTS_ERROR_OUT_OF_MEMORY);
+    expect_attach_positional_error(in_program(program), positional, CLOPTS_DECL_ERROR_OUT_OF_MEMORY);
     test_alloc_set_fail_at(0);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
     clopts_program_destroy(program);
@@ -772,12 +760,12 @@ NAOS_TEST(program_failed_call_changes_nothing)
     calls = test_alloc.calls;
     test_alloc_set_fail_at(calls + 1);
     out = SENTINEL_PROGRAM;
-    NAOS_CHECK_INT_EQ(clopts_program_create("tool", &out), CLOPTS_ERROR_OUT_OF_MEMORY);
+    NAOS_CHECK_INT_EQ(clopts_program_create("tool", &out), CLOPTS_DECL_ERROR_OUT_OF_MEMORY);
     NAOS_CHECK_NULL(out);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
     test_alloc_set_fail_at(calls + 2);
     out = SENTINEL_PROGRAM;
-    NAOS_CHECK_INT_EQ(clopts_program_create("tool", &out), CLOPTS_ERROR_OUT_OF_MEMORY);
+    NAOS_CHECK_INT_EQ(clopts_program_create("tool", &out), CLOPTS_DECL_ERROR_OUT_OF_MEMORY);
     NAOS_CHECK_NULL(out);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
     test_alloc_set_fail_at(0);
@@ -884,14 +872,14 @@ NAOS_TEST(option_duplicate_in_same_scope)
         clopts_option_t *force;
 
         force = owner_add(owner, CLOPTS_OPTION_FLAG, "force", 'f');
-        expect_attach_error(owner, make(CLOPTS_OPTION_VALUE, "force", 'o'), CLOPTS_ERROR_DUPLICATE_OPTION);
-        expect_attach_error(owner, make(CLOPTS_OPTION_COUNT, NULL, 'f'), CLOPTS_ERROR_DUPLICATE_OPTION);
-        expect_attach_error(owner, make(CLOPTS_OPTION_FLAG, "force", 'f'), CLOPTS_ERROR_DUPLICATE_OPTION);
+        expect_attach_error(owner, make(CLOPTS_OPTION_VALUE, "force", 'o'), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
+        expect_attach_error(owner, make(CLOPTS_OPTION_COUNT, NULL, 'f'), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
+        expect_attach_error(owner, make(CLOPTS_OPTION_FLAG, "force", 'f'), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
         NAOS_CHECK_PTR_EQ(owner_option_at(owner, 0), force);
 
         owner_add(owner, CLOPTS_OPTION_FLAG, "release", 'r');
-        expect_attach_error(owner, make(CLOPTS_OPTION_LIST, "release", '\0'), CLOPTS_ERROR_DUPLICATE_OPTION);
-        expect_attach_error(owner, make(CLOPTS_OPTION_VALUE, "remote", 'r'), CLOPTS_ERROR_DUPLICATE_OPTION);
+        expect_attach_error(owner, make(CLOPTS_OPTION_LIST, "release", '\0'), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
+        expect_attach_error(owner, make(CLOPTS_OPTION_VALUE, "remote", 'r'), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
 
         /* names are case-sensitive, and long and short names are separate namespaces */
         owner_add(owner, CLOPTS_OPTION_FLAG, "Release", 'R');
@@ -912,7 +900,7 @@ NAOS_TEST(option_duplicate_is_checked_per_scope)
     add(build, CLOPTS_OPTION_FLAG, "force", 'f');
     add_command(program, build);
     expect_attach_error(in_program(program), make(CLOPTS_OPTION_VALUE, "force", '\0'),
-                        CLOPTS_ERROR_DUPLICATE_OPTION);
+                        CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
     global_add(program, CLOPTS_OPTION_FLAG, "release", 'r');
     NAOS_CHECK_UINT_EQ(clopts_program_get_option_count(program), 2);
     NAOS_CHECK_UINT_EQ(clopts_command_get_option_count(build), 1);
@@ -931,16 +919,16 @@ NAOS_TEST(option_negation_conflict_on_add)
 
         /* any kind */
         owner_attach(owner, make_negatable("color", '\0'));
-        expect_attach_error(owner, make(CLOPTS_OPTION_VALUE, "no-color", '\0'), CLOPTS_ERROR_NEGATION_CONFLICT);
-        expect_attach_error(owner, make(CLOPTS_OPTION_FLAG, "no-color", 'n'), CLOPTS_ERROR_NEGATION_CONFLICT);
+        expect_attach_error(owner, make(CLOPTS_OPTION_VALUE, "no-color", '\0'), CLOPTS_DECL_ERROR_NEGATION_CONFLICT);
+        expect_attach_error(owner, make(CLOPTS_OPTION_FLAG, "no-color", 'n'), CLOPTS_DECL_ERROR_NEGATION_CONFLICT);
         owner_attach(owner, make_negatable("cache", 'c'));
-        expect_attach_error(owner, make(CLOPTS_OPTION_LIST, "no-cache", '\0'), CLOPTS_ERROR_NEGATION_CONFLICT);
-        expect_attach_error(owner, make(CLOPTS_OPTION_COUNT, "no-cache", 'x'), CLOPTS_ERROR_NEGATION_CONFLICT);
+        expect_attach_error(owner, make(CLOPTS_OPTION_LIST, "no-cache", '\0'), CLOPTS_DECL_ERROR_NEGATION_CONFLICT);
+        expect_attach_error(owner, make(CLOPTS_OPTION_COUNT, "no-cache", 'x'), CLOPTS_DECL_ERROR_NEGATION_CONFLICT);
 
         /* a negatable FLAG that is not the first option of the scope */
         owner_add(owner, CLOPTS_OPTION_FLAG, "quiet", 'q');
         owner_attach(owner, make_negatable("sign", '\0'));
-        expect_attach_error(owner, make(CLOPTS_OPTION_FLAG, "no-sign", '\0'), CLOPTS_ERROR_NEGATION_CONFLICT);
+        expect_attach_error(owner, make(CLOPTS_OPTION_FLAG, "no-sign", '\0'), CLOPTS_DECL_ERROR_NEGATION_CONFLICT);
         NAOS_CHECK_UINT_EQ(owner_option_count(owner), 4);
 
         /* only the scope itself is checked */
@@ -963,12 +951,12 @@ NAOS_TEST(negatable_with_existing_no_option)
         clopts_option_t *option;
 
         owner_add(owner, CLOPTS_OPTION_VALUE, "no-color", '\0');
-        expect_attach_error(owner, make_negatable("color", '\0'), CLOPTS_ERROR_NEGATION_CONFLICT);
+        expect_attach_error(owner, make_negatable("color", '\0'), CLOPTS_DECL_ERROR_NEGATION_CONFLICT);
 
         /* a no-x that is not the first option of the scope */
         owner_add(owner, CLOPTS_OPTION_FLAG, "quiet", 'q');
         owner_add(owner, CLOPTS_OPTION_FLAG, "no-cache", '\0');
-        expect_attach_error(owner, make_negatable("cache", 'c'), CLOPTS_ERROR_NEGATION_CONFLICT);
+        expect_attach_error(owner, make_negatable("cache", 'c'), CLOPTS_DECL_ERROR_NEGATION_CONFLICT);
 
         /* without negatable the same option is allowed */
         option = make_negatable("cache", '\0');
@@ -1036,8 +1024,8 @@ NAOS_TEST(option_attach_checks_follow_order)
         owner_attach(owner, make_negatable("color", '\0'));
         owner_add(owner, CLOPTS_OPTION_FLAG, "quiet", 'q');
         owner_add(owner, CLOPTS_OPTION_FLAG, "no-cache", '\0');
-        expect_attach_error(owner, make(CLOPTS_OPTION_FLAG, "no-color", 'q'), CLOPTS_ERROR_DUPLICATE_OPTION);
-        expect_attach_error(owner, make_negatable("cache", 'q'), CLOPTS_ERROR_DUPLICATE_OPTION);
+        expect_attach_error(owner, make(CLOPTS_OPTION_FLAG, "no-color", 'q'), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
+        expect_attach_error(owner, make_negatable("cache", 'q'), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
         NAOS_CHECK_UINT_EQ(owner_option_count(owner), 4);
         owner_destroy(owner);
     }
@@ -1059,15 +1047,15 @@ NAOS_TEST(positional_after_variadic)
         clopts_positional_set_variadic(files, true);
         owner_attach_positional(owner, files);
 
-        expect_attach_positional_error(owner, make_positional("extra"), CLOPTS_ERROR_VARIADIC_POSITION);
+        expect_attach_positional_error(owner, make_positional("extra"), CLOPTS_DECL_ERROR_VARIADIC_POSITION);
         extra = make_positional("extra");
         clopts_positional_set_variadic(extra, true);
-        expect_attach_positional_error(owner, extra, CLOPTS_ERROR_VARIADIC_POSITION);
+        expect_attach_positional_error(owner, extra, CLOPTS_DECL_ERROR_VARIADIC_POSITION);
 
         /* VARIADIC_POSITION before POSITIONAL_ORDER (an optional variadic, then a required one) */
         extra = make_positional("extra");
         clopts_positional_set_required(extra, true);
-        expect_attach_positional_error(owner, extra, CLOPTS_ERROR_VARIADIC_POSITION);
+        expect_attach_positional_error(owner, extra, CLOPTS_DECL_ERROR_VARIADIC_POSITION);
         NAOS_CHECK_PTR_EQ(owner_positional_at(owner, 0), files);
         owner_destroy(owner);
     }
@@ -1085,13 +1073,13 @@ NAOS_TEST(required_positional_after_optional)
         owner_add_named_positional(owner, "src");
         dst = make_positional("dst");
         clopts_positional_set_required(dst, true);
-        expect_attach_positional_error(owner, dst, CLOPTS_ERROR_POSITIONAL_ORDER);
+        expect_attach_positional_error(owner, dst, CLOPTS_DECL_ERROR_POSITIONAL_ORDER);
 
         /* a required variadic one too */
         dst = make_positional("dst");
         clopts_positional_set_required(dst, true);
         clopts_positional_set_variadic(dst, true);
-        expect_attach_positional_error(owner, dst, CLOPTS_ERROR_POSITIONAL_ORDER);
+        expect_attach_positional_error(owner, dst, CLOPTS_DECL_ERROR_POSITIONAL_ORDER);
 
         /* an optional one is allowed */
         owner_add_named_positional(owner, "dst");
@@ -1214,9 +1202,9 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     EXPECT_OK(clopts_option_set_env(option, "TOOL_FORCE"));
     EXPECT_OK(clopts_option_set_default(option, "always"));
     live = test_alloc.live;
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_ERROR_DUPLICATE_OPTION);
+    NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
-    NAOS_CHECK_INT_EQ(clopts_program_add_option(program, option), CLOPTS_ERROR_DUPLICATE_OPTION);
+    NAOS_CHECK_INT_EQ(clopts_program_add_option(program, option), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
     NAOS_CHECK_STR_EQ(clopts_option_get_help(option), "Force.");
     EXPECT_OK(clopts_option_set_help(option, "Still mine."));
@@ -1226,13 +1214,13 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     /* attached elsewhere after the failure, then released with the program */
     option = make(CLOPTS_OPTION_VALUE, "out", 'o');
     EXPECT_OK(clopts_option_set_help(option, "Output."));
-    NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_ERROR_DUPLICATE_OPTION);
+    NAOS_CHECK_INT_EQ(clopts_command_add_option(build, option), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
     EXPECT_OK(clopts_command_add_option(copy, option));
     NAOS_CHECK_PTR_EQ(clopts_command_get_option_at(copy, 0), option);
 
     /* from the program to a command */
     option = make(CLOPTS_OPTION_COUNT, NULL, 'f');
-    NAOS_CHECK_INT_EQ(clopts_program_add_option(program, option), CLOPTS_ERROR_DUPLICATE_OPTION);
+    NAOS_CHECK_INT_EQ(clopts_program_add_option(program, option), CLOPTS_DECL_ERROR_DUPLICATE_OPTION);
     EXPECT_OK(clopts_command_add_option(copy, option));
     NAOS_CHECK_PTR_EQ(clopts_command_get_option_at(copy, 1), option);
 
@@ -1243,14 +1231,14 @@ NAOS_TEST(failed_attach_leaves_ownership_with_the_caller)
     positional = make_positional("src");
     EXPECT_OK(clopts_positional_set_help(positional, "Source."));
     live = test_alloc.live;
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(build, positional), CLOPTS_ERROR_VARIADIC_POSITION);
+    NAOS_CHECK_INT_EQ(clopts_command_add_positional(build, positional), CLOPTS_DECL_ERROR_VARIADIC_POSITION);
     NAOS_CHECK_INT_EQ(test_alloc.live, live);
     EXPECT_OK(clopts_command_add_positional(copy, positional));
     NAOS_CHECK_PTR_EQ(clopts_command_get_positional_at(copy, 0), positional);
 
     positional = make_positional("dst");
     clopts_positional_set_required(positional, true);
-    NAOS_CHECK_INT_EQ(clopts_command_add_positional(copy, positional), CLOPTS_ERROR_POSITIONAL_ORDER);
+    NAOS_CHECK_INT_EQ(clopts_command_add_positional(copy, positional), CLOPTS_DECL_ERROR_POSITIONAL_ORDER);
     clopts_positional_destroy(positional);
 
     program = finish(program);
@@ -1334,7 +1322,7 @@ NAOS_TEST(tool_like_declaration_is_ok)
     NAOS_CHECK_UINT_EQ(clopts_program_get_command_count(program), 2);
 
     result = parse_tokens(program, tokens);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), copy);
     clopts_result_destroy(result);
     clopts_program_destroy(program);
@@ -1398,152 +1386,32 @@ NAOS_TEST(find_command_is_exact_and_case_sensitive)
     clopts_program_destroy(f.program);
 }
 
-NAOS_TEST(find_long_searches_command_then_global)
+NAOS_TEST(index_of_long_and_short_compare_exactly_in_one_command)
 {
     lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
+    const clopts_scope_t *global = clopts_program_scope(f.program);
+    const clopts_scope_t *build = clopts_command_scope(f.build);
+    const size_t global_count = clopts_scope_option_count(global);
+    const size_t build_count = clopts_scope_option_count(build);
 
-    ref = find_long(f.program, f.build, "output", 6);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_output);
-    NAOS_CHECK_FALSE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 0);
-    NAOS_CHECK_FALSE(ref.negated);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "output", 6), 0);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "outputs", 6), 0);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "no-color", 8), 3);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(global, "quiet", 5), 2);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "Output", 6), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "out", 3), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "", 0), build_count);
+    /* a name of the program is not found in a command, nor the other way round */
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(build, "verbose", 7), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(global, "output", 6), global_count);
+    /* no negation here: that is the lookup of the parser */
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_long(global, "no-color", 8), global_count);
 
-    ref = find_long(f.program, f.copy, "output", 6);
-    NAOS_CHECK_PTR_EQ(ref.option, f.copy_output);
-
-    ref = find_long(f.program, f.build, "quiet", 5);
-    NAOS_CHECK_PTR_EQ(ref.option, f.quiet);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 2);
-
-    /* without a selected command only the global options are searched */
-    ref = find_long(f.program, NULL, "output", 6);
-    NAOS_CHECK_NULL(ref.option);
-    ref = find_long(f.program, NULL, "verbose", 7);
-    NAOS_CHECK_PTR_EQ(ref.option, f.verbose);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 0);
-
-    /* other commands are not searched */
-    ref = find_long(f.program, f.copy, "cache", 5);
-    NAOS_CHECK_NULL(ref.option);
-    clopts_program_destroy(f.program);
-}
-
-NAOS_TEST(find_long_is_exact_case_sensitive_and_uses_name_len)
-{
-    lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
-
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "Output", 6).option);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "out", 3).option);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "outputs", 7).option);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "", 0).option);
-
-    /* name_len bytes only: "output=x" with name_len 6 */
-    ref = find_long(f.program, f.build, "output=x", 6);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_output);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "output=x", 5).option);
-    clopts_program_destroy(f.program);
-}
-
-NAOS_TEST(find_long_negation_only_for_negatable_flags_with_long_name)
-{
-    lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
-
-    ref = find_long(f.program, NULL, "no-color", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.color);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 1);
-    NAOS_CHECK_TRUE(ref.negated);
-
-    ref = find_long(f.program, f.build, "no-cache", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_cache);
-    NAOS_CHECK_FALSE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 1);
-    NAOS_CHECK_TRUE(ref.negated);
-
-    ref = find_long(f.program, f.copy, "no-color=1", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.color);
-    NAOS_CHECK_TRUE(ref.negated);
-
-    /* not negatable, not a FLAG, not selected, malformed */
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "no-quiet", 8).option);
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "no-output", 9).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "no-", 3).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "No-color", 8).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "no-Color", 8).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "no-col", 6).option);
-    NAOS_CHECK_NULL(find_long(f.program, NULL, "nocolor", 7).option);
-    /* a negatable FLAG without a long name has no negation */
-    NAOS_CHECK_NULL(find_long(f.program, f.build, "no-r", 4).option);
-    clopts_program_destroy(f.program);
-}
-
-/*
- * The scopes are searched one after the other, each one completely (exact
- * name, then negation): a command name, exact or negated, shadows the global one.
- */
-NAOS_TEST(find_long_resolves_each_scope_completely)
-{
-    lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
-
-    /* the exact no-color of build beats the negation of the global color */
-    ref = find_long(f.program, f.build, "no-color", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_no_color);
-    NAOS_CHECK_FALSE(ref.global);
-    NAOS_CHECK_FALSE(ref.negated);
-
-    /* the negation of the cache of build beats the exact global no-cache */
-    ref = find_long(f.program, f.build, "no-cache", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_cache);
-    NAOS_CHECK_TRUE(ref.negated);
-
-    /* without a command, and from another command, the global names */
-    ref = find_long(f.program, NULL, "no-cache", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.no_cache);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_FALSE(ref.negated);
-    ref = find_long(f.program, f.copy, "no-cache", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.no_cache);
-    ref = find_long(f.program, f.copy, "no-color", 8);
-    NAOS_CHECK_PTR_EQ(ref.option, f.color);
-    NAOS_CHECK_TRUE(ref.negated);
-    clopts_program_destroy(f.program);
-}
-
-NAOS_TEST(find_short_searches_command_then_global)
-{
-    lookup_fixture_t f = make_lookup_fixture();
-    clopts_parser_ref_t ref;
-
-    ref = find_short(f.program, f.build, 'o');
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_output);
-    NAOS_CHECK_FALSE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 0);
-    NAOS_CHECK_FALSE(ref.negated);
-
-    ref = find_short(f.program, f.build, 'r');
-    NAOS_CHECK_PTR_EQ(ref.option, f.build_release);
-    NAOS_CHECK_UINT_EQ(ref.index, 2);
-
-    ref = find_short(f.program, f.copy, 'v');
-    NAOS_CHECK_PTR_EQ(ref.option, f.verbose);
-    NAOS_CHECK_TRUE(ref.global);
-
-    ref = find_short(f.program, NULL, 'q');
-    NAOS_CHECK_PTR_EQ(ref.option, f.quiet);
-    NAOS_CHECK_TRUE(ref.global);
-    NAOS_CHECK_UINT_EQ(ref.index, 2);
-
-    NAOS_CHECK_NULL(find_short(f.program, NULL, 'o').option);
-    NAOS_CHECK_NULL(find_short(f.program, f.copy, 'c').option);
-    NAOS_CHECK_NULL(find_short(f.program, f.build, 'V').option);
-    NAOS_CHECK_NULL(find_short(f.program, f.build, 'O').option);
-    NAOS_CHECK_NULL(find_short(f.program, f.build, '\0').option);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(build, 'r'), 2);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(global, 'q'), 2);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(build, 'O'), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(build, 'v'), build_count);
+    NAOS_CHECK_UINT_EQ(clopts_decl_index_of_short(build, '\0'), build_count);
     clopts_program_destroy(f.program);
 }
 
@@ -1554,28 +1422,28 @@ NAOS_TEST(find_conflict_and_named_search_one_command)
     const clopts_scope_t *build = clopts_command_scope(f.build);
     const clopts_scope_t *copy = clopts_command_scope(f.copy);
 
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(build, "output", '\0'), f.build_output);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(build, NULL, 'c'), f.build_cache);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(build, "release", 'o'), f.build_output);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(global, "quiet", 'x'), f.quiet);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_conflict(global, NULL, 'v'), f.verbose);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(build, "output", '\0'), f.build_output);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(build, NULL, 'c'), f.build_cache);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(build, "release", 'o'), f.build_output);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(global, "quiet", 'x'), f.quiet);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_conflict(global, NULL, 'v'), f.verbose);
 
     /* neither the program from a command nor the commands from the program */
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(build, NULL, 'v'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(copy, "verbose", '\0'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(global, "cache", '\0'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(global, NULL, 'o'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(copy, "cache", 'c'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(build, "Output", 'O'));
-    NAOS_CHECK_NULL(clopts_parser_find_conflict(build, NULL, '\0'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(build, NULL, 'v'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(copy, "verbose", '\0'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(global, "cache", '\0'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(global, NULL, 'o'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(copy, "cache", 'c'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(build, "Output", 'O'));
+    NAOS_CHECK_NULL(clopts_decl_find_conflict(build, NULL, '\0'));
 
     /* find_named compares exactly name_len bytes */
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_named(global, "color", 5), f.color);
-    NAOS_CHECK_PTR_EQ(clopts_parser_find_named(build, "cachexyz", 5), f.build_cache);
-    NAOS_CHECK_NULL(clopts_parser_find_named(build, "color", 5));
-    NAOS_CHECK_NULL(clopts_parser_find_named(global, "cache", 5));
-    NAOS_CHECK_NULL(clopts_parser_find_named(build, "colo", 4));
-    NAOS_CHECK_NULL(clopts_parser_find_named(build, "", 0));
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_named(global, "color", 5), f.color);
+    NAOS_CHECK_PTR_EQ(clopts_decl_find_named(build, "cachexyz", 5), f.build_cache);
+    NAOS_CHECK_NULL(clopts_decl_find_named(build, "color", 5));
+    NAOS_CHECK_NULL(clopts_decl_find_named(global, "cache", 5));
+    NAOS_CHECK_NULL(clopts_decl_find_named(build, "colo", 4));
+    NAOS_CHECK_NULL(clopts_decl_find_named(build, "", 0));
     clopts_program_destroy(f.program);
 }
 
@@ -1633,7 +1501,7 @@ NAOS_TEST(shadowed_long_name_resolves_by_position)
     clopts_result_t *result;
 
     result = parse_tokens(f.program, after);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), f.build);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.build_output), "x");
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.build_output), CLOPTS_SOURCE_EXPLICIT);
@@ -1642,7 +1510,7 @@ NAOS_TEST(shadowed_long_name_resolves_by_position)
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, before);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "y");
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.output), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_NULL(clopts_result_get_value(result, f.build_output));
@@ -1650,14 +1518,14 @@ NAOS_TEST(shadowed_long_name_resolves_by_position)
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, both);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "y");
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.build_output), "x");
     clopts_result_destroy(result);
 
     /* no command: the global one */
     result = parse_tokens(f.program, no_command);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_NO_COMMAND);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
     NAOS_CHECK_NULL(clopts_result_get_command(result));
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "y");
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.output), CLOPTS_SOURCE_EXPLICIT);
@@ -1665,7 +1533,7 @@ NAOS_TEST(shadowed_long_name_resolves_by_position)
 
     /* a command without the name: the global one */
     result = parse_tokens(f.program, other);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), f.copy);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "z");
     NAOS_CHECK_NULL(clopts_result_get_value(result, f.build_output));
@@ -1685,19 +1553,19 @@ NAOS_TEST(shadowed_short_name_resolves_by_position)
     clopts_result_t *result;
 
     result = parse_tokens(f.program, after);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.build_output), "x");
     NAOS_CHECK_NULL(clopts_result_get_value(result, f.output));
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, before);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "y");
     NAOS_CHECK_NULL(clopts_result_get_value(result, f.build_output));
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, both);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.quiet));
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "y");
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.build_cache));
@@ -1705,12 +1573,12 @@ NAOS_TEST(shadowed_short_name_resolves_by_position)
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, no_command);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_NO_COMMAND);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "y");
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, other);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.quiet));
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.output), "z");
     clopts_result_destroy(result);
@@ -1735,7 +1603,7 @@ NAOS_TEST(shadowed_negation_resolves_by_scope)
     clopts_result_t *result;
 
     result = parse_tokens(f.program, build_no_color);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.build_no_color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.build_no_color), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.color));
@@ -1743,7 +1611,7 @@ NAOS_TEST(shadowed_negation_resolves_by_scope)
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, global_no_color);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.color), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.build_no_color));
@@ -1751,7 +1619,7 @@ NAOS_TEST(shadowed_negation_resolves_by_scope)
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, build_no_cache);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.build_cache));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.build_cache), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.no_cache));
@@ -1759,21 +1627,21 @@ NAOS_TEST(shadowed_negation_resolves_by_scope)
     clopts_result_destroy(result);
 
     result = parse_tokens(f.program, global_no_cache);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.no_cache));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.build_cache), CLOPTS_SOURCE_NONE);
     clopts_result_destroy(result);
 
     /* names only one scope has */
     result = parse_tokens(f.program, build_color);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.color));
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.build_cache));
     clopts_result_destroy(result);
 
     /* a command without the names: the global ones */
     result = parse_tokens(f.program, copy_both);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_FALSE(clopts_result_get_flag(result, f.color));
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.color), CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, f.no_cache));
@@ -1797,7 +1665,7 @@ NAOS_TEST(help_and_version_options_parse_as_declared)
 
     program = finish(program);
     result = parse_tokens(program, tokens);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), build);
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, global_help), 2);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, version), "x");
@@ -1806,7 +1674,7 @@ NAOS_TEST(help_and_version_options_parse_as_declared)
     clopts_result_destroy(result);
 
     result = parse_tokens(program, help_command);
-    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), help);
     NAOS_CHECK_TRUE(clopts_result_get_flag(result, help_h));
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, global_help), 0);
@@ -1847,11 +1715,7 @@ NAOS_SUITE(decl,
     NAOS_ADD_TEST(failed_attach_leaves_ownership_with_the_caller),
     NAOS_ADD_TEST(tool_like_declaration_is_ok),
     NAOS_ADD_TEST(find_command_is_exact_and_case_sensitive),
-    NAOS_ADD_TEST(find_long_searches_command_then_global),
-    NAOS_ADD_TEST(find_long_is_exact_case_sensitive_and_uses_name_len),
-    NAOS_ADD_TEST(find_long_negation_only_for_negatable_flags_with_long_name),
-    NAOS_ADD_TEST(find_long_resolves_each_scope_completely),
-    NAOS_ADD_TEST(find_short_searches_command_then_global),
+    NAOS_ADD_TEST(index_of_long_and_short_compare_exactly_in_one_command),
     NAOS_ADD_TEST(find_conflict_and_named_search_one_command),
     NAOS_ADD_TEST(shadowed_long_name_resolves_by_position),
     NAOS_ADD_TEST(shadowed_short_name_resolves_by_position),

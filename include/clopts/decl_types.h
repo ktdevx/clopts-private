@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "clopts/error.h"
+#include "clopts/decl_error.h"
 #include "clopts/export.h"
 
 #ifdef __cplusplus
@@ -30,9 +30,9 @@ extern "C" {
  * and then added to the program:
  *
  *     clopts_option_t *verbose;
- *     if (clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_ERROR_NONE) ...
+ *     if (clopts_option_create(CLOPTS_OPTION_COUNT, "verbose", 'v', &verbose) != CLOPTS_DECL_ERROR_NONE) ...
  *     clopts_option_set_help(verbose, "Print more details");
- *     if (clopts_program_add_option(program, verbose) != CLOPTS_ERROR_NONE) {
+ *     if (clopts_program_add_option(program, verbose) != CLOPTS_DECL_ERROR_NONE) {
  *         clopts_option_destroy(verbose);  // a failed attach leaves it with the caller
  *         ...
  *     }
@@ -54,8 +54,8 @@ extern "C" {
  *     attached to them. These handles stay valid, at the same address, until
  *     clopts_program_destroy().
  *
- * Errors: every builder function that can fail returns CLOPTS_ERROR_NONE on
- * success and another clopts_error_t right away on failure, leaving every
+ * Errors: every builder function that can fail returns CLOPTS_DECL_ERROR_NONE on
+ * success and another clopts_decl_error_t right away on failure, leaving every
  * handle unchanged. clopts_positional_set_required() and
  * clopts_positional_set_variadic() cannot fail and return nothing. Nothing
  * is recorded for later: a program built only from successful calls is

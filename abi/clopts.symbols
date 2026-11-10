@@ -43,8 +43,8 @@ clopts_command_get_option_at
 clopts_command_get_positional_count
 clopts_command_get_positional_at
 
-# clopts/error.h
-clopts_error_get_message
+# clopts/decl_error.h
+clopts_decl_error_get_message
 
 # clopts/help.h
 clopts_write_help
@@ -112,11 +112,6 @@ clopts_argv_get_count
 clopts_argv_get_values
 clopts_argv_get_error_index
 clopts_argv_destroy
-clopts_env_create
-clopts_env_destroy
-clopts_env_lookup
-clopts_env_get_error
-clopts_env_get_error_name
 
 # clopts/positional.h
 clopts_positional_create

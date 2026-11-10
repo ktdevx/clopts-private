@@ -3,14 +3,16 @@
  * SPDX-License-Identifier: MIT
  *
  * Result handle: allocation, the out-of-memory sentinel, recording into
- * slots, the accessors, run and release.
+ * slots, the accessors and release.
  *
  * Every allocation goes through the allocation gateway of core. Whatever
  * was allocated is linked to the result at once, so clopts_result_destroy()
  * releases it even after a failure. A result does not point to its
- * program: every slot knows its option, and an option knows its index, so a
- * value is found in constant time. clopts_result_destroy() never reads the
- * declaration, so the result may be released after the program.
+ * program: every slot knows its option, and an accessor finds the slot of an
+ * option by its address, searching the global slots and then the slots of
+ * the selected command (an option does not know its index).
+ * clopts_result_destroy() never reads the declaration, so the result may be
+ * released after the program.
  */
 
 #include "parser/parser_internal.h"
@@ -20,11 +22,28 @@
 #include <string.h>
 
 /*
+ * A result. Its layout is private to this file: the rest of the parser and
+ * the tests read and record into it through the functions of this file.
+ */
+struct clopts_result
+{
+    clopts_parse_status_t status;
+    const clopts_command_t *command;  /* selected command, or NULL */
+    const clopts_option_t *terminal;  /* TERMINATED: the terminal option, else NULL */
+    clopts_parser_error_t error;
+    clopts_parser_slot_t *global_slots;   /* one per global option */
+    size_t global_count;
+    clopts_parser_slot_t *command_slots;  /* one per option of the selected command; NULL without one */
+    size_t command_count;
+    clopts_core_vec_t positionals;    /* const char * elements pointing into argv */
+};
+
+/*
  * The out-of-memory sentinel. Never written to; shared between threads
  * safely because it is a const static object.
  */
 static const struct clopts_result parser_result_sentinel = {
-    .status = CLOPTS_OUT_OF_MEMORY,
+    .status = CLOPTS_PARSE_OUT_OF_MEMORY,
     .command = NULL,
     .terminal = NULL,
     .error = {
@@ -123,7 +142,7 @@ clopts_result_t *clopts_parser_result_new(const clopts_program_t *program)
         clopts_core_free(result);
         return NULL;
     }
-    result->status = CLOPTS_OK;
+    result->status = CLOPTS_PARSE_OK;
     result->command = NULL;
     result->terminal = NULL;
     result->error.usage = CLOPTS_USAGE_NONE;
@@ -278,7 +297,7 @@ int clopts_parser_slot_append_list(clopts_parser_slot_t *slot, const char *value
     }
 }
 
-void clopts_parser_slot_own(clopts_parser_slot_t *slot, char *owned)
+void clopts_parser_slot_set_owned_value(clopts_parser_slot_t *slot, char *owned, clopts_source_t source)
 {
     assert(slot != NULL);
     assert(owned != NULL);
@@ -289,6 +308,7 @@ void clopts_parser_slot_own(clopts_parser_slot_t *slot, char *owned)
     }
     slot->owned = owned;
     slot->value = owned;
+    slot->source = source;
 }
 
 int clopts_parser_result_add_positional(clopts_result_t *result, const char *token)
@@ -300,30 +320,35 @@ int clopts_parser_result_add_positional(clopts_result_t *result, const char *tok
     return clopts_core_vec_push(&result->positionals, &token);
 }
 
-/* ---- public accessors ---- */
-
-/* Returns result, or the sentinel when result is NULL. */
-static const clopts_result_t *result_or_sentinel(const clopts_result_t *result)
+void clopts_parser_result_set_error(clopts_result_t *result, const clopts_parser_error_t *error)
 {
-    return (result == NULL) ? &parser_result_sentinel : result;
+    assert(result != NULL);
+    assert(result != &parser_result_sentinel);
+    assert(error != NULL);
+
+    result->error = *error;
 }
 
-/* Returns true when result carries an error (status USAGE_ERROR). */
-static bool result_has_error(const clopts_result_t *result)
+void clopts_parser_result_set_terminal(clopts_result_t *result, const clopts_option_t *option)
 {
-    return ((result != NULL) && (result->status == CLOPTS_USAGE_ERROR));
+    assert(result != NULL);
+    assert(result != &parser_result_sentinel);
+
+    result->terminal = option;
 }
 
-/* Returns true when the value accessors of result are meaningful (status OK, TERMINATED or NO_COMMAND). */
-static bool result_has_values(const clopts_result_t *result)
+void clopts_parser_result_finish(clopts_result_t *result, clopts_parse_status_t status)
 {
-    return ((result->status == CLOPTS_OK) || (result->status == CLOPTS_TERMINATED)
-            || (result->status == CLOPTS_NO_COMMAND));
+    assert(result != NULL);
+    assert(result != &parser_result_sentinel);
+
+    result->status = status;
 }
+
+/* ---- internal readers ---- */
 
 /* Returns the slot of slots that records option, or NULL. */
-static const clopts_parser_slot_t *slot_of(const clopts_parser_slot_t *slots, size_t count,
-                                           const clopts_option_t *option)
+static clopts_parser_slot_t *slot_of(clopts_parser_slot_t *slots, size_t count, const clopts_option_t *option)
 {
     size_t i;
 
@@ -337,32 +362,100 @@ static const clopts_parser_slot_t *slot_of(const clopts_parser_slot_t *slots, si
     return NULL;
 }
 
-/*
- * Returns the slot of option in result, or NULL when the accessors must
- * return the unset value: a NULL result (read as the sentinel), the
- * sentinel, a NULL option, a status other than OK / TERMINATED /
- * NO_COMMAND, or an option that is attached neither to the program nor to the
- * selected command (an option of another command or program, or an
- * unattached one). The option is found by its address.
- */
-static const clopts_parser_slot_t *find_slot(const clopts_result_t *result, const clopts_option_t *option)
+clopts_parser_slot_t *clopts_parser_result_get_slots(clopts_result_t *result, bool global, size_t *count)
 {
-    const clopts_parser_slot_t *slot;
+    assert(result != NULL);
+    assert(count != NULL);
 
-    result = result_or_sentinel(result);
-    if ((result == &parser_result_sentinel) || (option == NULL) || (!result_has_values(result)))
+    if (global)
     {
-        return NULL;
+        *count = result->global_count;
+        return result->global_slots;
     }
+    *count = result->command_count;
+    return result->command_slots;
+}
+
+clopts_parser_slot_t *clopts_parser_result_find_slot(clopts_result_t *result, const clopts_option_t *option)
+{
+    clopts_parser_slot_t *slot;
+
+    assert(result != NULL);
+    assert(option != NULL);
+
     slot = slot_of(result->global_slots, result->global_count, option);
-    if ((slot == NULL) && (result->status != CLOPTS_NO_COMMAND))
+    if (slot == NULL)
     {
         slot = slot_of(result->command_slots, result->command_count, option);
     }
     return slot;
 }
 
-clopts_status_t clopts_result_get_status(const clopts_result_t *result)
+size_t clopts_parser_result_get_positional_count(const clopts_result_t *result)
+{
+    assert(result != NULL);
+
+    return result->positionals.len;
+}
+
+const clopts_parser_error_t *clopts_parser_result_get_error(const clopts_result_t *result)
+{
+    assert(result != NULL);
+
+    return &result->error;
+}
+
+const clopts_option_t *clopts_parser_result_get_terminal(const clopts_result_t *result)
+{
+    assert(result != NULL);
+
+    return result->terminal;
+}
+
+/* ---- public accessors ---- */
+
+/* Returns result, or the sentinel when result is NULL. */
+static const clopts_result_t *result_or_sentinel(const clopts_result_t *result)
+{
+    return (result == NULL) ? &parser_result_sentinel : result;
+}
+
+/* Returns true when result carries an error (status USAGE_ERROR). */
+static bool result_has_error(const clopts_result_t *result)
+{
+    return ((result != NULL) && (result->status == CLOPTS_PARSE_USAGE_ERROR));
+}
+
+/* Returns true when the value accessors of result are meaningful (status OK, TERMINATED or NO_COMMAND). */
+static bool result_has_values(const clopts_result_t *result)
+{
+    return ((result->status == CLOPTS_PARSE_OK) || (result->status == CLOPTS_PARSE_TERMINATED)
+            || (result->status == CLOPTS_PARSE_NO_COMMAND));
+}
+
+/*
+ * Returns the slot of option in result, or NULL when the accessors must
+ * return the unset value: a NULL result (read as the sentinel), the
+ * sentinel, a NULL option, a status other than OK / TERMINATED /
+ * NO_COMMAND, or an option that is attached neither to the program nor to the
+ * selected command (an option of another command or program, or an
+ * unattached one). With NO_COMMAND only the global options have values.
+ */
+static const clopts_parser_slot_t *find_slot(const clopts_result_t *result, const clopts_option_t *option)
+{
+    result = result_or_sentinel(result);
+    if ((result == &parser_result_sentinel) || (option == NULL) || (!result_has_values(result)))
+    {
+        return NULL;
+    }
+    if (result->status == CLOPTS_PARSE_NO_COMMAND)
+    {
+        return slot_of(result->global_slots, result->global_count, option);
+    }
+    return clopts_parser_result_find_slot((clopts_result_t *)result, option);
+}
+
+clopts_parse_status_t clopts_result_get_status(const clopts_result_t *result)
 {
     return result_or_sentinel(result)->status;
 }
@@ -375,7 +468,7 @@ const clopts_command_t *clopts_result_get_command(const clopts_result_t *result)
 const clopts_option_t *clopts_result_get_terminal_option(const clopts_result_t *result)
 {
     result = result_or_sentinel(result);
-    return (result->status == CLOPTS_TERMINATED) ? result->terminal : NULL;
+    return (result->status == CLOPTS_PARSE_TERMINATED) ? result->terminal : NULL;
 }
 
 clopts_usage_error_t clopts_result_get_usage_error(const clopts_result_t *result)

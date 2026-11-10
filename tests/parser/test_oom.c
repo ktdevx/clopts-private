@@ -69,7 +69,7 @@ typedef struct snap_list
  */
 typedef struct snapshot
 {
-    clopts_status_t status;
+    clopts_parse_status_t status;
     clopts_usage_error_t usage_error;
     int command;                /* 0: none, 1: build, 2: copy, 3: cat, -1: other */
     unsigned verbose;
@@ -213,12 +213,12 @@ static void check_snapshot_eq(const snapshot_t *actual, const snapshot_t *expect
  * takes a snapshot when snap is not NULL, releases the result and returns
  * its status.
  */
-static clopts_status_t parse_and_snap(fixture_tool_t *t, int argc, char *const *argv,
+static clopts_parse_status_t parse_and_snap(fixture_tool_t *t, int argc, char *const *argv,
                                       const fixture_env_var_t *vars, size_t var_count, snapshot_t *snap)
 {
     fixture_env_t env;
     clopts_result_t *result;
-    clopts_status_t status;
+    clopts_parse_status_t status;
 
     fixture_env_init(&env, vars, var_count);
     result = clopts_parse_with_env(t->program, argc, argv, fixture_env_getenv, &env);
@@ -343,7 +343,7 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
     {
         fixture_tool_t t;
         snapshot_t snap;
-        clopts_status_t status;
+        clopts_parse_status_t status;
         size_t base;
         size_t parse_calls;
 
@@ -359,7 +359,7 @@ static void sweep_parse(int argc, char *const *argv, const fixture_env_var_t *va
         parse_calls = test_alloc.calls - base;
         test_alloc_set_fail_at(0);
         stats->runs++;
-        if (status == CLOPTS_OUT_OF_MEMORY)
+        if (status == CLOPTS_PARSE_OUT_OF_MEMORY)
         {
             stats->oom_runs++;
             /* Only a run that reached a failing fault point may end so. */
@@ -394,29 +394,29 @@ typedef struct build_state
 } build_state_t;
 
 /* One builder call on a build_state_t. */
-typedef clopts_error_t (*build_step_fn)(build_state_t *st);
+typedef clopts_decl_error_t (*build_step_fn)(build_state_t *st);
 
-static clopts_error_t step_create(build_state_t *st)
+static clopts_decl_error_t step_create(build_state_t *st)
 {
     return clopts_program_create("tool", &st->program);
 }
 
-static clopts_error_t step_describe(build_state_t *st)
+static clopts_decl_error_t step_describe(build_state_t *st)
 {
     return clopts_program_set_description(st->program, st->description);
 }
 
-static clopts_error_t step_add_option(build_state_t *st)
+static clopts_decl_error_t step_add_option(build_state_t *st)
 {
     return clopts_program_add_option(st->program, st->option);
 }
 
-static clopts_error_t step_add_command(build_state_t *st)
+static clopts_decl_error_t step_add_command(build_state_t *st)
 {
     return clopts_program_add_command(st->program, st->command);
 }
 
-static clopts_error_t step_add_positional(build_state_t *st)
+static clopts_decl_error_t step_add_positional(build_state_t *st)
 {
     return clopts_program_add_positional(st->flat, st->positional);
 }
@@ -461,7 +461,7 @@ static void check_view_eq(const program_view_t *actual, const program_view_t *ex
  * Runs step once per fault point it passes, failing only that one: run n
  * makes the n-th allocation of the call fail (and the call returns at it),
  * until a run passes no failing fault point. Every failing run must return
- * CLOPTS_ERROR_OUT_OF_MEMORY, keep no block it allocated and change neither
+ * CLOPTS_DECL_ERROR_OUT_OF_MEMORY, keep no block it allocated and change neither
  * program; the caller still owns the handle and passes it again, so a
  * release of it by the failing call would show as a bad release. The last
  * run must succeed. Returns the number of failing runs.
@@ -478,7 +478,7 @@ static size_t sweep_step(build_step_fn step, build_state_t *st)
         program_view_t after[2];
         size_t base = test_alloc.calls;
         long live = test_alloc.live;
-        clopts_error_t error;
+        clopts_decl_error_t error;
 
         NAOS_NOTE("fault point %u of the call", (unsigned)n);
         view_take(&before[0], st->program);
@@ -489,12 +489,12 @@ static size_t sweep_step(build_step_fn step, build_state_t *st)
         if (test_alloc.calls - base < n)
         {
             done = true;
-            NAOS_CHECK_INT_EQ(error, CLOPTS_ERROR_NONE);
+            NAOS_CHECK_INT_EQ(error, CLOPTS_DECL_ERROR_NONE);
         }
         else
         {
             failing++;
-            NAOS_CHECK_INT_EQ(error, CLOPTS_ERROR_OUT_OF_MEMORY);
+            NAOS_CHECK_INT_EQ(error, CLOPTS_DECL_ERROR_OUT_OF_MEMORY);
             NAOS_CHECK_INT_EQ(test_alloc.live, live);
             view_take(&after[0], st->program);
             view_take(&after[1], st->flat);
@@ -557,14 +557,14 @@ NAOS_TEST(sweep_program_builder_calls)
 
         name[4] = (char)('a' + i);
         st.command = NULL;
-        NAOS_REQUIRE_INT_EQ(clopts_command_create(name, &st.command), CLOPTS_ERROR_NONE);
+        NAOS_REQUIRE_INT_EQ(clopts_command_create(name, &st.command), CLOPTS_DECL_ERROR_NONE);
         NAOS_CHECK_UINT_EQ(sweep_step(step_add_command, &st), ((i == 0) || (i == 8)) ? 1 : 0);
         NAOS_REQUIRE_UINT_EQ(clopts_program_get_command_count(st.program), i + 1);
         NAOS_CHECK_PTR_EQ(clopts_program_get_command_at(st.program, i), st.command);
         NAOS_CHECK_PTR_EQ(clopts_program_find_command(st.program, name), st.command);
     }
 
-    NAOS_REQUIRE_INT_EQ(clopts_program_create("flat", &st.flat), CLOPTS_ERROR_NONE);
+    NAOS_REQUIRE_INT_EQ(clopts_program_create("flat", &st.flat), CLOPTS_DECL_ERROR_NONE);
     for (i = 0; i < BUILD_ATTACHES; i++)
     {
         char name[8] = "ARG-A";
@@ -588,7 +588,7 @@ NAOS_TEST(sweep_program_builder_calls)
  * test_decl_begin()), and every fault point from fail_at on fails.
  *
  * A failed allocation during the assembly makes that builder call return
- * CLOPTS_ERROR_OUT_OF_MEMORY and change nothing; an option or positional whose
+ * CLOPTS_DECL_ERROR_OUT_OF_MEMORY and change nothing; an option or positional whose
  * attach fails is released by the helper, and the later builder calls get
  * NULL handles. The program is built incrementally, so what is left depends
  * on where the fault point is:
@@ -622,7 +622,7 @@ NAOS_TEST(sweep_tool_build_then_parse)
     bool succeeded = false;
 
     reference_parse(7, argv, NULL, 0, &expected, &build_calls, &parse_calls);
-    NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_PARSE_OK);
     NAOS_REQUIRE_UINT_GT(build_calls, 0);
     NAOS_REQUIRE_UINT_GT(parse_calls, 0);
 
@@ -679,7 +679,7 @@ NAOS_TEST(sweep_tool_build_then_parse)
             NAOS_REQUIRE_NOT_NULL(parsed);
             snap_take(&snap, parsed, &t);
             clopts_result_destroy(parsed);
-            if (snap.status == CLOPTS_OUT_OF_MEMORY)
+            if (snap.status == CLOPTS_PARSE_OUT_OF_MEMORY)
             {
                 later_oom_runs++;
                 NAOS_CHECK_UINT_GE(test_alloc.calls, fail_at);
@@ -691,7 +691,7 @@ NAOS_TEST(sweep_tool_build_then_parse)
             if (test_alloc.calls < fail_at)
             {
                 succeeded = true;
-                NAOS_CHECK_INT_EQ(snap.status, CLOPTS_OK);
+                NAOS_CHECK_INT_EQ(snap.status, CLOPTS_PARSE_OK);
             }
             test_alloc_set_fail_at(0);
         }
@@ -722,7 +722,7 @@ NAOS_TEST(sweep_parse_build_command)
     sweep_stats_t stats;
 
     reference_parse(7, argv, NULL, 0, &expected, NULL, NULL);
-    NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(expected.command, 1);
     NAOS_CHECK_STR_EQ(expected.output.text, "x");
     NAOS_REQUIRE_UINT_EQ(expected.keys.count, 2);
@@ -750,7 +750,7 @@ NAOS_TEST(sweep_resolve_env_list)
     sweep_stats_t stats;
 
     reference_parse(3, argv, vars, ARRAY_LEN(vars), &expected, NULL, NULL);
-    NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(expected.command, 3);
     NAOS_CHECK_STR_EQ(expected.config.text, "cfg");
     NAOS_CHECK_INT_EQ(expected.config_source, CLOPTS_SOURCE_ENV);
@@ -775,7 +775,7 @@ NAOS_TEST(sweep_resolve_default_list)
     sweep_stats_t stats;
 
     reference_parse(3, argv, vars, ARRAY_LEN(vars), &expected, NULL, NULL);
-    NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(expected.status, CLOPTS_PARSE_OK);
     NAOS_CHECK_STR_EQ(expected.config.text, "cfg");
     NAOS_REQUIRE_UINT_EQ(expected.tags.count, 2);
     NAOS_CHECK_STR_EQ(expected.tags.items[0], "a");

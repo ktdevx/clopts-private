@@ -5,10 +5,8 @@
 
 #include <naos/naos.h>
 
-NAOS_DECLARE_SUITE(build);
-NAOS_DECLARE_SUITE(decl);
-NAOS_DECLARE_SUITE(decl_option);
-NAOS_DECLARE_SUITE(decl_positional);
+NAOS_DECLARE_SUITE(fixtures);
+NAOS_DECLARE_SUITE(lookup);
 NAOS_DECLARE_SUITE(dispatch);
 NAOS_DECLARE_SUITE(long);
 NAOS_DECLARE_SUITE(short);
@@ -20,10 +18,8 @@ NAOS_DECLARE_SUITE(result);
 NAOS_DECLARE_SUITE(oom);
 
 NAOS_MAIN(
-    NAOS_ADD_SUITE(build),
-    NAOS_ADD_SUITE(decl),
-    NAOS_ADD_SUITE(decl_option),
-    NAOS_ADD_SUITE(decl_positional),
+    NAOS_ADD_SUITE(fixtures),
+    NAOS_ADD_SUITE(lookup),
     NAOS_ADD_SUITE(dispatch),
     NAOS_ADD_SUITE(long),
     NAOS_ADD_SUITE(short),

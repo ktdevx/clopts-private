@@ -2,73 +2,33 @@
  * Copyright (c) 2026 The CLOpts Authors
  * SPDX-License-Identifier: MIT
  *
- * Environment lookup contexts: creation and release, the failure record and
- * its accessors, and the value buffers.
+ * Process environment lookup contexts: their initialization, release and
+ * value buffers. The lookup itself is in platform_win32.c or
+ * platform_posix.c.
  */
 
 #include "platform/platform_internal.h"
 
 #include <assert.h>
-#include <string.h>
 
-/* Releases the recorded name, if any. */
-static void platform_env_drop_name(clopts_env_t *env)
+void clopts_platform_env_init(clopts_platform_env_t *env)
 {
-    clopts_core_free(env->error_name);
-    env->error_name = NULL;
-}
-
-clopts_env_t *clopts_env_create(void)
-{
-    clopts_env_t *env;
-
-    env = (clopts_env_t *)clopts_core_malloc(sizeof(*env));
-    if (env == NULL)
-    {
-        return NULL;
-    }
-    env->error = CLOPTS_ENV_ERROR_NONE;
-    env->error_name = NULL;
+    assert(env != NULL);
     env->value = NULL;
     env->value_cap = 0;
     env->wide = NULL;
     env->wide_cap = 0;
-    return env;
 }
 
-void clopts_platform_env_clear(clopts_env_t *env)
+void clopts_platform_env_release(clopts_platform_env_t *env)
 {
     assert(env != NULL);
-    platform_env_drop_name(env);
-    env->error = CLOPTS_ENV_ERROR_NONE;
+    clopts_core_free(env->value);
+    clopts_core_free(env->wide);
+    clopts_platform_env_init(env);
 }
 
-void clopts_platform_env_fail(clopts_env_t *env, clopts_env_error_t kind, const char *name)
-{
-    size_t bytes;
-    char *copy;
-
-    assert(env != NULL);
-    assert(kind != CLOPTS_ENV_ERROR_NONE);
-    assert(name != NULL);
-
-    platform_env_drop_name(env);
-    copy = NULL;
-    if (clopts_core_size_add(strlen(name), 1, &bytes) == 0)
-    {
-        copy = (char *)clopts_core_malloc(bytes);
-    }
-    if (copy == NULL)
-    {
-        env->error = CLOPTS_ENV_ERROR_OUT_OF_MEMORY;
-        return;
-    }
-    memcpy(copy, name, bytes);
-    env->error = kind;
-    env->error_name = copy;
-}
-
-int clopts_platform_env_reserve_value(clopts_env_t *env, size_t bytes)
+int clopts_platform_env_reserve_value(clopts_platform_env_t *env, size_t bytes)
 {
     char *grown;
 
@@ -77,7 +37,7 @@ int clopts_platform_env_reserve_value(clopts_env_t *env, size_t bytes)
     {
         return 0;
     }
-    /* The old contents need not survive (7.7), so the buffer is replaced, not copied. */
+    /* The old contents need not survive, so the buffer is replaced, not copied. */
     grown = (char *)clopts_core_malloc(bytes);
     if (grown == NULL)
     {
@@ -89,7 +49,7 @@ int clopts_platform_env_reserve_value(clopts_env_t *env, size_t bytes)
     return 0;
 }
 
-int clopts_platform_env_reserve_wide(clopts_env_t *env, size_t units)
+int clopts_platform_env_reserve_wide(clopts_platform_env_t *env, size_t units)
 {
     void *grown;
 
@@ -108,26 +68,4 @@ int clopts_platform_env_reserve_wide(clopts_env_t *env, size_t units)
     env->wide = grown;
     env->wide_cap = units;
     return 0;
-}
-
-void clopts_env_destroy(clopts_env_t *env)
-{
-    if (env == NULL)
-    {
-        return;
-    }
-    clopts_core_free(env->error_name);
-    clopts_core_free(env->value);
-    clopts_core_free(env->wide);
-    clopts_core_free(env);
-}
-
-clopts_env_error_t clopts_env_get_error(const clopts_env_t *env)
-{
-    return (env == NULL) ? CLOPTS_ENV_ERROR_OUT_OF_MEMORY : env->error;
-}
-
-const char *clopts_env_get_error_name(const clopts_env_t *env)
-{
-    return (env == NULL) ? NULL : env->error_name;
 }

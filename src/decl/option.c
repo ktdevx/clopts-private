@@ -15,7 +15,7 @@
  */
 
 #include "clopts/option.h"
-#include "parser/parser_internal.h"
+#include "decl/decl_internal.h"
 
 #include <assert.h>
 
@@ -56,38 +56,38 @@ static bool option_valid_kind(clopts_option_kind_t kind)
 }
 
 /* Checks of clopts_option_create(kind, l, s), in order. */
-static clopts_error_t option_check_create(clopts_option_kind_t kind, const char *l, char s)
+static clopts_decl_error_t option_check_create(clopts_option_kind_t kind, const char *l, char s)
 {
     if (!option_valid_kind(kind))
     {
-        return CLOPTS_ERROR_INVALID_KIND;
+        return CLOPTS_DECL_ERROR_INVALID_KIND;
     }
 
     if ((l == NULL) && (s == '\0'))
     {
-        return CLOPTS_ERROR_NO_NAME;
+        return CLOPTS_DECL_ERROR_NO_NAME;
     }
 
-    if (((l != NULL) && (!clopts_parser_valid_long_name(l))) || ((s != '\0') && (!clopts_parser_valid_short_name(s))))
+    if (((l != NULL) && (!clopts_decl_valid_long_name(l))) || ((s != '\0') && (!clopts_decl_valid_short_name(s))))
     {
-        return CLOPTS_ERROR_INVALID_NAME;
+        return CLOPTS_DECL_ERROR_INVALID_NAME;
     }
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
-clopts_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_name, char short_name,
+clopts_decl_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_name, char short_name,
                                          clopts_option_t **out)
 {
     clopts_option_t *option;
-    clopts_error_t error;
+    clopts_decl_error_t error;
 
     assert(out != NULL);
 
     *out = NULL;
 
     error = option_check_create(kind, long_name, short_name);
-    if (error != CLOPTS_ERROR_NONE)
+    if (error != CLOPTS_DECL_ERROR_NONE)
     {
         return error;
     }
@@ -95,7 +95,7 @@ clopts_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_
     option = (clopts_option_t *)clopts_core_malloc(sizeof(*option));
     if (option == NULL)
     {
-        return CLOPTS_ERROR_OUT_OF_MEMORY;
+        return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
     }
 
     option->kind = kind;
@@ -106,7 +106,7 @@ clopts_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_
         if (option->long_name == NULL)
         {
             clopts_core_free(option);
-            return CLOPTS_ERROR_OUT_OF_MEMORY;
+            return CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
         }
     }
     option->short_name = short_name;
@@ -122,7 +122,7 @@ clopts_error_t clopts_option_create(clopts_option_kind_t kind, const char *long_
 
     *out = option;
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
 void clopts_option_destroy(clopts_option_t *option)
@@ -140,19 +140,21 @@ void clopts_option_destroy(clopts_option_t *option)
     clopts_core_free(option);
 }
 
-clopts_error_t clopts_option_set_help(clopts_option_t *option, const char *help)
+clopts_decl_error_t clopts_option_set_help(clopts_option_t *option, const char *help)
 {
     assert(option != NULL);
-    return (clopts_core_replace_string(&option->help, help) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&option->help, help) == 0) ? CLOPTS_DECL_ERROR_NONE
+                                                                  : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_error_t clopts_option_set_value_name(clopts_option_t *option, const char *value_name)
+clopts_decl_error_t clopts_option_set_value_name(clopts_option_t *option, const char *value_name)
 {
     assert(option != NULL);
-    return (clopts_core_replace_string(&option->value_name, value_name) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&option->value_name, value_name) == 0) ? CLOPTS_DECL_ERROR_NONE
+                                                                              : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_error_t clopts_option_set_env(clopts_option_t *option, const char *env)
+clopts_decl_error_t clopts_option_set_env(clopts_option_t *option, const char *env)
 {
     assert(option != NULL);
 
@@ -160,19 +162,20 @@ clopts_error_t clopts_option_set_env(clopts_option_t *option, const char *env)
     {
         if (option_takes_no_value(option->kind))
         {
-            return CLOPTS_ERROR_ENV_NOT_ALLOWED;
+            return CLOPTS_DECL_ERROR_ENV_NOT_ALLOWED;
         }
 
-        if (env[0] == '\0')
+        if (!clopts_decl_valid_env_name(env))
         {
-            return CLOPTS_ERROR_INVALID_NAME;
+            return CLOPTS_DECL_ERROR_INVALID_NAME;
         }
     }
 
-    return (clopts_core_replace_string(&option->env, env) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&option->env, env) == 0) ? CLOPTS_DECL_ERROR_NONE
+                                                                : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_error_t clopts_option_set_default(clopts_option_t *option, const char *default_value)
+clopts_decl_error_t clopts_option_set_default(clopts_option_t *option, const char *default_value)
 {
     assert(option != NULL);
 
@@ -180,91 +183,92 @@ clopts_error_t clopts_option_set_default(clopts_option_t *option, const char *de
     {
         if (option_takes_no_value(option->kind))
         {
-            return CLOPTS_ERROR_DEFAULT_NOT_ALLOWED;
+            return CLOPTS_DECL_ERROR_DEFAULT_NOT_ALLOWED;
         }
 
         if (option->required)
         {
-            return CLOPTS_ERROR_REQUIRED_WITH_DEFAULT;
+            return CLOPTS_DECL_ERROR_REQUIRED_WITH_DEFAULT;
         }
     }
 
-    return (clopts_core_replace_string(&option->default_value, default_value) == 0) ? CLOPTS_ERROR_NONE : CLOPTS_ERROR_OUT_OF_MEMORY;
+    return (clopts_core_replace_string(&option->default_value, default_value) == 0) ? CLOPTS_DECL_ERROR_NONE
+                                                                                    : CLOPTS_DECL_ERROR_OUT_OF_MEMORY;
 }
 
-clopts_error_t clopts_option_set_required(clopts_option_t *option, bool required)
+clopts_decl_error_t clopts_option_set_required(clopts_option_t *option, bool required)
 {
     assert(option != NULL);
 
     if (required && option_takes_no_value(option->kind))
     {
-        return CLOPTS_ERROR_REQUIRED_NOT_ALLOWED;
+        return CLOPTS_DECL_ERROR_REQUIRED_NOT_ALLOWED;
     }
 
     if (required && (option->default_value != NULL))
     {
-        return CLOPTS_ERROR_REQUIRED_WITH_DEFAULT;
+        return CLOPTS_DECL_ERROR_REQUIRED_WITH_DEFAULT;
     }
 
     option->required = required;
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
-clopts_error_t clopts_option_set_negatable(clopts_option_t *option, bool negatable)
+clopts_decl_error_t clopts_option_set_negatable(clopts_option_t *option, bool negatable)
 {
     assert(option != NULL);
 
     if (negatable && (option->kind != CLOPTS_OPTION_FLAG))
     {
-        return CLOPTS_ERROR_NOT_NEGATABLE;
+        return CLOPTS_DECL_ERROR_NOT_NEGATABLE;
     }
 
     option->negatable = negatable;
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
-clopts_error_t clopts_option_set_delimiter(clopts_option_t *option, char delimiter)
+clopts_decl_error_t clopts_option_set_delimiter(clopts_option_t *option, char delimiter)
 {
     assert(option != NULL);
 
     if ((delimiter != '\0') && (option->kind != CLOPTS_OPTION_LIST))
     {
-        return CLOPTS_ERROR_ATTRIBUTE_KIND;
+        return CLOPTS_DECL_ERROR_ATTRIBUTE_KIND;
     }
 
     option->delimiter = delimiter;
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
-clopts_error_t clopts_option_set_count_max(clopts_option_t *option, unsigned count_max)
+clopts_decl_error_t clopts_option_set_count_max(clopts_option_t *option, unsigned count_max)
 {
     assert(option != NULL);
 
     if ((count_max != 0) && (option->kind != CLOPTS_OPTION_COUNT))
     {
-        return CLOPTS_ERROR_ATTRIBUTE_KIND;
+        return CLOPTS_DECL_ERROR_ATTRIBUTE_KIND;
     }
 
     option->count_max = count_max;
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
-clopts_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal)
+clopts_decl_error_t clopts_option_set_terminal(clopts_option_t *option, bool terminal)
 {
     assert(option != NULL);
 
     if (terminal && (option->kind != CLOPTS_OPTION_FLAG))
     {
-        return CLOPTS_ERROR_ATTRIBUTE_KIND;
+        return CLOPTS_DECL_ERROR_ATTRIBUTE_KIND;
     }
 
     option->terminal = terminal;
 
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 }
 
 /* ---- read functions: a NULL option is a contract violation ---- */

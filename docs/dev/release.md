@@ -266,6 +266,7 @@ set(CLOPTS_NAOS_COMMIT "09fde7172c4b63d416c32e98499cb0c0306d3dea")
    cmake --build build-naos
    ctest --test-dir build-naos --output-on-failure
    ctest --test-dir build-naos -L core --output-on-failure
+   ctest --test-dir build-naos -L decl --output-on-failure
    ctest --test-dir build-naos -L parser --output-on-failure
    ctest --test-dir build-naos -L help --output-on-failure
    ctest --test-dir build-naos -L platform --output-on-failure

@@ -86,7 +86,7 @@ CLOPTS_API clopts_write_status_t clopts_write_error(const clopts_program_t *prog
  * clopts_program_add_command() like the other subcommands. clopts_help_find_target()
  * reads a result that selected it.
  */
-CLOPTS_API clopts_error_t clopts_help_command_create(clopts_command_t **out);
+CLOPTS_API clopts_decl_error_t clopts_help_command_create(clopts_command_t **out);
 
 /*
  * For a result of program whose status is OK: reads the first positional as

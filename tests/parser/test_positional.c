@@ -78,7 +78,7 @@ static void check_positionals(const clopts_result_t *result, char *const *expect
 {
     size_t i;
 
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_REQUIRE_UINT_EQ(clopts_result_get_positional_count(result), count);
     for (i = 0; i < count; i++)
     {
@@ -103,7 +103,7 @@ NAOS_TEST(sentinel_has_no_positionals)
     clopts_result_t *result;
 
     result = clopts_parse(NULL, 0, NULL);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OUT_OF_MEMORY);
     NAOS_CHECK_UINT_EQ(clopts_result_get_positional_count(result), 0);
     clopts_result_destroy(result);
 }
@@ -161,7 +161,7 @@ NAOS_TEST(copy_takes_two_positionals_in_order)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), f.copy);
     check_positionals(result, &argv[2], 2);
     clopts_result_destroy(result);
@@ -175,7 +175,7 @@ NAOS_TEST(copy_without_dst_is_missing_argument)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_command(result), f.copy);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_positional(result), f.copy_dst);
@@ -193,7 +193,7 @@ NAOS_TEST(copy_with_a_third_token_is_unexpected_argument)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_UNEXPECTED_ARGUMENT);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_command(result), f.copy);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_token(result), argv[4]);
@@ -214,7 +214,7 @@ NAOS_TEST(cat_without_tokens_has_no_positionals)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_command(result), f.cat);
     check_positionals(result, NULL, 0);
     clopts_result_destroy(result);
@@ -228,7 +228,7 @@ NAOS_TEST(cat_variadic_takes_every_remaining_token)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_positionals(result, &argv[2], 3);
     clopts_result_destroy(result);
     fixture_tool_free(&f);
@@ -241,7 +241,7 @@ NAOS_TEST(cat_after_dashdash_dash_tokens_are_positionals)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_positionals(result, &argv[3], 2);
     clopts_result_destroy(result);
     fixture_tool_free(&f);
@@ -254,7 +254,7 @@ NAOS_TEST(cat_lone_dash_is_a_positional)
     clopts_result_t *result;
 
     result = parse_tool(&f, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     check_positionals(result, &argv[2], 1);
     NAOS_CHECK_STR_EQ(clopts_result_get_positional_at(result, 0), "-");
     clopts_result_destroy(result);
@@ -271,7 +271,7 @@ NAOS_TEST(filt_without_subcommands_takes_positionals)
     NAOS_REQUIRE_NOT_NULL(f.program);
     NAOS_REQUIRE_TRUE(f.ok);
     result = parse_checked(f.program, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_NULL(clopts_result_get_command(result));
     check_positionals(result, &argv[1], 2);
     clopts_result_destroy(result);
@@ -288,7 +288,7 @@ NAOS_TEST(strict_without_tokens_checks_the_global_required_option)
     NAOS_REQUIRE_NOT_NULL(s.program);
     NAOS_REQUIRE_TRUE(s.ok);
     result = parse_checked(s.program, argv);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), s.token);
     NAOS_CHECK_NULL(clopts_result_get_error_command(result));

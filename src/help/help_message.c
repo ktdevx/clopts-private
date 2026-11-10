@@ -180,6 +180,13 @@ static void message_write_usage_argument(clopts_help_out_t *out, const clopts_re
             message_write_str(out, clopts_positional_get_name(positional));
         }
         break;
+    case CLOPTS_USAGE_INVALID_ENV_VALUE:
+        option = clopts_result_get_error_option(result);
+        if (option != NULL)
+        {
+            message_write_str(out, clopts_option_get_env(option));
+        }
+        break;
     }
     clopts_help_out_char(out, positional_name ? '>' : '\'');
 }
@@ -250,7 +257,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
 
     switch (clopts_result_get_status(result))
     {
-    case CLOPTS_USAGE_ERROR:
+    case CLOPTS_PARSE_USAGE_ERROR:
         kind = clopts_result_get_usage_error(result);
         text = clopts_help_usage_text(kind);
         if (text == NULL)
@@ -261,7 +268,7 @@ clopts_write_status_t clopts_write_error(const clopts_program_t *program, const 
         message_write_prefix(&out, program, command, flags);
         message_write_usage_body(&out, result, kind, text);
         break;
-    case CLOPTS_OUT_OF_MEMORY:
+    case CLOPTS_PARSE_OUT_OF_MEMORY:
         clopts_help_out_init(&out, write_fn, ctx);
         message_write_prefix(&out, program, NULL, flags);
         clopts_help_out_str(&out, "out of memory");
@@ -294,6 +301,8 @@ const char *clopts_help_usage_text(clopts_usage_error_t kind)
         return "missing argument";
     case CLOPTS_USAGE_UNEXPECTED_ARGUMENT:
         return "unexpected argument";
+    case CLOPTS_USAGE_INVALID_ENV_VALUE:
+        return "invalid value in environment variable";
     }
     return NULL;
 }

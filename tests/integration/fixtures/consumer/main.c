@@ -10,7 +10,7 @@
  *
  * consumer_parse_check() runs declaration -> parse -> lookup -> release with
  * public functions only. consumer_help_check() calls the five text writers
- * of clopts/help.h and clopts_error_get_message() of clopts/error.h
+ * of clopts/help.h and clopts_decl_error_get_message() of clopts/decl_error.h
  * through the umbrella header (in a shared build, each call
  * must resolve against an exported symbol). consumer_platform_check() calls
  * every function of clopts/platform.h (clopts_argv_create_from_wide only on Windows)
@@ -45,23 +45,23 @@ static int consumer_parse_check(void)
     const char *value;
     int failed = 0;
 
-    if (clopts_program_create("consumer", &program) != CLOPTS_ERROR_NONE)
+    if (clopts_program_create("consumer", &program) != CLOPTS_DECL_ERROR_NONE)
     {
         return 1;
     }
-    if (clopts_option_create(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_ERROR_NONE)
+    if (clopts_option_create(CLOPTS_OPTION_VALUE, "name", '\0', &name) != CLOPTS_DECL_ERROR_NONE)
     {
         clopts_program_destroy(program);
         return 1;
     }
-    if (clopts_program_add_option(program, name) != CLOPTS_ERROR_NONE)
+    if (clopts_program_add_option(program, name) != CLOPTS_DECL_ERROR_NONE)
     {
         clopts_option_destroy(name);
         clopts_program_destroy(program);
         return 1;
     }
     result = clopts_parse(program, 3, args);
-    if (clopts_result_get_status(result) != CLOPTS_OK)
+    if (clopts_result_get_status(result) != CLOPTS_PARSE_OK)
     {
         failed = 1;
     }
@@ -104,7 +104,7 @@ static int consumer_help_check(void)
     clopts_result_t *result;
     int failed = 0;
 
-    if (clopts_program_create("consumer", &program) != CLOPTS_ERROR_NONE)
+    if (clopts_program_create("consumer", &program) != CLOPTS_DECL_ERROR_NONE)
     {
         return 1;
     }
@@ -115,7 +115,7 @@ static int consumer_help_check(void)
         !consumer_write_status_valid(clopts_write_usage_hint(program, NULL, consumer_discard, NULL)) ||
         !consumer_write_status_valid(clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR,
                                                         consumer_discard, NULL)) ||
-        (clopts_error_get_message(CLOPTS_ERROR_DUPLICATE_OPTION) == NULL))
+        (clopts_decl_error_get_message(CLOPTS_DECL_ERROR_DUPLICATE_OPTION) == NULL))
     {
         failed = 1;
     }
@@ -131,9 +131,7 @@ static int consumer_help_check(void)
  * at least one element, values[count] == NULL, error index -1. Elsewhere the
  * very same argv comes back. Then clopts_argv_destroy on the handle and on NULL.
  * Windows only: clopts_argv_create_from_wide on {L"consumer", NULL} gives "consumer".
- * env: a new context looks up PATH (FOUND with a value, or UNSET; never
- * FAILED), after which the error is NONE and the error name NULL; a NULL
- * context gives FAILED. Returns 0 on success, non-zero on any mismatch.
+ * Returns 0 on success, non-zero on any mismatch.
  */
 static int consumer_platform_check(void)
 {
@@ -142,9 +140,6 @@ static int consumer_platform_check(void)
     clopts_argv_t *argv_handle;
     char *const *values;
     int count;
-    clopts_env_t *env;
-    clopts_env_status_t env_status;
-    const char *value;
     int failed = 0;
 
     argv_handle = clopts_argv_create(1, args);
@@ -181,24 +176,6 @@ static int consumer_platform_check(void)
     }
 #endif
 
-    env = clopts_env_create();
-    if (env == NULL)
-    {
-        return 1;
-    }
-    value = NULL;
-    env_status = clopts_env_lookup(env, "PATH", &value);
-    if (((env_status != CLOPTS_ENV_FOUND) && (env_status != CLOPTS_ENV_UNSET)) ||
-        ((env_status == CLOPTS_ENV_FOUND) && (value == NULL)) || (clopts_env_get_error(env) != CLOPTS_ENV_ERROR_NONE) ||
-        (clopts_env_get_error_name(env) != NULL))
-    {
-        failed = 1;
-    }
-    if (clopts_env_lookup(NULL, "PATH", &value) != CLOPTS_ENV_FAILED)
-    {
-        failed = 1;
-    }
-    clopts_env_destroy(env);
     return failed;
 }
 

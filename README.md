@@ -10,8 +10,8 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
 - **構造化エラー**: 使い方の誤りは文字列ではなく、種別、該当するコマンド・オプション・トークン、argv の添字をアクセサで読めるエラーとして返る。宣言の誤り（名前の重複など）は使い方の誤りと区別して返る。
 - **入出力も `exit` もしない**: ライブラリは標準出力にも標準エラーにも書かず、`exit` も呼ばない。ヘルプやエラーの文面は書き込みのコールバックに渡すので、表示の仕方と終了コードは利用側が決める。`FILE*` に出すなら、公開ヘッダの `clopts_file_write` を渡すだけでよい。
 - **アロケーターの差し替え**: `clopts_set_allocator` で、ライブラリが使う `malloc` / `calloc` / `realloc` / `free` を差し替えられる。ライブラリの確保と解放は、例外なく設定した関数を通る。
-- **Windows での UTF-8 の引数**: `clopts_argv_create` が Windows のコマンドラインを UTF-8 の argv に変換する。環境変数も UTF-8 で得られる。他の OS では何も変換しないので、同じソースがどの OS でも動く。
-- **静的版と共有版の選択、1.0.0 以降の ABI 後方互換**: 静的ライブラリとしても共有ライブラリとしてもビルドでき、取り込み方によらず形式を選べる。公開 API は不透明なハンドルと関数、および配置を凍結した構造体（アロケーターの `clopts_allocator_t`）でできており、1.0.0 以降は共有ライブラリの ABI の後方互換を保証する。保証の範囲は [ABI の互換性](docs/abi.md) の章に示す。
+- **Windows での UTF-8 の引数**: `clopts_argv_create` が Windows のコマンドラインを UTF-8 の argv に変換する。環境変数も、解析が UTF-8 で読む。他の OS では何も変換しないので、同じソースがどの OS でも動く。
+- **静的版と共有版の選択、1.0.0 以降の ABI 後方互換**: 静的ライブラリとしても共有ライブラリとしてもビルドでき、取り込み方によらず形式を選べる。公開 API は不透明なハンドルと関数、および中身を公開した構造体 1 つ（アロケーターの `clopts_allocator_t`）でできており、1.0.0 以降は共有ライブラリの ABI の後方互換を保証する。保証の範囲は [ABI の互換性](docs/abi.md) の章に示す。
 
 ## 最小のサンプル
 
@@ -29,17 +29,17 @@ C++ の同名のプロジェクト [Sirraide/clopts](https://github.com/Sirraide
     do                               \
     {                                \
         e = (call);                  \
-        if (e != CLOPTS_ERROR_NONE)   \
+        if (e != CLOPTS_DECL_ERROR_NONE)   \
         {                            \
             goto fail;               \
         }                            \
     } while (0)
 
 /* Declares: hello [-g TEXT] [-h] [--version] NAME */
-static clopts_error_t declare(clopts_program_t **out, clopts_option_t **greeting,
+static clopts_decl_error_t declare(clopts_program_t **out, clopts_option_t **greeting,
                               const clopts_option_t **version)
 {
-    clopts_error_t e;
+    clopts_decl_error_t e;
     clopts_program_t *program = NULL;
     clopts_option_t *option = NULL;
     clopts_positional_t *name = NULL;
@@ -76,7 +76,7 @@ static clopts_error_t declare(clopts_program_t **out, clopts_option_t **greeting
     option = NULL;
 
     *out = program;
-    return CLOPTS_ERROR_NONE;
+    return CLOPTS_DECL_ERROR_NONE;
 
 fail:
     /* Whatever is not attached is still ours; the program owns the rest. */
@@ -93,13 +93,13 @@ int main(int argc, char **argv)
     const clopts_option_t *version = NULL;
     clopts_argv_t *args;
     clopts_result_t *result;
-    clopts_error_t error;
+    clopts_decl_error_t error;
     int code = 0;
 
     error = declare(&program, &greeting, &version);
-    if (error != CLOPTS_ERROR_NONE)
+    if (error != CLOPTS_DECL_ERROR_NONE)
     {
-        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_error_get_message(error));
+        fprintf(stderr, "hello: error: invalid declaration: %s\n", clopts_decl_error_get_message(error));
         return 1;
     }
 
@@ -116,12 +116,12 @@ int main(int argc, char **argv)
     result = clopts_parse(program, clopts_argv_get_count(args), clopts_argv_get_values(args));
     switch (clopts_result_get_status(result))
     {
-    case CLOPTS_OK:
+    case CLOPTS_PARSE_OK:
         printf("greeting: %s (%s)\n", clopts_result_get_value(result, greeting),
                clopts_result_get_source(result, greeting) == CLOPTS_SOURCE_DEFAULT ? "default" : "explicit");
         printf("name: %s\n", clopts_result_get_positional_at(result, 0));
         break;
-    case CLOPTS_TERMINATED: /* -h / --help or --version */
+    case CLOPTS_PARSE_TERMINATED: /* -h / --help or --version */
         if (clopts_result_get_terminal_option(result) == version)
         {
             clopts_write_version(program, "1.0.0", clopts_file_write, stdout);
@@ -131,18 +131,18 @@ int main(int argc, char **argv)
             clopts_write_help(program, NULL, clopts_file_write, stdout);
         }
         break;
-    case CLOPTS_USAGE_ERROR:
+    case CLOPTS_PARSE_USAGE_ERROR:
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
         clopts_write_usage_hint(program, clopts_result_get_error_command(result), clopts_file_write, stderr);
         code = 2;
         break;
-    case CLOPTS_NO_COMMAND:
+    case CLOPTS_PARSE_NO_COMMAND:
         /* Only programs with subcommands get this; kept for the common pattern. */
         clopts_write_usage(program, NULL, clopts_file_write, stderr);
         clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
         code = 2;
         break;
-    default: /* CLOPTS_OUT_OF_MEMORY */
+    default: /* CLOPTS_PARSE_OUT_OF_MEMORY */
         clopts_write_error(program, result, CLOPTS_PREFIX_PROGRAM | CLOPTS_PREFIX_ERROR, clopts_file_write, stderr);
         code = 1;
         break;

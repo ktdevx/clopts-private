@@ -24,9 +24,6 @@ extern "C" {
  * calloc_fn and realloc_fn always means failure. On failure realloc_fn must
  * leave the old block valid, as realloc does. free_fn is never called with
  * NULL. count * size is checked for overflow before calloc_fn is called.
- *
- * The layout of this struct is frozen: members are never added, removed,
- * reordered or changed. An extension would be a new type and a new function.
  */
 typedef struct clopts_allocator
 {

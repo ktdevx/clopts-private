@@ -31,13 +31,13 @@ extern "C" {
  * declarations (clopts/help.h).
  *
  * Terminal options (clopts_option_set_terminal()): when argv gives one, the
- * scan stops right after it, the parse ends with CLOPTS_TERMINATED and
+ * scan stops right after it, the parse ends with CLOPTS_PARSE_TERMINATED and
  * clopts_result_get_terminal_option() returns it. The tokens after it are not read and
  * the required options and positionals are not checked. A usage error found
  * before it is still replaced: after the first usage error, the following
  * tokens up to "--" are searched for an exact "--<long>" or "-<c>" of a
  * terminal option of the scope, and the first one found gives
- * CLOPTS_TERMINATED instead.
+ * CLOPTS_PARSE_TERMINATED instead.
  *
  * String lifetime: a string obtained from a result (values, list items,
  * positionals, error tokens) is valid until the result is released, and only
@@ -50,7 +50,7 @@ extern "C" {
  * threads at the same time.
  *
  * NULL handling: a NULL result is read like the out-of-memory sentinel
- * (status CLOPTS_OUT_OF_MEMORY). A NULL option makes a value accessor return
+ * (status CLOPTS_PARSE_OUT_OF_MEMORY). A NULL option makes a value accessor return
  * the unset value. Neither is a contract violation.
  *
  * An option that is attached neither to the program nor to the selected command
@@ -61,19 +61,19 @@ extern "C" {
  */
 
 /* Outcome of a parse. */
-typedef enum clopts_status
+typedef enum clopts_parse_status
 {
     /* Parsed successfully. */
-    CLOPTS_OK = 0,
+    CLOPTS_PARSE_OK = 0,
     /* A terminal option was given (clopts_result_get_terminal_option()). Required ones were not checked. */
-    CLOPTS_TERMINATED = 1,
+    CLOPTS_PARSE_TERMINATED = 1,
     /* The program has subcommands but none appeared. Only global option values are available. */
-    CLOPTS_NO_COMMAND = 2,
+    CLOPTS_PARSE_NO_COMMAND = 2,
     /* A usage error in argv. */
-    CLOPTS_USAGE_ERROR = 3,
-    /* An allocation or the environment lookup failed. */
-    CLOPTS_OUT_OF_MEMORY = 4
-} clopts_status_t;
+    CLOPTS_PARSE_USAGE_ERROR = 3,
+    /* An allocation failed, or the environment lookup reported CLOPTS_ENV_FAILED. */
+    CLOPTS_PARSE_OUT_OF_MEMORY = 4
+} clopts_parse_status_t;
 
 /* Kind of a usage error. The comment lists the error accessors it sets besides argv_index. */
 typedef enum clopts_usage_error
@@ -92,7 +92,13 @@ typedef enum clopts_usage_error
     /* positional: a required positional got no token. */
     CLOPTS_USAGE_MISSING_ARGUMENT = 6,
     /* token: the first token beyond the declared positionals. */
-    CLOPTS_USAGE_UNEXPECTED_ARGUMENT = 7
+    CLOPTS_USAGE_UNEXPECTED_ARGUMENT = 7,
+    /*
+     * option: its environment variable is set but its value cannot be read
+     * in UTF-8 (Windows: not valid UTF-16; a lookup callback returned
+     * CLOPTS_ENV_INVALID). argv_index is -1.
+     */
+    CLOPTS_USAGE_INVALID_ENV_VALUE = 8
 } clopts_usage_error_t;
 
 /* Where an option's value came from. */
@@ -108,16 +114,22 @@ typedef enum clopts_source
  * Parses argv[1..argc-1] (argv[0] is skipped) against program. argc must be
  * >= 0 and argv[0..argc-1] NUL-terminated (argv is not read when argc == 0).
  * Neither program's declaration nor argv is modified. Environment variables
- * are looked up with getenv(). Never returns NULL: when an allocation fails
- * (or program is NULL) the shared out-of-memory sentinel is returned.
+ * are read from the process environment in UTF-8: on Windows with
+ * GetEnvironmentVariableW() and converted, elsewhere with getenv() and
+ * passed through as is. Never returns NULL: when an allocation fails (or
+ * program is NULL) the shared out-of-memory sentinel is returned.
  */
 CLOPTS_API clopts_result_t *clopts_parse(const clopts_program_t *program, int argc, char *const *argv);
 
-/* Same as clopts_parse(), with getenv_fn(env_ctx, ...) as lookup. NULL selects the default lookup. */
+/*
+ * Same as clopts_parse(), with getenv_fn(env_ctx, ...) as the source of the
+ * environment values instead of the process environment. NULL selects the
+ * process environment, as clopts_parse() does.
+ */
 CLOPTS_API clopts_result_t *clopts_parse_with_env(const clopts_program_t *program, int argc, char *const *argv,
                                                   clopts_getenv_fn getenv_fn, void *env_ctx);
 
-CLOPTS_API clopts_status_t clopts_result_get_status(const clopts_result_t *result);
+CLOPTS_API clopts_parse_status_t clopts_result_get_status(const clopts_result_t *result);
 
 /* OK / TERMINATED / NO_COMMAND / USAGE_ERROR: the selected command. NULL without one. */
 CLOPTS_API const clopts_command_t *clopts_result_get_command(const clopts_result_t *result);

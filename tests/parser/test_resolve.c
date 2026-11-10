@@ -45,6 +45,7 @@ typedef struct mock_env
     size_t count;
     bool fail_next;
     const char *fail_name;  /* every query of this name fails; NULL for none */
+    const char *invalid_names[2];  /* every query of these names reports INVALID; NULL for none */
     bool clobber;
     const char *queried[MOCK_MAX_QUERIES];
     size_t queried_count;
@@ -111,6 +112,13 @@ static clopts_env_status_t mock_getenv(void *ctx, const char *name, const char *
     if ((env->fail_name != NULL) && (strcmp(env->fail_name, name) == 0))
     {
         return CLOPTS_ENV_FAILED;
+    }
+    for (i = 0; i < sizeof(env->invalid_names) / sizeof(env->invalid_names[0]); i++)
+    {
+        if ((env->invalid_names[i] != NULL) && (strcmp(env->invalid_names[i], name) == 0))
+        {
+            return CLOPTS_ENV_INVALID;
+        }
     }
     for (i = 0; i < env->count; i++)
     {
@@ -240,25 +248,10 @@ static void sample_init(sample_t *s)
 /* Returns the slot of option (a global option or one of the selected command), found by its address. */
 static clopts_parser_slot_t *slot_of(clopts_result_t *result, const clopts_option_t *option)
 {
-    size_t i;
+    clopts_parser_slot_t *slot = clopts_parser_result_find_slot(result, option);
 
-    for (i = 0; i < result->global_count; i++)
-    {
-        if (result->global_slots[i].option == option)
-        {
-            return &result->global_slots[i];
-        }
-    }
-    NAOS_REQUIRE_NOT_NULL(result->command);
-    for (i = 0; i < result->command_count; i++)
-    {
-        if (result->command_slots[i].option == option)
-        {
-            return &result->command_slots[i];
-        }
-    }
-    NAOS_REQUIRE_TRUE(false);
-    return NULL;
+    NAOS_REQUIRE_NOT_NULL(slot);
+    return slot;
 }
 
 /* Returns item index of the LIST slot. */
@@ -295,29 +288,12 @@ NAOS_TEST(null_program_does_not_call_getenv)
     int calls = 0;
 
     result = clopts_parse_with_env(NULL, 0, NULL, counting_getenv, &calls);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OUT_OF_MEMORY);
     NAOS_CHECK_INT_EQ(calls, 0);
     clopts_result_destroy(result);
 }
 
-/* ---- default lookup --------------------------------------------------- */
-
-NAOS_TEST(getenv_default_lends_the_getenv_pointer)
-{
-    const char *value = NULL;
-    const char *expected = getenv("PATH");
-
-    if (expected != NULL)
-    {
-        NAOS_CHECK_INT_EQ(clopts_parser_getenv_default(NULL, "PATH", &value), CLOPTS_ENV_FOUND);
-        NAOS_CHECK_PTR_EQ(value, expected);
-    }
-    else
-    {
-        NAOS_CHECK_INT_EQ(clopts_parser_getenv_default(NULL, "PATH", &value), CLOPTS_ENV_UNSET);
-    }
-    NAOS_CHECK_INT_EQ(clopts_parser_getenv_default(NULL, SURELY_UNSET_NAME, &value), CLOPTS_ENV_UNSET);
-}
+/* ---- default lookup (clopts_platform_getenv_default: tests/platform/test_env.c) ---- */
 
 NAOS_TEST(null_getenv_fn_uses_the_default_lookup)
 {
@@ -331,7 +307,7 @@ NAOS_TEST(null_getenv_fn_uses_the_default_lookup)
     result = clopts_parser_result_new(s.program);
     NAOS_REQUIRE_NOT_NULL(result);
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, NULL, NULL, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, NULL, NULL, true), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_CHECK_INT_EQ(slot_of(result, s.config)->source, CLOPTS_SOURCE_DEFAULT);
     NAOS_CHECK_STR_EQ(slot_of(result, s.config)->value, "def.conf");
     NAOS_CHECK_INT_EQ(slot_of(result, s.token)->source, CLOPTS_SOURCE_NONE);
@@ -357,7 +333,7 @@ NAOS_TEST(explicit_wins_over_env_and_default)
     NAOS_REQUIRE_INT_EQ(clopts_parser_slot_append_list(slot_of(result, s.include), "x",
                                                        ',', CLOPTS_SOURCE_EXPLICIT), 0);
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     slot = slot_of(result, s.config);
     NAOS_CHECK_INT_EQ(slot->source, CLOPTS_SOURCE_EXPLICIT);
     NAOS_CHECK_PTR_EQ(slot->value, cli);
@@ -382,7 +358,7 @@ NAOS_TEST(env_wins_over_default)
     mock_init(&env);
     mock_set(&env, "TOOL_CONFIG", "env.conf");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     slot = slot_of(result, s.config);
     NAOS_CHECK_INT_EQ(slot->source, CLOPTS_SOURCE_ENV);
     NAOS_CHECK_STR_EQ(slot->value, "env.conf");
@@ -403,7 +379,7 @@ NAOS_TEST(default_when_env_is_unset)
     SAMPLE_BEGIN(s, result);
     mock_init(&env);
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     slot = slot_of(result, s.config);
     NAOS_CHECK_INT_EQ(slot->source, CLOPTS_SOURCE_DEFAULT);
     NAOS_CHECK_PTR_EQ(slot->value, clopts_option_get_default(s.config));
@@ -431,7 +407,7 @@ NAOS_TEST(empty_env_string_is_an_env_value)
     mock_init(&env);
     mock_set(&env, "TOOL_CONFIG", "");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     slot = slot_of(result, s.config);
     NAOS_CHECK_INT_EQ(slot->source, CLOPTS_SOURCE_ENV);
     NAOS_REQUIRE_NOT_NULL(slot->value);
@@ -450,7 +426,7 @@ NAOS_TEST(declaration_order_global_then_selected_command)
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_select(result, s.build), 0);
     mock_init(&env);
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_REQUIRE_UINT_EQ(env.queried_count, 5);
     NAOS_CHECK_STR_EQ(env.queried[0], "TOOL_CONFIG");
     NAOS_CHECK_STR_EQ(env.queried[1], "TOOL_INCLUDE");
@@ -476,7 +452,7 @@ NAOS_TEST(list_default_is_split_by_the_delimiter)
     SAMPLE_BEGIN(s, result);
     mock_init(&env);
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     slot = slot_of(result, s.include);
     NAOS_CHECK_INT_EQ(slot->source, CLOPTS_SOURCE_DEFAULT);
     NAOS_REQUIRE_UINT_EQ(slot->items.len, 2);
@@ -498,7 +474,7 @@ NAOS_TEST(list_env_is_split_by_the_delimiter)
     mock_set(&env, "TOOL_INCLUDE", "x,,y");
     mock_set(&env, "TOOL_TAG", "p,q");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     slot = slot_of(result, s.include);
     NAOS_CHECK_INT_EQ(slot->source, CLOPTS_SOURCE_ENV);
     NAOS_REQUIRE_UINT_EQ(slot->items.len, 3);
@@ -527,7 +503,7 @@ NAOS_TEST(unselected_command_env_is_not_queried)
     mock_set(&env, "COPY_DEST", "d");
     mock_set(&env, "BUILD_OUTPUT", "bin");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_CHECK_UINT_EQ(mock_queries(&env, "COPY_DEST"), 0);
     NAOS_CHECK_UINT_EQ(mock_queries(&env, "BUILD_OUTPUT"), 1);
     NAOS_CHECK_INT_EQ(slot_of(result, s.output)->source, CLOPTS_SOURCE_ENV);
@@ -547,7 +523,7 @@ NAOS_TEST(no_selected_command_queries_only_the_global_options)
     mock_set(&env, "COPY_DEST", "d");
     mock_set(&env, "BUILD_OUTPUT", "bin");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_CHECK_UINT_EQ(env.queried_count, 4);
     NAOS_CHECK_UINT_EQ(mock_queries(&env, "COPY_DEST"), 0);
     NAOS_CHECK_UINT_EQ(mock_queries(&env, "BUILD_OUTPUT"), 0);
@@ -566,7 +542,7 @@ NAOS_TEST(include_command_false_resolves_only_the_global_options)
     mock_init(&env);
     mock_set(&env, "BUILD_OUTPUT", "bin");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, false), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, false), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_CHECK_UINT_EQ(mock_queries(&env, "BUILD_OUTPUT"), 0);
     NAOS_CHECK_INT_EQ(slot_of(result, s.output)->source, CLOPTS_SOURCE_NONE);
     NAOS_CHECK_NULL(slot_of(result, s.output)->value);
@@ -587,7 +563,7 @@ NAOS_TEST(failed_lookup_returns_error_without_default)
     mock_init(&env);
     env.fail_next = true;
 
-    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_OUT_OF_MEMORY);
     NAOS_CHECK_UINT_EQ(env.queried_count, 1);
     NAOS_CHECK_INT_EQ(slot_of(result, s.config)->source, CLOPTS_SOURCE_NONE);
     NAOS_CHECK_NULL(slot_of(result, s.config)->value);
@@ -607,12 +583,169 @@ NAOS_TEST(failed_lookup_in_the_command_returns_error)
     mock_set(&env, "TOOL_INCLUDE", "i");
     env.fail_name = "BUILD_OUTPUT";
 
-    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_OUT_OF_MEMORY);
     NAOS_CHECK_INT_EQ(slot_of(result, s.include)->source, CLOPTS_SOURCE_ENV);
     NAOS_CHECK_INT_EQ(slot_of(result, s.output)->source, CLOPTS_SOURCE_NONE);
     NAOS_CHECK_NULL(slot_of(result, s.output)->value);
 
     SAMPLE_END(s, result);
+}
+
+/* ---- values that cannot be read ---------------------------------------- */
+
+/*
+ * An INVALID value leaves its slot unset (the default is not used either),
+ * the first one is recorded as the error, and the other options are still
+ * resolved.
+ */
+NAOS_TEST(invalid_value_leaves_the_slot_unset_and_records_the_first_error)
+{
+    sample_t s;
+    clopts_result_t *result;
+    mock_env_t env;
+    const clopts_parser_error_t *error;
+
+    SAMPLE_BEGIN(s, result);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_result_select(result, s.build), 0);
+    mock_init(&env);
+    env.invalid_names[0] = "TOOL_CONFIG";
+    env.invalid_names[1] = "BUILD_OUTPUT";
+    mock_set(&env, "TOOL_TOKEN", "t");
+
+    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true),
+                      CLOPTS_PARSER_RESOLVE_INVALID);
+    NAOS_CHECK_INT_EQ(slot_of(result, s.config)->source, CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_NULL(slot_of(result, s.config)->value);
+    NAOS_CHECK_INT_EQ(slot_of(result, s.output)->source, CLOPTS_SOURCE_NONE);
+    NAOS_CHECK_NULL(slot_of(result, s.output)->value);
+    /* the resolution went on after the first one */
+    NAOS_CHECK_INT_EQ(slot_of(result, s.token)->source, CLOPTS_SOURCE_ENV);
+    NAOS_CHECK_STR_EQ(slot_of(result, s.token)->value, "t");
+    NAOS_CHECK_INT_EQ(slot_of(result, s.include)->source, CLOPTS_SOURCE_DEFAULT);
+
+    error = clopts_parser_result_get_error(result);
+    NAOS_CHECK_INT_EQ(error->usage, CLOPTS_USAGE_INVALID_ENV_VALUE);
+    NAOS_CHECK_PTR_EQ(error->option, s.config);
+    NAOS_CHECK_PTR_EQ(error->command, s.build);
+    NAOS_CHECK_NULL(error->positional);
+    NAOS_CHECK_NULL(error->token);
+    NAOS_CHECK_INT_EQ(error->argv_index, -1);
+    NAOS_CHECK_UINT_EQ(error->name_len, 0);
+    NAOS_CHECK_INT_EQ(error->short_name, '\0');
+
+    SAMPLE_END(s, result);
+}
+
+/* Without the selected command, the error names no command, as for a missing option. */
+NAOS_TEST(invalid_value_without_the_command_names_no_command)
+{
+    sample_t s;
+    clopts_result_t *result;
+    mock_env_t env;
+
+    SAMPLE_BEGIN(s, result);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_result_select(result, s.build), 0);
+    mock_init(&env);
+    env.invalid_names[0] = "TOOL_TAG";
+
+    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, false),
+                      CLOPTS_PARSER_RESOLVE_INVALID);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.tag);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->command);
+    NAOS_CHECK_UINT_EQ(slot_of(result, s.tag)->items.len, 0);
+
+    SAMPLE_END(s, result);
+}
+
+/* A FAILED lookup after an INVALID one still ends the resolution with out of memory. */
+NAOS_TEST(failed_lookup_wins_over_an_invalid_value)
+{
+    sample_t s;
+    clopts_result_t *result;
+    mock_env_t env;
+
+    SAMPLE_BEGIN(s, result);
+    mock_init(&env);
+    env.invalid_names[0] = "TOOL_CONFIG";
+    env.fail_name = "TOOL_TOKEN";
+
+    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true),
+                      CLOPTS_PARSER_RESOLVE_OUT_OF_MEMORY);
+
+    SAMPLE_END(s, result);
+}
+
+/*
+ * tool with --format (VALUE, env TOOL_FORMAT, default "text") and the
+ * terminal --help, parsed with mock as the environment.
+ */
+static clopts_result_t *parse_format_tool(clopts_program_t **program, clopts_option_t **format, mock_env_t *env,
+                                          int argc, char **argv)
+{
+    clopts_option_t *option;
+
+    test_decl_reset();
+    *program = test_decl_begin("tool");
+    option = test_decl_option(CLOPTS_OPTION_VALUE, "format", '\0');
+    test_decl_check(clopts_option_set_env(option, "TOOL_FORMAT"));
+    test_decl_check(clopts_option_set_default(option, "text"));
+    *format = test_decl_global_attach(*program, option);
+    (void)test_decl_global_attach(*program, test_decl_help_option());
+    *program = test_decl_finish(*program);
+    NAOS_REQUIRE_NOT_NULL(*program);
+    NAOS_REQUIRE_UINT_EQ(test_decl_failures, 0);
+    return clopts_parse_with_env(*program, argc, argv, mock_getenv, env);
+}
+
+NAOS_TEST(parse_reports_an_invalid_value_as_a_usage_error)
+{
+    static char arg0[] = "tool";
+    static char *argv[] = {arg0, NULL};
+    clopts_program_t *program;
+    clopts_option_t *format;
+    clopts_result_t *result;
+    mock_env_t env;
+
+    test_alloc_begin(0);
+    mock_init(&env);
+    env.invalid_names[0] = "TOOL_FORMAT";
+    result = parse_format_tool(&program, &format, &env, 1, argv);
+
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
+    NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_INVALID_ENV_VALUE);
+    NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), format);
+    NAOS_CHECK_NULL(clopts_result_get_error_command(result));
+    NAOS_CHECK_NULL(clopts_result_get_error_token(result));
+    NAOS_CHECK_INT_EQ(clopts_result_get_error_argv_index(result), -1);
+
+    clopts_result_destroy(result);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
+}
+
+/* A terminal option still ends the parse with TERMINATED, as it does after a usage error in argv. */
+NAOS_TEST(parse_terminal_option_wins_over_an_invalid_value)
+{
+    static char arg0[] = "tool";
+    static char arg1[] = "--help";
+    static char *argv[] = {arg0, arg1, NULL};
+    clopts_program_t *program;
+    clopts_option_t *format;
+    clopts_result_t *result;
+    mock_env_t env;
+
+    test_alloc_begin(0);
+    mock_init(&env);
+    env.invalid_names[0] = "TOOL_FORMAT";
+    result = parse_format_tool(&program, &format, &env, 2, argv);
+
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_TERMINATED);
+    NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_NONE);
+    NAOS_CHECK_NULL(clopts_result_get_value(result, format));
+
+    clopts_result_destroy(result);
+    clopts_program_destroy(program);
+    NAOS_CHECK_TRUE(test_alloc_end());
 }
 
 NAOS_TEST(borrowed_buffer_overwritten_after_return_keeps_values)
@@ -631,7 +764,7 @@ NAOS_TEST(borrowed_buffer_overwritten_after_return_keeps_values)
     mock_set(&env, "TOOL_TOKEN", "tok");
     mock_set(&env, "BUILD_OUTPUT", "bin");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     mock_clobber(&env);
     NAOS_CHECK_STR_EQ(slot_of(result, s.config)->value, "one");
     NAOS_CHECK_INT_EQ(slot_of(result, s.config)->source, CLOPTS_SOURCE_ENV);
@@ -656,7 +789,7 @@ NAOS_TEST(alloc_failure_on_the_env_copy_returns_error)
     mock_set(&env, "TOOL_CONFIG", "env.conf");
     test_alloc_set_fail_at(test_alloc.calls + 1);
 
-    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_OUT_OF_MEMORY);
     NAOS_CHECK_UINT_EQ(env.queried_count, 1);
     NAOS_CHECK_INT_EQ(slot_of(result, s.config)->source, CLOPTS_SOURCE_NONE);
 
@@ -679,7 +812,7 @@ NAOS_TEST(alloc_failure_on_a_list_item_releases_the_env_copy)
      */
     test_alloc_set_fail_at(test_alloc.calls + 2);
 
-    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_OUT_OF_MEMORY);
     NAOS_CHECK_UINT_EQ(slot_of(result, s.include)->items.len, 0);
 
     SAMPLE_END(s, result);
@@ -699,7 +832,7 @@ NAOS_TEST(full_resolve_leaves_no_live_blocks_after_free)
     mock_set(&env, "TOOL_TAG", "g");
     mock_set(&env, "BUILD_OUTPUT", "o");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_CHECK_INT_GT(test_alloc.live, 0);
 
     SAMPLE_END(s, result);
@@ -721,10 +854,10 @@ NAOS_TEST(required_satisfied_by_env)
     mock_init(&env);
     mock_set(&env, "TOOL_TOKEN", "secret");
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), 0);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_NONE);
-    NAOS_CHECK_INT_EQ(result->status, CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_NONE);
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
 
     SAMPLE_END(s, result);
 }
@@ -739,17 +872,17 @@ NAOS_TEST(missing_option_reports_global_before_command)
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_select(result, s.build), 0);
     mock_init(&env);
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, s.program, mock_getenv, &env, true), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result->error.option, s.token);
-    NAOS_CHECK_PTR_EQ(result->error.command, s.build);
-    NAOS_CHECK_NULL(result->error.positional);
-    NAOS_CHECK_NULL(result->error.token);
-    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
-    NAOS_CHECK_UINT_EQ(result->error.name_len, 0);
-    NAOS_CHECK_INT_EQ(result->error.short_name, '\0');
-    NAOS_CHECK_INT_EQ(result->status, CLOPTS_OK);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.token);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->command, s.build);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->positional);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->token);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->argv_index, -1);
+    NAOS_CHECK_UINT_EQ(clopts_parser_result_get_error(result)->name_len, 0);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->short_name, '\0');
+    NAOS_CHECK_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
 
     SAMPLE_END(s, result);
 }
@@ -764,10 +897,10 @@ NAOS_TEST(missing_option_in_the_selected_command)
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_EXPLICIT);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result->error.option, s.mode);
-    NAOS_CHECK_PTR_EQ(result->error.command, s.build);
-    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.mode);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->command, s.build);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->argv_index, -1);
 
     SAMPLE_END(s, result);
 }
@@ -782,8 +915,8 @@ NAOS_TEST(default_source_does_not_satisfy_required)
     clopts_parser_slot_set_value(slot_of(result, s.token), "d", CLOPTS_SOURCE_DEFAULT);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result->error.option, s.token);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.token);
 
     SAMPLE_END(s, result);
 }
@@ -799,11 +932,11 @@ NAOS_TEST(missing_required_positional)
     clopts_parser_slot_set_value(slot_of(result, s.mode), "m", CLOPTS_SOURCE_EXPLICIT);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(result->error.positional, s.src);
-    NAOS_CHECK_NULL(result->error.option);
-    NAOS_CHECK_PTR_EQ(result->error.command, s.build);
-    NAOS_CHECK_INT_EQ(result->error.argv_index, -1);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->positional, s.src);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->option);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->command, s.build);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->argv_index, -1);
 
     SAMPLE_END(s, result);
 }
@@ -819,9 +952,9 @@ NAOS_TEST(required_variadic_needs_one_token)
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_ENV);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(result->error.positional, s.files);
-    NAOS_CHECK_PTR_EQ(result->error.command, s.copy);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->positional, s.files);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->command, s.copy);
 
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_add_positional(result, first), 0);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), 0);
@@ -839,9 +972,9 @@ NAOS_TEST(include_command_false_checks_only_the_global_options)
 
     /* Global option missing: reported without a command. */
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, false), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_OPTION);
-    NAOS_CHECK_PTR_EQ(result->error.option, s.token);
-    NAOS_CHECK_NULL(result->error.command);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_OPTION);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->option, s.token);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->command);
 
     /* Global option satisfied: the command's missing option and positional are ignored. */
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_EXPLICIT);
@@ -859,7 +992,7 @@ NAOS_TEST(no_selected_command_checks_only_global_options)
     clopts_parser_slot_set_value(slot_of(result, s.token), "t", CLOPTS_SOURCE_EXPLICIT);
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, s.program, true), 0);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_NONE);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_NONE);
 
     SAMPLE_END(s, result);
 }
@@ -892,16 +1025,16 @@ NAOS_TEST(program_without_subcommands_checks_program_positionals)
     result = clopts_parser_result_new(program);
     NAOS_REQUIRE_NOT_NULL(result);
 
-    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, program, counting_getenv, &calls, true), 0);
+    NAOS_REQUIRE_INT_EQ(clopts_parser_resolve(result, program, counting_getenv, &calls, true), CLOPTS_PARSER_RESOLVE_DONE);
     NAOS_CHECK_INT_EQ(calls, 0);
     /* level is the only global option: slot 0. */
-    NAOS_CHECK_INT_EQ(result->global_slots[0].source, CLOPTS_SOURCE_DEFAULT);
-    NAOS_CHECK_STR_EQ(result->global_slots[0].value, "1");
+    NAOS_CHECK_INT_EQ(slot_of(result, level)->source, CLOPTS_SOURCE_DEFAULT);
+    NAOS_CHECK_STR_EQ(slot_of(result, level)->value, "1");
 
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, program, true), -1);
-    NAOS_CHECK_INT_EQ(result->error.usage, CLOPTS_USAGE_MISSING_ARGUMENT);
-    NAOS_CHECK_PTR_EQ(result->error.positional, input);
-    NAOS_CHECK_NULL(result->error.command);
+    NAOS_CHECK_INT_EQ(clopts_parser_result_get_error(result)->usage, CLOPTS_USAGE_MISSING_ARGUMENT);
+    NAOS_CHECK_PTR_EQ(clopts_parser_result_get_error(result)->positional, input);
+    NAOS_CHECK_NULL(clopts_parser_result_get_error(result)->command);
 
     NAOS_REQUIRE_INT_EQ(clopts_parser_result_add_positional(result, token), 0);
     NAOS_CHECK_INT_EQ(clopts_parser_check_required(result, program, true), 0);
@@ -1068,7 +1201,7 @@ NAOS_TEST(parse_config_from_env_is_env)
     TOOL_BEGIN(t);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, t.config), CLOPTS_SOURCE_ENV);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, t.config), "/etc/t");
     NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
@@ -1087,7 +1220,7 @@ NAOS_TEST(parse_config_explicit_wins_over_env)
     TOOL_BEGIN(t);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, t.config), CLOPTS_SOURCE_EXPLICIT);
     /* An explicit value points into argv, and the environment is not looked up. */
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, t.config), argv[2]);
@@ -1106,7 +1239,7 @@ NAOS_TEST(parse_config_unset_is_none)
     TOOL_BEGIN(t);
     fixture_env_init(&env, NULL, 0);
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, t.config), CLOPTS_SOURCE_NONE);
     NAOS_CHECK_NULL(clopts_result_get_value(result, t.config));
     NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
@@ -1125,7 +1258,7 @@ NAOS_TEST(parse_config_empty_env_is_env)
     TOOL_BEGIN(t);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, t.config), CLOPTS_SOURCE_ENV);
     NAOS_REQUIRE_NOT_NULL(clopts_result_get_value(result, t.config));
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, t.config), "");
@@ -1145,7 +1278,7 @@ NAOS_TEST(parse_list_empty_env_is_one_empty_item)
     TOOL_BEGIN(t);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, t.tags), CLOPTS_SOURCE_ENV);
     NAOS_REQUIRE_UINT_EQ(clopts_result_get_list_count(result, t.tags), 1);
     NAOS_CHECK_STR_EQ(clopts_result_get_list_at(result, t.tags, 0), "");
@@ -1165,7 +1298,7 @@ NAOS_TEST(parse_filt_default_points_into_the_declaration)
     NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, NULL, 0);
     result = parse_env(f.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.lines), CLOPTS_SOURCE_DEFAULT);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.lines), "10");
     /* The default is not copied: it points into the declaration model. */
@@ -1189,7 +1322,7 @@ NAOS_TEST(parse_config_from_env_with_no_command)
     TOOL_BEGIN(t);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_NO_COMMAND);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, t.config), CLOPTS_SOURCE_ENV);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, t.config), "/etc/t");
     NAOS_CHECK_UINT_EQ(clopts_result_get_count(result, t.verbose), 2);
@@ -1212,7 +1345,7 @@ NAOS_TEST(parse_build_does_not_query_other_commands_env)
     TOOL_BEGIN(t);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_TRUE(fixture_env_was_queried(&env, "TOOL_CONFIG"));
     /* TOOL_TAGS belongs to cat, which was not selected. */
     NAOS_CHECK_FALSE(fixture_env_was_queried(&env, "TOOL_TAGS"));
@@ -1236,7 +1369,7 @@ NAOS_TEST(parse_required_satisfied_by_env)
     need_init(&d);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_env(d.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, d.key), CLOPTS_SOURCE_ENV);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, d.key), "k");
     NAOS_CHECK_UINT_EQ(clopts_result_get_positional_count(result), 1);
@@ -1254,7 +1387,7 @@ NAOS_TEST(parse_required_missing_when_env_unset)
     need_init(&d);
     fixture_env_init(&env, NULL, 0);
     result = parse_env(d.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), d.key);
     NAOS_CHECK_NULL(clopts_result_get_error_positional(result));
@@ -1275,7 +1408,7 @@ NAOS_TEST(parse_required_variadic_needs_one_token)
     need_init(&d);
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     result = parse_env(d.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_positional(result), d.files);
     NAOS_CHECK_NULL(clopts_result_get_error_option(result));
@@ -1294,7 +1427,7 @@ NAOS_TEST(parse_build_without_output_is_missing_option)
     TOOL_BEGIN(t);
     fixture_env_init(&env, NULL, 0);
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), t.output);
     NAOS_CHECK_NULL(clopts_result_get_error_positional(result));
@@ -1316,7 +1449,7 @@ NAOS_TEST(parse_copy_second_positional_missing)
     TOOL_BEGIN(t);
     fixture_env_init(&env, NULL, 0);
     result = parse_env(t.program, missing, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_positional(result), t.copy_dst);
     NAOS_CHECK_NULL(clopts_result_get_error_option(result));
@@ -1324,7 +1457,7 @@ NAOS_TEST(parse_copy_second_positional_missing)
     clopts_result_destroy(result);
 
     result = parse_env(t.program, given, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_REQUIRE_UINT_EQ(clopts_result_get_positional_count(result), 2);
     NAOS_CHECK_PTR_EQ(clopts_result_get_positional_at(result, 1), given[3]);
     clopts_result_destroy(result);
@@ -1346,21 +1479,21 @@ NAOS_TEST(parse_required_order_global_command_positional)
     fixture_env_init(&env, NULL, 0);
 
     result = parse_env(d.program, none, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), d.global);
     check_missing_common(result, d.cmd);
     clopts_result_destroy(result);
 
     result = parse_env(d.program, global, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), d.local);
     check_missing_common(result, d.cmd);
     clopts_result_destroy(result);
 
     result = parse_env(d.program, local, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_ARGUMENT);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_positional(result), d.arg);
     NAOS_CHECK_NULL(clopts_result_get_error_option(result));
@@ -1368,7 +1501,7 @@ NAOS_TEST(parse_required_order_global_command_positional)
     clopts_result_destroy(result);
 
     result = parse_env(d.program, all, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, d.local), all[5]);
     clopts_result_destroy(result);
     clopts_program_destroy(d.program);
@@ -1387,7 +1520,7 @@ NAOS_TEST(parse_no_command_skips_the_command_required_checks)
     fixture_env_init(&env, NULL, 0);
 
     result = parse_env(d.program, missing, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), d.global);
     check_missing_common(result, NULL);
@@ -1395,7 +1528,7 @@ NAOS_TEST(parse_no_command_skips_the_command_required_checks)
 
     /* --local and ARG of cmd are required, but cmd was not selected. */
     result = parse_env(d.program, given, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_NO_COMMAND);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, d.global), given[2]);
     NAOS_CHECK_NULL(clopts_result_get_command(result));
     clopts_result_destroy(result);
@@ -1417,7 +1550,7 @@ NAOS_TEST(parse_strict_no_command_with_required_global)
 
     /* No subcommand: the required global is still checked. */
     result = parse_env(s.program, missing, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_USAGE_ERROR);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_USAGE_ERROR);
     NAOS_CHECK_INT_EQ(clopts_result_get_usage_error(result), CLOPTS_USAGE_MISSING_OPTION);
     NAOS_CHECK_PTR_EQ(clopts_result_get_error_option(result), s.token);
     check_missing_common(result, NULL);
@@ -1425,7 +1558,7 @@ NAOS_TEST(parse_strict_no_command_with_required_global)
 
     /* A second, independent parse of the same program. */
     result = parse_env(s.program, given, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_NO_COMMAND);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_NO_COMMAND);
     NAOS_CHECK_PTR_EQ(clopts_result_get_value(result, s.token), given[2]);
     clopts_result_destroy(result);
     fixture_strict_free(&s);
@@ -1445,7 +1578,7 @@ NAOS_TEST(parse_env_failed_is_out_of_memory_and_freeable)
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     env.fail_next = true;
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OUT_OF_MEMORY);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OUT_OF_MEMORY);
     /* The lookup stops at the first failure: TOOL_TAGS is not looked up. */
     NAOS_CHECK_UINT_EQ(env.query_count, 1);
     NAOS_CHECK_FALSE(fixture_env_was_queried(&env, "TOOL_TAGS"));
@@ -1481,7 +1614,7 @@ NAOS_TEST(parse_env_values_survive_clobber_after_parse)
     TOOL_BEGIN(t);
     fixture_env_init(&env, tool_vars, ARRAY_LEN(tool_vars));
     result = parse_env(t.program, tool_argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     fixture_env_clobber(&env);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, t.config), CLOPTS_SOURCE_ENV);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, t.config), "/etc/t");
@@ -1498,7 +1631,7 @@ NAOS_TEST(parse_env_values_survive_clobber_after_parse)
     NAOS_REQUIRE_TRUE(f.ok);
     fixture_env_init(&env, filt_vars, ARRAY_LEN(filt_vars));
     result = parse_env(f.program, filt_argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     fixture_env_clobber(&env);
     NAOS_CHECK_INT_EQ(clopts_result_get_source(result, f.lines), CLOPTS_SOURCE_ENV);
     NAOS_CHECK_STR_EQ(clopts_result_get_value(result, f.lines), "5");
@@ -1522,7 +1655,7 @@ NAOS_TEST(parse_env_value_is_copied_before_the_next_lookup)
     fixture_env_init(&env, vars, ARRAY_LEN(vars));
     env.clobber = true;
     result = parse_env(t.program, argv, &env);
-    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_OK);
+    NAOS_REQUIRE_INT_EQ(clopts_result_get_status(result), CLOPTS_PARSE_OK);
     NAOS_REQUIRE_UINT_EQ(env.query_count, 2);
     NAOS_CHECK_STR_EQ(env.queried[0], "TOOL_CONFIG");
     NAOS_CHECK_STR_EQ(env.queried[1], "TOOL_TAGS");
@@ -1537,7 +1670,6 @@ NAOS_TEST(parse_env_value_is_copied_before_the_next_lookup)
 
 NAOS_SUITE(resolve,
     NAOS_ADD_TEST(null_program_does_not_call_getenv),
-    NAOS_ADD_TEST(getenv_default_lends_the_getenv_pointer),
     NAOS_ADD_TEST(null_getenv_fn_uses_the_default_lookup),
     NAOS_ADD_TEST(explicit_wins_over_env_and_default),
     NAOS_ADD_TEST(env_wins_over_default),
@@ -1551,6 +1683,11 @@ NAOS_SUITE(resolve,
     NAOS_ADD_TEST(include_command_false_resolves_only_the_global_options),
     NAOS_ADD_TEST(failed_lookup_returns_error_without_default),
     NAOS_ADD_TEST(failed_lookup_in_the_command_returns_error),
+    NAOS_ADD_TEST(invalid_value_leaves_the_slot_unset_and_records_the_first_error),
+    NAOS_ADD_TEST(invalid_value_without_the_command_names_no_command),
+    NAOS_ADD_TEST(failed_lookup_wins_over_an_invalid_value),
+    NAOS_ADD_TEST(parse_reports_an_invalid_value_as_a_usage_error),
+    NAOS_ADD_TEST(parse_terminal_option_wins_over_an_invalid_value),
     NAOS_ADD_TEST(borrowed_buffer_overwritten_after_return_keeps_values),
     NAOS_ADD_TEST(alloc_failure_on_the_env_copy_returns_error),
     NAOS_ADD_TEST(alloc_failure_on_a_list_item_releases_the_env_copy),

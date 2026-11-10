@@ -22,13 +22,13 @@ extern "C" {
  */
 
 /* Creates an unattached positional named name (copied, not empty), used in help and messages. */
-CLOPTS_API clopts_error_t clopts_positional_create(const char *name, clopts_positional_t **out);
+CLOPTS_API clopts_decl_error_t clopts_positional_create(const char *name, clopts_positional_t **out);
 
 /* Releases an unattached positional, as clopts_option_destroy() does for an option. */
 CLOPTS_API void clopts_positional_destroy(clopts_positional_t *positional);
 
 /* One-line description in help. NULL resets it. */
-CLOPTS_API clopts_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help);
+CLOPTS_API clopts_decl_error_t clopts_positional_set_help(clopts_positional_t *positional, const char *help);
 
 /* Required positionals must precede optional ones (checked when attached). */
 CLOPTS_API void clopts_positional_set_required(clopts_positional_t *positional, bool required);
