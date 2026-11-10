@@ -434,7 +434,7 @@ color: false
 
 ## 終端オプション、ヘルプと版、使い方エラー
 
-解析器には、組み込みのオプションもコマンドもない。`--help`、`-h`、`--version` は終端の FLAG として、`help` コマンドは `clopts/text.h` の `clopts_help_command_create` で足す、ふつうの宣言である。taskbook と textcount は、プログラムに `-h` / `--help` と `--version` を、taskbook はさらに `help` コマンドを宣言している。
+解析器には、組み込みのオプションもコマンドもない。`--help`、`-h`、`--version` は終端の FLAG として、`help` コマンドはサブコマンドとして足す、ふつうの宣言である。taskbook と textcount は、プログラムに `-h` / `--help` と `--version` を、taskbook はさらに `help` コマンドを宣言している。
 
 `--help` と `--version` は終端オプション（`clopts_option_set_terminal` を設定した FLAG）である。終端オプションは次のように扱われる。
 
@@ -443,7 +443,7 @@ color: false
 - 値をとらないので、`--help=x` は値をとらないオプションのエラーになる。
 - 使い方エラーを見つけても、その要素から `--` の手前までに、その範囲（選ばれたサブコマンドとグローバルオプション）の終端オプションが `--<name>` か `-<c>` のそのままの形であれば、最初に見つけたものが優先される（ここでは、まとめ書きの中の文字は数えない）。
 
-`help` コマンドは、`help` という名前のふつうのサブコマンドで、省略できる位置引数 `COMMAND` を 1 つとる。解析器にとっては `taskbook help add` も `taskbook help remove` も成功（`CLOPTS_PARSE_OK`）で、`help` コマンドが選ばれ、位置引数が 1 つ得られる。名前をサブコマンドとして引くのは `clopts_help_find_target` で、名前がサブコマンドでなければ false を返す。taskbook は、そのときエラーの 1 行と使い方の案内を出す。`help` の後ろに 2 つ以上の要素があれば、予期しない引数のエラーになる。
+`help` コマンドは、`help` という名前のふつうのサブコマンドで、省略できる位置引数 `COMMAND` を 1 つとる。解析器にとっては `taskbook help add` も `taskbook help remove` も成功（`CLOPTS_PARSE_OK`）で、`help` コマンドが選ばれ、位置引数が 1 つ得られる。名前をサブコマンドとして引くのは利用側で、taskbook は `clopts_program_find_command` で引き、サブコマンドでなければエラーの 1 行と使い方の案内を出す。`help` の後ろに 2 つ以上の要素があれば、予期しない引数のエラーになる。
 
 使い方エラーが複数あっても、報告されるのは最初に見つけた 1 つだけである。argv の読み取り中のエラー（未知のオプションなど）は、必須のオプションや位置引数がないことの検査より先に見つかる。
 

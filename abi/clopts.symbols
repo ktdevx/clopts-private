@@ -138,5 +138,3 @@ clopts_write_usage
 clopts_write_version
 clopts_write_usage_hint
 clopts_write_error
-clopts_help_command_create
-clopts_help_find_target

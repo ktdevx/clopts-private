@@ -63,11 +63,19 @@ clopts_program_t *test_decl_begin(const char *name);
 clopts_command_t *test_decl_command(clopts_program_t *program, const char *name);
 
 /*
- * Remembers command (made elsewhere, e.g. by clopts_help_command_create()) as a
+ * Remembers command (made elsewhere) as a
  * subcommand of program and returns it. NULL command gives NULL; NULL program
  * releases command and gives NULL.
  */
 clopts_command_t *test_decl_adopt(clopts_program_t *program, clopts_command_t *command);
+
+/*
+ * The help command of the fixtures, remembered as a subcommand of program like
+ * test_decl_command(): "help" ("Show help for a command") with one optional
+ * positional COMMAND ("Command to show help for"), as examples/taskbook
+ * declares it. NULL on failure or when program is NULL.
+ */
+clopts_command_t *test_decl_help_command(clopts_program_t *program);
 
 /*
  * clopts_program_add_command(program, c) for each remembered command c of

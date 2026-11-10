@@ -15,7 +15,7 @@
 | `clopts/positional.h` | 位置引数の関数（作成、解放、属性、読み取り） |
 | `clopts/parse.h` | 解析の関数、状態とエラー種別の列挙、結果とエラーのアクセサ |
 | `clopts/env.h` | 環境変数の値を渡すコールバックの型（`clopts_getenv_fn`）とその戻り値（`clopts_env_status_t`）。`clopts/parse.h` が取り込む |
-| `clopts/text.h` | ヘルプ・使い方・版・エラーの文面を出す関数と、`help` コマンドを宣言する関数 |
+| `clopts/text.h` | ヘルプ・使い方・版・エラーの文面を出す関数 |
 | `clopts/writer.h` | 書き込みコールバックの型と、`FILE*` へ書く便宜関数 |
 | `clopts/platform.h` | UTF-8 の argv を得る関数 |
 | `clopts/alloc.h` | ライブラリ全体で使うアロケーターを差し替える関数と、その構造体 |
@@ -41,7 +41,7 @@
 | その他の動作 | 動詞 | `clopts_parse`、`clopts_write_help` |
 
 - `get` は読み取りだけに使う。`get` の関数が返すものは解放しない。
-- `create` の関数が作ったハンドルは、その型の `destroy` で解放する（`clopts_help_command_create` が作るコマンドは `clopts_command_destroy`）。ただし、プログラムかコマンドに渡したオプション・位置引数・コマンドは、プログラムと一緒に解放される（「[ハンドルと寿命](#ハンドルと寿命)」）。`clopts_parse` と `clopts_parse_with_env` が返す結果は `clopts_result_destroy` で解放する。
+- `create` の関数が作ったハンドルは、その型の `destroy` で解放する。ただし、プログラムかコマンドに渡したオプション・位置引数・コマンドは、プログラムと一緒に解放される（「[ハンドルと寿命](#ハンドルと寿命)」）。`clopts_parse` と `clopts_parse_with_env` が返す結果は `clopts_result_destroy` で解放する。
 - `is_` は宣言の bool の属性（`set_<属性>` と組になるもの）に使う。解析結果の FLAG の値は、ほかの値と並べて `clopts_result_get_flag` で読む。
 
 ## 全体の流れ
@@ -61,7 +61,7 @@ taskbook の `run`、`finish`、`main` の抜粋を示す（宣言の部分と�
 static int run(const clopts_program_t *program, const clopts_result_t *result, const struct taskbook_options *opts)
 {
     const clopts_command_t *command = clopts_result_get_command(result);
-    const clopts_command_t *target;
+    const clopts_command_t *target = NULL;
 
     if (command == opts->add)
     {
@@ -75,12 +75,18 @@ static int run(const clopts_program_t *program, const clopts_result_t *result, c
     {
         return run_done(result, opts);
     }
-    /* help [COMMAND] */
-    if (!clopts_help_find_target(program, result, &target))
+    /* help [COMMAND]: without COMMAND, the help of the whole program */
+    if (clopts_result_get_positional_count(result) > 0)
     {
-        fprintf(stderr, "taskbook: error: unknown command '%s'\n", clopts_result_get_positional_at(result, 0));
-        clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
-        return 2;
+        const char *name = clopts_result_get_positional_at(result, 0);
+
+        target = clopts_program_find_command(program, name);
+        if (target == NULL)
+        {
+            fprintf(stderr, "taskbook: error: unknown command '%s'\n", name);
+            clopts_write_usage_hint(program, NULL, clopts_file_write, stderr);
+            return 2;
+        }
     }
     clopts_write_help(program, target, clopts_file_write, stdout);
     return 0;
@@ -372,7 +378,7 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 - オプションの短い名前: `-`、`=`、空白は使えない。
 - 位置引数の名前: NULL と空は不正である。
 - 環境変数の名前: 空のもの、`=` を含むもの、正しい UTF-8 でないものは不正である（どの OS でも、そういう名前の変数は引けない）。
-- 予約された名前はない。`help`、`h`、`version` もふつうの名前で、`--help` が要るなら終端の FLAG として、`help` コマンドが要るなら `clopts/text.h` の関数で宣言する（「[ヘルプのための宣言](#ヘルプのための宣言)」）。
+- 予約された名前はない。`help`、`h`、`version` もふつうの名前で、`--help` が要るなら終端の FLAG として、`help` コマンドが要るならサブコマンドとして宣言する（「[ヘルプのための宣言](#ヘルプのための宣言)」）。
 - オプションの名前は、グローバルオプションの中と、同じコマンドの中では重ねられない。グローバルオプションとサブコマンドのオプションの間では重ねてよい。サブコマンドが選ばれた後は、そのコマンドの名前が先に探されるので、同じ名前のグローバルオプションは隠れる（[解析規則](parsing.md) の章）。
 - サブコマンドの名前は、同じプログラムの中では重ねられない。
 
@@ -405,13 +411,13 @@ NULL の位置引数を読み取りの関数に渡すのは契約違反で、`as
 
 | 状態 | 意味 | 利用側の処理 |
 |------|------|--------------|
-| `CLOPTS_PARSE_OK` | 解析に成功した | `clopts_result_get_command` で選ばれたコマンドを見て処理を選び、値を読んで処理する。結果を標準出力へ出し、0 を返す。`help` コマンド（`clopts_help_command_create`）なら、`clopts_help_find_target` で対象を得てヘルプを出す |
+| `CLOPTS_PARSE_OK` | 解析に成功した | `clopts_result_get_command` で選ばれたコマンドを見て処理を選び、値を読んで処理する。結果を標準出力へ出し、0 を返す。`help` コマンドなら、位置引数の名前を `clopts_program_find_command` で引いて、そのヘルプを出す |
 | `CLOPTS_PARSE_TERMINATED` | 終端オプション（`clopts_option_set_terminal`）が argv に現れ、そこで解析を止めた。`clopts_result_get_terminal_option` がそのオプションを返す。必須のオプションと位置引数は検査されていない | `--help` なら `clopts_write_help` に `clopts_result_get_command` の値を渡してヘルプを、`--version` なら `clopts_write_version` で版を標準出力へ出し、0 を返す |
 | `CLOPTS_PARSE_NO_COMMAND` | サブコマンドのあるプログラムで、サブコマンドが現れなかった。読めるのはグローバルオプションの値だけ | `clopts_write_usage` と `clopts_write_usage_hint` を標準エラーへ出し、2 を返す |
 | `CLOPTS_PARSE_USAGE_ERROR` | argv に使い方の誤りがある（または、環境変数の値を UTF-8 で読めない） | `clopts_write_error`（`CLOPTS_PREFIX_PROGRAM` と `CLOPTS_PREFIX_ERROR`）と、`clopts_result_get_error_command` の値を渡した `clopts_write_usage_hint` を標準エラーへ出し、2 を返す |
 | `CLOPTS_PARSE_OUT_OF_MEMORY` | メモリの確保に失敗した（`getenv_fn` が `CLOPTS_ENV_FAILED` を返したときも） | `clopts_write_error` を標準エラーへ出し、1 を返す |
 
-解析は、ヘルプ・版・エラーを含めて何も出力せず、`exit()` も呼ばない。文面を出すかどうか、どの終了コードで終わるかは、利用側が状態を見て決める。解析器には組み込みのオプションもコマンドもない。`--help`、`--version`、`help` コマンドは、ふつうの宣言として `clopts/text.h` の関数で足す。
+解析は、ヘルプ・版・エラーを含めて何も出力せず、`exit()` も呼ばない。文面を出すかどうか、どの終了コードで終わるかは、利用側が状態を見て決める。解析器には組み込みのオプションもコマンドもない。`--help`、`--version`、`help` コマンドは、ふつうの宣言として足す。
 
 `CLOPTS_PARSE_NO_COMMAND` の例（`taskbook` を引数なしで実行する）:
 
@@ -682,12 +688,18 @@ CHECK(clopts_option_set_help(option, "Show this help"));
 CHECK(clopts_program_add_option(program, option));
 ```
 
-`help` コマンドは `clopts/text.h` の関数で作る。
+`help` コマンドも、ふつうのサブコマンドとして宣言する。taskbook は、省略できる位置引数 `COMMAND` を 1 つとる `help` コマンドをプログラムに渡している。
 
-| 関数 | 引数と戻り値 |
-|------|--------------|
-| `clopts_help_command_create`（`out`） | `help` という名前のサブコマンド（1 行の説明は `Show help for a command`、省略できる位置引数 `COMMAND`）を、どのプログラムにも渡していない状態で作り、`*out` に入れる。ほかのサブコマンドと同じに `clopts_program_add_command` で渡す |
-| `clopts_help_find_target`（`program, result, target`） | 状態が `CLOPTS_PARSE_OK` の結果で、最初の位置引数をヘルプの対象のコマンドの名前として読む。位置引数がなければ `*target` を NULL（プログラム全体のヘルプ）に、その名前のサブコマンドがあればそのコマンドにして true を返す。その名前のサブコマンドがないとき、または状態が `CLOPTS_PARSE_OK` でないときは `*target` を NULL にして false を返す |
+```c
+CHECK(clopts_command_create("help", &command));
+CHECK(clopts_command_set_summary(command, "Show help for a command"));
+CHECK(clopts_positional_create("COMMAND", &positional));
+CHECK(clopts_positional_set_help(positional, "Command to show help for"));
+CHECK(clopts_command_add_positional(command, positional));
+CHECK(clopts_program_add_command(program, command));
+```
+
+`help` コマンドが選ばれたら、位置引数があればその名前を `clopts_program_find_command` で引き、見つかったコマンドの（位置引数がなければプログラム全体の）ヘルプを `clopts_write_help` で出す。
 
 taskbook は、`taskbook help bogus` のように知らない名前を渡されたとき、自分でエラーの 1 行を出す。
 

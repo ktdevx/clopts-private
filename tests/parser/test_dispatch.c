@@ -667,7 +667,7 @@ NAOS_TEST(tool_single_dash_is_unknown_command)
 
 /*
  * "help" is not special before a subcommand: the tool fixture declares the
- * help command of clopts_help_command_create(), and "tool help" selects it.
+ * help command of test_decl_help_command(), and "tool help" selects it.
  */
 NAOS_TEST(tool_help_command_alone_selects_the_help_command)
 {
@@ -715,7 +715,7 @@ NAOS_TEST(tool_help_with_command_takes_it_as_positional)
 
 /*
  * The parser does not check the name given to the help command: an unknown
- * name is resolved later by clopts_help_find_target() of the text module.
+ * name is resolved later by the program (clopts_program_find_command()).
  */
 NAOS_TEST(tool_help_with_unknown_name_is_ok_at_parse_level)
 {

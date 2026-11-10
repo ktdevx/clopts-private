@@ -17,7 +17,7 @@
  *             SRC required, EXTRA variadic
  *     copy:   SRC required, DST required
  *     cat:    --tags LIST ',' (default "a,b", env TOOL_TAGS), FILE variadic
- *     help:   the help command of clopts_help_command_create() (COMMAND optional)
+ *     help:   the help command of test_decl_help_command() (COMMAND optional)
  *   filt         without subcommands, no --version
  *     -n/--lines VALUE (default "10", env FILT_LINES), -h/--help terminal,
  *     FILE variadic

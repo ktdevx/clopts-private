@@ -11,8 +11,8 @@
  * functions only.
  *
  * Nothing here is reserved: --help, --version and the help command are
- * ordinary options and commands, listed like any other one. The help command
- * is created by the helper of text_command.c.
+ * ordinary options and commands that the program declares, listed like any
+ * other one.
  */
 
 #include "text/text_internal.h"

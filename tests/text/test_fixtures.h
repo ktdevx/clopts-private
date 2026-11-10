@@ -19,7 +19,7 @@
  *             -k/--keys LIST <KEY> ',' (default "a,b"),
  *             SRC required, EXTRA optional variadic
  *     copy:   summary only, SRC required, DST required
- *     help:   the help command of clopts_help_command_create()
+ *     help:   the help command of test_decl_help_command()
  *   filt         without subcommands, no --version, with a description
  *     -n/--lines VALUE <N> (default "10", env FILT_LINES), -h/--help,
  *     FILE required variadic

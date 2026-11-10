@@ -230,7 +230,7 @@ NAOS_TEST(help_tool_copy_uses_the_summary)
 
 NAOS_TEST(help_tool_help_command)
 {
-    /* The help command of clopts_help_command_create() has a help like any other subcommand. */
+    /* The help command of the fixture has a help like any other subcommand. */
     static const char expected[] =
         "Usage: tool help [<options>] [<COMMAND>]\n"
         "\n"

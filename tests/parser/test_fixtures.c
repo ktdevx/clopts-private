@@ -211,11 +211,7 @@ void fixture_tool_init(fixture_tool_t *f)
     f->cat_file = test_decl_attach_positional(f->cat, f->cat_file);
 
     /* help */
-    if (f->program != NULL)
-    {
-        test_decl_check(clopts_help_command_create(&f->help_command));
-        f->help_command = test_decl_adopt(f->program, f->help_command);
-    }
+    f->help_command = test_decl_help_command(f->program);
 
     f->program = test_decl_finish(f->program);
     if (f->program == NULL)

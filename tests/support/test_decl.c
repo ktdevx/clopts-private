@@ -118,6 +118,25 @@ clopts_command_t *test_decl_command(clopts_program_t *program, const char *name)
     return test_decl_adopt(program, command);
 }
 
+clopts_command_t *test_decl_help_command(clopts_program_t *program)
+{
+    clopts_command_t *command = test_decl_command(program, "help");
+    clopts_positional_t *positional;
+
+    if (command == NULL)
+    {
+        return NULL;
+    }
+    test_decl_check(clopts_command_set_summary(command, "Show help for a command"));
+    positional = test_decl_positional("COMMAND");
+    if (positional != NULL)
+    {
+        test_decl_check(clopts_positional_set_help(positional, "Command to show help for"));
+    }
+    (void)test_decl_attach_positional(command, positional);
+    return command;
+}
+
 /* Releases the remembered commands of draft from index first on, and forgets draft. */
 static void test_decl_release_from(test_decl_draft_t *draft, size_t first)
 {

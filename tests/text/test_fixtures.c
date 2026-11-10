@@ -38,19 +38,6 @@ static void text_fixture_add_terminals(clopts_program_t *program, const clopts_o
     }
 }
 
-/* Makes the help command and remembers it as the last subcommand of program. */
-static clopts_command_t *text_fixture_add_help_command(clopts_program_t *program)
-{
-    clopts_command_t *command = NULL;
-
-    if (program == NULL)
-    {
-        return NULL;
-    }
-    test_decl_check(clopts_help_command_create(&command));
-    return test_decl_adopt(program, command);
-}
-
 /*
  * Adds the remembered commands to program; on failure everything was
  * released, so the fixture struct (size bytes at f) is cleared.
@@ -171,7 +158,7 @@ void text_fixture_tool_init(text_fixture_tool_t *f)
     }
     f->copy_dst = test_decl_attach_positional(f->copy, f->copy_dst);
 
-    f->help_command = text_fixture_add_help_command(f->program);
+    f->help_command = test_decl_help_command(f->program);
     f->program = text_fixture_finish(f->program, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
@@ -248,7 +235,7 @@ void text_fixture_bare_init(text_fixture_bare_t *f)
     {
         test_decl_check(clopts_command_set_summary(f->run, "Run the task"));
     }
-    f->help_command = text_fixture_add_help_command(f->program);
+    f->help_command = test_decl_help_command(f->program);
     f->program = text_fixture_finish(f->program, f, sizeof(*f));
     f->ok = (test_decl_failures == 0);
 }
