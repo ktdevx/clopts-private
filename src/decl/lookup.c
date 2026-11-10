@@ -18,6 +18,7 @@ static clopts_lookup_t long_in(const clopts_scope_t *scope, const char *name, si
 
     found.negated = false;
     found.option = clopts_scope_find_long(scope, name, name_len, &found.negated);
+
     return found;
 }
 
@@ -27,6 +28,7 @@ static clopts_lookup_t short_in(const clopts_scope_t *scope, char c)
 
     found.negated = false;
     found.option = clopts_scope_find_short(scope, c);
+
     return found;
 }
 
@@ -36,6 +38,7 @@ clopts_lookup_t clopts_lookup_long(const clopts_program_t *program, const clopts
     clopts_lookup_t found;
 
     assert((program != NULL) && (name != NULL));
+
     if (command != NULL)
     {
         found = long_in(clopts_command_get_scope(command), name, name_len);
@@ -44,6 +47,7 @@ clopts_lookup_t clopts_lookup_long(const clopts_program_t *program, const clopts
             return found;
         }
     }
+
     return long_in(clopts_program_get_scope(program), name, name_len);
 }
 
@@ -52,6 +56,7 @@ clopts_lookup_t clopts_lookup_short(const clopts_program_t *program, const clopt
     clopts_lookup_t found;
 
     assert(program != NULL);
+
     if (command != NULL)
     {
         found = short_in(clopts_command_get_scope(command), c);
@@ -60,5 +65,6 @@ clopts_lookup_t clopts_lookup_short(const clopts_program_t *program, const clopt
             return found;
         }
     }
+
     return short_in(clopts_program_get_scope(program), c);
 }

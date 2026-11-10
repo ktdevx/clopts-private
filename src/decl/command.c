@@ -94,15 +94,25 @@ void clopts_command_destroy(clopts_command_t *command)
 clopts_error_t clopts_command_set_summary(clopts_command_t *command, const char *summary)
 {
     assert(command != NULL);
-    return (clopts_strrep(&command->summary, summary) == 0) ? CLOPTS_ERROR_NONE
-                                                                         : CLOPTS_ERROR_OUT_OF_MEMORY;
+
+    if (clopts_strrep(&command->summary, summary) != 0)
+    {
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
+    }
+
+    return CLOPTS_ERROR_NONE;
 }
 
 clopts_error_t clopts_command_set_description(clopts_command_t *command, const char *description)
 {
     assert(command != NULL);
-    return (clopts_strrep(&command->description, description) == 0) ? CLOPTS_ERROR_NONE
-                                                                                 : CLOPTS_ERROR_OUT_OF_MEMORY;
+
+    if (clopts_strrep(&command->description, description) != 0)
+    {
+        return CLOPTS_ERROR_OUT_OF_MEMORY;
+    }
+
+    return CLOPTS_ERROR_NONE;
 }
 
 clopts_error_t clopts_command_add_option(clopts_command_t *command, clopts_option_t *option)
